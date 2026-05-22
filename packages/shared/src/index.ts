@@ -4,8 +4,18 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const CURRENCY_CODES = ["NZD", "USD", "HKD", "CNY", "AUD", "GBP", "EUR"] as const;
 export type CurrencyCode = (typeof CURRENCY_CODES)[number];
 
-export const MARKET_REGIONS = ["US", "HK", "CN", "NZ", "MULTI", "OTHER"] as const;
+export const MARKET_REGIONS = ["US", "HK", "CN", "NZ", "AU", "MULTI", "OTHER"] as const;
 export type MarketRegion = (typeof MARKET_REGIONS)[number];
+
+export const MARKET_REGION_LABELS: Record<MarketRegion, string> = {
+  US: "\u7f8e\u80a1",
+  HK: "\u6e2f\u80a1",
+  CN: "\u4e2d\u56fd\u5927\u9646",
+  NZ: "\u65b0\u897f\u5170",
+  AU: "\u6fb3\u5927\u5229\u4e9a",
+  MULTI: "\u591a\u5e02\u573a",
+  OTHER: "\u5176\u4ed6"
+};
 
 export const ASSET_TYPES = [
   "stock",
@@ -17,6 +27,41 @@ export const ASSET_TYPES = [
   "other"
 ] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
+
+export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  stock: "\u80a1\u7968",
+  etf: "ETF",
+  pie_fund: "PIE \u57fa\u91d1",
+  mutual_fund: "\u5171\u540c\u57fa\u91d1",
+  cash: "\u73b0\u91d1",
+  bond: "\u503a\u5238",
+  other: "\u5176\u4ed6"
+};
+
+export const PRICE_SOURCES = [
+  "manual",
+  "yahoo_finance",
+  "alpha_vantage",
+  "stooq",
+  "twelvedata",
+  "eastmoney",
+  "sina",
+  "investnow_manual",
+  "custom"
+] as const;
+export type PriceSource = (typeof PRICE_SOURCES)[number];
+
+export const PRICE_SOURCE_LABELS: Record<PriceSource, string> = {
+  manual: "\u624b\u52a8",
+  yahoo_finance: "Yahoo Finance",
+  alpha_vantage: "Alpha Vantage",
+  stooq: "Stooq",
+  twelvedata: "Twelve Data",
+  eastmoney: "\u4e1c\u65b9\u8d22\u5bcc",
+  sina: "\u65b0\u6d6a\u8d22\u7ecf",
+  investnow_manual: "InvestNow \u624b\u52a8",
+  custom: "\u81ea\u5b9a\u4e49"
+};
 
 export const TRANSACTION_TYPES = [
   "buy",
@@ -36,8 +81,18 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 export interface Profile {
   id: string;
-  email: string;
+  email: string | null;
   displayName: string | null;
+  preferredCurrency: CurrencyCode;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserRoleRecord {
+  id: string;
+  userId: string;
+  role: UserRole;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,21 +106,38 @@ export interface AuthenticatedUser {
 export interface InvestmentAccount {
   id: string;
   name: string;
-  platform: string;
+  broker: string | null;
   accountType: AccountType;
   baseCurrency: CurrencyCode;
-  primaryMarket: MarketRegion;
+  marketRegion: MarketRegion;
+  notes: string | null;
+  createdByUserId: string | null;
+  updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Instrument {
   id: string;
-  symbol: string;
+  symbol: string | null;
   name: string;
-  market: MarketRegion;
+  description: string | null;
+  marketRegion: MarketRegion;
+  exchange: string | null;
   currency: CurrencyCode;
   assetType: AssetType;
+  isin: string | null;
+  provider: string | null;
+  priceSource: PriceSource;
+  priceSourceSymbol: string | null;
+  priceSourceExchange: string | null;
+  priceUpdateEnabled: boolean;
+  priceUpdatePriority: number;
+  sourceUrl: string | null;
+  sourceCheckedAt: string | null;
+  createdByUserId: string | null;
+  updatedByUserId: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -73,12 +145,20 @@ export interface Instrument {
 export interface InvestmentTransaction {
   id: string;
   accountId: string;
-  instrumentId: string | null;
+  instrumentId: string;
   transactionType: TransactionType;
   tradeDate: string;
+  settlementDate: string | null;
   quantity: string | null;
-  amount: string;
+  price: string | null;
+  grossAmount: string | null;
+  fee: string;
+  tax: string;
   currency: CurrencyCode;
+  fxRateToNzd: string | null;
+  notes: string | null;
+  createdByUserId: string | null;
+  updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -90,26 +170,34 @@ export interface PriceRecord {
   closePrice: string;
   currency: CurrencyCode;
   source: string | null;
+  sourceSymbol: string | null;
+  isAdjusted: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface FxRateRecord {
   id: string;
-  baseCurrency: CurrencyCode;
-  quoteCurrency: CurrencyCode;
+  fromCurrency: CurrencyCode;
+  toCurrency: CurrencyCode;
   rateDate: string;
   rate: string;
   source: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface PortfolioSnapshot {
   id: string;
   snapshotDate: string;
-  totalValueNzd: string;
-  costBasisNzd: string;
-  unrealizedGainNzd: string;
+  totalMarketValueNzd: string | null;
+  totalCostNzd: string | null;
+  unrealizedGainNzd: string | null;
+  dailyChangeNzd: string | null;
+  dailyChangePct: string | null;
+  notes: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ApiError {

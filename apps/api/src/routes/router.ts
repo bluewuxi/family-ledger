@@ -4,33 +4,33 @@ import { getDashboard } from "../services/dashboardService";
 import { getHoldings } from "../services/holdingService";
 import { getInstruments } from "../services/instrumentService";
 import { getTransactions } from "../services/transactionService";
-import { ApiAuthError, requireAuth } from "../auth/auth";
+import { ApiAuthError, requireRole } from "../auth/auth";
 import { failure, success } from "../utils/response";
 
 type RouteHandler = (event: APIGatewayProxyEventV2) => Promise<APIGatewayProxyStructuredResultV2>;
 
 const routes: Record<string, RouteHandler> = {
   "GET /health": async () => success({ status: "ok" }),
-  "GET /me": async (event) => success({ user: await requireAuth(event) }),
+  "GET /me": async (event) => success({ user: await requireRole(event, "viewer") }),
   "GET /accounts": async (event) => {
-    await requireAuth(event);
-    return success({ accounts: await getAccounts() });
+    const user = await requireRole(event, "viewer");
+    return success({ user, accounts: await getAccounts() });
   },
   "GET /instruments": async (event) => {
-    await requireAuth(event);
-    return success({ instruments: await getInstruments() });
+    const user = await requireRole(event, "viewer");
+    return success({ user, instruments: await getInstruments() });
   },
   "GET /transactions": async (event) => {
-    await requireAuth(event);
-    return success({ transactions: await getTransactions() });
+    const user = await requireRole(event, "viewer");
+    return success({ user, transactions: await getTransactions() });
   },
   "GET /holdings": async (event) => {
-    await requireAuth(event);
-    return success({ holdings: await getHoldings() });
+    const user = await requireRole(event, "viewer");
+    return success({ user, holdings: await getHoldings() });
   },
   "GET /dashboard": async (event) => {
-    await requireAuth(event);
-    return success({ dashboard: await getDashboard() });
+    const user = await requireRole(event, "viewer");
+    return success({ user, dashboard: await getDashboard() });
   }
 };
 

@@ -475,6 +475,7 @@ Do not hard-code:
 - credentials
 
 Use environment variables and deployment configuration.
+Environment files store SSM parameter paths only. Sensitive values are stored in AWS SSM Parameter Store and resolved by API/jobs/server-side scripts at runtime.
 
 Expected environment variables:
 
@@ -486,8 +487,14 @@ VITE_API_BASE_URL=
 
 # Server-side Lambda only
 SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_JWT_SECRET=
+SUPABASE_SECRET_KEY_SSM_PARAM=
+SUPABASE_JWT_SECRET_SSM_PARAM=
+SUPABASE_DB_PASSWORD_SSM_PARAM=
+SUPABASE_DB_HOST=
+SUPABASE_DB_NAME=
+SUPABASE_DB_USER=
+SUPABASE_DB_TRANSACTION_PORT=
+SUPABASE_DB_SESSION_PORT=
 
 # AWS
 AWS_REGION=

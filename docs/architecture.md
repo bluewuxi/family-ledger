@@ -19,14 +19,18 @@ EventBridge
 - `apps/api`: Lambda API behind API Gateway.
 - `apps/jobs`: EventBridge-triggered Lambda jobs.
 - `packages/shared`: shared TypeScript types and constants.
-- `supabase`: future migrations and seed data.
+- `supabase/migrations`: Supabase schema migrations.
 
 ## Boundaries
 
-The frontend handles Chinese UI, routing, forms, display formatting, basic validation, Supabase Auth login, and Lambda API calls.
+The frontend uses Supabase only for Auth: login, session reading, and access token acquisition. Business data access goes through the Lambda API.
 
-Business logic belongs in Lambda API services, not React components. Handlers parse HTTP requests, services apply business rules, repositories access Supabase Postgres, and auth utilities enforce viewer/admin permissions.
+The Lambda API verifies the Supabase access token, loads the current user role from `user_roles`, enforces `viewer` / `admin` permissions, and uses a server-side Supabase client for trusted database access.
 
-Supabase Postgres provides persistence and integrity through foreign keys, check constraints, unique constraints, indexes, and `numeric` financial values.
+The family ledger data is shared. Core business tables do not have per-user ownership; user references on business records are audit fields only.
 
-There is no always-on backend server.
+API and jobs resolve sensitive server-side values from AWS SSM Parameter Store. Decrypted values must stay in backend runtime memory and must never be exposed to frontend code.
+
+Jobs use trusted server-side Supabase access and will later run as Lambda functions triggered by EventBridge. Future price update jobs will use `instruments.price_source` configuration.
+
+There is no always-on backend server. Lambda API is the primary business authorization layer, Supabase RLS is defensive, and the frontend must not write investment business tables directly.

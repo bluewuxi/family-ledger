@@ -23,13 +23,21 @@ Failure:
 }
 ```
 
-Stable error codes include `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `NOT_FOUND`, and `INTERNAL_ERROR`.
+Stable error codes:
+
+- `UNAUTHORIZED`
+- `FORBIDDEN`
+- `VALIDATION_ERROR`
+- `NOT_FOUND`
+- `INTERNAL_ERROR`
 
 ## Public
 
 - `GET /health`
 
-## Authenticated Read
+## Viewer/Admin Read
+
+These endpoints require a valid Supabase Bearer token and an active `viewer` or `admin` role:
 
 - `GET /me`
 - `GET /dashboard`
@@ -37,6 +45,8 @@ Stable error codes include `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `NOT
 - `GET /accounts`
 - `GET /instruments`
 - `GET /transactions`
+
+Stage 1 returns placeholder business data. Real CRUD is planned for Stage 2.
 
 ## Admin Write APIs Planned Later
 
@@ -53,5 +63,3 @@ Stable error codes include `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `NOT
 ## Admin Maintenance APIs Planned Later
 
 - `POST /jobs/recalculate`
-
-Stage 0 only includes placeholder read routes and no real database access.

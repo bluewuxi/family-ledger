@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../lib/authContext";
 
 const navigationItems = [
   { to: "/dashboard", label: "仪表盘" },
@@ -15,6 +16,14 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  async function handleSignOut() {
+    await signOut();
+    navigate("/login", { replace: true });
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -33,6 +42,10 @@ export function Layout({ children }: LayoutProps) {
             </NavLink>
           ))}
         </nav>
+
+        <button className="logout-button" type="button" onClick={handleSignOut}>
+          退出登录
+        </button>
       </aside>
 
       <main className="main-content">{children}</main>

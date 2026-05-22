@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { AuthProvider, useAuth } from "./lib/authContext";
 import { AccountsPage } from "./pages/AccountsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HoldingsPage } from "./pages/HoldingsPage";
@@ -23,19 +24,31 @@ function AppRoutes() {
 }
 
 export function App() {
-  // TODO: Read current session and route unauthenticated users to 登录.
   // TODO: Add role-based UI display once Lambda API returns viewer/admin role.
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="*"
-        element={
-          <Layout>
-            <AppRoutes />
-          </Layout>
-        }
-      />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<ProtectedApp />} />
+      </Routes>
+    </AuthProvider>
+  );
+}
+
+function ProtectedApp() {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return <main className="loading-page">正在加载...</main>;
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <Layout>
+      <AppRoutes />
+    </Layout>
   );
 }

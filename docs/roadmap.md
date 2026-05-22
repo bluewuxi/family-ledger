@@ -15,7 +15,7 @@
 - Initial database migrations
 - `profiles`
 - `user_roles`
-- Core business tables
+- Shared core business tables with audit fields
 - Supabase JWT verification in Lambda API
 - Role loading
 
@@ -38,6 +38,7 @@
 
 - Price records
 - FX rates
+- Price-source adapters for `yahoo_finance`, `eastmoney`, and `investnow_manual`
 - EventBridge jobs
 - Portfolio snapshots
 
