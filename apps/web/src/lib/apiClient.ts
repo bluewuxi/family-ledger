@@ -13,7 +13,12 @@ export class ApiClientError extends Error {
   }
 }
 
-export async function apiRequest<T>(path: string): Promise<T> {
+interface ApiRequestOptions {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: unknown;
+}
+
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   if (!apiBaseUrl) {
     throw new ApiClientError("缺少 API 地址配置。", "MISSING_API_BASE_URL");
   }
@@ -26,11 +31,13 @@ export async function apiRequest<T>(path: string): Promise<T> {
   }
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: "GET",
+    method: options.method ?? "GET",
     headers: {
       accept: "application/json",
+      ...(options.body === undefined ? {} : { "content-type": "application/json" }),
       authorization: `Bearer ${token}`
-    }
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body)
   });
 
   const body = (await response.json()) as ApiResponse<T>;
@@ -43,4 +50,18 @@ export async function apiRequest<T>(path: string): Promise<T> {
   return body.data;
 }
 
-export const apiGet = apiRequest;
+export function apiGet<T>(path: string): Promise<T> {
+  return apiRequest<T>(path);
+}
+
+export function apiPost<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>(path, { method: "POST", body });
+}
+
+export function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>(path, { method: "PUT", body });
+}
+
+export function apiDelete<T>(path: string): Promise<T> {
+  return apiRequest<T>(path, { method: "DELETE" });
+}

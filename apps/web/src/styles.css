@@ -18,7 +18,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -118,6 +119,118 @@ input {
 .page-header p {
   margin: 0;
   color: #68655e;
+}
+
+.account-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.account-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.form-heading,
+.wide-field,
+.form-actions {
+  grid-column: 1 / -1;
+}
+
+.form-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.form-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.form-heading span,
+.readonly-note {
+  color: #68655e;
+}
+
+.account-form label {
+  display: grid;
+  gap: 8px;
+  color: #3d3b36;
+  font-size: 14px;
+}
+
+.account-form input,
+.account-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cfcac0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #20231f;
+  padding: 10px 12px;
+}
+
+.form-actions,
+.table-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.primary-button,
+.secondary-button,
+.text-button,
+.danger-button {
+  min-height: 38px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 0;
+  background: #23443b;
+  color: #ffffff;
+}
+
+.secondary-button {
+  border: 1px solid #cfcac0;
+  background: #ffffff;
+  color: #3d3b36;
+}
+
+.text-button {
+  border: 1px solid #c7d5ce;
+  background: #edf4f0;
+  color: #18382f;
+}
+
+.danger-button {
+  border: 1px solid #e0b4aa;
+  background: #fff6f3;
+  color: #963628;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.text-button:disabled,
+.danger-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.readonly-note {
+  margin: 0 0 16px;
 }
 
 .metric-grid {
@@ -309,6 +422,15 @@ td {
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-header,
+  .form-heading {
+    display: grid;
+  }
+
+  .account-form {
+    grid-template-columns: 1fr;
   }
 }
 

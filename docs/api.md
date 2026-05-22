@@ -46,13 +46,78 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /instruments`
 - `GET /transactions`
 
-Stage 1 returns placeholder business data. Real CRUD is planned for Stage 2.
+`GET /accounts` returns real account data from `investment_accounts`.
 
-## Admin Write APIs Planned Later
+Response data:
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "role": "viewer"
+  },
+  "accounts": []
+}
+```
+
+Other read endpoints still return placeholder or derived data until their Stage 2/3 implementation.
+
+## Account Write APIs
+
+These endpoints require a valid Supabase Bearer token and an active `admin` role:
 
 - `POST /accounts`
 - `PUT /accounts/:id`
 - `DELETE /accounts/:id`
+
+Create request:
+
+```json
+{
+  "name": "Hatch 美股账户",
+  "broker": "Hatch",
+  "accountType": "brokerage",
+  "baseCurrency": "USD",
+  "marketRegion": "US",
+  "notes": "可选备注"
+}
+```
+
+Update request accepts one or more of the same fields.
+
+Create/update response data:
+
+```json
+{
+  "account": {
+    "id": "uuid",
+    "name": "Hatch 美股账户",
+    "broker": "Hatch",
+    "accountType": "brokerage",
+    "baseCurrency": "USD",
+    "marketRegion": "US",
+    "notes": "可选备注",
+    "createdByUserId": "uuid",
+    "updatedByUserId": "uuid",
+    "createdAt": "2026-05-22T00:00:00.000Z",
+    "updatedAt": "2026-05-22T00:00:00.000Z"
+  }
+}
+```
+
+Delete response data:
+
+```json
+{
+  "deleted": true
+}
+```
+
+Account validation errors return `VALIDATION_ERROR`. Missing accounts return `NOT_FOUND`.
+
+## Admin Write APIs Planned Later
+
 - `POST /instruments`
 - `PUT /instruments/:id`
 - `DELETE /instruments/:id`

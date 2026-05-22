@@ -79,6 +79,14 @@ export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 export const ACCOUNT_TYPES = ["brokerage", "fund_platform", "bank", "retirement", "other"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  brokerage: "\u5238\u5546\u8d26\u6237",
+  fund_platform: "\u57fa\u91d1\u5e73\u53f0",
+  bank: "\u94f6\u884c\u8d26\u6237",
+  retirement: "\u9000\u4f11\u8d26\u6237",
+  other: "\u5176\u4ed6"
+};
+
 export interface Profile {
   id: string;
   email: string | null;
@@ -115,6 +123,24 @@ export interface InvestmentAccount {
   updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateInvestmentAccountInput {
+  name: string;
+  broker?: string | null;
+  accountType: AccountType;
+  baseCurrency: CurrencyCode;
+  marketRegion: MarketRegion;
+  notes?: string | null;
+}
+
+export interface UpdateInvestmentAccountInput {
+  name?: string;
+  broker?: string | null;
+  accountType?: AccountType;
+  baseCurrency?: CurrencyCode;
+  marketRegion?: MarketRegion;
+  notes?: string | null;
 }
 
 export interface Instrument {
