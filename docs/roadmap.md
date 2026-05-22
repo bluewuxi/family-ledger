@@ -1,0 +1,57 @@
+# Roadmap
+
+## Stage 0: Project Foundation
+
+- Monorepo setup
+- Frontend skeleton
+- API skeleton
+- Jobs skeleton
+- Shared types
+- Documentation
+- CI
+
+## Stage 1: Supabase Schema, Auth Verification, and Role Model
+
+- Initial database migrations
+- `profiles`
+- `user_roles`
+- Core business tables
+- Supabase JWT verification in Lambda API
+- Role loading
+
+## Stage 2: CRUD Through Lambda API
+
+- Account CRUD
+- Instrument CRUD
+- Transaction CRUD
+- Admin-only write APIs
+- Viewer read APIs
+
+## Stage 3: Holdings and Dashboard
+
+- Holdings calculation
+- Portfolio summary
+- Account summary
+- Market and currency allocation
+
+## Stage 4: Prices, FX, and Scheduled Jobs
+
+- Price records
+- FX rates
+- EventBridge jobs
+- Portfolio snapshots
+
+## Stage 5: Tax-Assist and Reports
+
+- Tax notes
+- Tax-year summaries
+- CSV export
+- Report generation
+
+## Stage 6: Deployment Hardening and Backup/Export
+
+- S3 deployment
+- API Gateway/Lambda deployment
+- Secrets handling
+- Backup/export
+- Monitoring/logging

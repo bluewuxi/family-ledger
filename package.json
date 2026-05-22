@@ -1,0 +1,14 @@
+{
+  "name": "family-ledger",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev:web": "corepack pnpm --filter @family-ledger/web dev",
+    "build": "corepack pnpm --filter @family-ledger/shared build && corepack pnpm --filter @family-ledger/api build && corepack pnpm --filter @family-ledger/jobs build && corepack pnpm --filter @family-ledger/web build",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
