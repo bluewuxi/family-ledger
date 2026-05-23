@@ -55,6 +55,21 @@ Transactions are entered through the Lambda API and always reference an account 
 - `adjustment` records store a non-negative `gross_amount` and use `adjustment_direction` (`increase` or `decrease`) to describe direction.
 - `fx_rate_to_nzd` remains optional manual input until scheduled FX handling is implemented.
 
+## Derived Holdings
+
+Holdings are a read-only derived view calculated by the Lambda API from transaction history, grouped by account and instrument. No separate holdings table is introduced.
+
+- Security quantities and remaining carrying cost use weighted average cost in the instrument currency.
+- Buys add `gross_amount + fee + tax` to carrying cost; sells remove units at the prior average unit cost. Sell-side fees and taxes are not included in remaining carrying cost.
+- Dividends do not change security quantity or carrying cost.
+- Cash balances use only transactions explicitly linked to cash instruments: deposits and interest increase balance; withdrawals, fees, and taxes reduce balance; adjustments use their recorded direction.
+- A security trade does not implicitly update a cash instrument balance.
+- Final zero positions are omitted.
+- A negative cash balance is returned with `NEGATIVE_POSITION`.
+- A security position that becomes negative is returned with `NEGATIVE_POSITION` and `COST_BASIS_UNAVAILABLE`, and its average cost and remaining cost are null.
+
+This stage reports only native-currency quantity and carrying cost. Market price, FX conversion, market value, realized gain, unrealized gain, dashboard totals, and allocation calculations remain deferred.
+
 ## Seeded Instruments
 
 Initial seed data under `supabase/seed/001_seed_instruments.sql` populates the shared instrument master list only. It includes metadata such as market region, exchange, currency, asset type, price-source configuration, source URL, and source verification timestamp.
@@ -76,7 +91,7 @@ Seeded instruments:
 - FS_TOTAL_WORLD
 - FS_US_500
 
-Seed data does not include transactions, holdings, current prices, FX rates, or portfolio snapshots.
+Seed data does not include transactions, current prices, FX rates, or portfolio snapshots. Holdings are calculated from transactions rather than seeded or persisted separately.
 
 ## Financial Values
 

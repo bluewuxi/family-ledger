@@ -284,6 +284,23 @@ export interface UpdateInvestmentTransactionInput {
   notes?: string | null;
 }
 
+export const HOLDING_WARNINGS = ["NEGATIVE_POSITION", "COST_BASIS_UNAVAILABLE"] as const;
+export type HoldingWarning = (typeof HOLDING_WARNINGS)[number];
+
+export interface HoldingSummary {
+  accountId: string;
+  accountName: string;
+  instrumentId: string;
+  instrumentSymbol: string | null;
+  instrumentName: string;
+  assetType: AssetType;
+  currency: CurrencyCode;
+  quantity: string;
+  averageUnitCost: string | null;
+  costAmount: string | null;
+  warnings: HoldingWarning[];
+}
+
 export interface PriceRecord {
   id: string;
   instrumentId: string;

@@ -49,6 +49,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending.
+`GET /holdings` returns current calculated positions and cash balances derived from transaction history.
 
 Response data:
 
@@ -63,7 +64,39 @@ Response data:
 }
 ```
 
-Dashboard and holdings endpoints still return placeholder or derived data until their Stage 3 implementation.
+Dashboard remains a placeholder until its later Stage 3 work.
+
+### Holdings Read API
+
+`GET /holdings` is available to authenticated `viewer` and `admin` users. It returns one non-zero row for each account and instrument combination:
+
+```json
+{
+  "holdings": [
+    {
+      "accountId": "uuid",
+      "accountName": "Hatch 美股账户",
+      "instrumentId": "uuid",
+      "instrumentSymbol": "VGT",
+      "instrumentName": "Vanguard Information Technology ETF",
+      "assetType": "etf",
+      "currency": "USD",
+      "quantity": "15",
+      "averageUnitCost": "15.15",
+      "costAmount": "227.25",
+      "warnings": []
+    }
+  ]
+}
+```
+
+Transactions are processed by trade date and creation time ascending. Security holdings use weighted average cost: buys add `grossAmount + fee + tax`, sells reduce remaining carrying cost using the prior average unit cost, and dividends do not alter holdings. Security sell fees and taxes do not alter remaining carrying cost.
+
+Cash holdings are calculated only from transactions explicitly linked to cash instruments. Deposits and interest increase balances; withdrawals, fees, and taxes decrease balances; adjustments apply their stated direction. Security trades do not implicitly create cash movements.
+
+Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
+
+All amounts are returned in the instrument currency. Market value, FX-to-NZD conversion, unrealized gain, and allocation fields are intentionally deferred.
 
 ## Account Write APIs
 

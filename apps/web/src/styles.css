@@ -311,6 +311,26 @@ table {
   min-width: 1220px;
 }
 
+.holding-table {
+  min-width: 980px;
+}
+
+.holding-warnings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.warning-pill {
+  display: inline-block;
+  border: 1px solid #e0b4aa;
+  border-radius: 999px;
+  background: #fff6f3;
+  color: #963628;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 th,
 td {
   padding: 14px 16px;

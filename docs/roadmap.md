@@ -29,10 +29,10 @@
 
 ## Stage 3: Holdings and Dashboard
 
-- Holdings calculation
-- Portfolio summary
-- Account summary
-- Market and currency allocation
+- Holdings calculation (implemented: native-currency quantity, cash balance, and average-cost carrying value)
+- Portfolio summary (pending)
+- Account summary (pending)
+- Market and currency allocation (pending)
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
