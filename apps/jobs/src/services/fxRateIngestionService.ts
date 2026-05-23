@@ -156,13 +156,10 @@ export async function ingestLatestFrankfurterFxRates(
   } catch (error) {
     const finishedAt = now().toISOString();
     const errorMessage = sanitizeErrorMessage(error);
-    await jobRunRepository.finishDataProviderRun(dataProviderRun.id, {
-      status: "failed",
-      finishedAt,
-      errorMessage
-    });
-    await jobRunRepository.finishJobRun(jobRun.id, {
-      status: "failed",
+    await markRunFailedBestEffort({
+      jobRunRepository,
+      jobRunId: jobRun.id,
+      dataProviderRunId: dataProviderRun.id,
       finishedAt,
       errorMessage
     });
@@ -212,4 +209,38 @@ function sanitizeErrorMessage(error: unknown): string {
   }
 
   return "Unknown FX ingestion error.";
+}
+
+async function markRunFailedBestEffort(input: {
+  jobRunRepository: JobRunRepository;
+  jobRunId: string;
+  dataProviderRunId: string;
+  finishedAt: string;
+  errorMessage: string;
+}): Promise<void> {
+  try {
+    await input.jobRunRepository.finishDataProviderRun(input.dataProviderRunId, {
+      status: "failed",
+      finishedAt: input.finishedAt,
+      errorMessage: input.errorMessage
+    });
+  } catch (failureMarkingError) {
+    console.error("Failed to mark FX data provider run as failed.", {
+      dataProviderRunId: input.dataProviderRunId,
+      errorMessage: sanitizeErrorMessage(failureMarkingError)
+    });
+  }
+
+  try {
+    await input.jobRunRepository.finishJobRun(input.jobRunId, {
+      status: "failed",
+      finishedAt: input.finishedAt,
+      errorMessage: input.errorMessage
+    });
+  } catch (failureMarkingError) {
+    console.error("Failed to mark FX job run as failed.", {
+      jobRunId: input.jobRunId,
+      errorMessage: sanitizeErrorMessage(failureMarkingError)
+    });
+  }
 }

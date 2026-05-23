@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { ScheduledEvent } from "aws-lambda";
 import type {
   CreateExchangeRateInput,
   DataKind,
@@ -7,8 +8,10 @@ import type {
   JobRun
 } from "@family-ledger/shared";
 import type { IFxRateProvider } from "../apps/jobs/src/providers/IFxRateProvider";
+import { createUpdateFxRatesHandler } from "../apps/jobs/src/handlers/updateFxRates";
 import {
   FRANKFURTER_FX_JOB_NAME,
+  type FxRateIngestionResult,
   ingestLatestFrankfurterFxRates,
   toExchangeRateInputs
 } from "../apps/jobs/src/services/fxRateIngestionService";
@@ -150,6 +153,23 @@ async function main(): Promise<void> {
   assert.ok(failureCalls.includes("provider:finish:failed:0:0:mock provider failure"));
   assert.ok(failureCalls.includes("job:finish:failed:0:0:mock provider failure"));
 
+  const handlerCalls: string[] = [];
+  const handler = createUpdateFxRatesHandler({
+    async ingestLatestFrankfurterFxRates() {
+      handlerCalls.push("handler:ingest");
+      return fxRateIngestionResult();
+    }
+  });
+  await withMutedConsole(() => handler(scheduledEvent()));
+  assert.deepEqual(handlerCalls, ["handler:ingest"]);
+
+  const failingHandler = createUpdateFxRatesHandler({
+    async ingestLatestFrankfurterFxRates() {
+      throw new Error("mock handler failure");
+    }
+  });
+  await assert.rejects(withMutedConsole(() => failingHandler(scheduledEvent())), /mock handler failure/);
+
   console.log("Frankfurter ingestion verification: success");
 }
 
@@ -278,4 +298,59 @@ function providerRunRecord(id: string, jobRunId: string): DataProviderRun {
     createdAt: "2026-05-23T01:00:00.000Z",
     updatedAt: "2026-05-23T01:00:00.000Z"
   };
+}
+
+function fxRateIngestionResult(): FxRateIngestionResult {
+  const jobRun = {
+    ...jobRunRecord("handler-job-run-id"),
+    status: "succeeded" as const,
+    jobFinishedAt: "2026-05-23T01:30:00.000Z",
+    recordsInserted: 7,
+    recordsSkipped: 0
+  };
+
+  return {
+    jobRun,
+    dataProviderRun: {
+      ...providerRunRecord("handler-provider-run-id", jobRun.id),
+      status: "succeeded",
+      providerFinishedAt: "2026-05-23T01:30:00.000Z",
+      recordsInserted: 7,
+      recordsSkipped: 0
+    },
+    rateDate: "2026-05-22",
+    fetchedAt: "2026-05-23T01:00:00.000Z",
+    provider: "Frankfurter",
+    recordsInserted: 7,
+    recordsSkipped: 0,
+    exchangeRates: []
+  };
+}
+
+function scheduledEvent(): ScheduledEvent {
+  return {
+    version: "0",
+    id: "scheduled-event-id",
+    "detail-type": "Scheduled Event",
+    source: "aws.events",
+    account: "123456789012",
+    time: "2026-05-23T01:00:00Z",
+    region: "ap-southeast-2",
+    resources: ["arn:aws:events:ap-southeast-2:123456789012:rule/family-ledger-update-fx-rates"],
+    detail: {}
+  };
+}
+
+async function withMutedConsole(action: () => Promise<void>): Promise<void> {
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = () => undefined;
+  console.error = () => undefined;
+
+  try {
+    await action();
+  } finally {
+    console.log = originalLog;
+    console.error = originalError;
+  }
 }

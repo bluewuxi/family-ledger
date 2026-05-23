@@ -37,9 +37,12 @@
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
 - USD-centered price/FX storage foundation (implemented: currencies, exchange rates, instrument prices, job/provider run audit tables)
-- Price/FX maintenance and automated record updates
+- Frankfurter FX maintenance handler (implemented: scheduled Lambda handler calls ingestion service, logs structured EventBridge context, and relies on retry-safe inserts)
+- Scheduled execution policy (implemented in docs: daily 01:00 UTC with EventBridge retry attempts `2` and maximum event age `1 hour`; AWS resources not deployed yet)
+- Retry/job logging hardening (implemented for FX ingestion with durable job/provider run status and best-effort failure finalization)
+- Price maintenance and automated instrument price updates
 - Price-source adapters for `yahoo_finance`, `eastmoney`, and `investnow_manual`
-- EventBridge jobs
+- EventBridge jobs for prices and snapshots
 - Portfolio snapshots
 
 ## Stage 5: Tax-Assist and Reports

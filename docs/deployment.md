@@ -21,6 +21,41 @@ Deployment is not implemented in Stage 0.
 - Trigger scheduled jobs with EventBridge.
 - Planned jobs include price updates, FX updates, and portfolio snapshots.
 
+## Scheduled Jobs
+
+Phase 3 documents the production schedule and retry policy, but does not deploy AWS resources or introduce an IaC framework.
+
+Configure the FX update Lambda handler exported as `updateFxRates` from `apps/jobs` with an EventBridge schedule:
+
+```text
+cron(0 1 * * ? *)
+```
+
+This runs daily at 01:00 UTC.
+
+Recommended EventBridge target settings:
+
+- Maximum retry attempts: `2`
+- Maximum event age: `1 hour`
+- Dead-letter queue: optional before production, recommended before relying on unattended operation
+
+The Lambda handler must throw on failed ingestion so EventBridge can retry. Duplicate retries are handled by the database uniqueness constraint on exchange rates and the repository insert-if-not-exists behavior. Each attempt creates a `job_runs` row and provider-level `data_provider_runs` row; successful duplicate attempts should record skipped rows instead of duplicate exchange-rate records.
+
+Structured CloudWatch logs should include:
+
+```text
+jobName
+eventId
+eventTime
+status
+jobRunId
+recordsInserted
+recordsSkipped
+errorMessage
+```
+
+Do not log decrypted SSM parameter values, Supabase service keys, JWT secrets, database passwords, or raw provider responses that may include sensitive metadata.
+
 ## Secrets
 
 Use AWS Secrets Manager or SSM Parameter Store for production secrets such as Supabase secret keys, JWT configuration, and database passwords. Do not hard-code account IDs, ARNs, credentials, or secret values.
