@@ -134,7 +134,7 @@ export async function deleteInstrument(id: string): Promise<void> {
   const supabase = await getSupabaseAdmin();
   const [transactionReference, priceReference] = await Promise.all([
     supabase.from("transactions").select("id").eq("instrument_id", id).limit(1).maybeSingle<{ id: string }>(),
-    supabase.from("prices").select("id").eq("instrument_id", id).limit(1).maybeSingle<{ id: string }>()
+    supabase.from("instrument_prices").select("id").eq("instrument_id", id).limit(1).maybeSingle<{ id: string }>()
   ]);
 
   if (transactionReference.error || priceReference.error) {

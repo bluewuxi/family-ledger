@@ -4,6 +4,15 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const CURRENCY_CODES = ["NZD", "USD", "HKD", "CNY", "AUD", "GBP", "EUR"] as const;
 export type CurrencyCode = (typeof CURRENCY_CODES)[number];
 
+export const RATE_TYPES = ["valuation", "tax"] as const;
+export type RateType = (typeof RATE_TYPES)[number];
+
+export const JOB_RUN_STATUSES = ["started", "succeeded", "failed"] as const;
+export type JobRunStatus = (typeof JOB_RUN_STATUSES)[number];
+
+export const DATA_KINDS = ["exchange_rates", "instrument_prices"] as const;
+export type DataKind = (typeof DATA_KINDS)[number];
+
 export const MARKET_REGIONS = ["US", "HK", "CN", "NZ", "AU", "MULTI", "OTHER"] as const;
 export type MarketRegion = (typeof MARKET_REGIONS)[number];
 
@@ -129,6 +138,15 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   role: UserRole;
+}
+
+export interface Currency {
+  code: CurrencyCode;
+  name: string;
+  minorUnit: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InvestmentAccount {
@@ -346,6 +364,84 @@ export interface FxRateRecord {
   rateDate: string;
   rate: string;
   source: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InstrumentPriceRecord {
+  id: string;
+  instrumentId: string;
+  priceDate: string;
+  closePrice: string;
+  currency: CurrencyCode;
+  provider: string;
+  sourceSymbol: string | null;
+  isAdjusted: boolean;
+  fetchedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateInstrumentPriceInput {
+  instrumentId: string;
+  priceDate: string;
+  closePrice: string;
+  currency: CurrencyCode;
+  provider: string;
+  sourceSymbol?: string | null;
+  isAdjusted?: boolean;
+  fetchedAt?: string | null;
+}
+
+export interface ExchangeRateRecord {
+  id: string;
+  rateDate: string;
+  fromCurrency: CurrencyCode;
+  toCurrency: CurrencyCode;
+  rate: string;
+  rateType: RateType;
+  provider: string;
+  providerRateDate: string | null;
+  fetchedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateExchangeRateInput {
+  rateDate: string;
+  fromCurrency: CurrencyCode;
+  toCurrency?: CurrencyCode;
+  rate: string;
+  rateType?: RateType;
+  provider: string;
+  providerRateDate?: string | null;
+  fetchedAt?: string | null;
+}
+
+export interface JobRun {
+  id: string;
+  jobName: string;
+  status: JobRunStatus;
+  jobStartedAt: string;
+  jobFinishedAt: string | null;
+  recordsInserted: number;
+  recordsSkipped: number;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DataProviderRun {
+  id: string;
+  jobRunId: string;
+  provider: string;
+  dataKind: DataKind;
+  status: JobRunStatus;
+  providerStartedAt: string;
+  providerFinishedAt: string | null;
+  recordsInserted: number;
+  recordsSkipped: number;
+  errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
 }

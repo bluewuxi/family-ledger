@@ -17,8 +17,11 @@ Business tables do not use `user_id` as an ownership field. Where useful, they u
 - `investment_accounts`: shared brokerage, fund platform, bank, retirement, and other accounts.
 - `instruments`: shared instrument/security/fund master list.
 - `transactions`: shared investment transaction records.
-- `prices`: shared historical prices for instruments.
-- `fx_rates`: shared FX rates.
+- `currencies`: supported currency reference data.
+- `instrument_prices`: shared provider-supplied historical prices for instruments.
+- `exchange_rates`: shared provider-supplied FX rates for valuation and future tax-assist separation.
+- `job_runs`: scheduled/batch job execution audit records.
+- `data_provider_runs`: per-provider audit records under a job run.
 - `portfolio_snapshots`: shared daily family portfolio snapshots.
 
 ## Instruments
@@ -53,7 +56,30 @@ Transactions are entered through the Lambda API and always reference an account 
 - `deposit`, `withdrawal`, `interest`, `fee`, `tax`, and `adjustment` reference currency-matching cash instruments.
 - Standalone `fee` records store their value in `fee`; standalone `tax` records store their value in `tax`.
 - `adjustment` records store a non-negative `gross_amount` and use `adjustment_direction` (`increase` or `decrease`) to describe direction.
-- `fx_rate_to_nzd` remains optional manual input until scheduled FX handling is implemented.
+- `fx_rate_to_nzd` remains optional manual transaction input until actual FX conversion handling is implemented. It is not the canonical valuation FX store.
+
+## Market Data Foundation
+
+The canonical valuation currency for stored market data is USD.
+
+`exchange_rates` stores provider-supplied calendar-date rates as:
+
+```text
+1 from_currency = rate USD
+```
+
+Examples:
+
+- `USD -> USD = 1`
+- `NZD -> USD = 0.61`
+- `CNY -> USD = 0.138`
+- `HKD -> USD = 0.128`
+
+Valuation FX records use `rate_type = 'valuation'` and must target `USD`. Tax-specific FX handling remains separate through `rate_type = 'tax'` or a future dedicated table.
+
+`instrument_prices` stores provider-supplied calendar-date instrument close prices in the instrument price currency. `price_date` and `rate_date` are provider-supplied dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
+
+`job_runs` and `data_provider_runs` only track ingestion attempts and counts. They do not imply that external providers, scraping, scheduled jobs, or valuation snapshots have been implemented.
 
 ## Derived Holdings
 
@@ -72,11 +98,11 @@ Holding rows report only native-currency quantity and carrying cost. They do not
 
 ## Dashboard Summary Valuation
 
-The read-only dashboard summary values current non-zero holdings in NZD without persisting a derived dashboard record.
+The current read-only dashboard summary values current non-zero holdings in NZD without persisting a derived dashboard record. This is a legacy Stage 3 read model and has not yet been expanded into the future user-selected reporting-currency model.
 
-- Securities use the latest stored `prices` record in the instrument currency; daily movement uses the preceding stored close.
+- Securities use the latest stored `instrument_prices` record in the instrument currency; daily movement uses the preceding stored close.
 - Cash uses its derived cash balance and has zero daily price movement.
-- Non-NZD balances and security values use the latest stored direct `fx_rates` record from the holding currency to NZD. NZD uses an implicit rate of `1`.
+- Stored FX rates are USD-centered in `exchange_rates`. The current dashboard repository derives a temporary NZD-compatible rate through USD for the existing dashboard calculation. NZD uses an implicit rate of `1`.
 - The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents stored close-price changes only.
 - Unrealized gain is market value less remaining carrying cost for securities only.
 
@@ -114,8 +140,9 @@ PostgreSQL `numeric` is used for persisted money, quantity, price, FX rate, and 
 The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints for enum-like values, useful indexes, and natural uniqueness:
 
 - instruments: unique by `market_region, exchange, symbol`
-- prices: unique by `instrument_id, price_date`
-- FX rates: unique by `from_currency, to_currency, rate_date`
+- instrument prices: unique by `instrument_id, provider, price_date`
+- exchange rates: unique by `from_currency, to_currency, rate_type, provider, rate_date`
+- valuation exchange rates: constrained to `to_currency = 'USD'`
 - portfolio snapshots: unique by `snapshot_date`
 - adjustments: `adjustment_direction` is required only for adjustment transactions
 

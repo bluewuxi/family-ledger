@@ -9,6 +9,7 @@
     "smoke:stage1:test": "tsx scripts/smoke-test-stage1.ts",
     "verify:holdings": "tsx scripts/verify-holdings-calculation.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
+    "verify:market-data": "tsx scripts/verify-market-data-foundation.ts",
     "typecheck": "tsc -b --pretty false"
   },
   "devDependencies": {

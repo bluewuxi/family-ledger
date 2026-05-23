@@ -86,7 +86,7 @@ Response data:
 The dashboard derives holdings through the existing holdings calculation and reads stored data only:
 
 - Securities use their latest stored close price; cash uses its calculated cash balance.
-- Foreign-currency holdings use the latest stored direct FX rate from that currency to `NZD`; NZD uses an implicit rate of `1`.
+- Foreign-currency holdings use the latest USD-centered valuation FX rates in `exchange_rates`, converted through USD for the current NZD dashboard; NZD uses an implicit rate of `1`.
 - `todayChange` compares the latest and preceding stored security close prices. Cash has zero daily price movement.
 - Latest FX is applied to current value, preceding value, and carrying cost, so daily change reflects price movement rather than FX movement.
 - `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.

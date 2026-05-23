@@ -7,22 +7,32 @@ loadDotenv({ path: ".env.test", quiet: true });
 const requiredTables = [
   "profiles",
   "user_roles",
+  "currencies",
   "investment_accounts",
   "instruments",
   "transactions",
-  "prices",
-  "fx_rates",
+  "instrument_prices",
+  "exchange_rates",
+  "job_runs",
+  "data_provider_runs",
   "portfolio_snapshots"
 ];
 
 const businessTables = [
+  "currencies",
   "investment_accounts",
   "instruments",
   "transactions",
-  "prices",
-  "fx_rates",
+  "instrument_prices",
+  "exchange_rates",
+  "job_runs",
+  "data_provider_runs",
   "portfolio_snapshots"
 ];
+
+const tableIdentitySelects: Record<string, string> = {
+  currencies: "code"
+};
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -77,7 +87,8 @@ async function main(): Promise<void> {
   const missingTables: string[] = [];
 
   for (const table of requiredTables) {
-    const { error } = await supabase.from(table).select("id", { count: "exact", head: true }).limit(1);
+    const identitySelect = tableIdentitySelects[table] ?? "id";
+    const { error } = await supabase.from(table).select(identitySelect, { count: "exact", head: true }).limit(1);
 
     if (error) {
       missingTables.push(table);
@@ -114,7 +125,12 @@ async function main(): Promise<void> {
     instruments:
       "description,market_region,exchange,price_source,price_source_symbol,price_source_exchange,price_update_enabled,price_update_priority,source_url,source_checked_at",
     transactions: "created_by_user_id,updated_by_user_id",
-    prices: "source_symbol,is_adjusted"
+    currencies: "name,minor_unit,is_active",
+    instrument_prices: "provider,source_symbol,is_adjusted,fetched_at",
+    exchange_rates: "rate_type,provider,provider_rate_date,fetched_at",
+    job_runs: "job_name,status,job_started_at,job_finished_at,records_inserted,records_skipped,error_message",
+    data_provider_runs:
+      "job_run_id,provider,data_kind,status,provider_started_at,provider_finished_at,records_inserted,records_skipped,error_message"
   };
 
   const tablesWithMissingColumns: string[] = [];

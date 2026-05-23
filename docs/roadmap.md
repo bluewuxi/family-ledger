@@ -36,6 +36,7 @@
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
+- USD-centered price/FX storage foundation (implemented: currencies, exchange rates, instrument prices, job/provider run audit tables)
 - Price/FX maintenance and automated record updates
 - Price-source adapters for `yahoo_finance`, `eastmoney`, and `investnow_manual`
 - EventBridge jobs
