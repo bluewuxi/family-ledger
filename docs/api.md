@@ -50,6 +50,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history.
+`GET /dashboard` returns a four-card NZD portfolio summary calculated from holdings and stored price/FX records.
 
 Response data:
 
@@ -64,7 +65,34 @@ Response data:
 }
 ```
 
-Dashboard remains a placeholder until its later Stage 3 work.
+### Dashboard Read API
+
+`GET /dashboard` is available to authenticated `viewer` and `admin` users. It returns values in NZD:
+
+```json
+{
+  "dashboard": {
+    "reportingCurrency": "NZD",
+    "totalAssets": "15243.10",
+    "todayChange": "48.25",
+    "todayChangePct": "0.32",
+    "unrealizedGain": "1243.10",
+    "accountCount": 3,
+    "warnings": []
+  }
+}
+```
+
+The dashboard derives holdings through the existing holdings calculation and reads stored data only:
+
+- Securities use their latest stored close price; cash uses its calculated cash balance.
+- Foreign-currency holdings use the latest stored direct FX rate from that currency to `NZD`; NZD uses an implicit rate of `1`.
+- `todayChange` compares the latest and preceding stored security close prices. Cash has zero daily price movement.
+- Latest FX is applied to current value, preceding value, and carrying cost, so daily change reflects price movement rather than FX movement.
+- `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.
+- `accountCount` includes accounts with no non-zero holdings.
+
+Aggregate totals are not reported as partial values. A missing latest price or required FX rate returns `null` for all affected monetary metrics. A missing preceding close returns `null` only for daily-change fields. Unavailable cost basis returns `null` only for unrealized gain. The `warnings` array identifies the affected instrument and one of `MISSING_LATEST_PRICE`, `MISSING_PREVIOUS_PRICE`, `MISSING_FX_RATE`, or `COST_BASIS_UNAVAILABLE`.
 
 ### Holdings Read API
 
@@ -96,7 +124,7 @@ Cash holdings are calculated only from transactions explicitly linked to cash in
 
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
 
-All amounts are returned in the instrument currency. Market value, FX-to-NZD conversion, unrealized gain, and allocation fields are intentionally deferred.
+Holding rows continue to return amounts in the instrument currency. NZD market value and unrealized gain are provided only by the dashboard summary; valued holding rows and allocation fields remain deferred.
 
 ## Account Write APIs
 

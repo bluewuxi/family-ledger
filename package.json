@@ -8,6 +8,7 @@
     "build": "corepack pnpm --filter @family-ledger/shared build && corepack pnpm --filter @family-ledger/api build && corepack pnpm --filter @family-ledger/jobs build && corepack pnpm --filter @family-ledger/web build",
     "smoke:stage1:test": "tsx scripts/smoke-test-stage1.ts",
     "verify:holdings": "tsx scripts/verify-holdings-calculation.ts",
+    "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
     "typecheck": "tsc -b --pretty false"
   },
   "devDependencies": {

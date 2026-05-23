@@ -68,7 +68,19 @@ Holdings are a read-only derived view calculated by the Lambda API from transact
 - A negative cash balance is returned with `NEGATIVE_POSITION`.
 - A security position that becomes negative is returned with `NEGATIVE_POSITION` and `COST_BASIS_UNAVAILABLE`, and its average cost and remaining cost are null.
 
-This stage reports only native-currency quantity and carrying cost. Market price, FX conversion, market value, realized gain, unrealized gain, dashboard totals, and allocation calculations remain deferred.
+Holding rows report only native-currency quantity and carrying cost. They do not expose valuation or allocation columns.
+
+## Dashboard Summary Valuation
+
+The read-only dashboard summary values current non-zero holdings in NZD without persisting a derived dashboard record.
+
+- Securities use the latest stored `prices` record in the instrument currency; daily movement uses the preceding stored close.
+- Cash uses its derived cash balance and has zero daily price movement.
+- Non-NZD balances and security values use the latest stored direct `fx_rates` record from the holding currency to NZD. NZD uses an implicit rate of `1`.
+- The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents stored close-price changes only.
+- Unrealized gain is market value less remaining carrying cost for securities only.
+
+The summary returns unavailable (`null`) monetary fields rather than incomplete totals when required stored price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage; automated updates, snapshots, detailed allocation, and valued holding rows remain deferred.
 
 ## Seeded Instruments
 
@@ -91,7 +103,7 @@ Seeded instruments:
 - FS_TOTAL_WORLD
 - FS_US_500
 
-Seed data does not include transactions, current prices, FX rates, or portfolio snapshots. Holdings are calculated from transactions rather than seeded or persisted separately.
+Seed data does not include transactions, current prices, FX rates, or portfolio snapshots. Holdings are calculated from transactions rather than seeded or persisted separately; dashboard values require separately stored price and FX records.
 
 ## Financial Values
 

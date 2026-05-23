@@ -30,14 +30,13 @@
 ## Stage 3: Holdings and Dashboard
 
 - Holdings calculation (implemented: native-currency quantity, cash balance, and average-cost carrying value)
-- Portfolio summary (pending)
+- Portfolio summary (implemented: four NZD dashboard cards from stored prices and FX rates)
 - Account summary (pending)
 - Market and currency allocation (pending)
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
-- Price records
-- FX rates
+- Price/FX maintenance and automated record updates
 - Price-source adapters for `yahoo_finance`, `eastmoney`, and `investnow_manual`
 - EventBridge jobs
 - Portfolio snapshots

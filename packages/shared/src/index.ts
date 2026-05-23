@@ -301,6 +301,31 @@ export interface HoldingSummary {
   warnings: HoldingWarning[];
 }
 
+export const DASHBOARD_WARNING_CODES = [
+  "MISSING_LATEST_PRICE",
+  "MISSING_PREVIOUS_PRICE",
+  "MISSING_FX_RATE",
+  "COST_BASIS_UNAVAILABLE"
+] as const;
+export type DashboardWarningCode = (typeof DASHBOARD_WARNING_CODES)[number];
+
+export interface DashboardWarning {
+  code: DashboardWarningCode;
+  instrumentId: string;
+  instrumentName: string;
+  currency: CurrencyCode;
+}
+
+export interface DashboardSummary {
+  reportingCurrency: "NZD";
+  totalAssets: string | null;
+  todayChange: string | null;
+  todayChangePct: string | null;
+  unrealizedGain: string | null;
+  accountCount: number;
+  warnings: DashboardWarning[];
+}
+
 export interface PriceRecord {
   id: string;
   instrumentId: string;
