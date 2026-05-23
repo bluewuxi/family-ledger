@@ -42,6 +42,8 @@ Price source fields are configuration for future scheduled price jobs:
 
 Actual latest-close-price fetching is not implemented in this task.
 
+Instrument master records are maintained through the Lambda API. For asset types other than `other`, `symbol` and `exchange` are required. If an instrument has transaction records or stored price history, it is retained and cannot be hard-deleted through the API.
+
 ## Seeded Instruments
 
 Initial seed data under `supabase/seed/001_seed_instruments.sql` populates the shared instrument master list only. It includes metadata such as market region, exchange, currency, asset type, price-source configuration, source URL, and source verification timestamp.
@@ -73,6 +75,7 @@ PostgreSQL `numeric` is used for persisted money, quantity, price, FX rate, and 
 
 The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints for enum-like values, useful indexes, and natural uniqueness:
 
+- instruments: unique by `market_region, exchange, symbol`
 - prices: unique by `instrument_id, price_date`
 - FX rates: unique by `from_currency, to_currency, rate_date`
 - portfolio snapshots: unique by `snapshot_date`

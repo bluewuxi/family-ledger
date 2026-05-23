@@ -168,6 +168,46 @@ export interface Instrument {
   updatedAt: string;
 }
 
+export interface CreateInstrumentInput {
+  symbol?: string | null;
+  name: string;
+  description?: string | null;
+  marketRegion: MarketRegion;
+  exchange?: string | null;
+  currency: CurrencyCode;
+  assetType: AssetType;
+  isin?: string | null;
+  provider?: string | null;
+  priceSource: PriceSource;
+  priceSourceSymbol?: string | null;
+  priceSourceExchange?: string | null;
+  priceUpdateEnabled: boolean;
+  priceUpdatePriority: number;
+  sourceUrl?: string | null;
+  sourceCheckedAt?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateInstrumentInput {
+  symbol?: string | null;
+  name?: string;
+  description?: string | null;
+  marketRegion?: MarketRegion;
+  exchange?: string | null;
+  currency?: CurrencyCode;
+  assetType?: AssetType;
+  isin?: string | null;
+  provider?: string | null;
+  priceSource?: PriceSource;
+  priceSourceSymbol?: string | null;
+  priceSourceExchange?: string | null;
+  priceUpdateEnabled?: boolean;
+  priceUpdatePriority?: number;
+  sourceUrl?: string | null;
+  sourceCheckedAt?: string | null;
+  notes?: string | null;
+}
+
 export interface InvestmentTransaction {
   id: string;
   accountId: string;

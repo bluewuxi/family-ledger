@@ -7,7 +7,12 @@ import {
 } from "../services/accountService";
 import { getDashboard } from "../services/dashboardService";
 import { getHoldings } from "../services/holdingService";
-import { getInstruments } from "../services/instrumentService";
+import {
+  createInvestmentInstrument,
+  deleteInvestmentInstrument,
+  getInstruments,
+  updateInvestmentInstrument
+} from "../services/instrumentService";
 import { getTransactions } from "../services/transactionService";
 import { ApiAuthError, requireRole } from "../auth/auth";
 import { ApiRequestError } from "../utils/apiError";
@@ -35,6 +40,11 @@ const routes: Record<string, RouteHandler> = {
   "GET /instruments": async (event) => {
     const user = await requireRole(event, "viewer");
     return success({ user, instruments: await getInstruments() });
+  },
+  "POST /instruments": async (event) => {
+    const user = await requireRole(event, "admin");
+    const instrument = await createInvestmentInstrument(parseJsonBody(event), user);
+    return success({ instrument }, 201);
   },
   "GET /transactions": async (event) => {
     const user = await requireRole(event, "viewer");
@@ -70,6 +80,24 @@ const dynamicRoutes: Array<{
     handler: async (_event, params) => {
       await requireRole(_event, "admin");
       await deleteInvestmentAccount(params.id);
+      return success({ deleted: true });
+    }
+  },
+  {
+    method: "PUT",
+    pattern: /^\/instruments\/(?<id>[^/]+)$/,
+    handler: async (event, params) => {
+      const user = await requireRole(event, "admin");
+      const instrument = await updateInvestmentInstrument(params.id, parseJsonBody(event), user);
+      return success({ instrument });
+    }
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/instruments\/(?<id>[^/]+)$/,
+    handler: async (event, params) => {
+      await requireRole(event, "admin");
+      await deleteInvestmentInstrument(params.id);
       return success({ deleted: true });
     }
   }

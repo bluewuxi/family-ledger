@@ -19,7 +19,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -128,7 +129,8 @@ select {
   gap: 16px;
 }
 
-.account-form {
+.account-form,
+.instrument-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
@@ -162,7 +164,8 @@ select {
   color: #68655e;
 }
 
-.account-form label {
+.account-form label,
+.instrument-form label {
   display: grid;
   gap: 8px;
   color: #3d3b36;
@@ -170,7 +173,10 @@ select {
 }
 
 .account-form input,
-.account-form select {
+.account-form select,
+.instrument-form input,
+.instrument-form select,
+.instrument-form textarea {
   width: 100%;
   min-height: 42px;
   border: 1px solid #cfcac0;
@@ -178,6 +184,22 @@ select {
   background: #ffffff;
   color: #20231f;
   padding: 10px 12px;
+}
+
+.instrument-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.instrument-form .checkbox-field {
+  align-content: start;
+}
+
+.instrument-form .checkbox-field input {
+  width: 20px;
+  min-height: 20px;
+  margin-top: 4px;
+  accent-color: #23443b;
 }
 
 .form-actions,
@@ -269,6 +291,10 @@ table {
   width: 100%;
   min-width: 720px;
   border-collapse: collapse;
+}
+
+.instrument-table {
+  min-width: 1060px;
 }
 
 th,
@@ -429,7 +455,8 @@ td {
     display: grid;
   }
 
-  .account-form {
+  .account-form,
+  .instrument-form {
     grid-template-columns: 1fr;
   }
 }
