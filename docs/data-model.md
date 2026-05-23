@@ -79,7 +79,9 @@ Valuation FX records use `rate_type = 'valuation'` and must target `USD`. Tax-sp
 
 `instrument_prices` stores provider-supplied calendar-date instrument close prices in the instrument price currency. `price_date` and `rate_date` are provider-supplied dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
 
-`job_runs` and `data_provider_runs` only track ingestion attempts and counts. They do not imply that external providers, scraping, scheduled jobs, or valuation snapshots have been implemented.
+The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` values as NZD instrument prices for the seeded `FS_NASDAQ_100`, `FS_TOTAL_WORLD`, and `FS_US_500` instruments. It does not store FundRock buy price, sell price, NAV, transaction spreads, fees, distributions, or historical backfills.
+
+`job_runs` and `data_provider_runs` only track ingestion attempts and counts. They are audit records for completed or attempted jobs and are not themselves valuation snapshots.
 
 ## Derived Holdings
 
@@ -129,7 +131,7 @@ Seeded instruments:
 - FS_TOTAL_WORLD
 - FS_US_500
 
-Seed data does not include transactions, current prices, FX rates, or portfolio snapshots. Holdings are calculated from transactions rather than seeded or persisted separately; dashboard values require separately stored price and FX records.
+The three seeded Foundation Series PIE instruments are configured for the FundRock unit price job through `price_source = 'custom'`, enabled price updates, and stable `price_source_symbol` values. Seed data does not include transactions, current prices, FX rates, or portfolio snapshots. Holdings are calculated from transactions rather than seeded or persisted separately; dashboard values require separately stored price and FX records.
 
 ## Financial Values
 
