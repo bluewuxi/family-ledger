@@ -44,6 +44,17 @@ Actual latest-close-price fetching is not implemented in this task.
 
 Instrument master records are maintained through the Lambda API. For asset types other than `other`, `symbol` and `exchange` are required. If an instrument has transaction records or stored price history, it is retained and cannot be hard-deleted through the API.
 
+## Transactions
+
+Transactions are entered through the Lambda API and always reference an account and an instrument. Transaction currency must match the selected instrument currency.
+
+- `buy` and `sell` reference non-cash instruments. Their `gross_amount` is calculated in the API as `quantity * price`, rounded half-up to six decimal places.
+- `dividend` references the paying non-cash instrument and may record withholding in `tax`.
+- `deposit`, `withdrawal`, `interest`, `fee`, `tax`, and `adjustment` reference currency-matching cash instruments.
+- Standalone `fee` records store their value in `fee`; standalone `tax` records store their value in `tax`.
+- `adjustment` records store a non-negative `gross_amount` and use `adjustment_direction` (`increase` or `decrease`) to describe direction.
+- `fx_rate_to_nzd` remains optional manual input until scheduled FX handling is implemented.
+
 ## Seeded Instruments
 
 Initial seed data under `supabase/seed/001_seed_instruments.sql` populates the shared instrument master list only. It includes metadata such as market region, exchange, currency, asset type, price-source configuration, source URL, and source verification timestamp.
@@ -79,6 +90,7 @@ The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints
 - prices: unique by `instrument_id, price_date`
 - FX rates: unique by `from_currency, to_currency, rate_date`
 - portfolio snapshots: unique by `snapshot_date`
+- adjustments: `adjustment_direction` is required only for adjustment transactions
 
 Tax-specific tables are intentionally deferred until tax-assist requirements are clearer.
 

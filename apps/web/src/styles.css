@@ -130,7 +130,8 @@ textarea {
 }
 
 .account-form,
-.instrument-form {
+.instrument-form,
+.transaction-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
@@ -165,7 +166,8 @@ textarea {
 }
 
 .account-form label,
-.instrument-form label {
+.instrument-form label,
+.transaction-form label {
   display: grid;
   gap: 8px;
   color: #3d3b36;
@@ -176,7 +178,10 @@ textarea {
 .account-form select,
 .instrument-form input,
 .instrument-form select,
-.instrument-form textarea {
+.instrument-form textarea,
+.transaction-form input,
+.transaction-form select,
+.transaction-form textarea {
   width: 100%;
   min-height: 42px;
   border: 1px solid #cfcac0;
@@ -187,6 +192,11 @@ textarea {
 }
 
 .instrument-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.transaction-form textarea {
   min-height: 72px;
   resize: vertical;
 }
@@ -295,6 +305,10 @@ table {
 
 .instrument-table {
   min-width: 1060px;
+}
+
+.transaction-table {
+  min-width: 1220px;
 }
 
 th,
@@ -456,7 +470,8 @@ td {
   }
 
   .account-form,
-  .instrument-form {
+  .instrument-form,
+  .transaction-form {
     grid-template-columns: 1fr;
   }
 }

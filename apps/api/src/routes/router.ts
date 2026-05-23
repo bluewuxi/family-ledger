@@ -13,7 +13,12 @@ import {
   getInstruments,
   updateInvestmentInstrument
 } from "../services/instrumentService";
-import { getTransactions } from "../services/transactionService";
+import {
+  createInvestmentTransaction,
+  deleteInvestmentTransaction,
+  getTransactions,
+  updateInvestmentTransaction
+} from "../services/transactionService";
 import { ApiAuthError, requireRole } from "../auth/auth";
 import { ApiRequestError } from "../utils/apiError";
 import { parseJsonBody } from "../utils/requestBody";
@@ -49,6 +54,11 @@ const routes: Record<string, RouteHandler> = {
   "GET /transactions": async (event) => {
     const user = await requireRole(event, "viewer");
     return success({ user, transactions: await getTransactions() });
+  },
+  "POST /transactions": async (event) => {
+    const user = await requireRole(event, "admin");
+    const transaction = await createInvestmentTransaction(parseJsonBody(event), user);
+    return success({ transaction }, 201);
   },
   "GET /holdings": async (event) => {
     const user = await requireRole(event, "viewer");
@@ -98,6 +108,24 @@ const dynamicRoutes: Array<{
     handler: async (event, params) => {
       await requireRole(event, "admin");
       await deleteInvestmentInstrument(params.id);
+      return success({ deleted: true });
+    }
+  },
+  {
+    method: "PUT",
+    pattern: /^\/transactions\/(?<id>[^/]+)$/,
+    handler: async (event, params) => {
+      const user = await requireRole(event, "admin");
+      const transaction = await updateInvestmentTransaction(params.id, parseJsonBody(event), user);
+      return success({ transaction });
+    }
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/transactions\/(?<id>[^/]+)$/,
+    handler: async (event, params) => {
+      await requireRole(event, "admin");
+      await deleteInvestmentTransaction(params.id);
       return success({ deleted: true });
     }
   }

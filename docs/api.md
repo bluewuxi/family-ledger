@@ -48,6 +48,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
+`GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending.
 
 Response data:
 
@@ -62,7 +63,7 @@ Response data:
 }
 ```
 
-Other read endpoints still return placeholder or derived data until their Stage 2/3 implementation.
+Dashboard and holdings endpoints still return placeholder or derived data until their Stage 3 implementation.
 
 ## Account Write APIs
 
@@ -186,11 +187,96 @@ Delete response data:
 
 An instrument cannot be deleted after it has transaction or price history. Instrument validation, duplicate identity, and delete-in-use errors return `VALIDATION_ERROR`. Missing instruments return `NOT_FOUND`.
 
-## Admin Write APIs Planned Later
+## Transaction Write APIs
+
+These endpoints require a valid Supabase Bearer token and an active `admin` role:
 
 - `POST /transactions`
 - `PUT /transactions/:id`
 - `DELETE /transactions/:id`
+
+Buy request:
+
+```json
+{
+  "accountId": "uuid",
+  "instrumentId": "uuid",
+  "transactionType": "buy",
+  "tradeDate": "2026-05-23",
+  "settlementDate": "2026-05-27",
+  "quantity": "10.5",
+  "price": "250.123456",
+  "fee": "2.50",
+  "tax": "0",
+  "currency": "USD",
+  "fxRateToNzd": "1.6500000000",
+  "notes": null
+}
+```
+
+For `buy` and `sell`, the API derives `grossAmount` from `quantity * price` using decimal arithmetic and half-up rounding to six decimal places.
+
+Adjustment request:
+
+```json
+{
+  "accountId": "uuid",
+  "instrumentId": "cash-instrument-uuid",
+  "transactionType": "adjustment",
+  "tradeDate": "2026-05-23",
+  "grossAmount": "100.00",
+  "currency": "NZD",
+  "adjustmentDirection": "increase",
+  "notes": "Opening balance correction"
+}
+```
+
+Transaction validation rules:
+
+- `buy` and `sell` require a non-cash instrument, positive `quantity` and `price`; optional `fee` and `tax` are allowed.
+- `dividend` requires its non-cash source instrument and positive `grossAmount`; optional `tax` records withholding.
+- `deposit`, `withdrawal`, and `interest` require a cash instrument and positive `grossAmount`.
+- `fee` requires a cash instrument and stores its positive value in `fee`.
+- `tax` requires a cash instrument and stores its positive value in `tax`.
+- `adjustment` requires a cash instrument, positive `grossAmount`, and `adjustmentDirection` of `increase` or `decrease`.
+- Transaction currency must match the selected instrument currency.
+- Optional `fxRateToNzd` must be positive; optional settlement date cannot precede trade date.
+
+Create/update response data:
+
+```json
+{
+  "transaction": {
+    "id": "uuid",
+    "accountId": "uuid",
+    "instrumentId": "uuid",
+    "transactionType": "buy",
+    "tradeDate": "2026-05-23",
+    "quantity": "10.5",
+    "price": "250.123456",
+    "grossAmount": "2626.296288",
+    "fee": "2.5",
+    "tax": "0",
+    "currency": "USD",
+    "fxRateToNzd": "1.65",
+    "adjustmentDirection": null,
+    "createdByUserId": "uuid",
+    "updatedByUserId": "uuid",
+    "createdAt": "2026-05-23T00:00:00.000Z",
+    "updatedAt": "2026-05-23T00:00:00.000Z"
+  }
+}
+```
+
+Delete response data:
+
+```json
+{
+  "deleted": true
+}
+```
+
+Transaction validation errors return `VALIDATION_ERROR`. Missing transactions return `NOT_FOUND`.
 
 ## Admin Maintenance APIs Planned Later
 

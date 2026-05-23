@@ -76,6 +76,26 @@ export const TRANSACTION_TYPES = [
 ] as const;
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
+export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
+  buy: "\u4e70\u5165",
+  sell: "\u5356\u51fa",
+  dividend: "\u80a1\u606f",
+  fee: "\u8d39\u7528",
+  tax: "\u7a0e\u52a1\u8bb0\u5f55",
+  deposit: "\u5165\u91d1",
+  withdrawal: "\u51fa\u91d1",
+  interest: "\u5229\u606f",
+  adjustment: "\u8c03\u6574"
+};
+
+export const ADJUSTMENT_DIRECTIONS = ["increase", "decrease"] as const;
+export type AdjustmentDirection = (typeof ADJUSTMENT_DIRECTIONS)[number];
+
+export const ADJUSTMENT_DIRECTION_LABELS: Record<AdjustmentDirection, string> = {
+  increase: "\u589e\u52a0",
+  decrease: "\u51cf\u5c11"
+};
+
 export const ACCOUNT_TYPES = ["brokerage", "fund_platform", "bank", "retirement", "other"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
@@ -222,11 +242,46 @@ export interface InvestmentTransaction {
   tax: string;
   currency: CurrencyCode;
   fxRateToNzd: string | null;
+  adjustmentDirection: AdjustmentDirection | null;
   notes: string | null;
   createdByUserId: string | null;
   updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateInvestmentTransactionInput {
+  accountId: string;
+  instrumentId: string;
+  transactionType: TransactionType;
+  tradeDate: string;
+  settlementDate?: string | null;
+  quantity?: string | null;
+  price?: string | null;
+  grossAmount?: string | null;
+  fee?: string;
+  tax?: string;
+  currency: CurrencyCode;
+  fxRateToNzd?: string | null;
+  adjustmentDirection?: AdjustmentDirection | null;
+  notes?: string | null;
+}
+
+export interface UpdateInvestmentTransactionInput {
+  accountId?: string;
+  instrumentId?: string;
+  transactionType?: TransactionType;
+  tradeDate?: string;
+  settlementDate?: string | null;
+  quantity?: string | null;
+  price?: string | null;
+  grossAmount?: string | null;
+  fee?: string;
+  tax?: string;
+  currency?: CurrencyCode;
+  fxRateToNzd?: string | null;
+  adjustmentDirection?: AdjustmentDirection | null;
+  notes?: string | null;
 }
 
 export interface PriceRecord {

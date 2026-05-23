@@ -41,6 +41,21 @@ export async function listAccounts(): Promise<InvestmentAccount[]> {
   return (data as unknown as InvestmentAccountRow[]).map(mapAccountRow);
 }
 
+export async function findAccountById(id: string): Promise<InvestmentAccount | null> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("investment_accounts")
+    .select(accountSelect)
+    .eq("id", id)
+    .maybeSingle<InvestmentAccountRow>();
+
+  if (error) {
+    throw new Error("Failed to find account.");
+  }
+
+  return data ? mapAccountRow(data) : null;
+}
+
 export async function createAccount(
   input: CreateInvestmentAccountInput,
   userId: string

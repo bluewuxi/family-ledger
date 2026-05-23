@@ -21,9 +21,9 @@
 
 ## Stage 2: CRUD Through Lambda API
 
-- Account CRUD
-- Instrument CRUD
-- Transaction CRUD
+- Account CRUD (implemented)
+- Instrument CRUD (implemented)
+- Transaction CRUD (implemented)
 - Admin-only write APIs
 - Viewer read APIs
 
