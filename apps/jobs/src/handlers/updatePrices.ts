@@ -1,30 +1,30 @@
 import type { ScheduledEvent } from "aws-lambda";
 import {
-  FUNDROCK_PRICE_JOB_NAME,
-  ingestLatestFundRockPieUnitPrices,
-  type FundRockPriceIngestionResult
-} from "../services/fundRockPriceIngestionService";
+  ingestLatestInstrumentPrices,
+  UPDATE_PRICES_JOB_NAME,
+  type InstrumentPriceIngestionResult
+} from "../services/instrumentPriceIngestionService";
 import { logScheduledJob, sanitizeScheduledJobError } from "../utils/scheduledJobLogging";
 
 export interface UpdatePricesHandlerDependencies {
-  ingestLatestFundRockPieUnitPrices: () => Promise<FundRockPriceIngestionResult>;
+  ingestLatestInstrumentPrices: () => Promise<InstrumentPriceIngestionResult>;
 }
 
 export function createUpdatePricesHandler(
-  dependencies: UpdatePricesHandlerDependencies = { ingestLatestFundRockPieUnitPrices }
+  dependencies: UpdatePricesHandlerDependencies = { ingestLatestInstrumentPrices }
 ): (event: ScheduledEvent) => Promise<void> {
   return async (event: ScheduledEvent): Promise<void> => {
     logScheduledJob({
-      jobName: FUNDROCK_PRICE_JOB_NAME,
+      jobName: UPDATE_PRICES_JOB_NAME,
       eventId: event.id,
       eventTime: event.time,
       status: "started"
     });
 
     try {
-      const result = await dependencies.ingestLatestFundRockPieUnitPrices();
+      const result = await dependencies.ingestLatestInstrumentPrices();
       logScheduledJob({
-        jobName: FUNDROCK_PRICE_JOB_NAME,
+        jobName: UPDATE_PRICES_JOB_NAME,
         eventId: event.id,
         eventTime: event.time,
         status: "succeeded",
@@ -34,7 +34,7 @@ export function createUpdatePricesHandler(
       });
     } catch (error) {
       logScheduledJob({
-        jobName: FUNDROCK_PRICE_JOB_NAME,
+        jobName: UPDATE_PRICES_JOB_NAME,
         eventId: event.id,
         eventTime: event.time,
         status: "failed",

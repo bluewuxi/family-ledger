@@ -41,6 +41,8 @@ Recommended EventBridge target settings:
 
 The Lambda handler must throw on failed ingestion so EventBridge can retry. Duplicate retries are handled by the database uniqueness constraint on exchange rates and the repository insert-if-not-exists behavior. Each attempt creates a `job_runs` row and provider-level `data_provider_runs` row; successful duplicate attempts should record skipped rows instead of duplicate exchange-rate records.
 
+Configure the price update Lambda handler exported as `updatePrices` from `apps/jobs` on the same daily schedule unless a different market-data cadence is chosen later. The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastmoney public endpoints plus the existing FundRock page parser, so no extra provider API key or secret is required. Price retries are idempotent through the `instrument_prices` uniqueness constraint and insert-if-not-exists behavior.
+
 Structured CloudWatch logs should include:
 
 ```text

@@ -9,6 +9,7 @@ export interface InstrumentPriceProviderInstrument {
   sourceSymbol: string;
   providerInstrumentName: string;
   currency: CurrencyCode;
+  sourceExchange?: string | null;
 }
 
 export interface InstrumentPriceProviderPrice {

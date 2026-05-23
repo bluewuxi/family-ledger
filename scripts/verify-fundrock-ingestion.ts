@@ -16,6 +16,7 @@ import {
   toInstrumentPriceInputs,
   toProviderInstruments
 } from "../apps/jobs/src/services/fundRockPriceIngestionService";
+import type { InstrumentPriceIngestionResult } from "../apps/jobs/src/services/instrumentPriceIngestionService";
 import type { PriceEnabledInstrument } from "../apps/jobs/src/repositories/instrumentPriceRepository";
 
 main().catch((error: unknown) => {
@@ -175,16 +176,16 @@ async function main(): Promise<void> {
 
   const handlerCalls: string[] = [];
   const handler = createUpdatePricesHandler({
-    async ingestLatestFundRockPieUnitPrices() {
+    async ingestLatestInstrumentPrices() {
       handlerCalls.push("handler:ingest");
-      return fundRockPriceIngestionResult();
+      return instrumentPriceIngestionResult();
     }
   });
   await withMutedConsole(() => handler(scheduledEvent()));
   assert.deepEqual(handlerCalls, ["handler:ingest"]);
 
   const failingHandler = createUpdatePricesHandler({
-    async ingestLatestFundRockPieUnitPrices() {
+    async ingestLatestInstrumentPrices() {
       throw new Error("mock handler failure");
     }
   });
@@ -204,21 +205,24 @@ function priceEnabledInstruments(): PriceEnabledInstrument[] {
       name: "Foundation Series Nasdaq-100 Fund",
       currency: "NZD",
       priceSource: "custom",
-      priceSourceSymbol: "FS_NASDAQ_100"
+      priceSourceSymbol: "FS_NASDAQ_100",
+      priceSourceExchange: "INVESTNOW"
     },
     {
       id: "instrument-total-world",
       name: "Foundation Series Total World Fund",
       currency: "NZD",
       priceSource: "custom",
-      priceSourceSymbol: "FS_TOTAL_WORLD"
+      priceSourceSymbol: "FS_TOTAL_WORLD",
+      priceSourceExchange: "INVESTNOW"
     },
     {
       id: "instrument-us-500",
       name: "Foundation Series US 500 Fund",
       currency: "NZD",
       priceSource: "custom",
-      priceSourceSymbol: "FS_US_500"
+      priceSourceSymbol: "FS_US_500",
+      priceSourceExchange: "INVESTNOW"
     }
   ];
 }
@@ -369,6 +373,30 @@ function fundRockPriceIngestionResult(): FundRockPriceIngestionResult {
     recordsInserted: 3,
     recordsSkipped: 0,
     instrumentPrices: []
+  };
+}
+
+function instrumentPriceIngestionResult(): InstrumentPriceIngestionResult {
+  const fundRockResult = fundRockPriceIngestionResult();
+
+  return {
+    jobRun: fundRockResult.jobRun,
+    providerRuns: [
+      {
+        provider: fundRockResult.provider,
+        priceSource: "custom",
+        dataProviderRun: fundRockResult.dataProviderRun,
+        fetchedAt: fundRockResult.fetchedAt,
+        recordsInserted: fundRockResult.recordsInserted,
+        recordsSkipped: fundRockResult.recordsSkipped,
+        instrumentPrices: fundRockResult.instrumentPrices
+      }
+    ],
+    providerFailures: [],
+    fetchedAt: fundRockResult.fetchedAt,
+    recordsInserted: fundRockResult.recordsInserted,
+    recordsSkipped: fundRockResult.recordsSkipped,
+    instrumentPrices: fundRockResult.instrumentPrices
   };
 }
 

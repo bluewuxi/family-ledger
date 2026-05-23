@@ -39,10 +39,11 @@
 - USD-centered price/FX storage foundation (implemented: currencies, exchange rates, instrument prices, job/provider run audit tables)
 - Frankfurter FX maintenance handler (implemented: scheduled Lambda handler calls ingestion service, logs structured EventBridge context, and relies on retry-safe inserts)
 - FundRock PIE unit price maintenance handler (implemented: scheduled Lambda handler ingests latest public FundRock unit prices for seeded Foundation Series PIE funds)
+- Stock/ETF price providers (implemented: seeded US/HK instruments use Yahoo Finance best-effort chart data; seeded China-listed ETFs/funds use Eastmoney best-effort quote data)
 - Scheduled execution policy (implemented in docs: daily 01:00 UTC with EventBridge retry attempts `2` and maximum event age `1 hour`; AWS resources not deployed yet)
 - Retry/job logging hardening (implemented for FX ingestion with durable job/provider run status and best-effort failure finalization)
 - Additional price maintenance and automated instrument price updates
-- Price-source adapters for `yahoo_finance` and `eastmoney`
+- Price-source adapters for `yahoo_finance` and `eastmoney` (implemented for seeded instruments)
 - EventBridge jobs for prices and snapshots
 - Portfolio snapshots
 

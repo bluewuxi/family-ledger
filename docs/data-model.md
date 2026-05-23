@@ -81,6 +81,13 @@ Valuation FX records use `rate_type = 'valuation'` and must target `USD`. Tax-sp
 
 The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` values as NZD instrument prices for the seeded `FS_NASDAQ_100`, `FS_TOTAL_WORLD`, and `FS_US_500` instruments. It does not store FundRock buy price, sell price, NAV, transaction spreads, fees, distributions, or historical backfills.
 
+The stock/ETF price job also ingests best-effort latest daily prices for the seeded enabled instruments:
+
+- `yahoo_finance`: seeded US/HK stocks and ETFs (`AMD`, `QQQM`, `VGT`, `SMH`, `1810.HK`, `0700.HK`).
+- `eastmoney`: seeded China-listed ETFs/funds (`161128`, `159501`, `513500`).
+
+These providers are treated as unofficial market-data sources for a small family ledger. They do not introduce API keys or paid provider secrets. Provider responses are validated before insert, and failures are recorded in `data_provider_runs`, but this is not a guaranteed market-data feed or historical backfill pipeline.
+
 `job_runs` and `data_provider_runs` only track ingestion attempts and counts. They are audit records for completed or attempted jobs and are not themselves valuation snapshots.
 
 ## Derived Holdings
