@@ -74,6 +74,8 @@ Local/test DB tooling may also use:
 
 The Lambda IAM role needs `ssm:GetParameter` permission for the required SSM parameter paths and KMS decrypt permission if a customer-managed KMS key is used. SecureString parameters must be read with decryption enabled.
 
+For local browser testing setup, including root `.env.test` loading, the temporary Lambda HTTP adapter requirement, test user roles, and troubleshooting, see [`docs/local-testing.md`](local-testing.md).
+
 Backend deployment/runtime code should:
 
 1. Read the `*_SSM_PARAM` environment variable.
