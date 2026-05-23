@@ -10,6 +10,9 @@
     "verify:holdings": "tsx scripts/verify-holdings-calculation.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
     "verify:market-data": "tsx scripts/verify-market-data-foundation.ts",
+    "verify:frankfurter-provider": "tsx scripts/verify-frankfurter-provider.ts",
+    "verify:frankfurter-ingestion": "tsx scripts/verify-frankfurter-ingestion.ts",
+    "fx:ingest:frankfurter": "tsx scripts/ingest-frankfurter-fx-rates.ts",
     "typecheck": "tsc -b --pretty false"
   },
   "devDependencies": {

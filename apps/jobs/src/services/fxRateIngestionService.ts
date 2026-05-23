@@ -1,0 +1,215 @@
+import Decimal from "decimal.js";
+import type {
+  CreateExchangeRateInput,
+  CurrencyCode,
+  DataKind,
+  DataProviderRun,
+  ExchangeRateRecord,
+  JobRun
+} from "@family-ledger/shared";
+import { FrankfurterFxRateProvider } from "../providers/FrankfurterFxRateProvider";
+import type { IFxRateProvider } from "../providers/IFxRateProvider";
+import {
+  insertExchangeRateIfNotExists as defaultInsertExchangeRateIfNotExists,
+  type InsertExchangeRateResult
+} from "../repositories/exchangeRateRepository";
+import {
+  createDataProviderRun as defaultCreateDataProviderRun,
+  createJobRun as defaultCreateJobRun,
+  finishDataProviderRun as defaultFinishDataProviderRun,
+  finishJobRun as defaultFinishJobRun
+} from "../repositories/jobRunRepository";
+
+export const DEFAULT_FRANKFURTER_TARGET_CURRENCIES: CurrencyCode[] = ["NZD", "CNY", "HKD", "AUD", "EUR", "GBP"];
+export const FRANKFURTER_PROVIDER_NAME = "Frankfurter";
+export const FRANKFURTER_FX_JOB_NAME = "ingest-frankfurter-fx-rates";
+const FX_DATA_KIND: DataKind = "exchange_rates";
+
+interface ExchangeRateRepository {
+  insertExchangeRateIfNotExists(input: CreateExchangeRateInput): Promise<InsertExchangeRateResult>;
+}
+
+interface JobRunRepository {
+  createJobRun(input: { jobName: string; jobStartedAt: string }): Promise<JobRun>;
+  finishJobRun(
+    id: string,
+    input: {
+      status: "succeeded" | "failed";
+      finishedAt: string;
+      recordsInserted?: number;
+      recordsSkipped?: number;
+      errorMessage?: string | null;
+    }
+  ): Promise<JobRun>;
+  createDataProviderRun(input: {
+    jobRunId: string;
+    provider: string;
+    dataKind: DataKind;
+    providerStartedAt: string;
+  }): Promise<DataProviderRun>;
+  finishDataProviderRun(
+    id: string,
+    input: {
+      status: "succeeded" | "failed";
+      finishedAt: string;
+      recordsInserted?: number;
+      recordsSkipped?: number;
+      errorMessage?: string | null;
+    }
+  ): Promise<DataProviderRun>;
+}
+
+export interface FxRateIngestionResult {
+  jobRun: JobRun;
+  dataProviderRun: DataProviderRun;
+  rateDate: string;
+  fetchedAt: string;
+  provider: string;
+  recordsInserted: number;
+  recordsSkipped: number;
+  exchangeRates: ExchangeRateRecord[];
+}
+
+export interface IngestLatestFrankfurterFxRatesOptions {
+  targetCurrencies?: CurrencyCode[];
+  fetchedAt?: string;
+  now?: () => Date;
+  provider?: IFxRateProvider;
+  exchangeRateRepository?: ExchangeRateRepository;
+  jobRunRepository?: JobRunRepository;
+}
+
+export async function ingestLatestFrankfurterFxRates(
+  options: IngestLatestFrankfurterFxRatesOptions = {}
+): Promise<FxRateIngestionResult> {
+  const now = options.now ?? (() => new Date());
+  const fetchedAt = options.fetchedAt ?? now().toISOString();
+  const provider = options.provider ?? new FrankfurterFxRateProvider();
+  const exchangeRateRepository = options.exchangeRateRepository ?? {
+    insertExchangeRateIfNotExists: defaultInsertExchangeRateIfNotExists
+  };
+  const jobRunRepository = options.jobRunRepository ?? {
+    createJobRun: defaultCreateJobRun,
+    finishJobRun: defaultFinishJobRun,
+    createDataProviderRun: defaultCreateDataProviderRun,
+    finishDataProviderRun: defaultFinishDataProviderRun
+  };
+
+  const targetCurrencies = uniqueCurrencies(options.targetCurrencies ?? DEFAULT_FRANKFURTER_TARGET_CURRENCIES);
+  const jobRun = await jobRunRepository.createJobRun({
+    jobName: FRANKFURTER_FX_JOB_NAME,
+    jobStartedAt: fetchedAt
+  });
+  const dataProviderRun = await jobRunRepository.createDataProviderRun({
+    jobRunId: jobRun.id,
+    provider: provider.name,
+    dataKind: FX_DATA_KIND,
+    providerStartedAt: fetchedAt
+  });
+
+  try {
+    const providerResult = await provider.fetchLatestRates({
+      baseCurrency: "USD",
+      targetCurrencies,
+      fetchedAt
+    });
+    const inputs = toExchangeRateInputs(providerResult.rateDate, providerResult.fetchedAt, provider.name, providerResult.rates);
+    const exchangeRates: ExchangeRateRecord[] = [];
+    let recordsInserted = 0;
+    let recordsSkipped = 0;
+
+    for (const input of inputs) {
+      const result = await exchangeRateRepository.insertExchangeRateIfNotExists(input);
+      exchangeRates.push(result.record);
+
+      if (result.inserted) {
+        recordsInserted += 1;
+      } else {
+        recordsSkipped += 1;
+      }
+    }
+
+    const finishedAt = now().toISOString();
+    const finishedProviderRun = await jobRunRepository.finishDataProviderRun(dataProviderRun.id, {
+      status: "succeeded",
+      finishedAt,
+      recordsInserted,
+      recordsSkipped
+    });
+    const finishedJobRun = await jobRunRepository.finishJobRun(jobRun.id, {
+      status: "succeeded",
+      finishedAt,
+      recordsInserted,
+      recordsSkipped
+    });
+
+    return {
+      jobRun: finishedJobRun,
+      dataProviderRun: finishedProviderRun,
+      rateDate: providerResult.rateDate,
+      fetchedAt: providerResult.fetchedAt,
+      provider: provider.name,
+      recordsInserted,
+      recordsSkipped,
+      exchangeRates
+    };
+  } catch (error) {
+    const finishedAt = now().toISOString();
+    const errorMessage = sanitizeErrorMessage(error);
+    await jobRunRepository.finishDataProviderRun(dataProviderRun.id, {
+      status: "failed",
+      finishedAt,
+      errorMessage
+    });
+    await jobRunRepository.finishJobRun(jobRun.id, {
+      status: "failed",
+      finishedAt,
+      errorMessage
+    });
+    throw error;
+  }
+}
+
+export function toExchangeRateInputs(
+  rateDate: string,
+  fetchedAt: string,
+  provider: string,
+  providerRates: Array<{ currency: CurrencyCode; providerRate: string }>
+): CreateExchangeRateInput[] {
+  const rates = providerRates.map((rate) => ({
+    rateDate,
+    fromCurrency: rate.currency,
+    toCurrency: "USD" as const,
+    rate: new Decimal(1).dividedBy(rate.providerRate).toDecimalPlaces(10, Decimal.ROUND_HALF_UP).toFixed(10),
+    rateType: "valuation" as const,
+    provider,
+    providerRateDate: rateDate,
+    fetchedAt
+  }));
+
+  return [
+    ...rates,
+    {
+      rateDate,
+      fromCurrency: "USD",
+      toCurrency: "USD",
+      rate: "1.0000000000",
+      rateType: "valuation",
+      provider,
+      providerRateDate: rateDate,
+      fetchedAt
+    }
+  ];
+}
+
+function uniqueCurrencies(currencies: CurrencyCode[]): CurrencyCode[] {
+  return [...new Set(currencies)];
+}
+
+function sanitizeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.slice(0, 500);
+  }
+
+  return "Unknown FX ingestion error.";
+}

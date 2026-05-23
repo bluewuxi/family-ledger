@@ -60,6 +60,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.48.1
         version: 2.106.1
+      decimal.js:
+        specifier: ^10.6.0
+        version: 10.6.0
     devDependencies:
       '@types/aws-lambda':
         specifier: ^8.10.147

@@ -10,7 +10,8 @@
   "dependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",
     "@family-ledger/shared": "workspace:*",
-    "@supabase/supabase-js": "^2.48.1"
+    "@supabase/supabase-js": "^2.48.1",
+    "decimal.js": "^10.6.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
