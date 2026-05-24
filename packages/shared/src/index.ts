@@ -1,3 +1,5 @@
+import Decimal from "decimal.js";
+
 export const USER_ROLES = ["viewer", "admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
@@ -319,6 +321,184 @@ export interface HoldingSummary {
   warnings: HoldingWarning[];
 }
 
+interface HoldingState {
+  account: InvestmentAccount;
+  instrument: Instrument;
+  quantity: Decimal;
+  costAmount: Decimal;
+  costBasisUnavailable: boolean;
+  warnings: Set<HoldingWarning>;
+}
+
+export function calculateHoldings(
+  transactions: InvestmentTransaction[],
+  accounts: InvestmentAccount[],
+  instruments: Instrument[]
+): HoldingSummary[] {
+  const accountsById = new Map(accounts.map((account) => [account.id, account]));
+  const instrumentsById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
+  const states = new Map<string, HoldingState>();
+
+  for (const transaction of sortTransactions(transactions)) {
+    const account = accountsById.get(transaction.accountId);
+    const instrument = instrumentsById.get(transaction.instrumentId);
+
+    if (!account || !instrument) {
+      throw new Error("Holding reference data is incomplete.");
+    }
+
+    const key = `${account.id}:${instrument.id}`;
+    const state = states.get(key) ?? createHoldingState(account, instrument);
+    states.set(key, state);
+
+    if (instrument.assetType === "cash") {
+      applyCashTransaction(state, transaction);
+    } else {
+      applySecurityTransaction(state, transaction);
+    }
+  }
+
+  return [...states.values()]
+    .filter((state) => !state.quantity.isZero())
+    .map(toHoldingSummary)
+    .sort((left, right) => {
+      const accountComparison = left.accountName.localeCompare(right.accountName, "zh-CN");
+      const instrumentComparison = left.instrumentName.localeCompare(right.instrumentName, "zh-CN");
+      return accountComparison || instrumentComparison || left.instrumentId.localeCompare(right.instrumentId);
+    });
+}
+
+function applySecurityTransaction(state: HoldingState, transaction: InvestmentTransaction): void {
+  switch (transaction.transactionType) {
+    case "buy": {
+      const quantity = requiredAmount(transaction.quantity);
+      state.quantity = state.quantity.plus(quantity);
+
+      if (!state.costBasisUnavailable) {
+        state.costAmount = state.costAmount
+          .plus(requiredAmount(transaction.grossAmount))
+          .plus(requiredAmount(transaction.fee))
+          .plus(requiredAmount(transaction.tax));
+      }
+      return;
+    }
+    case "sell": {
+      const soldQuantity = requiredAmount(transaction.quantity);
+      const priorQuantity = state.quantity;
+
+      if (!state.costBasisUnavailable && priorQuantity.greaterThan(0) && soldQuantity.lessThanOrEqualTo(priorQuantity)) {
+        const priorAverageCost = state.costAmount.dividedBy(priorQuantity);
+        state.costAmount = state.costAmount.minus(soldQuantity.times(priorAverageCost));
+      } else {
+        markCostBasisUnavailable(state);
+      }
+
+      state.quantity = state.quantity.minus(soldQuantity);
+
+      if (state.quantity.isNegative()) {
+        markCostBasisUnavailable(state);
+      } else if (state.quantity.isZero() && !state.costBasisUnavailable) {
+        state.costAmount = new Decimal(0);
+      }
+      return;
+    }
+    case "dividend":
+      return;
+    default:
+      throw new Error("A non-cash instrument has an unsupported holdings transaction.");
+  }
+}
+
+function applyCashTransaction(state: HoldingState, transaction: InvestmentTransaction): void {
+  switch (transaction.transactionType) {
+    case "deposit":
+    case "interest":
+      state.quantity = state.quantity.plus(requiredAmount(transaction.grossAmount));
+      return;
+    case "withdrawal":
+      state.quantity = state.quantity.minus(requiredAmount(transaction.grossAmount));
+      return;
+    case "fee":
+      state.quantity = state.quantity.minus(requiredAmount(transaction.fee));
+      return;
+    case "tax":
+      state.quantity = state.quantity.minus(requiredAmount(transaction.tax));
+      return;
+    case "adjustment": {
+      const amount = requiredAmount(transaction.grossAmount);
+      if (transaction.adjustmentDirection === "increase") {
+        state.quantity = state.quantity.plus(amount);
+        return;
+      }
+      if (transaction.adjustmentDirection === "decrease") {
+        state.quantity = state.quantity.minus(amount);
+        return;
+      }
+      throw new Error("A cash adjustment is missing its direction.");
+    }
+    default:
+      throw new Error("A cash instrument has an unsupported holdings transaction.");
+  }
+}
+
+function toHoldingSummary(state: HoldingState): HoldingSummary {
+  const isCash = state.instrument.assetType === "cash";
+
+  if (state.quantity.isNegative()) {
+    state.warnings.add("NEGATIVE_POSITION");
+  }
+
+  const costAmount = isCash || state.costBasisUnavailable ? null : formatFlexibleDecimal(state.costAmount, 6);
+  const averageUnitCost =
+    isCash || state.costBasisUnavailable ? null : formatFlexibleDecimal(state.costAmount.dividedBy(state.quantity), 10);
+
+  return {
+    accountId: state.account.id,
+    accountName: state.account.name,
+    instrumentId: state.instrument.id,
+    instrumentSymbol: state.instrument.symbol,
+    instrumentName: state.instrument.name,
+    assetType: state.instrument.assetType,
+    currency: state.instrument.currency,
+    quantity: state.quantity.toString(),
+    averageUnitCost,
+    costAmount,
+    warnings: [...state.warnings]
+  };
+}
+
+function markCostBasisUnavailable(state: HoldingState): void {
+  state.costBasisUnavailable = true;
+  state.warnings.add("NEGATIVE_POSITION");
+  state.warnings.add("COST_BASIS_UNAVAILABLE");
+}
+
+function requiredAmount(value: string | null): Decimal {
+  if (value === null) {
+    throw new Error("A transaction is missing a required holdings amount.");
+  }
+  return new Decimal(value);
+}
+
+function createHoldingState(account: InvestmentAccount, instrument: Instrument): HoldingState {
+  return {
+    account,
+    instrument,
+    quantity: new Decimal(0),
+    costAmount: new Decimal(0),
+    costBasisUnavailable: false,
+    warnings: new Set<HoldingWarning>()
+  };
+}
+
+function sortTransactions(transactions: InvestmentTransaction[]): InvestmentTransaction[] {
+  return [...transactions].sort((left, right) => {
+    const tradeDateComparison = left.tradeDate.localeCompare(right.tradeDate);
+    const createdAtComparison = left.createdAt.localeCompare(right.createdAt);
+    return tradeDateComparison || createdAtComparison || left.id.localeCompare(right.id);
+  });
+}
+
 export const DASHBOARD_WARNING_CODES = [
   "MISSING_LATEST_PRICE",
   "MISSING_PREVIOUS_PRICE",
@@ -457,6 +637,407 @@ export interface PortfolioSnapshot {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export const SNAPSHOT_DISPLAY_CURRENCIES = ["NZD", "USD", "CNY"] as const;
+export type SnapshotDisplayCurrency = (typeof SNAPSHOT_DISPLAY_CURRENCIES)[number];
+
+export const SNAPSHOT_WARNING_CODES = [
+  "MISSING_LATEST_PRICE",
+  "MISSING_PREVIOUS_PRICE",
+  "MISSING_FX_RATE",
+  "COST_BASIS_UNAVAILABLE"
+] as const;
+export type SnapshotWarningCode = (typeof SNAPSHOT_WARNING_CODES)[number];
+
+export interface SnapshotWarning {
+  code: SnapshotWarningCode;
+  accountId: string;
+  accountName: string;
+  instrumentId: string;
+  instrumentName: string;
+  currency: CurrencyCode;
+}
+
+export interface PortfolioAccountSnapshotSummary {
+  accountId: string;
+  accountName: string;
+  currency: SnapshotDisplayCurrency;
+  marketValue: string | null;
+  cost: string | null;
+  unrealizedGain: string | null;
+  dailyChange: string | null;
+  dailyChangePct: string | null;
+  warnings: SnapshotWarning[];
+}
+
+export interface PortfolioSnapshotSummary {
+  id: string;
+  snapshotDate: string;
+  currency: SnapshotDisplayCurrency;
+  marketValue: string | null;
+  cost: string | null;
+  unrealizedGain: string | null;
+  dailyChange: string | null;
+  dailyChangePct: string | null;
+  usdToNzdRate: string;
+  usdToCnyRate: string;
+  warnings: SnapshotWarning[];
+  accounts: PortfolioAccountSnapshotSummary[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortfolioSnapshotValuationAccount {
+  accountId: string;
+  accountName: string;
+  marketValueUsd: string | null;
+  costUsd: string | null;
+  unrealizedGainUsd: string | null;
+  dailyChangeUsd: string | null;
+  dailyChangePct: string | null;
+  warnings: SnapshotWarning[];
+}
+
+export interface PortfolioSnapshotValuation {
+  snapshotDate: string;
+  marketValueUsd: string | null;
+  costUsd: string | null;
+  unrealizedGainUsd: string | null;
+  dailyChangeUsd: string | null;
+  dailyChangePct: string | null;
+  usdToNzdRate: string;
+  usdToCnyRate: string;
+  warnings: SnapshotWarning[];
+  accounts: PortfolioSnapshotValuationAccount[];
+}
+
+export function calculatePortfolioSnapshotValuation(input: {
+  snapshotDate: string;
+  holdings: HoldingSummary[];
+  accounts: InvestmentAccount[];
+  prices: PriceRecord[];
+  fxRates: ExchangeRateRecord[];
+}): PortfolioSnapshotValuation {
+  const usdRatesByCurrency = groupLatestUsdRatesByCurrency(input.fxRates, input.snapshotDate);
+  const pricesByInstrument = groupValidPricesByInstrument(input.holdings, input.prices, input.snapshotDate);
+  const usdToNzdRate = getDisplayRate("NZD", usdRatesByCurrency);
+  const usdToCnyRate = getDisplayRate("CNY", usdRatesByCurrency);
+  const accountStates = new Map<string, PortfolioSnapshotValuationAccumulator>();
+
+  for (const account of input.accounts) {
+    accountStates.set(account.id, createSnapshotAccumulator(account.id, account.name));
+  }
+
+  for (const holding of input.holdings) {
+    const state =
+      accountStates.get(holding.accountId) ?? createSnapshotAccumulator(holding.accountId, holding.accountName);
+    accountStates.set(holding.accountId, state);
+    valueHolding(holding, pricesByInstrument.get(holding.instrumentId) ?? [], usdRatesByCurrency, state);
+  }
+
+  const accountResults = [...accountStates.values()].map(toSnapshotAccountValuation);
+  const total = combineAccountValuations(input.snapshotDate, accountResults, usdToNzdRate, usdToCnyRate);
+  return total;
+}
+
+export function convertSnapshotAmount(
+  amountUsd: string | null,
+  currency: SnapshotDisplayCurrency,
+  rates: { usdToNzdRate: string; usdToCnyRate: string }
+): string | null {
+  if (amountUsd === null) {
+    return null;
+  }
+
+  const amount = new Decimal(amountUsd);
+  if (currency === "USD") {
+    return formatDecimal(amount, 2);
+  }
+  if (currency === "NZD") {
+    const rate = new Decimal(rates.usdToNzdRate);
+    return rate.isZero() ? null : formatDecimal(amount.times(rate), 2);
+  }
+  const rate = new Decimal(rates.usdToCnyRate);
+  return rate.isZero() ? null : formatDecimal(amount.times(rate), 2);
+}
+
+interface PortfolioSnapshotValuationAccumulator {
+  accountId: string;
+  accountName: string;
+  marketValueUsd: Decimal;
+  costUsd: Decimal;
+  unrealizedGainUsd: Decimal;
+  dailyChangeUsd: Decimal;
+  priorMarketValueUsd: Decimal;
+  marketValueAvailable: boolean;
+  costAvailable: boolean;
+  unrealizedGainAvailable: boolean;
+  dailyChangeAvailable: boolean;
+  warnings: SnapshotWarning[];
+  warningKeys: Set<string>;
+}
+
+function valueHolding(
+  holding: HoldingSummary,
+  prices: PriceRecord[],
+  usdRatesByCurrency: Map<CurrencyCode, Decimal>,
+  state: PortfolioSnapshotValuationAccumulator
+): void {
+  const fxRate = getCurrencyToUsdRate(holding.currency, usdRatesByCurrency);
+
+  if (fxRate === null) {
+    addSnapshotWarning(state, "MISSING_FX_RATE", holding);
+    markMarketCostAndDailyUnavailable(state);
+    return;
+  }
+
+  const quantity = new Decimal(holding.quantity);
+
+  if (holding.assetType === "cash") {
+    const cashValue = quantity.times(fxRate);
+    state.marketValueUsd = state.marketValueUsd.plus(cashValue);
+    state.costUsd = state.costUsd.plus(cashValue);
+    state.priorMarketValueUsd = state.priorMarketValueUsd.plus(cashValue);
+    return;
+  }
+
+  const latestPrice = prices[0];
+
+  if (!latestPrice) {
+    addSnapshotWarning(state, "MISSING_LATEST_PRICE", holding);
+    markMarketCostAndDailyUnavailable(state);
+    return;
+  }
+
+  const marketValue = quantity.times(latestPrice.closePrice).times(fxRate);
+  state.marketValueUsd = state.marketValueUsd.plus(marketValue);
+
+  if (holding.costAmount === null) {
+    addSnapshotWarning(state, "COST_BASIS_UNAVAILABLE", holding);
+    state.costAvailable = false;
+    state.unrealizedGainAvailable = false;
+  } else {
+    const cost = new Decimal(holding.costAmount).times(fxRate);
+    state.costUsd = state.costUsd.plus(cost);
+    state.unrealizedGainUsd = state.unrealizedGainUsd.plus(marketValue.minus(cost));
+  }
+
+  const previousPrice = prices[1];
+
+  if (!previousPrice) {
+    addSnapshotWarning(state, "MISSING_PREVIOUS_PRICE", holding);
+    state.dailyChangeAvailable = false;
+    return;
+  }
+
+  const previousValue = quantity.times(previousPrice.closePrice).times(fxRate);
+  state.priorMarketValueUsd = state.priorMarketValueUsd.plus(previousValue);
+  state.dailyChangeUsd = state.dailyChangeUsd.plus(marketValue.minus(previousValue));
+}
+
+function groupValidPricesByInstrument(
+  holdings: HoldingSummary[],
+  prices: PriceRecord[],
+  snapshotDate: string
+): Map<string, PriceRecord[]> {
+  const instrumentCurrencies = new Map(holdings.map((holding) => [holding.instrumentId, holding.currency]));
+  const groupedPrices = new Map<string, PriceRecord[]>();
+
+  for (const price of prices) {
+    if (price.priceDate > snapshotDate || instrumentCurrencies.get(price.instrumentId) !== price.currency) {
+      continue;
+    }
+
+    const records = groupedPrices.get(price.instrumentId) ?? [];
+    records.push(price);
+    groupedPrices.set(price.instrumentId, records);
+  }
+
+  for (const records of groupedPrices.values()) {
+    records.sort((left, right) => right.priceDate.localeCompare(left.priceDate));
+    records.splice(2);
+  }
+
+  return groupedPrices;
+}
+
+function groupLatestUsdRatesByCurrency(
+  rates: ExchangeRateRecord[],
+  snapshotDate: string
+): Map<CurrencyCode, Decimal> {
+  const sortedRates = [...rates]
+    .filter((rate) => rate.rateType === "valuation" && rate.toCurrency === "USD" && rate.rateDate <= snapshotDate)
+    .sort((left, right) => right.rateDate.localeCompare(left.rateDate));
+  const ratesByCurrency = new Map<CurrencyCode, Decimal>([["USD", new Decimal(1)]]);
+
+  for (const rate of sortedRates) {
+    if (!ratesByCurrency.has(rate.fromCurrency)) {
+      ratesByCurrency.set(rate.fromCurrency, new Decimal(rate.rate));
+    }
+  }
+
+  return ratesByCurrency;
+}
+
+function getCurrencyToUsdRate(
+  currency: CurrencyCode,
+  usdRatesByCurrency: Map<CurrencyCode, Decimal>
+): Decimal | null {
+  if (currency === "USD") {
+    return new Decimal(1);
+  }
+  return usdRatesByCurrency.get(currency) ?? null;
+}
+
+function getDisplayRate(currency: Exclude<SnapshotDisplayCurrency, "USD">, usdRatesByCurrency: Map<CurrencyCode, Decimal>): string {
+  const currencyToUsd = usdRatesByCurrency.get(currency);
+
+  if (!currencyToUsd) {
+    return "0";
+  }
+
+  return formatDecimal(new Decimal(1).dividedBy(currencyToUsd), 10);
+}
+
+function createSnapshotAccumulator(accountId: string, accountName: string): PortfolioSnapshotValuationAccumulator {
+  return {
+    accountId,
+    accountName,
+    marketValueUsd: new Decimal(0),
+    costUsd: new Decimal(0),
+    unrealizedGainUsd: new Decimal(0),
+    dailyChangeUsd: new Decimal(0),
+    priorMarketValueUsd: new Decimal(0),
+    marketValueAvailable: true,
+    costAvailable: true,
+    unrealizedGainAvailable: true,
+    dailyChangeAvailable: true,
+    warnings: [],
+    warningKeys: new Set<string>()
+  };
+}
+
+function toSnapshotAccountValuation(
+  state: PortfolioSnapshotValuationAccumulator
+): PortfolioSnapshotValuationAccount {
+  const marketValueAvailable = state.marketValueAvailable;
+  const dailyChangeAvailable = marketValueAvailable && state.dailyChangeAvailable;
+
+  return {
+    accountId: state.accountId,
+    accountName: state.accountName,
+    marketValueUsd: marketValueAvailable ? formatDecimal(state.marketValueUsd, 6) : null,
+    costUsd: marketValueAvailable && state.costAvailable ? formatDecimal(state.costUsd, 6) : null,
+    unrealizedGainUsd:
+      marketValueAvailable && state.unrealizedGainAvailable ? formatDecimal(state.unrealizedGainUsd, 6) : null,
+    dailyChangeUsd: dailyChangeAvailable ? formatDecimal(state.dailyChangeUsd, 6) : null,
+    dailyChangePct:
+      dailyChangeAvailable && !state.priorMarketValueUsd.isZero()
+        ? formatDecimal(state.dailyChangeUsd.dividedBy(state.priorMarketValueUsd).times(100), 8)
+        : null,
+    warnings: state.warnings
+  };
+}
+
+function combineAccountValuations(
+  snapshotDate: string,
+  accounts: PortfolioSnapshotValuationAccount[],
+  usdToNzdRate: string,
+  usdToCnyRate: string
+): PortfolioSnapshotValuation {
+  let marketValue = new Decimal(0);
+  let cost = new Decimal(0);
+  let unrealizedGain = new Decimal(0);
+  let dailyChange = new Decimal(0);
+  let priorMarketValue = new Decimal(0);
+  let marketValueAvailable = true;
+  let costAvailable = true;
+  let unrealizedGainAvailable = true;
+  let dailyChangeAvailable = true;
+
+  for (const account of accounts) {
+    if (account.marketValueUsd === null) {
+      marketValueAvailable = false;
+    } else {
+      marketValue = marketValue.plus(account.marketValueUsd);
+    }
+
+    if (account.costUsd === null) {
+      costAvailable = false;
+    } else {
+      cost = cost.plus(account.costUsd);
+    }
+
+    if (account.unrealizedGainUsd === null) {
+      unrealizedGainAvailable = false;
+    } else {
+      unrealizedGain = unrealizedGain.plus(account.unrealizedGainUsd);
+    }
+
+    if (account.dailyChangeUsd === null) {
+      dailyChangeAvailable = false;
+    } else {
+      dailyChange = dailyChange.plus(account.dailyChangeUsd);
+      if (account.marketValueUsd !== null) {
+        priorMarketValue = priorMarketValue.plus(new Decimal(account.marketValueUsd).minus(account.dailyChangeUsd));
+      }
+    }
+  }
+
+  const totalWarnings = accounts.flatMap((account) => account.warnings);
+  return {
+    snapshotDate,
+    marketValueUsd: marketValueAvailable ? formatDecimal(marketValue, 6) : null,
+    costUsd: marketValueAvailable && costAvailable ? formatDecimal(cost, 6) : null,
+    unrealizedGainUsd: marketValueAvailable && unrealizedGainAvailable ? formatDecimal(unrealizedGain, 6) : null,
+    dailyChangeUsd: marketValueAvailable && dailyChangeAvailable ? formatDecimal(dailyChange, 6) : null,
+    dailyChangePct:
+      marketValueAvailable && dailyChangeAvailable && !priorMarketValue.isZero()
+        ? formatDecimal(dailyChange.dividedBy(priorMarketValue).times(100), 8)
+        : null,
+    usdToNzdRate,
+    usdToCnyRate,
+    warnings: totalWarnings,
+    accounts
+  };
+}
+
+function markMarketCostAndDailyUnavailable(state: PortfolioSnapshotValuationAccumulator): void {
+  state.marketValueAvailable = false;
+  state.costAvailable = false;
+  state.unrealizedGainAvailable = false;
+  state.dailyChangeAvailable = false;
+}
+
+function addSnapshotWarning(
+  state: PortfolioSnapshotValuationAccumulator,
+  code: SnapshotWarningCode,
+  holding: HoldingSummary
+): void {
+  const key = `${code}:${holding.instrumentId}:${holding.currency}`;
+
+  if (state.warningKeys.has(key)) {
+    return;
+  }
+
+  state.warningKeys.add(key);
+  state.warnings.push({
+    code,
+    accountId: holding.accountId,
+    accountName: holding.accountName,
+    instrumentId: holding.instrumentId,
+    instrumentName: holding.instrumentName,
+    currency: holding.currency
+  });
+}
+
+function formatDecimal(amount: Decimal, decimalPlaces: number): string {
+  return amount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_HALF_UP).toFixed(decimalPlaces);
+}
+
+function formatFlexibleDecimal(amount: Decimal, decimalPlaces: number): string {
+  return amount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_HALF_UP).toString();
 }
 
 export interface ApiError {

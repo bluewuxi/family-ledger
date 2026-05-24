@@ -43,6 +43,14 @@ The Lambda handler must throw on failed ingestion so EventBridge can retry. Dupl
 
 Configure the price update Lambda handler exported as `updatePrices` from `apps/jobs` on the same daily schedule unless a different market-data cadence is chosen later. The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastmoney public endpoints plus the existing FundRock page parser, so no extra provider API key or secret is required. Price retries are idempotent through the `instrument_prices` uniqueness constraint and insert-if-not-exists behavior.
 
+Configure the portfolio snapshot Lambda handler exported as `generatePortfolioSnapshots` from `apps/jobs` after the FX and price jobs have normally completed. A default daily schedule can run at 02:00 UTC:
+
+```text
+cron(0 2 * * ? *)
+```
+
+The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it uses the EventBridge event time date. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
+
 Structured CloudWatch logs should include:
 
 ```text

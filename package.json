@@ -17,6 +17,7 @@
     "verify:yahoo-finance-provider": "tsx scripts/verify-yahoo-finance-provider.ts",
     "verify:eastmoney-provider": "tsx scripts/verify-eastmoney-provider.ts",
     "verify:stock-etf-price-ingestion": "tsx scripts/verify-stock-etf-price-ingestion.ts",
+    "verify:portfolio-snapshots": "tsx scripts/verify-portfolio-snapshot-calculation.ts",
     "fx:ingest:frankfurter": "tsx scripts/ingest-frankfurter-fx-rates.ts",
     "typecheck": "tsc -b --pretty false"
   },

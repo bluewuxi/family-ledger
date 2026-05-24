@@ -44,8 +44,8 @@
 - Retry/job logging hardening (implemented for FX ingestion with durable job/provider run status and best-effort failure finalization)
 - Additional price maintenance and automated instrument price updates
 - Price-source adapters for `yahoo_finance` and `eastmoney` (implemented for seeded instruments)
-- EventBridge jobs for prices and snapshots
-- Portfolio snapshots
+- EventBridge jobs for prices and snapshots (implemented for price updates, FX updates, and portfolio snapshots)
+- Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
 
 ## Stage 5: Tax-Assist and Reports
 

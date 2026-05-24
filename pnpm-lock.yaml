@@ -102,7 +102,11 @@ importers:
         specifier: ^19.0.2
         version: 19.2.3(@types/react@19.2.15)
 
-  packages/shared: {}
+  packages/shared:
+    dependencies:
+      decimal.js:
+        specifier: ^10.6.0
+        version: 10.6.0
 
 packages:
 

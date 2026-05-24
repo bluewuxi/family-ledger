@@ -45,12 +45,14 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /accounts`
 - `GET /instruments`
 - `GET /transactions`
+- `GET /portfolio-snapshots`
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history.
 `GET /dashboard` returns a four-card NZD portfolio summary calculated from holdings and stored price/FX records.
+`GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
 
 Response data:
 
@@ -125,6 +127,41 @@ Cash holdings are calculated only from transactions explicitly linked to cash in
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
 
 Holding rows continue to return amounts in the instrument currency. NZD market value and unrealized gain are provided only by the dashboard summary; valued holding rows and allocation fields remain deferred.
+
+### Portfolio Snapshots Read API
+
+`GET /portfolio-snapshots?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
+
+Defaults:
+
+- `currency`: `NZD`
+- `to`: current UTC date
+- `from`: same as `to`
+
+Response data:
+
+```json
+{
+  "snapshots": [
+    {
+      "id": "uuid",
+      "snapshotDate": "2026-05-22",
+      "currency": "NZD",
+      "marketValue": "393.33",
+      "cost": "296.67",
+      "unrealizedGain": "96.67",
+      "dailyChange": "19.67",
+      "dailyChangePct": "5.26315789",
+      "usdToNzdRate": "1.6666666667",
+      "usdToCnyRate": "7.1428571429",
+      "warnings": [],
+      "accounts": []
+    }
+  ]
+}
+```
+
+Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals.
 
 ## Account Write APIs
 

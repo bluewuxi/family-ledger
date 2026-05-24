@@ -19,6 +19,7 @@ import {
   getTransactions,
   updateInvestmentTransaction
 } from "../services/transactionService";
+import { getPortfolioSnapshots } from "../services/portfolioSnapshotService";
 import { ApiAuthError, requireRole } from "../auth/auth";
 import { ApiRequestError } from "../utils/apiError";
 import { parseJsonBody } from "../utils/requestBody";
@@ -67,6 +68,17 @@ const routes: Record<string, RouteHandler> = {
   "GET /dashboard": async (event) => {
     const user = await requireRole(event, "viewer");
     return success({ user, dashboard: await getDashboard() });
+  },
+  "GET /portfolio-snapshots": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({
+      user,
+      snapshots: await getPortfolioSnapshots({
+        from: event.queryStringParameters?.from,
+        to: event.queryStringParameters?.to,
+        currency: event.queryStringParameters?.currency
+      })
+    });
   }
 };
 
