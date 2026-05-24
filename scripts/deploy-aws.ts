@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import dotenv from "dotenv";
 
@@ -190,7 +190,9 @@ function deployWeb(parameters: DeploymentParameters): void {
     fail(`VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required in .env.${parameters.EnvironmentName} for web deploy.`);
   }
 
-  run("corepack", ["pnpm", "--filter", "@family-ledger/web", "build"], { env });
+  run("corepack", ["pnpm", "--filter", "@family-ledger/web", "exec", "tsc", "-b"], { env });
+  run("corepack", ["pnpm", "--filter", "@family-ledger/web", "exec", "vite", "build", "--mode", parameters.EnvironmentName], { env });
+  verifyWebBuild(parameters, env.VITE_SUPABASE_URL);
 
   const webBucketName = getStackOutput(parameters.AppRegion, appStackName(parameters.EnvironmentName), "WebBucketName");
   const distributionId = getStackOutput(parameters.AppRegion, appStackName(parameters.EnvironmentName), "WebDistributionId");
@@ -201,6 +203,26 @@ function deployWeb(parameters: DeploymentParameters): void {
 
 function getCertificateArn(parameters: DeploymentParameters): string {
   return getStackOutput(parameters.CertificateRegion, certificateStackName(parameters.EnvironmentName), "WebCertificateArn");
+}
+
+function verifyWebBuild(parameters: DeploymentParameters, supabaseUrl: string): void {
+  const assetsDirectory = join("apps", "web", "dist", "assets");
+  const javascriptFiles = readdirSync(assetsDirectory)
+    .filter((fileName) => fileName.endsWith(".js"))
+    .map((fileName) => readFileSync(join(assetsDirectory, fileName), "utf8"));
+  const bundle = javascriptFiles.join("\n");
+
+  if (bundle.includes("const ez=void 0") || bundle.includes("const tz=void 0")) {
+    fail("Web build is missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.");
+  }
+
+  if (!bundle.includes(`https://${parameters.ApiDomainName}`)) {
+    fail(`Web build is missing VITE_API_BASE_URL for https://${parameters.ApiDomainName}.`);
+  }
+
+  if (!bundle.includes(supabaseUrl)) {
+    fail("Web build is missing the configured Supabase URL.");
+  }
 }
 
 function getStackOutput(region: string, stackName: string, outputKey: string): string {
