@@ -180,7 +180,7 @@ function buildSamTemplate(): void {
 function deployWeb(parameters: DeploymentParameters): void {
   dotenv.config({ path: `.env.${parameters.EnvironmentName}`, quiet: true });
 
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     VITE_API_BASE_URL: `https://${parameters.ApiDomainName}`,
     VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || parameters.SupabaseUrl
@@ -190,9 +190,17 @@ function deployWeb(parameters: DeploymentParameters): void {
     fail(`VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required in .env.${parameters.EnvironmentName} for web deploy.`);
   }
 
+  process.env.VITE_API_BASE_URL = env.VITE_API_BASE_URL;
+  process.env.VITE_SUPABASE_URL = env.VITE_SUPABASE_URL;
+  process.env.VITE_SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY;
+
   run("corepack", ["pnpm", "--filter", "@family-ledger/web", "exec", "tsc", "-b"], { env });
   run("corepack", ["pnpm", "--filter", "@family-ledger/web", "exec", "vite", "build", "--mode", parameters.EnvironmentName], { env });
-  verifyWebBuild(parameters, env.VITE_SUPABASE_URL);
+  verifyWebBuild(parameters, {
+    apiBaseUrl: env.VITE_API_BASE_URL,
+    supabaseUrl: env.VITE_SUPABASE_URL,
+    supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY
+  });
 
   const webBucketName = getStackOutput(parameters.AppRegion, appStackName(parameters.EnvironmentName), "WebBucketName");
   const distributionId = getStackOutput(parameters.AppRegion, appStackName(parameters.EnvironmentName), "WebDistributionId");
@@ -205,7 +213,10 @@ function getCertificateArn(parameters: DeploymentParameters): string {
   return getStackOutput(parameters.CertificateRegion, certificateStackName(parameters.EnvironmentName), "WebCertificateArn");
 }
 
-function verifyWebBuild(parameters: DeploymentParameters, supabaseUrl: string): void {
+function verifyWebBuild(
+  parameters: DeploymentParameters,
+  expected: { apiBaseUrl: string; supabaseUrl: string; supabaseAnonKey: string }
+): void {
   const assetsDirectory = join("apps", "web", "dist", "assets");
   const javascriptFiles = readdirSync(assetsDirectory)
     .filter((fileName) => fileName.endsWith(".js"))
@@ -216,12 +227,16 @@ function verifyWebBuild(parameters: DeploymentParameters, supabaseUrl: string): 
     fail("Web build is missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.");
   }
 
-  if (!bundle.includes(`https://${parameters.ApiDomainName}`)) {
-    fail(`Web build is missing VITE_API_BASE_URL for https://${parameters.ApiDomainName}.`);
+  if (!bundle.includes(expected.apiBaseUrl)) {
+    fail(`Web build is missing VITE_API_BASE_URL for ${expected.apiBaseUrl}.`);
   }
 
-  if (!bundle.includes(supabaseUrl)) {
+  if (!bundle.includes(expected.supabaseUrl)) {
     fail("Web build is missing the configured Supabase URL.");
+  }
+
+  if (!bundle.includes(expected.supabaseAnonKey)) {
+    fail("Web build is missing VITE_SUPABASE_ANON_KEY.");
   }
 }
 
