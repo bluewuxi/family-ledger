@@ -37,7 +37,7 @@
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
 - USD-centered price/FX storage foundation (implemented: currencies, exchange rates, instrument prices, job/provider run audit tables)
-- Frankfurter FX maintenance handler (implemented: scheduled Lambda handler calls ingestion service, logs structured EventBridge context, and relies on retry-safe inserts)
+- Frankfurter FX maintenance handler (implemented: scheduled Lambda handler syncs account-base currencies, supports optional historical date fetches, logs structured EventBridge context, and relies on retry-safe inserts)
 - FundRock PIE unit price maintenance handler (implemented: scheduled Lambda handler ingests latest public FundRock unit prices for seeded Foundation Series PIE funds)
 - Stock/ETF price providers (implemented: seeded US/HK instruments use Yahoo Finance best-effort chart data; seeded China-listed ETFs/funds use Eastmoney best-effort quote data)
 - Scheduled execution policy (implemented in docs: daily 01:00 UTC with EventBridge retry attempts `2` and maximum event age `1 hour`; AWS resources not deployed yet)
@@ -46,6 +46,8 @@
 - Price-source adapters for `yahoo_finance` and `eastmoney` (implemented for seeded instruments)
 - EventBridge jobs for prices and snapshots (implemented for price updates, FX updates, and portfolio snapshots)
 - Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
+- Dedicated data-sync monitor (implemented: FX, price, and log tabs with filters and offset pagination)
+- Settings user preferences (implemented: report default currency backed by profiles, theme placeholder)
 
 ## Stage 5: Tax-Assist and Reports
 

@@ -82,14 +82,16 @@ export async function listExchangeRates(input: {
   to?: string;
   provider?: string;
   limit: number;
+  offset: number;
 }): Promise<ExchangeRateRecord[]> {
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("exchange_rates")
     .select(exchangeRateSelect)
+    .not("from_currency", "eq", "USD")
     .order("rate_date", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(input.limit);
+    .range(input.offset, input.offset + input.limit);
 
   if (input.fromCurrency) {
     query = query.eq("from_currency", input.fromCurrency);
@@ -122,6 +124,7 @@ export async function listInstrumentPrices(input: {
   from?: string;
   to?: string;
   limit: number;
+  offset: number;
 }): Promise<InstrumentPriceListRecord[]> {
   const supabase = await getSupabaseAdmin();
   let query = supabase
@@ -129,7 +132,7 @@ export async function listInstrumentPrices(input: {
     .select(instrumentPriceSelect)
     .order("price_date", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(input.limit);
+    .range(input.offset, input.offset + input.limit);
 
   if (input.instrumentId) {
     query = query.eq("instrument_id", input.instrumentId);
@@ -156,20 +159,25 @@ export async function listInstrumentPrices(input: {
 export async function listJobRuns(input: {
   jobName?: string;
   status?: JobRunStatus;
+  triggerSource?: JobTriggerSource;
   limit: number;
+  offset: number;
 }): Promise<JobRun[]> {
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("job_runs")
     .select(jobRunSelect)
     .order("job_started_at", { ascending: false })
-    .limit(input.limit);
+    .range(input.offset, input.offset + input.limit);
 
   if (input.jobName) {
     query = query.eq("job_name", input.jobName);
   }
   if (input.status) {
     query = query.eq("status", input.status);
+  }
+  if (input.triggerSource) {
+    query = query.eq("trigger_source", input.triggerSource);
   }
 
   const { data, error } = await query;

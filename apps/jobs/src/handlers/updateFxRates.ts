@@ -11,6 +11,7 @@ interface MarketDataJobEvent extends Partial<ScheduledEvent> {
   triggerSource?: IngestLatestFrankfurterFxRatesOptions["triggerSource"];
   triggeredByUserId?: string | null;
   triggerRequestId?: string | null;
+  rateDate?: string;
 }
 
 export interface UpdateFxRatesHandlerDependencies {
@@ -35,7 +36,8 @@ export function createUpdateFxRatesHandler(
       const result = await dependencies.ingestLatestFrankfurterFxRates({
         triggerSource: event.triggerSource,
         triggeredByUserId: event.triggeredByUserId,
-        triggerRequestId: event.triggerRequestId
+        triggerRequestId: event.triggerRequestId,
+        rateDate: event.rateDate
       });
       logScheduledJob({
         jobName: FRANKFURTER_FX_JOB_NAME,

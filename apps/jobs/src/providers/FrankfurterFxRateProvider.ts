@@ -21,7 +21,7 @@ export interface FrankfurterFxRateProviderOptions {
   endpoint?: string;
 }
 
-const FRANKFURTER_ENDPOINT = "https://api.frankfurter.app/latest";
+const FRANKFURTER_ENDPOINT = "https://api.frankfurter.app";
 const SUPPORTED_CURRENCY_CODES = new Set<CurrencyCode>(["NZD", "USD", "HKD", "CNY", "AUD", "GBP", "EUR"]);
 
 export class FrankfurterFxRateProvider implements IFxRateProvider {
@@ -42,7 +42,8 @@ export class FrankfurterFxRateProvider implements IFxRateProvider {
       throw new Error("At least one non-USD target currency is required.");
     }
 
-    const url = new URL(this.endpoint);
+    const path = input.rateDate ?? "latest";
+    const url = new URL(path, this.endpoint.endsWith("/") ? this.endpoint : `${this.endpoint}/`);
     url.searchParams.set("from", input.baseCurrency);
     url.searchParams.set("to", targetCurrencies.join(","));
 

@@ -50,6 +50,8 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /market-data/instrument-prices`
 - `GET /market-data/job-runs`
 - `GET /market-data/job-runs/:id/provider-runs`
+- `GET /settings/preferences`
+- `PATCH /settings/preferences`
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
@@ -57,7 +59,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
-Market data endpoints return stored provider FX rates, instrument prices, and ingestion audit logs. They do not call external providers.
+Market data read endpoints return stored provider FX rates, instrument prices, and ingestion audit logs. They do not call external providers.
 
 Response data:
 
@@ -74,17 +76,31 @@ Response data:
 
 ### Market Data Read API
 
-`GET /market-data/fx-rates` supports `fromCurrency`, `toCurrency`, `from`, `to`, `provider`, and `limit` filters.
+`GET /market-data/fx-rates` supports `fromCurrency`, `toCurrency`, `from`, `to`, `provider`, `limit`, and `offset` filters. Existing stored `USD/USD` rows are not returned.
 
-`GET /market-data/instrument-prices` supports `instrumentId`, `from`, `to`, `provider`, and `limit` filters.
+`GET /market-data/instrument-prices` supports `instrumentId`, `from`, `to`, `provider`, `limit`, and `offset` filters.
 
-`GET /market-data/job-runs` supports `jobName`, `status`, and `limit` filters. Use `GET /market-data/job-runs/:id/provider-runs` to inspect per-provider results for a selected job run.
+`GET /market-data/job-runs` supports `jobName`, `status`, `triggerSource`, `limit`, and `offset` filters. Use `GET /market-data/job-runs/:id/provider-runs` to inspect per-provider results for a selected job run.
 
 Defaults:
 
 - `limit`: `50`
+- `offset`: `0`
 - Maximum `limit`: `200`
 - `from` and `to` must use `YYYY-MM-DD`
+
+List responses include pagination metadata:
+
+```json
+{
+  "fxRates": [],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "hasMore": false
+  }
+}
+```
 
 ### Market Data Retrieval API
 
@@ -94,7 +110,8 @@ Request:
 
 ```json
 {
-  "kind": "exchange_rates"
+  "kind": "exchange_rates",
+  "rateDate": "2025-08-06"
 }
 ```
 
@@ -105,6 +122,23 @@ Allowed `kind` values:
 - `all`
 
 The response includes a `triggerRequestId`. Actual inserted/skipped counts are recorded later in `job_runs` and `data_provider_runs`.
+
+`rateDate` is optional and currently applies to FX retrieval. When omitted, the FX job retrieves the latest provider rate date.
+
+### User Preferences API
+
+`GET /settings/preferences` is available to authenticated `viewer` and `admin` users. It returns the current user preference view:
+
+```json
+{
+  "preferences": {
+    "preferredCurrency": "NZD",
+    "uiTheme": "system"
+  }
+}
+```
+
+`PATCH /settings/preferences` updates the current user's report default currency. `preferredCurrency` must be `NZD`, `USD`, or `CNY`. `uiTheme` is a placeholder and is always returned as `system` until theme switching is implemented.
 
 ### Dashboard Read API
 

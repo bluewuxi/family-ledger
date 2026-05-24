@@ -132,6 +132,7 @@ textarea {
 .account-form,
 .instrument-form,
 .opening-form,
+.settings-form,
 .transaction-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -169,6 +170,7 @@ textarea {
 .account-form label,
 .instrument-form label,
 .opening-form label,
+.settings-form label,
 .transaction-form label {
   display: grid;
   gap: 8px;
@@ -184,6 +186,8 @@ textarea {
 .opening-form input,
 .opening-form select,
 .opening-form textarea,
+.settings-form input,
+.settings-form select,
 .transaction-form input,
 .transaction-form select,
 .transaction-form textarea {
@@ -206,11 +210,14 @@ textarea {
   resize: vertical;
 }
 
-.instrument-form .checkbox-field {
+.checkbox-field {
   align-content: start;
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
-.instrument-form .checkbox-field input {
+.checkbox-field input {
   width: 20px;
   min-height: 20px;
   margin-top: 4px;
@@ -245,6 +252,74 @@ textarea {
 .opening-entry-head {
   color: #68655e;
   font-size: 13px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  border-bottom: 1px solid #dedbd2;
+}
+
+.tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #68655e;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  border-bottom-color: #23443b;
+  color: #20231f;
+  font-weight: 700;
+}
+
+.filter-bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.filter-bar label {
+  display: grid;
+  gap: 8px;
+  color: #3d3b36;
+  font-size: 14px;
+}
+
+.filter-bar input,
+.filter-bar select {
+  min-height: 42px;
+  border: 1px solid #cfcac0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #20231f;
+  padding: 10px 12px;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.pagination-controls span {
+  color: #68655e;
+  font-size: 14px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 .holding-filters {
@@ -777,11 +852,13 @@ td {
   .account-form,
   .instrument-form,
   .opening-form,
+  .settings-form,
   .transaction-form {
     grid-template-columns: 1fr;
   }
 
   .holding-filters,
+  .filter-bar,
   .opening-entry-row {
     grid-template-columns: 1fr;
   }

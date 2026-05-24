@@ -48,8 +48,7 @@ async function main(): Promise<void> {
       ["HKD", "USD", "0.1274047649", "valuation", "Frankfurter", "2026-05-22", "2026-05-22", "2026-05-23T01:00:00.000Z"],
       ["AUD", "USD", "0.6574621959", "valuation", "Frankfurter", "2026-05-22", "2026-05-22", "2026-05-23T01:00:00.000Z"],
       ["EUR", "USD", "1.0834236186", "valuation", "Frankfurter", "2026-05-22", "2026-05-22", "2026-05-23T01:00:00.000Z"],
-      ["GBP", "USD", "1.2755102041", "valuation", "Frankfurter", "2026-05-22", "2026-05-22", "2026-05-23T01:00:00.000Z"],
-      ["USD", "USD", "1.0000000000", "valuation", "Frankfurter", "2026-05-22", "2026-05-22", "2026-05-23T01:00:00.000Z"]
+      ["GBP", "USD", "1.2755102041", "valuation", "Frankfurter", "2026-05-22", "2026-05-22", "2026-05-23T01:00:00.000Z"]
     ]
   );
 
@@ -101,22 +100,21 @@ async function main(): Promise<void> {
 
   assert.equal(result.rateDate, "2026-05-22");
   assert.equal(result.fetchedAt, "2026-05-23T01:00:00.000Z");
-  assert.equal(result.recordsInserted, 7);
+  assert.equal(result.recordsInserted, 6);
   assert.equal(result.recordsSkipped, 0);
-  assert.deepEqual(insertedInputs.map((input) => input.fromCurrency), ["NZD", "CNY", "HKD", "AUD", "EUR", "GBP", "USD"]);
+  assert.deepEqual(insertedInputs.map((input) => input.fromCurrency), ["NZD", "CNY", "HKD", "AUD", "EUR", "GBP"]);
   assert.deepEqual(insertedInputs.map((input) => input.rate), [
     "0.6127450980",
     "0.1404297149",
     "0.1274047649",
     "0.6574621959",
     "1.0834236186",
-    "1.2755102041",
-    "1.0000000000"
+    "1.2755102041"
   ]);
   assert.ok(calls.includes(`job:start:${FRANKFURTER_FX_JOB_NAME}:2026-05-23T01:00:00.000Z`));
   assert.ok(calls.includes("provider:start:Frankfurter:exchange_rates:2026-05-23T01:00:00.000Z"));
-  assert.ok(calls.includes("provider:finish:succeeded:7:0"));
-  assert.ok(calls.includes("job:finish:succeeded:7:0"));
+  assert.ok(calls.includes("provider:finish:succeeded:6:0"));
+  assert.ok(calls.includes("job:finish:succeeded:6:0"));
 
   const secondRun = await ingestLatestFrankfurterFxRates({
     targetCurrencies: ["NZD", "CNY", "HKD", "AUD", "EUR", "GBP"],
@@ -128,7 +126,7 @@ async function main(): Promise<void> {
   });
 
   assert.equal(secondRun.recordsInserted, 0);
-  assert.equal(secondRun.recordsSkipped, 7);
+  assert.equal(secondRun.recordsSkipped, 6);
 
   const failureCalls: string[] = [];
   await assert.rejects(
@@ -142,6 +140,11 @@ async function main(): Promise<void> {
         }
       },
       jobRunRepository: createFakeJobRunRepository(failureCalls),
+      accountCurrencyRepository: {
+        async listDistinctAccountBaseCurrencies() {
+          return ["NZD"];
+        }
+      },
       exchangeRateRepository: {
         async insertExchangeRateIfNotExists(input) {
           return { inserted: true, record: exchangeRateRecord(input) };
@@ -305,7 +308,7 @@ function fxRateIngestionResult(): FxRateIngestionResult {
     ...jobRunRecord("handler-job-run-id"),
     status: "succeeded" as const,
     jobFinishedAt: "2026-05-23T01:30:00.000Z",
-    recordsInserted: 7,
+    recordsInserted: 6,
     recordsSkipped: 0
   };
 
@@ -315,13 +318,13 @@ function fxRateIngestionResult(): FxRateIngestionResult {
       ...providerRunRecord("handler-provider-run-id", jobRun.id),
       status: "succeeded",
       providerFinishedAt: "2026-05-23T01:30:00.000Z",
-      recordsInserted: 7,
+      recordsInserted: 6,
       recordsSkipped: 0
     },
     rateDate: "2026-05-22",
     fetchedAt: "2026-05-23T01:00:00.000Z",
     provider: "Frankfurter",
-    recordsInserted: 7,
+    recordsInserted: 6,
     recordsSkipped: 0,
     exchangeRates: []
   };

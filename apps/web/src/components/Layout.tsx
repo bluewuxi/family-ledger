@@ -8,6 +8,7 @@ const navigationItems = [
   { to: "/instruments", label: "投资标的" },
   { to: "/transactions", label: "交易记录" },
   { to: "/holdings", label: "持仓总览" },
+  { to: "/market-data", label: "数据同步" },
   { to: "/settings", label: "设置" }
 ];
 

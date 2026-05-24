@@ -73,12 +73,13 @@ The canonical valuation currency for stored market data is USD.
 
 Examples:
 
-- `USD -> USD = 1`
 - `NZD -> USD = 0.61`
 - `CNY -> USD = 0.138`
 - `HKD -> USD = 0.128`
 
 Valuation FX records use `rate_type = 'valuation'` and must target `USD`. Tax-specific FX handling remains separate through `rate_type = 'tax'` or a future dedicated table.
+
+The FX job derives provider target currencies from distinct `investment_accounts.base_currency` values, skips `USD` provider requests, and no longer persists `USD -> USD` rows. USD is treated as rate `1` inside valuation code only. The job can also fetch a provider rate for a supplied historical `rateDate`; otherwise it retrieves the latest available provider rate date.
 
 `instrument_prices` stores provider-supplied calendar-date instrument close prices in the instrument price currency. `price_date` and `rate_date` are provider-supplied dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
 
@@ -93,7 +94,7 @@ These providers are treated as unofficial market-data sources for a small family
 
 `job_runs` and `data_provider_runs` only track ingestion attempts and counts. They are audit records for completed or attempted jobs and are not themselves valuation snapshots.
 
-`job_runs.trigger_source` records whether an attempt came from an EventBridge schedule (`schedule`) or an admin-triggered web action (`manual`). Manual runs may also include `triggered_by_user_id` and `trigger_request_id` so the Settings UI can correlate a submitted retrieval request with later audit rows.
+`job_runs.trigger_source` records whether an attempt came from an EventBridge schedule (`schedule`) or an admin-triggered web action (`manual`). Manual runs may also include `triggered_by_user_id` and `trigger_request_id` so the Data Sync UI can correlate a submitted retrieval request with later audit rows.
 
 ## Derived Holdings
 

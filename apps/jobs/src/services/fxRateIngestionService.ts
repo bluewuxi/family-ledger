@@ -14,6 +14,7 @@ import {
   insertExchangeRateIfNotExists as defaultInsertExchangeRateIfNotExists,
   type InsertExchangeRateResult
 } from "../repositories/exchangeRateRepository";
+import { listDistinctAccountBaseCurrencies as defaultListDistinctAccountBaseCurrencies } from "../repositories/accountCurrencyRepository";
 import {
   createDataProviderRun as defaultCreateDataProviderRun,
   createJobRun as defaultCreateJobRun,
@@ -21,7 +22,7 @@ import {
   finishJobRun as defaultFinishJobRun
 } from "../repositories/jobRunRepository";
 
-export const DEFAULT_FRANKFURTER_TARGET_CURRENCIES: CurrencyCode[] = ["NZD", "CNY", "HKD", "AUD", "EUR", "GBP"];
+export const DEFAULT_FRANKFURTER_TARGET_CURRENCIES: CurrencyCode[] = ["NZD", "CNY", "HKD"];
 export const FRANKFURTER_PROVIDER_NAME = "Frankfurter";
 export const FRANKFURTER_FX_JOB_NAME = "ingest-frankfurter-fx-rates";
 const FX_DATA_KIND: DataKind = "exchange_rates";
@@ -66,6 +67,10 @@ interface JobRunRepository {
   ): Promise<DataProviderRun>;
 }
 
+interface AccountCurrencyRepository {
+  listDistinctAccountBaseCurrencies(): Promise<CurrencyCode[]>;
+}
+
 export interface FxRateIngestionResult {
   jobRun: JobRun;
   dataProviderRun: DataProviderRun;
@@ -80,6 +85,7 @@ export interface FxRateIngestionResult {
 export interface IngestLatestFrankfurterFxRatesOptions {
   targetCurrencies?: CurrencyCode[];
   fetchedAt?: string;
+  rateDate?: string;
   now?: () => Date;
   triggerSource?: JobTriggerSource;
   triggeredByUserId?: string | null;
@@ -87,6 +93,7 @@ export interface IngestLatestFrankfurterFxRatesOptions {
   provider?: IFxRateProvider;
   exchangeRateRepository?: ExchangeRateRepository;
   jobRunRepository?: JobRunRepository;
+  accountCurrencyRepository?: AccountCurrencyRepository;
 }
 
 export async function ingestLatestFrankfurterFxRates(
@@ -98,6 +105,9 @@ export async function ingestLatestFrankfurterFxRates(
   const exchangeRateRepository = options.exchangeRateRepository ?? {
     insertExchangeRateIfNotExists: defaultInsertExchangeRateIfNotExists
   };
+  const accountCurrencyRepository = options.accountCurrencyRepository ?? {
+    listDistinctAccountBaseCurrencies: defaultListDistinctAccountBaseCurrencies
+  };
   const jobRunRepository = options.jobRunRepository ?? {
     createJobRun: defaultCreateJobRun,
     finishJobRun: defaultFinishJobRun,
@@ -105,7 +115,10 @@ export async function ingestLatestFrankfurterFxRates(
     finishDataProviderRun: defaultFinishDataProviderRun
   };
 
-  const targetCurrencies = uniqueCurrencies(options.targetCurrencies ?? DEFAULT_FRANKFURTER_TARGET_CURRENCIES);
+  const accountCurrencies = options.targetCurrencies ?? (await accountCurrencyRepository.listDistinctAccountBaseCurrencies());
+  const targetCurrencies = uniqueCurrencies(accountCurrencies.length > 0 ? accountCurrencies : DEFAULT_FRANKFURTER_TARGET_CURRENCIES).filter(
+    (currency) => currency !== "USD"
+  );
   const jobRun = await jobRunRepository.createJobRun({
     jobName: FRANKFURTER_FX_JOB_NAME,
     jobStartedAt: fetchedAt,
@@ -121,10 +134,38 @@ export async function ingestLatestFrankfurterFxRates(
   });
 
   try {
+    if (targetCurrencies.length === 0) {
+      const finishedAt = now().toISOString();
+      const finishedProviderRun = await jobRunRepository.finishDataProviderRun(dataProviderRun.id, {
+        status: "succeeded",
+        finishedAt,
+        recordsInserted: 0,
+        recordsSkipped: 0
+      });
+      const finishedJobRun = await jobRunRepository.finishJobRun(jobRun.id, {
+        status: "succeeded",
+        finishedAt,
+        recordsInserted: 0,
+        recordsSkipped: 0
+      });
+
+      return {
+        jobRun: finishedJobRun,
+        dataProviderRun: finishedProviderRun,
+        rateDate: options.rateDate ?? fetchedAt.slice(0, 10),
+        fetchedAt,
+        provider: provider.name,
+        recordsInserted: 0,
+        recordsSkipped: 0,
+        exchangeRates: []
+      };
+    }
+
     const providerResult = await provider.fetchLatestRates({
       baseCurrency: "USD",
       targetCurrencies,
-      fetchedAt
+      fetchedAt,
+      rateDate: options.rateDate
     });
     const inputs = toExchangeRateInputs(providerResult.rateDate, providerResult.fetchedAt, provider.name, providerResult.rates);
     const exchangeRates: ExchangeRateRecord[] = [];
@@ -186,7 +227,7 @@ export function toExchangeRateInputs(
   provider: string,
   providerRates: Array<{ currency: CurrencyCode; providerRate: string }>
 ): CreateExchangeRateInput[] {
-  const rates = providerRates.map((rate) => ({
+  return providerRates.map((rate) => ({
     rateDate,
     fromCurrency: rate.currency,
     toCurrency: "USD" as const,
@@ -196,20 +237,6 @@ export function toExchangeRateInputs(
     providerRateDate: rateDate,
     fetchedAt
   }));
-
-  return [
-    ...rates,
-    {
-      rateDate,
-      fromCurrency: "USD",
-      toCurrency: "USD",
-      rate: "1.0000000000",
-      rateType: "valuation",
-      provider,
-      providerRateDate: rateDate,
-      fetchedAt
-    }
-  ];
 }
 
 function uniqueCurrencies(currencies: CurrencyCode[]): CurrencyCode[] {

@@ -134,6 +134,15 @@ export interface Profile {
   updatedAt: string;
 }
 
+export interface UserPreferences {
+  preferredCurrency: CurrencyCode;
+  uiTheme: "system";
+}
+
+export interface UpdateUserPreferencesInput {
+  preferredCurrency?: CurrencyCode;
+}
+
 export interface UserRoleRecord {
   id: string;
   userId: string;
@@ -649,6 +658,18 @@ export type MarketDataRetrievalKind = DataKind | "all";
 
 export interface MarketDataRetrievalRequest {
   kind: MarketDataRetrievalKind;
+  rateDate?: string;
+}
+
+export interface Pagination {
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  pagination: Pagination;
 }
 
 export interface DataProviderRun {

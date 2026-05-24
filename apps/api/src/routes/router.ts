@@ -27,6 +27,7 @@ import {
   updateInvestmentTransaction
 } from "../services/transactionService";
 import { getPortfolioSnapshots } from "../services/portfolioSnapshotService";
+import { getProfilePreferences, updateProfilePreferences } from "../services/profileService";
 import { ApiAuthError, requireRole } from "../auth/auth";
 import { ApiRequestError } from "../utils/apiError";
 import { parseJsonBody } from "../utils/requestBody";
@@ -41,6 +42,14 @@ type DynamicRouteHandler = (
 const routes: Record<string, RouteHandler> = {
   "GET /health": async () => success({ status: "ok" }),
   "GET /me": async (event) => success({ user: await requireRole(event, "viewer") }),
+  "GET /settings/preferences": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ user, preferences: await getProfilePreferences(user) });
+  },
+  "PATCH /settings/preferences": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ user, preferences: await updateProfilePreferences(parseJsonBody(event), user) });
+  },
   "GET /accounts": async (event) => {
     const user = await requireRole(event, "viewer");
     return success({ user, accounts: await getAccounts() });
@@ -90,15 +99,18 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /market-data/fx-rates": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, fxRates: await getMarketDataFxRates(event.queryStringParameters ?? {}) });
+    const result = await getMarketDataFxRates(event.queryStringParameters ?? {});
+    return success({ user, fxRates: result.items, pagination: result.pagination });
   },
   "GET /market-data/instrument-prices": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, prices: await getMarketDataInstrumentPrices(event.queryStringParameters ?? {}) });
+    const result = await getMarketDataInstrumentPrices(event.queryStringParameters ?? {});
+    return success({ user, prices: result.items, pagination: result.pagination });
   },
   "GET /market-data/job-runs": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, jobRuns: await getMarketDataJobRuns(event.queryStringParameters ?? {}) });
+    const result = await getMarketDataJobRuns(event.queryStringParameters ?? {});
+    return success({ user, jobRuns: result.items, pagination: result.pagination });
   },
   "POST /market-data/retrievals": async (event) => {
     const user = await requireRole(event, "admin");

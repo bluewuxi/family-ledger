@@ -14,7 +14,7 @@ export class ApiClientError extends Error {
 }
 
 interface ApiRequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
 }
 
@@ -60,6 +60,10 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export function apiPut<T>(path: string, body: unknown): Promise<T> {
   return apiRequest<T>(path, { method: "PUT", body });
+}
+
+export function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>(path, { method: "PATCH", body });
 }
 
 export function apiDelete<T>(path: string): Promise<T> {

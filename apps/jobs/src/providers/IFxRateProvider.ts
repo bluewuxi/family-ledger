@@ -4,6 +4,7 @@ export interface FetchLatestFxRatesInput {
   baseCurrency: "USD";
   targetCurrencies: CurrencyCode[];
   fetchedAt: string;
+  rateDate?: string;
 }
 
 export interface FxRateProviderRate {

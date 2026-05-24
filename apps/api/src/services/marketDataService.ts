@@ -6,10 +6,12 @@ import type {
   ExchangeRateRecord,
   JobRun,
   JobRunStatus,
+  JobTriggerSource,
   MarketDataRetrievalKind,
-  MarketDataRetrievalRequest
+  MarketDataRetrievalRequest,
+  PaginatedResult
 } from "@family-ledger/shared";
-import { CURRENCY_CODES, JOB_RUN_STATUSES } from "@family-ledger/shared";
+import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-ledger/shared";
 import {
   listDataProviderRuns,
   listExchangeRates,
@@ -24,43 +26,55 @@ const maxLimit = 200;
 const defaultLimit = 50;
 const retrievalKinds = ["exchange_rates", "instrument_prices", "all"] as const;
 
-export async function getMarketDataFxRates(query: Record<string, string | undefined>): Promise<ExchangeRateRecord[]> {
+export async function getMarketDataFxRates(
+  query: Record<string, string | undefined>
+): Promise<PaginatedResult<ExchangeRateRecord>> {
   const from = optionalDate("from", query.from);
   const to = optionalDate("to", query.to);
+  const pagination = parsePagination(query);
   validateDateRange(from, to);
 
-  return listExchangeRates({
+  const rows = await listExchangeRates({
     fromCurrency: optionalCurrency("fromCurrency", query.fromCurrency),
     toCurrency: optionalCurrency("toCurrency", query.toCurrency),
     from,
     to,
     provider: optionalSearchText(query.provider),
-    limit: parseLimit(query.limit)
+    limit: pagination.limit,
+    offset: pagination.offset
   });
+  return toPaginatedResult(rows, pagination.limit, pagination.offset);
 }
 
 export async function getMarketDataInstrumentPrices(
   query: Record<string, string | undefined>
-): Promise<InstrumentPriceListRecord[]> {
+): Promise<PaginatedResult<InstrumentPriceListRecord>> {
   const from = optionalDate("from", query.from);
   const to = optionalDate("to", query.to);
+  const pagination = parsePagination(query);
   validateDateRange(from, to);
 
-  return listInstrumentPrices({
+  const rows = await listInstrumentPrices({
     instrumentId: optionalUuid("instrumentId", query.instrumentId),
     provider: optionalSearchText(query.provider),
     from,
     to,
-    limit: parseLimit(query.limit)
+    limit: pagination.limit,
+    offset: pagination.offset
   });
+  return toPaginatedResult(rows, pagination.limit, pagination.offset);
 }
 
-export async function getMarketDataJobRuns(query: Record<string, string | undefined>): Promise<JobRun[]> {
-  return listJobRuns({
+export async function getMarketDataJobRuns(query: Record<string, string | undefined>): Promise<PaginatedResult<JobRun>> {
+  const pagination = parsePagination(query);
+  const rows = await listJobRuns({
     jobName: optionalSearchText(query.jobName),
     status: optionalStatus(query.status),
-    limit: parseLimit(query.limit)
+    triggerSource: optionalTriggerSource(query.triggerSource),
+    limit: pagination.limit,
+    offset: pagination.offset
   });
+  return toPaginatedResult(rows, pagination.limit, pagination.offset);
 }
 
 export async function getMarketDataProviderRuns(jobRunId: string): Promise<DataProviderRun[]> {
@@ -83,7 +97,8 @@ export async function triggerMarketDataRetrieval(
   const payload = JSON.stringify({
     triggerSource: "manual",
     triggeredByUserId: user.id,
-    triggerRequestId: requestId
+    triggerRequestId: requestId,
+    ...(request.rateDate ? { rateDate: request.rateDate } : {})
   });
 
   for (const functionName of targetFunctions) {
@@ -105,12 +120,13 @@ function parseRetrievalRequest(body: unknown): MarketDataRetrievalRequest {
   }
 
   const kind = (body as { kind?: unknown }).kind;
+  const rateDate = optionalDate("rateDate", (body as { rateDate?: unknown }).rateDate as string | undefined);
 
   if (!retrievalKinds.includes(kind as MarketDataRetrievalKind)) {
     throw new ApiRequestError("VALIDATION_ERROR", "kind must be exchange_rates, instrument_prices, or all.", 400);
   }
 
-  return { kind: kind as MarketDataRetrievalKind };
+  return { kind: kind as MarketDataRetrievalKind, ...(rateDate ? { rateDate } : {}) };
 }
 
 function getTargetFunctions(kind: MarketDataRetrievalKind): string[] {
@@ -150,6 +166,18 @@ function optionalStatus(value: string | undefined): JobRunStatus | undefined {
   }
 
   return value as JobRunStatus;
+}
+
+function optionalTriggerSource(value: string | undefined): JobTriggerSource | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (!JOB_TRIGGER_SOURCES.includes(value as JobTriggerSource)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "triggerSource must be schedule or manual.", 400);
+  }
+
+  return value as JobTriggerSource;
 }
 
 function optionalDate(name: string, value: string | undefined): string | undefined {
@@ -203,4 +231,36 @@ function parseLimit(value: string | undefined): number {
   }
 
   return limit;
+}
+
+function parseOffset(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const offset = Number(value);
+
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new ApiRequestError("VALIDATION_ERROR", "offset must be a non-negative integer.", 400);
+  }
+
+  return offset;
+}
+
+function parsePagination(query: Record<string, string | undefined>): { limit: number; offset: number } {
+  return {
+    limit: parseLimit(query.limit),
+    offset: parseOffset(query.offset)
+  };
+}
+
+function toPaginatedResult<T>(rows: T[], limit: number, offset: number): PaginatedResult<T> {
+  return {
+    items: rows.slice(0, limit),
+    pagination: {
+      limit,
+      offset,
+      hasMore: rows.length > limit
+    }
+  };
 }
