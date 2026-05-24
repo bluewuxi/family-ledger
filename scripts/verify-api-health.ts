@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
-import { handler } from "../apps/api/src/handlers/lambda";
 
 main().catch((error) => {
   console.error(error);
@@ -8,9 +7,13 @@ main().catch((error) => {
 });
 
 async function main(): Promise<void> {
+  process.env.ALLOWED_ORIGIN = "https://test-fund.kidrawer.com";
+
+  const { handler } = await import("../apps/api/src/handlers/lambda");
   const response = await handler(createEvent("GET", "/health"));
 
   assert.equal(response.statusCode, 200);
+  assert.equal(response.headers?.["access-control-allow-origin"], "https://test-fund.kidrawer.com");
   assert.equal(typeof response.body, "string");
   assert.deepEqual(JSON.parse(response.body), {
     success: true,
@@ -18,6 +21,11 @@ async function main(): Promise<void> {
       status: "ok"
     }
   });
+
+  const preflight = await handler(createEvent("OPTIONS", "/transactions"));
+  assert.equal(preflight.statusCode, 204);
+  assert.equal(preflight.headers?.["access-control-allow-origin"], "https://test-fund.kidrawer.com");
+  assert.equal(preflight.headers?.["access-control-allow-methods"], "GET,POST,PUT,DELETE,OPTIONS");
 
   console.log("API health route verification: success");
 }

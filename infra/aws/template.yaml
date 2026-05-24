@@ -1,0 +1,445 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: family-ledger serverless web, API, and scheduled jobs infrastructure.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues:
+      - test
+      - prod
+    Description: Deployment environment.
+
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Route 53 hosted zone id for kidrawer.com.
+
+  WebDomainName:
+    Type: String
+    Description: Web app domain name.
+
+  ApiDomainName:
+    Type: String
+    Description: API custom domain name.
+
+  CloudFrontCertificateArn:
+    Type: String
+    Description: ACM certificate ARN in us-east-1 for CloudFront.
+
+  SupabaseUrl:
+    Type: String
+    Default: ""
+    Description: Supabase project URL. Leave empty when using SupabaseUrlSsmParam.
+
+  SupabaseUrlSsmParam:
+    Type: String
+    Default: ""
+    Description: Optional SSM SecureString parameter path for the Supabase project URL.
+
+  SupabaseServiceKeySsmParam:
+    Type: String
+    Description: SSM SecureString parameter path for the Supabase service role key.
+
+  EnableScheduledJobs:
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+    Description: Whether EventBridge schedules should be enabled after deploy.
+
+Conditions:
+  ScheduledJobsEnabled: !Equals [!Ref EnableScheduledJobs, "true"]
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures:
+      - arm64
+    MemorySize: 512
+    Timeout: 30
+    Environment:
+      Variables:
+        NODE_OPTIONS: --enable-source-maps
+        SUPABASE_URL: !Ref SupabaseUrl
+        SUPABASE_URL_PARAM: !Ref SupabaseUrlSsmParam
+        SUPABASE_SECRET_KEY_SSM_PARAM: !Ref SupabaseServiceKeySsmParam
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub family-ledger-${EnvironmentName}-lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadFamilyLedgerParameters
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_*
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  WebOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub family-ledger-${EnvironmentName}-web-oac
+        Description: !Sub CloudFront access to family-ledger ${EnvironmentName} web bucket.
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  WebDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub family-ledger ${EnvironmentName} web distribution
+        Aliases:
+          - !Ref WebDomainName
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CloudFrontCertificateArn
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+        Origins:
+          - Id: web-bucket-origin
+            DomainName: !GetAtt WebBucket.RegionalDomainName
+            OriginAccessControlId: !Ref WebOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: web-bucket-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${WebBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}
+
+  WebAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WebDomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt WebDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
+  WebAliasIpv6Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WebDomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt WebDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
+  ApiCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref ApiDomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref ApiDomainName
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  LedgerHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      CorsConfiguration:
+        AllowOrigins:
+          - !Sub https://${WebDomainName}
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - authorization
+          - content-type
+          - accept
+        MaxAge: 86400
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub family-ledger-${EnvironmentName}-api
+      CodeUri: ../..
+      Handler: apps/api/src/handlers/lambda.handler
+      Description: !Sub family-ledger ${EnvironmentName} Lambda API.
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Sub https://${WebDomainName}
+      Events:
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LedgerHttpApi
+            Path: /{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LedgerHttpApi
+            Path: /
+            Method: ANY
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - apps/api/src/handlers/lambda.ts
+        Minify: true
+        Sourcemap: true
+        Target: es2022
+
+  ApiCustomDomain:
+    Type: AWS::ApiGatewayV2::DomainName
+    Properties:
+      DomainName: !Ref ApiDomainName
+      DomainNameConfigurations:
+        - CertificateArn: !Ref ApiCertificate
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  ApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Properties:
+      ApiId: !Ref LedgerHttpApi
+      DomainName: !Ref ApiCustomDomain
+      Stage: $default
+
+  ApiAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref ApiDomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApiCustomDomain.RegionalDomainName
+        HostedZoneId: !GetAtt ApiCustomDomain.RegionalHostedZoneId
+
+  ApiAliasIpv6Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref ApiDomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt ApiCustomDomain.RegionalDomainName
+        HostedZoneId: !GetAtt ApiCustomDomain.RegionalHostedZoneId
+
+  UpdateFxRatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub family-ledger-${EnvironmentName}-update-fx-rates
+      CodeUri: ../..
+      Handler: apps/jobs/src/handlers/updateFxRates.handler
+      Description: !Sub family-ledger ${EnvironmentName} Frankfurter FX rate update job.
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - apps/jobs/src/handlers/updateFxRates.ts
+        Minify: true
+        Sourcemap: true
+        Target: es2022
+
+  UpdatePricesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub family-ledger-${EnvironmentName}-update-prices
+      CodeUri: ../..
+      Handler: apps/jobs/src/handlers/updatePrices.handler
+      Description: !Sub family-ledger ${EnvironmentName} instrument price update job.
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - apps/jobs/src/handlers/updatePrices.ts
+        Minify: true
+        Sourcemap: true
+        Target: es2022
+
+  GeneratePortfolioSnapshotsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub family-ledger-${EnvironmentName}-portfolio-snapshots
+      CodeUri: ../..
+      Handler: apps/jobs/src/handlers/generatePortfolioSnapshots.handler
+      Description: !Sub family-ledger ${EnvironmentName} portfolio snapshot generation job.
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - apps/jobs/src/handlers/generatePortfolioSnapshots.ts
+        Minify: true
+        Sourcemap: true
+        Target: es2022
+
+  UpdateFxRatesSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub family-ledger-${EnvironmentName}-update-fx-rates
+      Description: !Sub family-ledger ${EnvironmentName} FX rate update schedule.
+      ScheduleExpression: cron(0 1 * * ? *)
+      State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
+      Targets:
+        - Arn: !GetAtt UpdateFxRatesFunction.Arn
+          Id: UpdateFxRatesFunction
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+            MaximumRetryAttempts: 2
+
+  UpdateFxRatesSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UpdateFxRatesFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt UpdateFxRatesSchedule.Arn
+
+  UpdatePricesSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub family-ledger-${EnvironmentName}-update-prices
+      Description: !Sub family-ledger ${EnvironmentName} instrument price update schedule.
+      ScheduleExpression: cron(0 1 * * ? *)
+      State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
+      Targets:
+        - Arn: !GetAtt UpdatePricesFunction.Arn
+          Id: UpdatePricesFunction
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+            MaximumRetryAttempts: 2
+
+  UpdatePricesSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UpdatePricesFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt UpdatePricesSchedule.Arn
+
+  GeneratePortfolioSnapshotsSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub family-ledger-${EnvironmentName}-portfolio-snapshots
+      Description: !Sub family-ledger ${EnvironmentName} portfolio snapshot generation schedule.
+      ScheduleExpression: cron(0 2 * * ? *)
+      State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
+      Targets:
+        - Arn: !GetAtt GeneratePortfolioSnapshotsFunction.Arn
+          Id: GeneratePortfolioSnapshotsFunction
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+            MaximumRetryAttempts: 2
+
+  GeneratePortfolioSnapshotsSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GeneratePortfolioSnapshotsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GeneratePortfolioSnapshotsSchedule.Arn
+
+Outputs:
+  WebBucketName:
+    Description: S3 bucket that stores the built frontend assets.
+    Value: !Ref WebBucket
+
+  WebDistributionId:
+    Description: CloudFront distribution id for frontend invalidations.
+    Value: !Ref WebDistribution
+
+  WebUrl:
+    Description: HTTPS web app URL.
+    Value: !Sub https://${WebDomainName}
+
+  ApiUrl:
+    Description: HTTPS API base URL.
+    Value: !Sub https://${ApiDomainName}
+
+  HttpApiId:
+    Description: API Gateway HTTP API id.
+    Value: !Ref LedgerHttpApi

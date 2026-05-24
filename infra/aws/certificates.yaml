@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: family-ledger CloudFront ACM certificate stack. Deploy this stack in us-east-1.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues:
+      - test
+      - prod
+    Description: Deployment environment.
+
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Route 53 hosted zone id for kidrawer.com.
+
+  WebDomainName:
+    Type: String
+    Description: Web app domain name covered by this CloudFront certificate.
+
+Resources:
+  WebCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref WebDomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref WebDomainName
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  WebCertificateArn:
+    Description: ACM certificate ARN for the CloudFront distribution.
+    Value: !Ref WebCertificate
+    Export:
+      Name: !Sub family-ledger-${EnvironmentName}-web-certificate-arn

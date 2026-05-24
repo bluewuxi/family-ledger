@@ -1,25 +1,58 @@
 # Deployment
 
-Production deployment is not implemented yet.
+Production deployment uses SAM/CloudFormation templates under `infra/aws` when explicitly run.
 
 ## Frontend
 
 - Build `apps/web` as a static Vite app.
-- Host static files with AWS S3 Static Website Hosting.
+- Host static files from a private S3 bucket behind CloudFront.
 - Configure SPA routing fallback to `index.html`.
-- Optionally add CloudFront for TLS, caching, and custom domains.
+- Use CloudFront for TLS, caching, custom domains, and HTTPS redirects.
 
 ## API
 
 - Deploy `apps/api` as Lambda functions behind API Gateway.
 - Keep handlers thin and route to services.
 - Configure server-side secrets outside Git.
+- Use API Gateway Regional custom domains for HTTPS API endpoints.
 
 ## Jobs
 
 - Deploy `apps/jobs` handlers as Lambda functions.
 - Trigger scheduled jobs with EventBridge.
 - Current handlers include price updates, FX updates, and portfolio snapshots.
+- Schedules are disabled by default in new stacks and can be enabled through `EnableScheduledJobs=true`.
+
+## Domains
+
+```text
+test web: https://test-fund.kidrawer.com
+test API: https://test-fund-api.kidrawer.com
+prod web: https://fund.kidrawer.com
+prod API: https://fund-api.kidrawer.com
+```
+
+Route 53 hosts DNS for `kidrawer.com`. The CloudFront certificate stack must be deployed in `us-east-1`; the main application stack is deployed in the app region and creates the Regional API certificate there.
+
+## Infrastructure Commands
+
+Validate and build:
+
+```bash
+corepack pnpm sam:validate
+corepack pnpm sam:build
+```
+
+Test deployment sequence:
+
+```bash
+corepack pnpm deploy:certs:test
+corepack pnpm deploy:change-set:test
+corepack pnpm deploy:infra:test
+corepack pnpm deploy:web:test
+```
+
+Production uses the same sequence with the `:prod` suffix after creating a local `infra/aws/parameters.prod.json` from `parameters.prod.example.json`.
 
 ## Scheduled Jobs
 
@@ -76,6 +109,7 @@ Environment files may store SSM parameter paths, not secret values:
 
 ```text
 SUPABASE_SECRET_KEY_SSM_PARAM=/family-ledger/test_supabase_secret_key
+SUPABASE_URL_PARAM=/family-ledger/test_supabase_url
 SUPABASE_JWT_SECRET_SSM_PARAM=/family-ledger/test_supabase_jwt_secret
 SUPABASE_DB_PASSWORD_SSM_PARAM=/family-ledger/test_db_password
 ```
@@ -119,7 +153,7 @@ Local/test DB tooling may also use:
 
 The Lambda IAM role needs `ssm:GetParameter` permission for the required SSM parameter paths and KMS decrypt permission if a customer-managed KMS key is used. SecureString parameters must be read with decryption enabled.
 
-For local browser testing setup, including root `.env.test` loading, the temporary Lambda HTTP adapter requirement, test user roles, and troubleshooting, see [`docs/local-testing.md`](local-testing.md).
+For local browser testing setup, including root `.env.test` loading, the checked-in Lambda HTTP adapter, test user roles, and troubleshooting, see [`docs/local-testing.md`](local-testing.md).
 
 Backend deployment/runtime code should:
 

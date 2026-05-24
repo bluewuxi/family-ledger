@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 .vite/
+.aws-sam/
 .env
 .env.*
 !.env.example

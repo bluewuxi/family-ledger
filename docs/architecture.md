@@ -3,7 +3,7 @@
 `family-ledger` uses a serverless architecture:
 
 ```text
-S3 Static Website
+CloudFront + private S3 static assets
   -> API Gateway
   -> Lambda API
   -> Supabase Postgres
@@ -15,7 +15,7 @@ EventBridge
 
 ## Components
 
-- `apps/web`: React + TypeScript + Vite frontend hosted by S3 Static Website Hosting.
+- `apps/web`: React + TypeScript + Vite frontend hosted as private S3 static assets behind CloudFront for HTTPS and custom domains.
 - `apps/api`: Lambda API behind API Gateway.
 - `apps/jobs`: EventBridge-triggered Lambda jobs.
 - `packages/shared`: shared TypeScript types and constants.
@@ -31,6 +31,6 @@ The family ledger data is shared. Core business tables do not have per-user owne
 
 API and jobs resolve sensitive server-side values from AWS SSM Parameter Store. Decrypted values must stay in backend runtime memory and must never be exposed to frontend code.
 
-Jobs use trusted server-side Supabase access and will later run as Lambda functions triggered by EventBridge. Future price update jobs will use `instruments.price_source` configuration.
+Jobs use trusted server-side Supabase access and run as Lambda functions triggered by EventBridge. Price update jobs use `instruments.price_source` configuration.
 
 There is no always-on backend server. Lambda API is the primary business authorization layer, Supabase RLS is defensive, and the frontend must not write investment business tables directly.

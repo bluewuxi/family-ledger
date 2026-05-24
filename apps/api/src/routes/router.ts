@@ -23,7 +23,7 @@ import { getPortfolioSnapshots } from "../services/portfolioSnapshotService";
 import { ApiAuthError, requireRole } from "../auth/auth";
 import { ApiRequestError } from "../utils/apiError";
 import { parseJsonBody } from "../utils/requestBody";
-import { failure, success } from "../utils/response";
+import { failure, preflight, success } from "../utils/response";
 
 type RouteHandler = (event: APIGatewayProxyEventV2) => Promise<APIGatewayProxyStructuredResultV2>;
 type DynamicRouteHandler = (
@@ -145,6 +145,10 @@ const dynamicRoutes: Array<{
 
 export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
   try {
+    if (event.requestContext.http.method === "OPTIONS") {
+      return preflight();
+    }
+
     const handler = resolveRoute(event);
 
     if (!handler) {

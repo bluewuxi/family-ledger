@@ -1,0 +1,12 @@
+{
+  "EnvironmentName": "test",
+  "AppRegion": "ap-southeast-2",
+  "CertificateRegion": "us-east-1",
+  "HostedZoneId": "ZHT81CSFF73IE",
+  "WebDomainName": "test-fund.kidrawer.com",
+  "ApiDomainName": "test-fund-api.kidrawer.com",
+  "SupabaseUrl": "https://syotdngdmbbiuvsadtil.supabase.co",
+  "SupabaseUrlSsmParam": "",
+  "SupabaseServiceKeySsmParam": "/family-ledger/test_supabase_secret_key",
+  "EnableScheduledJobs": "false"
+}
