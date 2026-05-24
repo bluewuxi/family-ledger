@@ -1,8 +1,8 @@
 # AWS Infrastructure
 
-Stage 0 does not deploy AWS resources.
+AWS resources are not deployed from this repository yet.
 
-Future infrastructure will cover:
+Future infrastructure should cover:
 
 - S3 Static Website Hosting for `apps/web`
 - Optional CloudFront distribution

@@ -2,7 +2,7 @@
 
 `family-ledger`（家庭投资账务）是一个中文家庭投资账务 Web 应用，用于少数家庭成员跟踪美股/ETF、港股、A 股 ETF/基金、新西兰 PIE 基金和现金账户。
 
-当前状态：Stage 1 已加入 Supabase schema、Supabase Auth 登录、viewer/admin 角色查询、Lambda API Supabase 连接和 SSM-based secret resolution。业务 CRUD、价格抓取、税务计算和生产部署仍未实现。
+当前状态：已完成基础 monorepo、Supabase schema、Supabase Auth 登录、viewer/admin 角色查询、Lambda API、账户/标的/交易 CRUD、持仓计算、仪表盘摘要、价格/汇率维护任务和投资组合快照。税务辅助、报表导出、生产部署和备份/监控仍未实现。
 
 ## Stack
 
@@ -51,6 +51,12 @@ Run the frontend:
 
 ```bash
 corepack pnpm dev:web
+```
+
+Run the local Lambda API adapter:
+
+```bash
+corepack pnpm dev:api
 ```
 
 Validate:

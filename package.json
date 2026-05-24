@@ -5,8 +5,11 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev:web": "corepack pnpm --filter @family-ledger/web dev",
+    "dev:web:test": "corepack pnpm --filter @family-ledger/web dev -- --mode test --host 127.0.0.1 --port 5181",
+    "dev:api": "tsx scripts/local-api.ts",
     "build": "corepack pnpm --filter @family-ledger/shared build && corepack pnpm --filter @family-ledger/api build && corepack pnpm --filter @family-ledger/jobs build && corepack pnpm --filter @family-ledger/web build",
     "smoke:stage1:test": "tsx scripts/smoke-test-stage1.ts",
+    "verify:api-health": "tsx scripts/verify-api-health.ts",
     "verify:holdings": "tsx scripts/verify-holdings-calculation.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
     "verify:market-data": "tsx scripts/verify-market-data-foundation.ts",

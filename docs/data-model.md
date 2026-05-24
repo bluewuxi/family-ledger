@@ -44,7 +44,7 @@ Price source fields are configuration for future scheduled price jobs:
 - `source_url`
 - `source_checked_at`
 
-Actual latest-close-price fetching is not implemented in this task.
+Latest close price fetching is implemented for the configured scheduled providers, while manual price sources remain configuration-only.
 
 Instrument master records are maintained through the Lambda API. For asset types other than `other`, `symbol` and `exchange` are required. If an instrument has transaction records or stored price history, it is retained and cannot be hard-deleted through the API.
 

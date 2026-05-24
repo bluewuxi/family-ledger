@@ -1,29 +1,29 @@
 # Deployment
 
-Deployment is not implemented in Stage 0.
+Production deployment is not implemented yet.
 
-## Future Frontend
+## Frontend
 
 - Build `apps/web` as a static Vite app.
 - Host static files with AWS S3 Static Website Hosting.
 - Configure SPA routing fallback to `index.html`.
 - Optionally add CloudFront for TLS, caching, and custom domains.
 
-## Future API
+## API
 
 - Deploy `apps/api` as Lambda functions behind API Gateway.
 - Keep handlers thin and route to services.
 - Configure server-side secrets outside Git.
 
-## Future Jobs
+## Jobs
 
 - Deploy `apps/jobs` handlers as Lambda functions.
 - Trigger scheduled jobs with EventBridge.
-- Planned jobs include price updates, FX updates, and portfolio snapshots.
+- Current handlers include price updates, FX updates, and portfolio snapshots.
 
 ## Scheduled Jobs
 
-Phase 3 documents the production schedule and retry policy, but does not deploy AWS resources or introduce an IaC framework.
+This section documents the production schedule and retry policy, but does not deploy AWS resources or introduce an IaC framework.
 
 Configure the FX update Lambda handler exported as `updateFxRates` from `apps/jobs` with an EventBridge schedule:
 
