@@ -6,6 +6,7 @@ import type {
   PriceRecord
 } from "@family-ledger/shared";
 import { calculateDashboardSummary } from "../apps/api/src/services/dashboardService";
+import { calculateHoldingsValuation } from "../apps/api/src/services/portfolioValuationService";
 
 const accounts = [account("account-a"), account("account-b"), account("empty-account")];
 const usdSecurity = holding("usd-security", "US ETF", "etf", "USD", "2", "100");
@@ -30,6 +31,16 @@ assert.deepEqual(complete, {
   accountCount: 3,
   warnings: []
 });
+
+const valuedHoldings = calculateHoldingsValuation(holdings, prices, fxRates, "NZD");
+assert.equal(valuedHoldings.totalMarketValue, "345.00");
+assert.equal(valuedHoldings.totalUnrealizedGain, "90.00");
+assert.equal(valuedHoldings.holdings.find((holding) => holding.instrumentId === usdSecurity.instrumentId)?.marketValue, "210.00");
+assert.equal(
+  valuedHoldings.holdings.find((holding) => holding.instrumentId === usdSecurity.instrumentId)?.unrealizedGain,
+  "60.00"
+);
+assert.equal(valuedHoldings.holdings.find((holding) => holding.instrumentId === usdSecurity.instrumentId)?.latestPrice, "70");
 
 const completeUsd = calculateDashboardSummary(holdings, accounts, prices, fxRates, "USD");
 assert.deepEqual(completeUsd, {

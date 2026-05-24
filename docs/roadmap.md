@@ -29,7 +29,7 @@
 
 ## Stage 3: Holdings and Dashboard
 
-- Holdings calculation (implemented: native-currency quantity, cash balance, and average-cost carrying value)
+- Holdings calculation (implemented: native-currency quantity, cash balance, average-cost carrying value, opening entries, and valued holding rows)
 - Portfolio summary (implemented: four NZD dashboard cards from stored prices and FX rates)
 - Account summary (pending)
 - Market and currency allocation (pending)
@@ -65,5 +65,6 @@
 ## Stage 7: Reporting Currency Selector and Charts
 
 - Dashboard reporting currency selector (implemented: `NZD`, `USD`, and `CNY`)
+- Holdings reporting currency selector and filters (implemented: account, asset type/cash, and currency filters with valued totals)
 - Dashboard asset trend chart (implemented: uses portfolio snapshots)
 - Dashboard account allocation chart (implemented: uses latest available portfolio snapshot)

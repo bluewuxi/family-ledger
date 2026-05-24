@@ -50,7 +50,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending.
-`GET /holdings` returns current calculated positions and cash balances derived from transaction history.
+`GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
 
@@ -104,10 +104,20 @@ Aggregate totals are not reported as partial values. A missing latest price or r
 
 ### Holdings Read API
 
-`GET /holdings` is available to authenticated `viewer` and `admin` users. It returns one non-zero row for each account and instrument combination:
+`GET /holdings?currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
+
+Defaults:
+
+- `currency`: `NZD`
+
+It returns aggregate valued totals plus one non-zero row for each account and instrument combination:
 
 ```json
 {
+  "reportingCurrency": "NZD",
+  "totalMarketValue": "345.00",
+  "totalUnrealizedGain": "90.00",
+  "warnings": [],
   "holdings": [
     {
       "accountId": "uuid",
@@ -120,7 +130,13 @@ Aggregate totals are not reported as partial values. A missing latest price or r
       "quantity": "15",
       "averageUnitCost": "15.15",
       "costAmount": "227.25",
-      "warnings": []
+      "marketValue": "315.00",
+      "unrealizedGain": "87.75",
+      "latestPrice": "21.00",
+      "latestPriceDate": "2026-05-23",
+      "reportingCurrency": "NZD",
+      "warnings": [],
+      "valuationWarnings": []
     }
   ]
 }
@@ -132,7 +148,7 @@ Cash holdings are calculated only from transactions explicitly linked to cash in
 
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
 
-Holding rows continue to return amounts in the instrument currency. NZD market value and unrealized gain are provided only by the dashboard summary; valued holding rows and allocation fields remain deferred.
+Holding quantity, average cost, and remaining cost continue to use the instrument currency. Valuation fields use the requested reporting currency. Missing latest price or required FX makes affected market-value totals unavailable (`null`). Missing cost basis makes unrealized-gain totals unavailable (`null`). The API does not return partial totals as complete values.
 
 ### Portfolio Snapshots Read API
 
@@ -320,6 +336,35 @@ Buy request:
 
 For `buy` and `sell`, the API derives `grossAmount` from `quantity * price` using decimal arithmetic and half-up rounding to six decimal places.
 
+Opening position request:
+
+```json
+{
+  "accountId": "uuid",
+  "instrumentId": "non-cash-instrument-uuid",
+  "transactionType": "opening_position",
+  "tradeDate": "2026-01-01",
+  "quantity": "8",
+  "grossAmount": "120.00",
+  "currency": "USD",
+  "notes": "期初持仓"
+}
+```
+
+Opening cash balance request:
+
+```json
+{
+  "accountId": "uuid",
+  "instrumentId": "cash-instrument-uuid",
+  "transactionType": "opening_balance",
+  "tradeDate": "2026-01-01",
+  "grossAmount": "250.00",
+  "currency": "USD",
+  "notes": "期初余额"
+}
+```
+
 Adjustment request:
 
 ```json
@@ -337,6 +382,8 @@ Adjustment request:
 
 Transaction validation rules:
 
+- `opening_position` requires a non-cash instrument, positive `quantity`, and positive `grossAmount`; `grossAmount` is total carrying cost.
+- `opening_balance` requires a cash instrument and positive `grossAmount`.
 - `buy` and `sell` require a non-cash instrument, positive `quantity` and `price`; optional `fee` and `tax` are allowed.
 - `dividend` requires its non-cash source instrument and positive `grossAmount`; optional `tax` records withholding.
 - `deposit`, `withdrawal`, and `interest` require a cash instrument and positive `grossAmount`.

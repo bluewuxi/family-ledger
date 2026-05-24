@@ -215,6 +215,42 @@ async function validateTransaction(
     : null;
 
   switch (input.transactionType) {
+    case "opening_position": {
+      requireNonCashInstrument(instrument, input.transactionType);
+      rejectValue(input.price, "price", input.transactionType);
+      requireZero(fee, "fee", input.transactionType);
+      requireZero(tax, "tax", input.transactionType);
+      rejectAdjustmentDirection(input);
+
+      return {
+        ...input,
+        quantity: requiredDecimal(input.quantity, "quantity", 10, true),
+        price: null,
+        grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
+        fee: "0",
+        tax: "0",
+        fxRateToNzd,
+        adjustmentDirection: null
+      };
+    }
+    case "opening_balance":
+      requireCashInstrument(instrument, input.transactionType);
+      rejectValue(input.quantity, "quantity", input.transactionType);
+      rejectValue(input.price, "price", input.transactionType);
+      requireZero(fee, "fee", input.transactionType);
+      requireZero(tax, "tax", input.transactionType);
+      rejectAdjustmentDirection(input);
+
+      return {
+        ...input,
+        quantity: null,
+        price: null,
+        grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
+        fee: "0",
+        tax: "0",
+        fxRateToNzd,
+        adjustmentDirection: null
+      };
     case "buy":
     case "sell": {
       requireNonCashInstrument(instrument, input.transactionType);

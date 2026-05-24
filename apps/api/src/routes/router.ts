@@ -63,7 +63,8 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /holdings": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, holdings: await getHoldings() });
+    const holdings = await getHoldings({ currency: event.queryStringParameters?.currency });
+    return success({ user, ...holdings });
   },
   "GET /dashboard": async (event) => {
     const user = await requireRole(event, "viewer");
@@ -171,6 +172,11 @@ export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
       return failure({ code: error.code, message: error.message }, error.statusCode);
     }
 
+    console.error("Unhandled API error", {
+      method: event.requestContext.http.method,
+      path: event.rawPath,
+      error
+    });
     return failure({ code: "INTERNAL_ERROR", message: "Unexpected server error." }, 500);
   }
 }

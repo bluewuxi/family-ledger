@@ -75,6 +75,8 @@ export const PRICE_SOURCE_LABELS: Record<PriceSource, string> = {
 };
 
 export const TRANSACTION_TYPES = [
+  "opening_position",
+  "opening_balance",
   "buy",
   "sell",
   "dividend",
@@ -88,6 +90,8 @@ export const TRANSACTION_TYPES = [
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
+  opening_position: "\u671f\u521d\u6301\u4ed3",
+  opening_balance: "\u671f\u521d\u4f59\u989d",
   buy: "\u4e70\u5165",
   sell: "\u5356\u51fa",
   dividend: "\u80a1\u606f",
@@ -370,6 +374,15 @@ export function calculateHoldings(
 
 function applySecurityTransaction(state: HoldingState, transaction: InvestmentTransaction): void {
   switch (transaction.transactionType) {
+    case "opening_position": {
+      const quantity = requiredAmount(transaction.quantity);
+      state.quantity = state.quantity.plus(quantity);
+
+      if (!state.costBasisUnavailable) {
+        state.costAmount = state.costAmount.plus(requiredAmount(transaction.grossAmount));
+      }
+      return;
+    }
     case "buy": {
       const quantity = requiredAmount(transaction.quantity);
       state.quantity = state.quantity.plus(quantity);
@@ -411,6 +424,7 @@ function applySecurityTransaction(state: HoldingState, transaction: InvestmentTr
 
 function applyCashTransaction(state: HoldingState, transaction: InvestmentTransaction): void {
   switch (transaction.transactionType) {
+    case "opening_balance":
     case "deposit":
     case "interest":
       state.quantity = state.quantity.plus(requiredAmount(transaction.grossAmount));
@@ -522,6 +536,23 @@ export interface DashboardSummary {
   unrealizedGain: string | null;
   accountCount: number;
   warnings: DashboardWarning[];
+}
+
+export interface ValuedHoldingSummary extends HoldingSummary {
+  reportingCurrency: SnapshotDisplayCurrency;
+  marketValue: string | null;
+  unrealizedGain: string | null;
+  latestPrice: string | null;
+  latestPriceDate: string | null;
+  valuationWarnings: DashboardWarning[];
+}
+
+export interface HoldingsValuationSummary {
+  reportingCurrency: SnapshotDisplayCurrency;
+  totalMarketValue: string | null;
+  totalUnrealizedGain: string | null;
+  warnings: DashboardWarning[];
+  holdings: ValuedHoldingSummary[];
 }
 
 export interface PriceRecord {

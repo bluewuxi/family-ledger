@@ -51,6 +51,14 @@ interface TransactionFormState {
   notes: string;
 }
 
+interface OpeningEntryFormRow {
+  id: string;
+  instrumentId: string;
+  quantity: string;
+  grossAmount: string;
+  notes: string;
+}
+
 const today = new Date().toISOString().slice(0, 10);
 
 export function TransactionsPage() {
@@ -59,6 +67,9 @@ export function TransactionsPage() {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [form, setForm] = useState<TransactionFormState>(() => emptyForm());
+  const [openingAccountId, setOpeningAccountId] = useState("");
+  const [openingTradeDate, setOpeningTradeDate] = useState(today);
+  const [openingRows, setOpeningRows] = useState<OpeningEntryFormRow[]>(() => [emptyOpeningRow()]);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,6 +85,7 @@ export function TransactionsPage() {
     () => new Map(instruments.map((instrument) => [instrument.id, formatInstrument(instrument)])),
     [instruments]
   );
+  const openingAccountHasHistory = transactions.some((transaction) => transaction.accountId === openingAccountId);
 
   useEffect(() => {
     void loadPageData();
@@ -95,11 +107,61 @@ export function TransactionsPage() {
       setAccounts(accountData.accounts);
       setInstruments(instrumentData.instruments);
       setForm((current) => withAvailableSelections(current, accountData.accounts, instrumentData.instruments));
+      setOpeningAccountId((current) =>
+        accountData.accounts.some((account) => account.id === current) ? current : (accountData.accounts[0]?.id ?? "")
+      );
+      setOpeningRows((current) => withAvailableOpeningSelections(current, instrumentData.instruments));
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleOpeningSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    try {
+      const payloads = openingRows
+        .filter((row) => row.instrumentId && row.grossAmount)
+        .map((row) => {
+          const instrument = instruments.find((item) => item.id === row.instrumentId);
+
+          if (!instrument) {
+            throw new ApiClientError("请选择投资标的。", "MISSING_INSTRUMENT");
+          }
+
+          return toOpeningTransactionInput(openingAccountId, openingTradeDate, row, instrument);
+        });
+
+      if (payloads.length === 0) {
+        throw new ApiClientError("请至少填写一条期初资产。", "EMPTY_OPENING_ROWS");
+      }
+
+      const created = await Promise.all(
+        payloads.map((payload) => apiPost<TransactionResponse>("/transactions", payload))
+      );
+      setTransactions((current) => sortTransactions([...current, ...created.map((item) => item.transaction)]));
+      setOpeningRows([emptyOpeningRow()]);
+    } catch (requestError) {
+      setError(toErrorMessage(requestError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updateOpeningRow(id: string, patch: Partial<OpeningEntryFormRow>) {
+    setOpeningRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function addOpeningRow() {
+    setOpeningRows((current) => withAvailableOpeningSelections([...current, emptyOpeningRow()], instruments));
+  }
+
+  function removeOpeningRow(id: string) {
+    setOpeningRows((current) => (current.length > 1 ? current.filter((row) => row.id !== id) : current));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -204,7 +266,16 @@ export function TransactionsPage() {
   }
 
   const isTrade = form.transactionType === "buy" || form.transactionType === "sell";
-  const hasGrossAmount = ["dividend", "deposit", "withdrawal", "interest", "adjustment"].includes(form.transactionType);
+  const isOpeningPosition = form.transactionType === "opening_position";
+  const hasGrossAmount = [
+    "opening_position",
+    "opening_balance",
+    "dividend",
+    "deposit",
+    "withdrawal",
+    "interest",
+    "adjustment"
+  ].includes(form.transactionType);
   const hasFee = isTrade || form.transactionType === "fee";
   const hasTax = isTrade || form.transactionType === "dividend" || form.transactionType === "tax";
 
@@ -223,6 +294,106 @@ export function TransactionsPage() {
       {error ? <p className="form-error">{error}</p> : null}
 
       {isAdmin ? (
+        <>
+        <form className="opening-form" onSubmit={handleOpeningSubmit}>
+          <div className="form-heading">
+            <h2>期初资产初始化</h2>
+            <span>为一个账户批量录入期初现金和持仓，系统会创建期初交易记录。</span>
+          </div>
+
+          <label>
+            账户
+            <select value={openingAccountId} onChange={(event) => setOpeningAccountId(event.target.value)} required>
+              <option value="">请选择账户</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            期初日期
+            <input
+              type="date"
+              value={openingTradeDate}
+              onChange={(event) => setOpeningTradeDate(event.target.value)}
+              required
+            />
+          </label>
+
+          {openingAccountHasHistory ? (
+            <p className="form-warning wide-field">该账户已有交易记录。仍可录入期初资产，但请确认日期和备注，避免重复计算。</p>
+          ) : null}
+
+          <div className="opening-entry-table wide-field">
+            <div className="opening-entry-row opening-entry-head">
+              <span>标的</span>
+              <span>数量</span>
+              <span>总成本/余额</span>
+              <span>备注</span>
+              <span>操作</span>
+            </div>
+            {openingRows.map((row) => {
+              const instrument = instruments.find((item) => item.id === row.instrumentId);
+              const isCash = instrument?.assetType === "cash";
+
+              return (
+                <div className="opening-entry-row" key={row.id}>
+                  <select
+                    value={row.instrumentId}
+                    onChange={(event) => updateOpeningRow(row.id, { instrumentId: event.target.value, quantity: "" })}
+                    required
+                  >
+                    <option value="">请选择标的</option>
+                    {instruments.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {formatInstrument(item)}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={isCash ? "现金余额" : row.quantity}
+                    onChange={(event) => updateOpeningRow(row.id, { quantity: event.target.value })}
+                    disabled={isCash}
+                    placeholder="0.0000000000"
+                    required={!isCash}
+                  />
+                  <input
+                    value={row.grossAmount}
+                    onChange={(event) => updateOpeningRow(row.id, { grossAmount: event.target.value })}
+                    placeholder={isCash ? "期初余额" : "总成本"}
+                    required
+                  />
+                  <input
+                    value={row.notes}
+                    onChange={(event) => updateOpeningRow(row.id, { notes: event.target.value })}
+                    placeholder="可选"
+                  />
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => removeOpeningRow(row.id)}
+                    disabled={saving || openingRows.length === 1}
+                  >
+                    删除
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="form-actions">
+            <button className="secondary-button" type="button" onClick={addOpeningRow} disabled={saving}>
+              添加一行
+            </button>
+            <button className="primary-button" type="submit" disabled={saving || !openingAccountId}>
+              {saving ? "保存中..." : "保存期初资产"}
+            </button>
+          </div>
+        </form>
+
         <form className="transaction-form" onSubmit={handleSubmit}>
           <div className="form-heading">
             <h2>{editingTransactionId ? "编辑交易记录" : "新增交易记录"}</h2>
@@ -279,12 +450,17 @@ export function TransactionsPage() {
             <input value={instruments.find((instrument) => instrument.id === form.instrumentId)?.currency ?? "-"} disabled />
           </label>
 
-          {isTrade ? (
+          {isTrade || isOpeningPosition ? (
             <>
               <label>
                 数量
                 <input value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} placeholder="0.0000000000" required />
               </label>
+            </>
+          ) : null}
+
+          {isTrade ? (
+            <>
               <label>
                 单价
                 <input value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} placeholder="0.0000000000" required />
@@ -354,6 +530,7 @@ export function TransactionsPage() {
             ) : null}
           </div>
         </form>
+        </>
       ) : !loading && user ? (
         <p className="readonly-note">当前角色为 viewer，可查看交易记录。新增、编辑和删除仅限 admin。</p>
       ) : null}
@@ -435,6 +612,16 @@ function emptyForm(): TransactionFormState {
   };
 }
 
+function emptyOpeningRow(): OpeningEntryFormRow {
+  return {
+    id: crypto.randomUUID(),
+    instrumentId: "",
+    quantity: "",
+    grossAmount: "",
+    notes: ""
+  };
+}
+
 function withAvailableSelections(
   form: TransactionFormState,
   accounts: InvestmentAccount[],
@@ -448,8 +635,23 @@ function withAvailableSelections(
   return { ...form, accountId, instrumentId };
 }
 
+function withAvailableOpeningSelections(
+  rows: OpeningEntryFormRow[],
+  instruments: Instrument[]
+): OpeningEntryFormRow[] {
+  return rows.map((row) => ({
+    ...row,
+    instrumentId: instruments.some((instrument) => instrument.id === row.instrumentId)
+      ? row.instrumentId
+      : (instruments[0]?.id ?? "")
+  }));
+}
+
 function isCompatibleInstrument(transactionType: TransactionType, instrument: Instrument): boolean {
-  const cashType = ["fee", "tax", "deposit", "withdrawal", "interest", "adjustment"].includes(transactionType);
+  const cashType = ["opening_balance", "fee", "tax", "deposit", "withdrawal", "interest", "adjustment"].includes(transactionType);
+  if (transactionType === "opening_position") {
+    return instrument.assetType !== "cash";
+  }
   return cashType ? instrument.assetType === "cash" : instrument.assetType !== "cash";
 }
 
@@ -466,6 +668,26 @@ function toTransactionInput(form: TransactionFormState, instrument: Instrument):
   };
 
   switch (form.transactionType) {
+    case "opening_position":
+      return {
+        ...base,
+        quantity: form.quantity,
+        price: null,
+        grossAmount: form.grossAmount,
+        fee: "0",
+        tax: "0",
+        adjustmentDirection: null
+      };
+    case "opening_balance":
+      return {
+        ...base,
+        quantity: null,
+        price: null,
+        grossAmount: form.grossAmount,
+        fee: "0",
+        tax: "0",
+        adjustmentDirection: null
+      };
     case "buy":
     case "sell":
       return {
@@ -529,6 +751,32 @@ function toTransactionInput(form: TransactionFormState, instrument: Instrument):
         adjustmentDirection: form.adjustmentDirection
       };
   }
+}
+
+function toOpeningTransactionInput(
+  accountId: string,
+  tradeDate: string,
+  row: OpeningEntryFormRow,
+  instrument: Instrument
+): CreateInvestmentTransactionInput {
+  const isCash = instrument.assetType === "cash";
+
+  return {
+    accountId,
+    instrumentId: instrument.id,
+    transactionType: isCash ? "opening_balance" : "opening_position",
+    tradeDate,
+    settlementDate: null,
+    quantity: isCash ? null : row.quantity,
+    price: null,
+    grossAmount: row.grossAmount,
+    fee: "0",
+    tax: "0",
+    currency: instrument.currency,
+    fxRateToNzd: null,
+    adjustmentDirection: null,
+    notes: row.notes || (isCash ? "期初余额" : "期初持仓")
+  };
 }
 
 function formatInstrument(instrument: Instrument): string {

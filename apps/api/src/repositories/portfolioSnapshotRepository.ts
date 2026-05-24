@@ -53,6 +53,7 @@ export async function listPortfolioSnapshots(input: {
     .returns<PortfolioSnapshotRow[]>();
 
   if (snapshotError) {
+    console.error("Failed to list portfolio snapshots", { error: snapshotError });
     throw new Error("Failed to list portfolio snapshots.");
   }
 
@@ -69,6 +70,7 @@ export async function listPortfolioSnapshots(input: {
     .returns<PortfolioAccountSnapshotRow[]>();
 
   if (accountError) {
+    console.error("Failed to list portfolio account snapshots", { error: accountError });
     throw new Error("Failed to list portfolio account snapshots.");
   }
 

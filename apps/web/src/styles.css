@@ -131,6 +131,7 @@ textarea {
 
 .account-form,
 .instrument-form,
+.opening-form,
 .transaction-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -167,6 +168,7 @@ textarea {
 
 .account-form label,
 .instrument-form label,
+.opening-form label,
 .transaction-form label {
   display: grid;
   gap: 8px;
@@ -179,6 +181,9 @@ textarea {
 .instrument-form input,
 .instrument-form select,
 .instrument-form textarea,
+.opening-form input,
+.opening-form select,
+.opening-form textarea,
 .transaction-form input,
 .transaction-form select,
 .transaction-form textarea {
@@ -217,6 +222,52 @@ textarea {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.form-warning {
+  margin: 0;
+  color: #8a5d16;
+  font-size: 14px;
+}
+
+.opening-entry-table {
+  display: grid;
+  gap: 8px;
+}
+
+.opening-entry-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(120px, 0.8fr) minmax(140px, 0.8fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.opening-entry-head {
+  color: #68655e;
+  font-size: 13px;
+}
+
+.holding-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.holding-filters label {
+  display: grid;
+  gap: 8px;
+  color: #3d3b36;
+  font-size: 14px;
+}
+
+.holding-filters select {
+  min-height: 42px;
+  border: 1px solid #cfcac0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #20231f;
+  padding: 10px 12px;
 }
 
 .primary-button,
@@ -470,7 +521,7 @@ table {
 }
 
 .holding-table {
-  min-width: 980px;
+  min-width: 1320px;
 }
 
 .holding-warnings {
@@ -659,7 +710,13 @@ td {
 
   .account-form,
   .instrument-form,
+  .opening-form,
   .transaction-form {
+    grid-template-columns: 1fr;
+  }
+
+  .holding-filters,
+  .opening-entry-row {
     grid-template-columns: 1fr;
   }
 }

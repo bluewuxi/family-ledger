@@ -52,6 +52,8 @@ Instrument master records are maintained through the Lambda API. For asset types
 
 Transactions are entered through the Lambda API and always reference an account and an instrument. Transaction currency must match the selected instrument currency.
 
+- `opening_position` references a non-cash instrument and stores the starting quantity plus total carrying cost in `gross_amount`.
+- `opening_balance` references a cash instrument and stores the starting cash balance in `gross_amount`.
 - `buy` and `sell` reference non-cash instruments. Their `gross_amount` is calculated in the API as `quantity * price`, rounded half-up to six decimal places.
 - `dividend` references the paying non-cash instrument and may record withholding in `tax`.
 - `deposit`, `withdrawal`, `interest`, `fee`, `tax`, and `adjustment` reference currency-matching cash instruments.
@@ -96,15 +98,16 @@ These providers are treated as unofficial market-data sources for a small family
 Holdings are a read-only derived view calculated by the Lambda API from transaction history, grouped by account and instrument. No separate holdings table is introduced.
 
 - Security quantities and remaining carrying cost use weighted average cost in the instrument currency.
+- Opening positions add starting quantity and carrying cost before later buys and sells are applied.
 - Buys add `gross_amount + fee + tax` to carrying cost; sells remove units at the prior average unit cost. Sell-side fees and taxes are not included in remaining carrying cost.
 - Dividends do not change security quantity or carrying cost.
-- Cash balances use only transactions explicitly linked to cash instruments: deposits and interest increase balance; withdrawals, fees, and taxes reduce balance; adjustments use their recorded direction.
+- Cash balances use only transactions explicitly linked to cash instruments: opening balances, deposits, and interest increase balance; withdrawals, fees, and taxes reduce balance; adjustments use their recorded direction.
 - A security trade does not implicitly update a cash instrument balance.
 - Final zero positions are omitted.
 - A negative cash balance is returned with `NEGATIVE_POSITION`.
 - A security position that becomes negative is returned with `NEGATIVE_POSITION` and `COST_BASIS_UNAVAILABLE`, and its average cost and remaining cost are null.
 
-Holding rows report only native-currency quantity and carrying cost. They do not expose valuation or allocation columns.
+Holding rows report native-currency quantity and carrying cost, plus optional valuation fields in a requested reporting currency (`NZD`, `USD`, or `CNY`). Row market value uses stored instrument prices and USD-centered valuation FX rates. Row unrealized gain applies only to non-cash holdings with available carrying cost.
 
 ## Dashboard Summary Valuation
 
@@ -116,7 +119,7 @@ The current read-only dashboard summary values current non-zero holdings without
 - The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents stored close-price changes only.
 - Unrealized gain is market value less remaining carrying cost for securities only.
 
-The summary returns unavailable (`null`) monetary fields rather than incomplete totals when required stored price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage; valued holding rows remain deferred.
+The summary and valued holdings response return unavailable (`null`) monetary fields rather than incomplete totals when required stored price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage.
 
 ## Portfolio Valuation Snapshots
 
@@ -175,6 +178,7 @@ The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints
 - portfolio snapshots: unique by `snapshot_date`
 - portfolio account snapshots: unique by `snapshot_date, account_id`
 - adjustments: `adjustment_direction` is required only for adjustment transactions
+- opening entries: `opening_position` and `opening_balance` are stored in transaction history, not in a separate starting-holdings table
 
 Tax-specific tables are intentionally deferred until tax-assist requirements are clearer.
 

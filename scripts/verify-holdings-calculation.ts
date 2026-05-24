@@ -7,7 +7,9 @@ const accountB = account("account-b", "备用账户");
 const stock = instrument("stock-main", "ETF", "VGT", "etf", "USD");
 const zeroStock = instrument("stock-zero", "已清仓", "ZERO", "stock", "USD");
 const oversoldStock = instrument("stock-oversold", "超卖标的", "SHORT", "stock", "USD");
+const openingStock = instrument("stock-opening", "期初持仓标的", "OPEN", "stock", "USD");
 const cash = instrument("cash-usd", "美元现金", "CASH_USD", "cash", "USD");
+const openingCash = instrument("cash-opening", "期初现金", "OPEN_CASH", "cash", "USD");
 const zeroCash = instrument("cash-zero", "零余额现金", "CASH_ZERO", "cash", "NZD");
 const negativeCash = instrument("cash-negative", "负余额现金", "CASH_NEG", "cash", "NZD");
 
@@ -30,13 +32,15 @@ const transactions: InvestmentTransaction[] = [
   transaction("16", accountA.id, cash.id, "adjustment", { grossAmount: "1", adjustmentDirection: "increase" }),
   transaction("17", accountA.id, zeroCash.id, "deposit", { grossAmount: "5", currency: "NZD" }),
   transaction("18", accountA.id, zeroCash.id, "withdrawal", { grossAmount: "5", currency: "NZD" }),
-  transaction("19", accountA.id, negativeCash.id, "withdrawal", { grossAmount: "7", currency: "NZD" })
+  transaction("19", accountA.id, negativeCash.id, "withdrawal", { grossAmount: "7", currency: "NZD" }),
+  transaction("20", accountA.id, openingStock.id, "opening_position", { quantity: "8", grossAmount: "120" }),
+  transaction("21", accountA.id, openingCash.id, "opening_balance", { grossAmount: "250" })
 ];
 
 const holdings = calculateHoldings(
   [...transactions].reverse(),
   [accountA, accountB],
-  [stock, zeroStock, oversoldStock, cash, zeroCash, negativeCash]
+  [stock, zeroStock, oversoldStock, openingStock, cash, openingCash, zeroCash, negativeCash]
 );
 
 const mainSecurity = requiredHolding(accountA.id, stock.id);
@@ -68,6 +72,15 @@ assert.equal(findHolding(accountA.id, zeroCash.id), undefined);
 const overdrawnCash = requiredHolding(accountA.id, negativeCash.id);
 assert.equal(overdrawnCash.quantity, "-7");
 assert.deepEqual(overdrawnCash.warnings, ["NEGATIVE_POSITION"]);
+
+const openingPosition = requiredHolding(accountA.id, openingStock.id);
+assert.equal(openingPosition.quantity, "8");
+assert.equal(openingPosition.averageUnitCost, "15");
+assert.equal(openingPosition.costAmount, "120");
+
+const openingBalance = requiredHolding(accountA.id, openingCash.id);
+assert.equal(openingBalance.quantity, "250");
+assert.equal(openingBalance.costAmount, null);
 
 console.log("Holdings calculation verification: success");
 
