@@ -43,6 +43,17 @@ export async function listLatestFxRates(fromCurrencies: CurrencyCode[]): Promise
   return results.filter((rate): rate is FxRateRecord => rate !== null);
 }
 
+export async function listLatestValuationRatesToUsd(fromCurrencies: CurrencyCode[]): Promise<ExchangeRateRecord[]> {
+  const uniqueCurrencies = [...new Set(fromCurrencies)].filter((currency) => currency !== "USD");
+
+  if (uniqueCurrencies.length === 0) {
+    return [];
+  }
+
+  const results = await Promise.all(uniqueCurrencies.map((currency) => findLatestValuationRateToUsd(currency)));
+  return results.filter((rate): rate is ExchangeRateRecord => rate !== null);
+}
+
 export async function insertExchangeRateIfNotExists(
   input: CreateExchangeRateInput
 ): Promise<ExchangeRateRecord> {

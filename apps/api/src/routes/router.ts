@@ -67,7 +67,7 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /dashboard": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, dashboard: await getDashboard() });
+    return success({ user, dashboard: await getDashboard({ currency: event.queryStringParameters?.currency }) });
   },
   "GET /portfolio-snapshots": async (event) => {
     const user = await requireRole(event, "viewer");

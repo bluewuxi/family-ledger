@@ -108,15 +108,15 @@ Holding rows report only native-currency quantity and carrying cost. They do not
 
 ## Dashboard Summary Valuation
 
-The current read-only dashboard summary values current non-zero holdings in NZD without persisting a derived dashboard record. This is a legacy Stage 3 read model and has not yet been expanded into the future user-selected reporting-currency model.
+The current read-only dashboard summary values current non-zero holdings without persisting a derived dashboard record. Dashboard valuation is USD-centered internally and is displayed in the selected reporting currency: `NZD`, `USD`, or `CNY`.
 
 - Securities use the latest stored `instrument_prices` record in the instrument currency; daily movement uses the preceding stored close.
 - Cash uses its derived cash balance and has zero daily price movement.
-- Stored FX rates are USD-centered in `exchange_rates`. The current dashboard repository derives a temporary NZD-compatible rate through USD for the existing dashboard calculation. NZD uses an implicit rate of `1`.
+- Stored FX rates are USD-centered in `exchange_rates`. The dashboard converts each holding currency to USD, then converts aggregate monetary values to the requested reporting currency using the latest valuation FX rates.
 - The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents stored close-price changes only.
 - Unrealized gain is market value less remaining carrying cost for securities only.
 
-The summary returns unavailable (`null`) monetary fields rather than incomplete totals when required stored price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage; automated updates, snapshots, detailed allocation, and valued holding rows remain deferred.
+The summary returns unavailable (`null`) monetary fields rather than incomplete totals when required stored price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage; valued holding rows remain deferred.
 
 ## Portfolio Valuation Snapshots
 

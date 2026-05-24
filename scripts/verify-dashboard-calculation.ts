@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type {
-  FxRateRecord,
+  ExchangeRateRecord,
   HoldingSummary,
   InvestmentAccount,
   PriceRecord
@@ -18,7 +18,7 @@ const prices = [
   price("nzd-latest", nzdSecurity.instrumentId, "2026-05-22", "40", "NZD"),
   price("nzd-previous", nzdSecurity.instrumentId, "2026-05-21", "39", "NZD")
 ];
-const fxRates = [fxRate("usd-nzd", "USD", "1.5")];
+const fxRates = [fxRate("nzd-usd", "NZD", "0.6666666667"), fxRate("cny-usd", "CNY", "0.14")];
 
 const complete = calculateDashboardSummary(holdings, accounts, prices, fxRates);
 assert.deepEqual(complete, {
@@ -27,6 +27,28 @@ assert.deepEqual(complete, {
   todayChange: "18.00",
   todayChangePct: "5.50",
   unrealizedGain: "90.00",
+  accountCount: 3,
+  warnings: []
+});
+
+const completeUsd = calculateDashboardSummary(holdings, accounts, prices, fxRates, "USD");
+assert.deepEqual(completeUsd, {
+  reportingCurrency: "USD",
+  totalAssets: "230.00",
+  todayChange: "12.00",
+  todayChangePct: "5.50",
+  unrealizedGain: "60.00",
+  accountCount: 3,
+  warnings: []
+});
+
+const completeCny = calculateDashboardSummary(holdings, accounts, prices, fxRates, "CNY");
+assert.deepEqual(completeCny, {
+  reportingCurrency: "CNY",
+  totalAssets: "1642.86",
+  todayChange: "85.71",
+  todayChangePct: "5.50",
+  unrealizedGain: "428.57",
   accountCount: 3,
   warnings: []
 });
@@ -60,7 +82,7 @@ assert.equal(missingFx.totalAssets, null);
 assert.equal(missingFx.todayChange, null);
 assert.equal(missingFx.todayChangePct, null);
 assert.equal(missingFx.unrealizedGain, null);
-assert.deepEqual(missingFx.warnings.map((warning) => warning.code), ["MISSING_FX_RATE", "MISSING_FX_RATE"]);
+assert.deepEqual(missingFx.warnings.map((warning) => warning.code), ["MISSING_FX_RATE"]);
 
 const missingCost = calculateDashboardSummary(
   [usdSecurity, { ...nzdSecurity, costAmount: null }, usdCash],
@@ -81,7 +103,7 @@ const zeroPrior = calculateDashboardSummary(
     price("new-latest", "new-position", "2026-05-22", "10", "NZD"),
     price("new-previous", "new-position", "2026-05-21", "0", "NZD")
   ],
-  []
+  fxRates
 );
 assert.equal(zeroPrior.totalAssets, "10.00");
 assert.equal(zeroPrior.todayChange, "10.00");
@@ -94,7 +116,7 @@ const rounded = calculateDashboardSummary(
     price("rounded-latest", "rounded-position", "2026-05-22", "1.005", "NZD"),
     price("rounded-previous", "rounded-position", "2026-05-21", "0", "NZD")
   ],
-  []
+  fxRates
 );
 assert.equal(rounded.totalAssets, "1.01");
 
@@ -160,14 +182,17 @@ function price(
   };
 }
 
-function fxRate(id: string, fromCurrency: FxRateRecord["fromCurrency"], rate: string): FxRateRecord {
+function fxRate(id: string, fromCurrency: ExchangeRateRecord["fromCurrency"], rate: string): ExchangeRateRecord {
   return {
     id,
     fromCurrency,
-    toCurrency: "NZD",
+    toCurrency: "USD",
     rateDate: "2026-05-22",
     rate,
-    source: "manual",
+    rateType: "valuation",
+    provider: "manual",
+    providerRateDate: "2026-05-22",
+    fetchedAt: "2026-05-22T00:00:00.000Z",
     createdAt: "2026-05-22T00:00:00.000Z",
     updatedAt: "2026-05-22T00:00:00.000Z"
   };

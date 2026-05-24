@@ -61,3 +61,9 @@
 - Secrets handling
 - Backup/export
 - Monitoring/logging
+
+## Stage 7: Reporting Currency Selector and Charts
+
+- Dashboard reporting currency selector (implemented: `NZD`, `USD`, and `CNY`)
+- Dashboard asset trend chart (implemented: uses portfolio snapshots)
+- Dashboard account allocation chart (implemented: uses latest available portfolio snapshot)

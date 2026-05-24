@@ -309,6 +309,145 @@ textarea {
   font-size: 14px;
 }
 
+.dashboard-header {
+  align-items: flex-start;
+}
+
+.dashboard-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.dashboard-controls label {
+  display: grid;
+  gap: 8px;
+  color: #3d3b36;
+  font-size: 14px;
+}
+
+.dashboard-controls select {
+  min-width: 126px;
+  min-height: 38px;
+  border: 1px solid #cfcac0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #20231f;
+  padding: 8px 10px;
+}
+
+.dashboard-chart-section {
+  margin-top: 26px;
+}
+
+.chart-section-header,
+.allocation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.chart-section-header h2,
+.allocation-heading h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.chart-section-header p,
+.allocation-heading span {
+  margin: 0;
+  color: #68655e;
+  font-size: 14px;
+}
+
+.range-toggle {
+  display: flex;
+  gap: 6px;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 4px;
+}
+
+.range-toggle button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #4b4a45;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.range-toggle button.active,
+.range-toggle button:hover {
+  background: #e7eee9;
+  color: #18382f;
+}
+
+.dashboard-chart-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+  gap: 16px;
+}
+
+.chart-panel {
+  min-height: 326px;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.allocation-panel {
+  display: grid;
+  align-content: start;
+}
+
+.empty-chart-state {
+  display: grid;
+  place-items: center;
+  min-height: 246px;
+  color: #68655e;
+}
+
+.allocation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.allocation-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: #4b4a45;
+  font-size: 14px;
+}
+
+.allocation-row span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.allocation-row i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.allocation-row strong {
+  color: #20231f;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid #dedbd2;
@@ -506,6 +645,16 @@ td {
   .account-header,
   .form-heading {
     display: grid;
+  }
+
+  .dashboard-controls,
+  .chart-section-header,
+  .allocation-heading {
+    display: grid;
+  }
+
+  .dashboard-chart-grid {
+    grid-template-columns: 1fr;
   }
 
   .account-form,

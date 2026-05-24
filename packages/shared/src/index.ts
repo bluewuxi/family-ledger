@@ -515,7 +515,7 @@ export interface DashboardWarning {
 }
 
 export interface DashboardSummary {
-  reportingCurrency: "NZD";
+  reportingCurrency: SnapshotDisplayCurrency;
   totalAssets: string | null;
   todayChange: string | null;
   todayChangePct: string | null;

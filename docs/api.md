@@ -51,7 +51,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history.
-`GET /dashboard` returns a four-card NZD portfolio summary calculated from holdings and stored price/FX records.
+`GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
 
 Response data:
@@ -69,13 +69,19 @@ Response data:
 
 ### Dashboard Read API
 
-`GET /dashboard` is available to authenticated `viewer` and `admin` users. It returns values in NZD:
+`GET /dashboard?currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
+
+Defaults:
+
+- `currency`: `NZD`
+
+It returns values in the selected reporting currency:
 
 ```json
 {
   "dashboard": {
-    "reportingCurrency": "NZD",
-    "totalAssets": "15243.10",
+    "reportingCurrency": "USD",
+    "totalAssets": "9240.67",
     "todayChange": "48.25",
     "todayChangePct": "0.32",
     "unrealizedGain": "1243.10",
@@ -88,7 +94,7 @@ Response data:
 The dashboard derives holdings through the existing holdings calculation and reads stored data only:
 
 - Securities use their latest stored close price; cash uses its calculated cash balance.
-- Foreign-currency holdings use the latest USD-centered valuation FX rates in `exchange_rates`, converted through USD for the current NZD dashboard; NZD uses an implicit rate of `1`.
+- Holdings are valued internally in USD using the latest USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
 - `todayChange` compares the latest and preceding stored security close prices. Cash has zero daily price movement.
 - Latest FX is applied to current value, preceding value, and carrying cost, so daily change reflects price movement rather than FX movement.
 - `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.

@@ -4,19 +4,24 @@ import type {
   DashboardSummary,
   DashboardWarning,
   DashboardWarningCode,
-  FxRateRecord,
+  ExchangeRateRecord,
   HoldingSummary,
   InvestmentAccount,
-  PriceRecord
+  PriceRecord,
+  SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
-import { listLatestFxRates } from "../repositories/fxRateRepository";
+import { listLatestValuationRatesToUsd } from "../repositories/fxRateRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listTransactions } from "../repositories/transactionRepository";
 import { calculateHoldings } from "./holdingService";
+import { ApiRequestError } from "../utils/apiError";
 
-export async function getDashboard(): Promise<DashboardSummary> {
+const dashboardCurrencies = ["NZD", "USD", "CNY"] as const satisfies readonly SnapshotDisplayCurrency[];
+
+export async function getDashboard(input: { currency?: string } = {}): Promise<DashboardSummary> {
+  const reportingCurrency = parseReportingCurrency(input.currency);
   const [transactions, accounts, instruments] = await Promise.all([
     listTransactions(),
     listAccounts(),
@@ -32,26 +37,33 @@ export async function getDashboard(): Promise<DashboardSummary> {
   const foreignCurrencies = unique(
     holdings.filter((holding) => holding.currency !== "NZD").map((holding) => holding.currency)
   );
+  const requiredFxCurrencies = unique([
+    ...foreignCurrencies,
+    ...holdings.filter((holding) => holding.currency === "NZD").map((holding) => holding.currency),
+    ...(reportingCurrency === "USD" ? [] : [reportingCurrency])
+  ]);
   const [prices, fxRates] = await Promise.all([
     listLatestPrices(securityInstruments),
-    listLatestFxRates(foreignCurrencies)
+    listLatestValuationRatesToUsd(requiredFxCurrencies)
   ]);
 
-  return calculateDashboardSummary(holdings, accounts, prices, fxRates);
+  return calculateDashboardSummary(holdings, accounts, prices, fxRates, reportingCurrency);
 }
 
 export function calculateDashboardSummary(
   holdings: HoldingSummary[],
   accounts: InvestmentAccount[],
   prices: PriceRecord[],
-  fxRates: FxRateRecord[]
+  fxRates: ExchangeRateRecord[],
+  reportingCurrency: SnapshotDisplayCurrency = "NZD"
 ): DashboardSummary {
   const pricesByInstrument = groupValidPricesByInstrument(holdings, prices);
   const fxRatesByCurrency = new Map(
     fxRates
-      .filter((rate) => rate.toCurrency === "NZD")
+      .filter((rate) => rate.toCurrency === "USD" && rate.rateType === "valuation")
       .map((rate) => [rate.fromCurrency, new Decimal(rate.rate)])
   );
+  const displayRate = getDisplayRate(reportingCurrency, fxRatesByCurrency);
   const warnings: DashboardWarning[] = [];
   const warningKeys = new Set<string>();
   let totalAssets = new Decimal(0);
@@ -63,7 +75,7 @@ export function calculateDashboardSummary(
   let unrealizedGainAvailable = true;
 
   for (const holding of holdings) {
-    const fxRate = getFxRate(holding.currency, fxRatesByCurrency);
+    const fxRate = getCurrencyToUsdRate(holding.currency, fxRatesByCurrency);
 
     if (fxRate === null) {
       addWarning(warnings, warningKeys, "MISSING_FX_RATE", holding);
@@ -118,16 +130,20 @@ export function calculateDashboardSummary(
 
   const monetaryDataAvailable = totalAssetsAvailable;
   const dailyDataAvailable = monetaryDataAvailable && todayChangeAvailable;
+  const displayDataAvailable = displayRate !== null;
 
   return {
-    reportingCurrency: "NZD",
-    totalAssets: monetaryDataAvailable ? formatMoney(totalAssets) : null,
-    todayChange: dailyDataAvailable ? formatMoney(todayChange) : null,
+    reportingCurrency,
+    totalAssets: monetaryDataAvailable && displayDataAvailable ? formatMoney(totalAssets.times(displayRate)) : null,
+    todayChange: dailyDataAvailable && displayDataAvailable ? formatMoney(todayChange.times(displayRate)) : null,
     todayChangePct:
       dailyDataAvailable && !priorPortfolioValue.isZero()
         ? formatPercentage(todayChange.dividedBy(priorPortfolioValue).times(100))
         : null,
-    unrealizedGain: monetaryDataAvailable && unrealizedGainAvailable ? formatMoney(unrealizedGain) : null,
+    unrealizedGain:
+      monetaryDataAvailable && unrealizedGainAvailable && displayDataAvailable
+        ? formatMoney(unrealizedGain.times(displayRate))
+        : null,
     accountCount: accounts.length,
     warnings
   };
@@ -158,12 +174,36 @@ function groupValidPricesByInstrument(
   return groupedPrices;
 }
 
-function getFxRate(currency: CurrencyCode, fxRatesByCurrency: Map<CurrencyCode, Decimal>): Decimal | null {
-  if (currency === "NZD") {
+function getCurrencyToUsdRate(currency: CurrencyCode, fxRatesByCurrency: Map<CurrencyCode, Decimal>): Decimal | null {
+  if (currency === "USD") {
     return new Decimal(1);
   }
 
   return fxRatesByCurrency.get(currency) ?? null;
+}
+
+function getDisplayRate(
+  currency: SnapshotDisplayCurrency,
+  fxRatesByCurrency: Map<CurrencyCode, Decimal>
+): Decimal | null {
+  if (currency === "USD") {
+    return new Decimal(1);
+  }
+
+  const currencyToUsd = fxRatesByCurrency.get(currency);
+  return currencyToUsd && !currencyToUsd.isZero() ? new Decimal(1).dividedBy(currencyToUsd) : null;
+}
+
+function parseReportingCurrency(value: string | undefined): SnapshotDisplayCurrency {
+  if (value === undefined || value === "") {
+    return "NZD";
+  }
+
+  if (dashboardCurrencies.includes(value as SnapshotDisplayCurrency)) {
+    return value as SnapshotDisplayCurrency;
+  }
+
+  throw new ApiRequestError("VALIDATION_ERROR", "currency must be NZD, USD, or CNY.", 400);
 }
 
 function addWarning(
