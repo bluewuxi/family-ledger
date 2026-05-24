@@ -59,7 +59,7 @@ Transactions are entered through the Lambda API and always reference an account 
 - `deposit`, `withdrawal`, `interest`, `fee`, `tax`, and `adjustment` reference currency-matching cash instruments.
 - Standalone `fee` records store their value in `fee`; standalone `tax` records store their value in `tax`.
 - `adjustment` records store a non-negative `gross_amount` and use `adjustment_direction` (`increase` or `decrease`) to describe direction.
-- `fx_rate_to_nzd` remains optional manual transaction input until actual FX conversion handling is implemented. It is not the canonical valuation FX store.
+- Transaction records do not store manual FX rates. Valuation uses stored provider rates from `exchange_rates`; missing valuation FX should be fixed through market-data retrieval rather than transaction entry.
 
 ## Market Data Foundation
 
@@ -92,6 +92,8 @@ The stock/ETF price job also ingests best-effort latest daily prices for the see
 These providers are treated as unofficial market-data sources for a small family ledger. They do not introduce API keys or paid provider secrets. Provider responses are validated before insert, and failures are recorded in `data_provider_runs`, but this is not a guaranteed market-data feed or historical backfill pipeline.
 
 `job_runs` and `data_provider_runs` only track ingestion attempts and counts. They are audit records for completed or attempted jobs and are not themselves valuation snapshots.
+
+`job_runs.trigger_source` records whether an attempt came from an EventBridge schedule (`schedule`) or an admin-triggered web action (`manual`). Manual runs may also include `triggered_by_user_id` and `trigger_request_id` so the Settings UI can correlate a submitted retrieval request with later audit rows.
 
 ## Derived Holdings
 

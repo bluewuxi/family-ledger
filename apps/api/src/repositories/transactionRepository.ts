@@ -18,7 +18,6 @@ interface InvestmentTransactionRow {
   fee: string;
   tax: string;
   currency: InvestmentTransaction["currency"];
-  fx_rate_to_nzd: string | null;
   adjustment_direction: InvestmentTransaction["adjustmentDirection"];
   notes: string | null;
   created_by_user_id: string | null;
@@ -36,6 +35,12 @@ export class TransactionNotFoundError extends Error {
 export class TransactionReferenceError extends Error {
   constructor() {
     super("Transaction references an account or instrument that does not exist.");
+  }
+}
+
+export class TransactionConstraintError extends Error {
+  constructor(public readonly constraint: string | null) {
+    super("Transaction violates a database constraint.");
   }
 }
 
@@ -89,6 +94,10 @@ export async function createTransaction(
       throw new TransactionReferenceError();
     }
 
+    if (error.code === "23514" || error.code === "22P02") {
+      throw new TransactionConstraintError(error.code === "23514" ? error.message : null);
+    }
+
     throw new Error("Failed to create transaction.");
   }
 
@@ -114,6 +123,10 @@ export async function updateTransaction(
   if (error) {
     if (error.code === "23503") {
       throw new TransactionReferenceError();
+    }
+
+    if (error.code === "23514" || error.code === "22P02") {
+      throw new TransactionConstraintError(error.code === "23514" ? error.message : null);
     }
 
     throw new Error("Failed to update transaction.");
@@ -157,7 +170,6 @@ const transactionSelect = [
   "fee",
   "tax",
   "currency",
-  "fx_rate_to_nzd",
   "adjustment_direction",
   "notes",
   "created_by_user_id",
@@ -180,7 +192,6 @@ function mapTransactionRow(row: InvestmentTransactionRow): InvestmentTransaction
     fee: row.fee,
     tax: row.tax,
     currency: row.currency,
-    fxRateToNzd: row.fx_rate_to_nzd,
     adjustmentDirection: row.adjustment_direction,
     notes: row.notes,
     createdByUserId: row.created_by_user_id,
@@ -203,7 +214,6 @@ function toTransactionRow(input: CreateInvestmentTransactionInput) {
     fee: input.fee ?? "0",
     tax: input.tax ?? "0",
     currency: input.currency,
-    fx_rate_to_nzd: input.fxRateToNzd ?? null,
     adjustment_direction: input.adjustmentDirection ?? null,
     notes: input.notes ?? null
   };
@@ -222,7 +232,6 @@ function toTransactionUpdateRow(input: UpdateInvestmentTransactionInput) {
     ...(input.fee !== undefined ? { fee: input.fee } : {}),
     ...(input.tax !== undefined ? { tax: input.tax } : {}),
     ...(input.currency !== undefined ? { currency: input.currency } : {}),
-    ...(input.fxRateToNzd !== undefined ? { fx_rate_to_nzd: input.fxRateToNzd } : {}),
     ...(input.adjustmentDirection !== undefined ? { adjustment_direction: input.adjustmentDirection } : {}),
     ...(input.notes !== undefined ? { notes: input.notes } : {})
   };

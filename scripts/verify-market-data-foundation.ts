@@ -7,10 +7,11 @@ import type {
   InstrumentPriceRecord,
   JobRun
 } from "@family-ledger/shared";
-import { CURRENCY_CODES, DATA_KINDS, JOB_RUN_STATUSES, RATE_TYPES } from "../packages/shared/src/index";
+import { CURRENCY_CODES, DATA_KINDS, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES, RATE_TYPES } from "../packages/shared/src/index";
 
 assert.deepEqual(RATE_TYPES, ["valuation", "tax"]);
 assert.deepEqual(JOB_RUN_STATUSES, ["started", "succeeded", "failed"]);
+assert.deepEqual(JOB_TRIGGER_SOURCES, ["schedule", "manual"]);
 assert.deepEqual(DATA_KINDS, ["exchange_rates", "instrument_prices"]);
 assert.ok(CURRENCY_CODES.includes("USD"));
 
@@ -68,6 +69,9 @@ const jobRun: JobRun = {
   id: "job-run-id",
   jobName: "update-market-data",
   status: "started",
+  triggerSource: "manual",
+  triggeredByUserId: "user-id",
+  triggerRequestId: "request-id",
   jobStartedAt: "2026-05-23T01:00:00.000Z",
   jobFinishedAt: null,
   recordsInserted: 0,

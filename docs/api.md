@@ -46,6 +46,10 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /instruments`
 - `GET /transactions`
 - `GET /portfolio-snapshots`
+- `GET /market-data/fx-rates`
+- `GET /market-data/instrument-prices`
+- `GET /market-data/job-runs`
+- `GET /market-data/job-runs/:id/provider-runs`
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
@@ -53,6 +57,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
+Market data endpoints return stored provider FX rates, instrument prices, and ingestion audit logs. They do not call external providers.
 
 Response data:
 
@@ -66,6 +71,40 @@ Response data:
   "accounts": []
 }
 ```
+
+### Market Data Read API
+
+`GET /market-data/fx-rates` supports `fromCurrency`, `toCurrency`, `from`, `to`, `provider`, and `limit` filters.
+
+`GET /market-data/instrument-prices` supports `instrumentId`, `from`, `to`, `provider`, and `limit` filters.
+
+`GET /market-data/job-runs` supports `jobName`, `status`, and `limit` filters. Use `GET /market-data/job-runs/:id/provider-runs` to inspect per-provider results for a selected job run.
+
+Defaults:
+
+- `limit`: `50`
+- Maximum `limit`: `200`
+- `from` and `to` must use `YYYY-MM-DD`
+
+### Market Data Retrieval API
+
+`POST /market-data/retrievals` is admin-only. It asynchronously invokes the existing market-data job Lambdas and returns `202`.
+
+Request:
+
+```json
+{
+  "kind": "exchange_rates"
+}
+```
+
+Allowed `kind` values:
+
+- `exchange_rates`
+- `instrument_prices`
+- `all`
+
+The response includes a `triggerRequestId`. Actual inserted/skipped counts are recorded later in `job_runs` and `data_provider_runs`.
 
 ### Dashboard Read API
 
@@ -329,7 +368,6 @@ Buy request:
   "fee": "2.50",
   "tax": "0",
   "currency": "USD",
-  "fxRateToNzd": "1.6500000000",
   "notes": null
 }
 ```
@@ -391,7 +429,7 @@ Transaction validation rules:
 - `tax` requires a cash instrument and stores its positive value in `tax`.
 - `adjustment` requires a cash instrument, positive `grossAmount`, and `adjustmentDirection` of `increase` or `decrease`.
 - Transaction currency must match the selected instrument currency.
-- Optional `fxRateToNzd` must be positive; optional settlement date cannot precede trade date.
+- Optional settlement date cannot precede trade date.
 
 Create/update response data:
 
@@ -409,7 +447,6 @@ Create/update response data:
     "fee": "2.5",
     "tax": "0",
     "currency": "USD",
-    "fxRateToNzd": "1.65",
     "adjustmentDirection": null,
     "createdByUserId": "uuid",
     "updatedByUserId": "uuid",

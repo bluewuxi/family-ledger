@@ -60,7 +60,6 @@ interface TransactionRow {
   fee: string;
   tax: string;
   currency: InvestmentTransaction["currency"];
-  fx_rate_to_nzd: string | null;
   adjustment_direction: InvestmentTransaction["adjustmentDirection"];
   notes: string | null;
   created_by_user_id: string | null;
@@ -280,7 +279,6 @@ const transactionSelect = [
   "fee",
   "tax",
   "currency",
-  "fx_rate_to_nzd",
   "adjustment_direction",
   "notes",
   "created_by_user_id",
@@ -388,7 +386,6 @@ function mapTransactionRow(row: TransactionRow): InvestmentTransaction {
     fee: row.fee,
     tax: row.tax,
     currency: row.currency,
-    fxRateToNzd: row.fx_rate_to_nzd,
     adjustmentDirection: row.adjustment_direction,
     notes: row.notes,
     createdByUserId: row.created_by_user_id,

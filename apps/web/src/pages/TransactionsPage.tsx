@@ -46,7 +46,6 @@ interface TransactionFormState {
   grossAmount: string;
   fee: string;
   tax: string;
-  fxRateToNzd: string;
   adjustmentDirection: AdjustmentDirection;
   notes: string;
 }
@@ -235,7 +234,6 @@ export function TransactionsPage() {
       grossAmount: transaction.grossAmount ?? "",
       fee: transaction.fee === "0" ? "" : transaction.fee,
       tax: transaction.tax === "0" ? "" : transaction.tax,
-      fxRateToNzd: transaction.fxRateToNzd ?? "",
       adjustmentDirection: transaction.adjustmentDirection ?? "increase",
       notes: transaction.notes ?? ""
     });
@@ -509,11 +507,6 @@ export function TransactionsPage() {
             </label>
           ) : null}
 
-          <label>
-            兑纽币汇率
-            <input value={form.fxRateToNzd} onChange={(event) => setForm({ ...form, fxRateToNzd: event.target.value })} placeholder="可选" />
-          </label>
-
           <label className="wide-field">
             备注
             <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="可选" rows={2} />
@@ -546,7 +539,6 @@ export function TransactionsPage() {
               <th>数量</th>
               <th>金额/费用</th>
               <th>币种</th>
-              <th>兑纽币汇率</th>
               <th>备注</th>
               {isAdmin ? <th>操作</th> : null}
             </tr>
@@ -554,11 +546,11 @@ export function TransactionsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9}>正在加载交易记录...</td>
+                <td colSpan={isAdmin ? 9 : 8}>正在加载交易记录...</td>
               </tr>
             ) : transactions.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9}>暂无交易记录。</td>
+                <td colSpan={isAdmin ? 9 : 8}>暂无交易记录。</td>
               </tr>
             ) : (
               transactions.map((transaction) => (
@@ -570,7 +562,6 @@ export function TransactionsPage() {
                   <td>{transaction.quantity ?? "-"}</td>
                   <td>{displayAmount(transaction)}</td>
                   <td>{transaction.currency}</td>
-                  <td>{transaction.fxRateToNzd ?? "-"}</td>
                   <td>{transaction.notes ?? "-"}</td>
                   {isAdmin ? (
                     <td>
@@ -606,7 +597,6 @@ function emptyForm(): TransactionFormState {
     grossAmount: "",
     fee: "",
     tax: "",
-    fxRateToNzd: "",
     adjustmentDirection: "increase",
     notes: ""
   };
@@ -663,7 +653,6 @@ function toTransactionInput(form: TransactionFormState, instrument: Instrument):
     tradeDate: form.tradeDate,
     settlementDate: form.settlementDate || null,
     currency: instrument.currency,
-    fxRateToNzd: form.fxRateToNzd || null,
     notes: form.notes || null
   };
 
@@ -773,7 +762,6 @@ function toOpeningTransactionInput(
     fee: "0",
     tax: "0",
     currency: instrument.currency,
-    fxRateToNzd: null,
     adjustmentDirection: null,
     notes: row.notes || (isCash ? "期初余额" : "期初持仓")
   };

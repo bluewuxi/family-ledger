@@ -245,6 +245,8 @@ Resources:
       Environment:
         Variables:
           ALLOWED_ORIGIN: !Sub https://${WebDomainName}
+          UPDATE_FX_RATES_FUNCTION_NAME: !Ref UpdateFxRatesFunction
+          UPDATE_PRICES_FUNCTION_NAME: !Ref UpdatePricesFunction
       Events:
         ApiProxy:
           Type: HttpApi
@@ -356,6 +358,22 @@ Resources:
         Minify: true
         Sourcemap: true
         Target: es2022
+
+  ApiInvokeMarketDataJobsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: InvokeFamilyLedgerMarketDataJobs
+      Roles:
+        - !Ref LambdaExecutionRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              - !GetAtt UpdateFxRatesFunction.Arn
+              - !GetAtt UpdatePricesFunction.Arn
 
   UpdateFxRatesSchedule:
     Type: AWS::Events::Rule

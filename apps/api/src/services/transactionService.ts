@@ -16,6 +16,7 @@ import { findAccountById } from "../repositories/accountRepository";
 import { findInstrumentById } from "../repositories/instrumentRepository";
 import {
   TransactionNotFoundError,
+  TransactionConstraintError,
   TransactionReferenceError,
   createTransaction,
   deleteTransaction,
@@ -42,6 +43,10 @@ export async function createInvestmentTransaction(
   } catch (error) {
     if (error instanceof TransactionReferenceError) {
       throw new ApiRequestError("VALIDATION_ERROR", "Transaction account or instrument was not found.", 400);
+    }
+
+    if (error instanceof TransactionConstraintError) {
+      throw new ApiRequestError("VALIDATION_ERROR", toTransactionConstraintMessage(error), 400);
     }
 
     throw error;
@@ -74,7 +79,6 @@ export async function updateInvestmentTransaction(
     fee: patch.fee ?? existing.fee,
     tax: patch.tax ?? existing.tax,
     currency: patch.currency ?? existing.currency,
-    fxRateToNzd: patch.fxRateToNzd !== undefined ? patch.fxRateToNzd : existing.fxRateToNzd,
     adjustmentDirection:
       patch.adjustmentDirection !== undefined ? patch.adjustmentDirection : existing.adjustmentDirection,
     notes: patch.notes !== undefined ? patch.notes : existing.notes
@@ -91,6 +95,10 @@ export async function updateInvestmentTransaction(
 
     if (error instanceof TransactionReferenceError) {
       throw new ApiRequestError("VALIDATION_ERROR", "Transaction account or instrument was not found.", 400);
+    }
+
+    if (error instanceof TransactionConstraintError) {
+      throw new ApiRequestError("VALIDATION_ERROR", toTransactionConstraintMessage(error), 400);
     }
 
     throw error;
@@ -124,7 +132,6 @@ function parseCreateTransactionInput(record: Record<string, unknown>): CreateInv
     fee: optionalString(record.fee, "fee") ?? "0",
     tax: optionalString(record.tax, "tax") ?? "0",
     currency: requiredEnum(record.currency, CURRENCY_CODES, "currency"),
-    fxRateToNzd: optionalString(record.fxRateToNzd, "fxRateToNzd"),
     adjustmentDirection: optionalEnum(record.adjustmentDirection, ADJUSTMENT_DIRECTIONS, "adjustmentDirection"),
     notes: optionalString(record.notes, "notes")
   };
@@ -165,9 +172,6 @@ function parseUpdateTransactionInput(record: Record<string, unknown>): UpdateInv
   }
   if ("currency" in record) {
     input.currency = requiredEnum(record.currency, CURRENCY_CODES, "currency");
-  }
-  if ("fxRateToNzd" in record) {
-    input.fxRateToNzd = optionalString(record.fxRateToNzd, "fxRateToNzd");
   }
   if ("adjustmentDirection" in record) {
     input.adjustmentDirection = optionalEnum(record.adjustmentDirection, ADJUSTMENT_DIRECTIONS, "adjustmentDirection");
@@ -210,9 +214,6 @@ async function validateTransaction(
 
   const fee = parseDecimal(input.fee ?? "0", "fee", 6, false);
   const tax = parseDecimal(input.tax ?? "0", "tax", 6, false);
-  const fxRateToNzd = input.fxRateToNzd
-    ? parseDecimal(input.fxRateToNzd, "fxRateToNzd", 10, true)
-    : null;
 
   switch (input.transactionType) {
     case "opening_position": {
@@ -229,7 +230,6 @@ async function validateTransaction(
         grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
         fee: "0",
         tax: "0",
-        fxRateToNzd,
         adjustmentDirection: null
       };
     }
@@ -248,7 +248,6 @@ async function validateTransaction(
         grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
         fee: "0",
         tax: "0",
-        fxRateToNzd,
         adjustmentDirection: null
       };
     case "buy":
@@ -272,7 +271,6 @@ async function validateTransaction(
         grossAmount,
         fee,
         tax,
-        fxRateToNzd,
         adjustmentDirection: null
       };
     }
@@ -290,7 +288,6 @@ async function validateTransaction(
         grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
         fee: "0",
         tax,
-        fxRateToNzd,
         adjustmentDirection: null
       };
     case "deposit":
@@ -310,7 +307,6 @@ async function validateTransaction(
         grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
         fee: "0",
         tax: "0",
-        fxRateToNzd,
         adjustmentDirection: null
       };
     case "fee":
@@ -328,7 +324,6 @@ async function validateTransaction(
         grossAmount: null,
         fee: requiredDecimal(input.fee, "fee", 6, true),
         tax: "0",
-        fxRateToNzd,
         adjustmentDirection: null
       };
     case "tax":
@@ -346,7 +341,6 @@ async function validateTransaction(
         grossAmount: null,
         fee: "0",
         tax: requiredDecimal(input.tax, "tax", 6, true),
-        fxRateToNzd,
         adjustmentDirection: null
       };
     case "adjustment":
@@ -366,8 +360,7 @@ async function validateTransaction(
         price: null,
         grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
         fee: "0",
-        tax: "0",
-        fxRateToNzd
+        tax: "0"
       };
   }
 }
@@ -408,6 +401,20 @@ function rejectAdjustmentDirection(input: CreateInvestmentTransactionInput): voi
   if (input.adjustmentDirection !== undefined && input.adjustmentDirection !== null) {
     throw new ApiRequestError("VALIDATION_ERROR", "adjustmentDirection is allowed only for adjustment.", 400);
   }
+}
+
+function toTransactionConstraintMessage(error: TransactionConstraintError): string {
+  const constraint = error.constraint ?? "";
+
+  if (constraint.includes("transactions_quantity_non_negative_check")) {
+    return "quantity must be non-negative.";
+  }
+
+  if (constraint.includes("transactions_gross_amount_non_negative_check")) {
+    return "grossAmount must be non-negative.";
+  }
+
+  return "Transaction data violates a database constraint.";
 }
 
 function asRecord(body: unknown): Record<string, unknown> {

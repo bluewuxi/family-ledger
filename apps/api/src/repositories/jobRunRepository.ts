@@ -1,10 +1,13 @@
-import type { DataKind, DataProviderRun, JobRun, JobRunStatus } from "@family-ledger/shared";
+import type { DataKind, DataProviderRun, JobRun, JobRunStatus, JobTriggerSource } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 interface JobRunRow {
   id: string;
   job_name: string;
   status: JobRunStatus;
+  trigger_source: JobTriggerSource;
+  triggered_by_user_id: string | null;
+  trigger_request_id: string | null;
   job_started_at: string;
   job_finished_at: string | null;
   records_inserted: number;
@@ -40,6 +43,9 @@ interface FinishRunInput {
 export async function createJobRun(input: {
   jobName: string;
   jobStartedAt: string;
+  triggerSource?: JobTriggerSource;
+  triggeredByUserId?: string | null;
+  triggerRequestId?: string | null;
 }): Promise<JobRun> {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase
@@ -47,6 +53,9 @@ export async function createJobRun(input: {
     .insert({
       job_name: input.jobName,
       status: "started",
+      trigger_source: input.triggerSource ?? "schedule",
+      triggered_by_user_id: input.triggeredByUserId ?? null,
+      trigger_request_id: input.triggerRequestId ?? null,
       job_started_at: input.jobStartedAt
     })
     .select(jobRunSelect)
@@ -133,6 +142,9 @@ const jobRunSelect = [
   "id",
   "job_name",
   "status",
+  "trigger_source",
+  "triggered_by_user_id",
+  "trigger_request_id",
   "job_started_at",
   "job_finished_at",
   "records_inserted",
@@ -162,6 +174,9 @@ function mapJobRunRow(row: JobRunRow): JobRun {
     id: row.id,
     jobName: row.job_name,
     status: row.status,
+    triggerSource: row.trigger_source,
+    triggeredByUserId: row.triggered_by_user_id,
+    triggerRequestId: row.trigger_request_id,
     jobStartedAt: row.job_started_at,
     jobFinishedAt: row.job_finished_at,
     recordsInserted: row.records_inserted,

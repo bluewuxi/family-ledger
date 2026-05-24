@@ -663,6 +663,67 @@ td {
   font-size: 14px;
 }
 
+.form-success {
+  margin: 0 0 16px;
+  color: #23443b;
+  font-size: 14px;
+}
+
+.market-data-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.settings-section-header h2,
+.settings-section-header p,
+.market-data-section h3 {
+  margin: 0;
+}
+
+.settings-section-header h2 {
+  margin-bottom: 6px;
+  font-size: 18px;
+}
+
+.settings-section-header p {
+  color: #68655e;
+}
+
+.market-data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.market-data-section {
+  display: grid;
+  gap: 10px;
+}
+
+.market-data-section h3 {
+  font-size: 16px;
+}
+
+.market-price-table {
+  min-width: 980px;
+}
+
+.market-job-table {
+  min-width: 1060px;
+}
+
 .loading-page {
   display: grid;
   place-items: center;
@@ -700,8 +761,13 @@ td {
 
   .dashboard-controls,
   .chart-section-header,
-  .allocation-heading {
+  .allocation-heading,
+  .settings-section-header {
     display: grid;
+  }
+
+  .market-data-actions {
+    justify-content: flex-start;
   }
 
   .dashboard-chart-grid {

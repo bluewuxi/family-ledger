@@ -12,6 +12,9 @@ export type RateType = (typeof RATE_TYPES)[number];
 export const JOB_RUN_STATUSES = ["started", "succeeded", "failed"] as const;
 export type JobRunStatus = (typeof JOB_RUN_STATUSES)[number];
 
+export const JOB_TRIGGER_SOURCES = ["schedule", "manual"] as const;
+export type JobTriggerSource = (typeof JOB_TRIGGER_SOURCES)[number];
+
 export const DATA_KINDS = ["exchange_rates", "instrument_prices"] as const;
 export type DataKind = (typeof DATA_KINDS)[number];
 
@@ -265,7 +268,6 @@ export interface InvestmentTransaction {
   fee: string;
   tax: string;
   currency: CurrencyCode;
-  fxRateToNzd: string | null;
   adjustmentDirection: AdjustmentDirection | null;
   notes: string | null;
   createdByUserId: string | null;
@@ -286,7 +288,6 @@ export interface CreateInvestmentTransactionInput {
   fee?: string;
   tax?: string;
   currency: CurrencyCode;
-  fxRateToNzd?: string | null;
   adjustmentDirection?: AdjustmentDirection | null;
   notes?: string | null;
 }
@@ -303,7 +304,6 @@ export interface UpdateInvestmentTransactionInput {
   fee?: string;
   tax?: string;
   currency?: CurrencyCode;
-  fxRateToNzd?: string | null;
   adjustmentDirection?: AdjustmentDirection | null;
   notes?: string | null;
 }
@@ -633,6 +633,9 @@ export interface JobRun {
   id: string;
   jobName: string;
   status: JobRunStatus;
+  triggerSource: JobTriggerSource;
+  triggeredByUserId: string | null;
+  triggerRequestId: string | null;
   jobStartedAt: string;
   jobFinishedAt: string | null;
   recordsInserted: number;
@@ -640,6 +643,12 @@ export interface JobRun {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type MarketDataRetrievalKind = DataKind | "all";
+
+export interface MarketDataRetrievalRequest {
+  kind: MarketDataRetrievalKind;
 }
 
 export interface DataProviderRun {

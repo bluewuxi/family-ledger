@@ -5,7 +5,8 @@ import type {
   DataKind,
   DataProviderRun,
   ExchangeRateRecord,
-  JobRun
+  JobRun,
+  JobTriggerSource
 } from "@family-ledger/shared";
 import { FrankfurterFxRateProvider } from "../providers/FrankfurterFxRateProvider";
 import type { IFxRateProvider } from "../providers/IFxRateProvider";
@@ -30,7 +31,13 @@ interface ExchangeRateRepository {
 }
 
 interface JobRunRepository {
-  createJobRun(input: { jobName: string; jobStartedAt: string }): Promise<JobRun>;
+  createJobRun(input: {
+    jobName: string;
+    jobStartedAt: string;
+    triggerSource?: JobTriggerSource;
+    triggeredByUserId?: string | null;
+    triggerRequestId?: string | null;
+  }): Promise<JobRun>;
   finishJobRun(
     id: string,
     input: {
@@ -74,6 +81,9 @@ export interface IngestLatestFrankfurterFxRatesOptions {
   targetCurrencies?: CurrencyCode[];
   fetchedAt?: string;
   now?: () => Date;
+  triggerSource?: JobTriggerSource;
+  triggeredByUserId?: string | null;
+  triggerRequestId?: string | null;
   provider?: IFxRateProvider;
   exchangeRateRepository?: ExchangeRateRepository;
   jobRunRepository?: JobRunRepository;
@@ -98,7 +108,10 @@ export async function ingestLatestFrankfurterFxRates(
   const targetCurrencies = uniqueCurrencies(options.targetCurrencies ?? DEFAULT_FRANKFURTER_TARGET_CURRENCIES);
   const jobRun = await jobRunRepository.createJobRun({
     jobName: FRANKFURTER_FX_JOB_NAME,
-    jobStartedAt: fetchedAt
+    jobStartedAt: fetchedAt,
+    triggerSource: options.triggerSource,
+    triggeredByUserId: options.triggeredByUserId,
+    triggerRequestId: options.triggerRequestId
   });
   const dataProviderRun = await jobRunRepository.createDataProviderRun({
     jobRunId: jobRun.id,

@@ -8,6 +8,13 @@ import {
 import { getDashboard } from "../services/dashboardService";
 import { getHoldings } from "../services/holdingService";
 import {
+  getMarketDataFxRates,
+  getMarketDataInstrumentPrices,
+  getMarketDataJobRuns,
+  getMarketDataProviderRuns,
+  triggerMarketDataRetrieval
+} from "../services/marketDataService";
+import {
   createInvestmentInstrument,
   deleteInvestmentInstrument,
   getInstruments,
@@ -80,6 +87,24 @@ const routes: Record<string, RouteHandler> = {
         currency: event.queryStringParameters?.currency
       })
     });
+  },
+  "GET /market-data/fx-rates": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ user, fxRates: await getMarketDataFxRates(event.queryStringParameters ?? {}) });
+  },
+  "GET /market-data/instrument-prices": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ user, prices: await getMarketDataInstrumentPrices(event.queryStringParameters ?? {}) });
+  },
+  "GET /market-data/job-runs": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ user, jobRuns: await getMarketDataJobRuns(event.queryStringParameters ?? {}) });
+  },
+  "POST /market-data/retrievals": async (event) => {
+    const user = await requireRole(event, "admin");
+    const requestId = event.requestContext.requestId;
+    const retrieval = await triggerMarketDataRetrieval(parseJsonBody(event), user, requestId);
+    return success({ user, retrieval }, 202);
   }
 };
 
@@ -140,6 +165,14 @@ const dynamicRoutes: Array<{
       await requireRole(event, "admin");
       await deleteInvestmentTransaction(params.id);
       return success({ deleted: true });
+    }
+  },
+  {
+    method: "GET",
+    pattern: /^\/market-data\/job-runs\/(?<id>[^/]+)\/provider-runs$/,
+    handler: async (event, params) => {
+      const user = await requireRole(event, "viewer");
+      return success({ user, providerRuns: await getMarketDataProviderRuns(params.id) });
     }
   }
 ];

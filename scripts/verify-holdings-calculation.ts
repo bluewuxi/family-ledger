@@ -163,7 +163,6 @@ function transaction(
     fee: "0",
     tax: "0",
     currency: "USD",
-    fxRateToNzd: null,
     adjustmentDirection: null,
     notes: null,
     createdByUserId: null,

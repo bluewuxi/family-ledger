@@ -4,7 +4,8 @@ import type {
   DataKind,
   DataProviderRun,
   InstrumentPriceRecord,
-  JobRun
+  JobRun,
+  JobTriggerSource
 } from "@family-ledger/shared";
 import { FundRockPieUnitPriceProvider } from "../providers/FundRockPieUnitPriceProvider";
 import type { IInstrumentPriceProvider, InstrumentPriceProviderInstrument } from "../providers/IInstrumentPriceProvider";
@@ -40,7 +41,13 @@ interface InstrumentPriceRepository {
 }
 
 interface JobRunRepository {
-  createJobRun(input: { jobName: string; jobStartedAt: string }): Promise<JobRun>;
+  createJobRun(input: {
+    jobName: string;
+    jobStartedAt: string;
+    triggerSource?: JobTriggerSource;
+    triggeredByUserId?: string | null;
+    triggerRequestId?: string | null;
+  }): Promise<JobRun>;
   finishJobRun(
     id: string,
     input: {
@@ -82,6 +89,9 @@ export interface FundRockPriceIngestionResult {
 export interface IngestLatestFundRockPieUnitPricesOptions {
   fetchedAt?: string;
   now?: () => Date;
+  triggerSource?: JobTriggerSource;
+  triggeredByUserId?: string | null;
+  triggerRequestId?: string | null;
   provider?: IInstrumentPriceProvider;
   instrumentPriceRepository?: InstrumentPriceRepository;
   jobRunRepository?: JobRunRepository;
@@ -106,7 +116,10 @@ export async function ingestLatestFundRockPieUnitPrices(
 
   const jobRun = await jobRunRepository.createJobRun({
     jobName: FUNDROCK_PRICE_JOB_NAME,
-    jobStartedAt: fetchedAt
+    jobStartedAt: fetchedAt,
+    triggerSource: options.triggerSource,
+    triggeredByUserId: options.triggeredByUserId,
+    triggerRequestId: options.triggerRequestId
   });
   const dataProviderRun = await jobRunRepository.createDataProviderRun({
     jobRunId: jobRun.id,

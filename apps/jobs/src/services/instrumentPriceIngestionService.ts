@@ -4,6 +4,7 @@ import type {
   DataProviderRun,
   InstrumentPriceRecord,
   JobRun,
+  JobTriggerSource,
   PriceSource
 } from "@family-ledger/shared";
 import { EastMoneyInstrumentPriceProvider } from "../providers/EastMoneyInstrumentPriceProvider";
@@ -45,7 +46,13 @@ interface InstrumentPriceRepository {
 }
 
 interface JobRunRepository {
-  createJobRun(input: { jobName: string; jobStartedAt: string }): Promise<JobRun>;
+  createJobRun(input: {
+    jobName: string;
+    jobStartedAt: string;
+    triggerSource?: JobTriggerSource;
+    triggeredByUserId?: string | null;
+    triggerRequestId?: string | null;
+  }): Promise<JobRun>;
   finishJobRun(
     id: string,
     input: {
@@ -111,6 +118,9 @@ export interface InstrumentPriceIngestionResult {
 export interface IngestLatestInstrumentPricesOptions {
   fetchedAt?: string;
   now?: () => Date;
+  triggerSource?: JobTriggerSource;
+  triggeredByUserId?: string | null;
+  triggerRequestId?: string | null;
   providerConfigs?: InstrumentPriceProviderConfig[];
   instrumentPriceRepository?: InstrumentPriceRepository;
   jobRunRepository?: JobRunRepository;
@@ -135,7 +145,10 @@ export async function ingestLatestInstrumentPrices(
 
   const jobRun = await jobRunRepository.createJobRun({
     jobName: UPDATE_PRICES_JOB_NAME,
-    jobStartedAt: fetchedAt
+    jobStartedAt: fetchedAt,
+    triggerSource: options.triggerSource,
+    triggeredByUserId: options.triggeredByUserId,
+    triggerRequestId: options.triggerRequestId
   });
   const providerRuns: InstrumentPriceProviderRunResult[] = [];
   const providerFailures: InstrumentPriceProviderRunFailure[] = [];
