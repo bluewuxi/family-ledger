@@ -15,6 +15,7 @@ import {
   type MarketRegion,
   type PriceSource
 } from "@family-ledger/shared";
+import { Drawer } from "../components/Drawer";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 
 interface InstrumentsResponse {
@@ -78,6 +79,7 @@ export function InstrumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<InstrumentFormState>(emptyForm);
   const [editingInstrumentId, setEditingInstrumentId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isAdmin = user?.role === "admin";
   const formTitle = editingInstrumentId ? "编辑投资标的" : "新增投资标的";
@@ -123,7 +125,7 @@ export function InstrumentsPage() {
             : [...current, data.instrument]
         )
       );
-      clearForm();
+      closeDrawer();
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
@@ -147,13 +149,19 @@ export function InstrumentsPage() {
       setInstruments((current) => current.filter((item) => item.id !== instrument.id));
 
       if (editingInstrumentId === instrument.id) {
-        clearForm();
+        closeDrawer();
       }
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
       setSaving(false);
     }
+  }
+
+  function startCreate() {
+    setEditingInstrumentId(null);
+    setForm(emptyForm);
+    setDrawerOpen(true);
   }
 
   function startEdit(instrument: Instrument) {
@@ -177,9 +185,11 @@ export function InstrumentsPage() {
       sourceCheckedAt: toLocalDateTimeValue(instrument.sourceCheckedAt),
       notes: instrument.notes ?? ""
     });
+    setDrawerOpen(true);
   }
 
-  function clearForm() {
+  function closeDrawer() {
+    setDrawerOpen(false);
     setEditingInstrumentId(null);
     setForm(emptyForm);
   }
@@ -191,26 +201,115 @@ export function InstrumentsPage() {
           <h1>投资标的</h1>
           <p>维护股票、ETF、基金和现金标的，以及后续行情任务使用的价格来源配置。</p>
         </div>
-        <button className="secondary-button" type="button" onClick={loadInstruments} disabled={loading || saving}>
-          刷新
-        </button>
+        <div className="header-actions">
+          {isAdmin ? (
+            <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving}>
+              新增标的
+            </button>
+          ) : null}
+          <button className="secondary-button" type="button" onClick={loadInstruments} disabled={loading || saving}>
+            刷新
+          </button>
+        </div>
       </header>
 
       {error ? <p className="form-error">{error}</p> : null}
 
-      {isAdmin ? (
-        <form className="instrument-form" onSubmit={handleSubmit}>
-          <div className="form-heading">
-            <h2>{formTitle}</h2>
-            {editingInstrument ? <span>正在编辑：{editingInstrument.name}</span> : <span>价格来源仅保存配置，不会自动抓取行情</span>}
-          </div>
+      {!isAdmin && !loading && user ? (
+        <p className="readonly-note">当前角色为 viewer，可查看投资标的信息。新增、编辑和删除仅限 admin。</p>
+      ) : null}
 
+      <div className="table-wrap">
+        <table className="instrument-table">
+          <thead>
+            <tr>
+              <th>代码</th>
+              <th>名称</th>
+              <th>市场</th>
+              <th>交易所/平台</th>
+              <th>币种</th>
+              <th>类型</th>
+              <th>价格来源</th>
+              <th>自动更新</th>
+              {isAdmin ? <th>操作</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={isAdmin ? 9 : 8}>正在加载投资标的...</td>
+              </tr>
+            ) : instruments.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 9 : 8}>暂无投资标的。</td>
+              </tr>
+            ) : (
+              instruments.map((instrument) => (
+                <tr key={instrument.id}>
+                  <td>{instrument.symbol ?? "-"}</td>
+                  <td>{instrument.name}</td>
+                  <td>{MARKET_REGION_LABELS[instrument.marketRegion]}</td>
+                  <td>{instrument.exchange ?? "-"}</td>
+                  <td>{instrument.currency}</td>
+                  <td>{ASSET_TYPE_LABELS[instrument.assetType]}</td>
+                  <td>{PRICE_SOURCE_LABELS[instrument.priceSource]}</td>
+                  <td>{instrument.priceUpdateEnabled ? "是" : "否"}</td>
+                  {isAdmin ? (
+                    <td>
+                      <div className="table-actions">
+                        <button
+                          aria-label={`编辑标的 ${instrument.name}`}
+                          className="icon-button"
+                          title="编辑"
+                          type="button"
+                          onClick={() => startEdit(instrument)}
+                          disabled={saving}
+                        >
+                          <span aria-hidden="true">✎</span>
+                        </button>
+                        <button
+                          aria-label={`删除标的 ${instrument.name}`}
+                          className="icon-button danger-icon-button"
+                          title="删除"
+                          type="button"
+                          onClick={() => void handleDelete(instrument)}
+                          disabled={saving}
+                        >
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Drawer
+        open={drawerOpen}
+        title={formTitle}
+        subtitle={editingInstrument ? `正在编辑：${editingInstrument.name}` : "价格来源仅保存配置，不会自动抓取行情"}
+        onClose={closeDrawer}
+        footer={
+          <>
+            <button className="primary-button" type="submit" form="instrument-drawer-form" disabled={saving}>
+              {saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}
+            </button>
+            <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+              取消
+            </button>
+          </>
+        }
+      >
+        <form className="instrument-form drawer-form" id="instrument-drawer-form" onSubmit={handleSubmit}>
           <label>
             代码
             <input
               value={form.symbol}
               onChange={(event) => setForm({ ...form, symbol: event.target.value })}
-              placeholder="例如 AMD、00700"
+              placeholder="例如 AMD、0700"
               required={form.assetType !== "other"}
             />
           </label>
@@ -381,80 +480,8 @@ export function InstrumentsPage() {
               rows={2}
             />
           </label>
-
-          <div className="form-actions">
-            <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}
-            </button>
-            {editingInstrumentId ? (
-              <button className="secondary-button" type="button" onClick={clearForm} disabled={saving}>
-                取消编辑
-              </button>
-            ) : null}
-          </div>
         </form>
-      ) : !loading && user ? (
-        <p className="readonly-note">当前角色为 viewer，可查看投资标的信息。新增、编辑和删除仅限 admin。</p>
-      ) : null}
-
-      <div className="table-wrap">
-        <table className="instrument-table">
-          <thead>
-            <tr>
-              <th>代码</th>
-              <th>名称</th>
-              <th>市场</th>
-              <th>交易所/平台</th>
-              <th>币种</th>
-              <th>类型</th>
-              <th>价格来源</th>
-              <th>自动更新</th>
-              {isAdmin ? <th>操作</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={isAdmin ? 9 : 8}>正在加载投资标的...</td>
-              </tr>
-            ) : instruments.length === 0 ? (
-              <tr>
-                <td colSpan={isAdmin ? 9 : 8}>暂无投资标的。</td>
-              </tr>
-            ) : (
-              instruments.map((instrument) => (
-                <tr key={instrument.id}>
-                  <td>{instrument.symbol ?? "-"}</td>
-                  <td>{instrument.name}</td>
-                  <td>{MARKET_REGION_LABELS[instrument.marketRegion]}</td>
-                  <td>{instrument.exchange ?? "-"}</td>
-                  <td>{instrument.currency}</td>
-                  <td>{ASSET_TYPE_LABELS[instrument.assetType]}</td>
-                  <td>{PRICE_SOURCE_LABELS[instrument.priceSource]}</td>
-                  <td>{instrument.priceUpdateEnabled ? "是" : "否"}</td>
-                  {isAdmin ? (
-                    <td>
-                      <div className="table-actions">
-                        <button className="text-button" type="button" onClick={() => startEdit(instrument)} disabled={saving}>
-                          编辑
-                        </button>
-                        <button
-                          className="danger-button"
-                          type="button"
-                          onClick={() => void handleDelete(instrument)}
-                          disabled={saving}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  ) : null}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      </Drawer>
     </section>
   );
 }

@@ -15,6 +15,7 @@ import {
   type InvestmentTransaction,
   type MarketRegion
 } from "@family-ledger/shared";
+import { Drawer } from "../components/Drawer";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 
 interface AccountsResponse {
@@ -80,6 +81,7 @@ export function AccountsPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<AccountFormState>(emptyForm);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [includeOpeningAssets, setIncludeOpeningAssets] = useState(false);
   const [openingTradeDate, setOpeningTradeDate] = useState(today);
   const [openingRows, setOpeningRows] = useState<OpeningEntryFormRow[]>(() => [emptyOpeningRow()]);
@@ -112,7 +114,6 @@ export function AccountsPage() {
       setAccounts(accountData.accounts);
       setInstruments(instrumentData.instruments);
       setTransactions(transactionData.transactions);
-      setOpeningRows((current) => withAvailableOpeningSelections(current, instrumentData.instruments));
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
@@ -143,7 +144,7 @@ export function AccountsPage() {
       if (createdOpeningTransactions.length > 0) {
         setTransactions((current) => [...current, ...createdOpeningTransactions]);
       }
-      clearForm();
+      closeDrawer();
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
@@ -193,13 +194,19 @@ export function AccountsPage() {
       setAccounts((current) => current.filter((item) => item.id !== account.id));
 
       if (editingAccountId === account.id) {
-        clearForm();
+        closeDrawer();
       }
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
       setSaving(false);
     }
+  }
+
+  function startCreate() {
+    setEditingAccountId(null);
+    resetDrawerForm();
+    setDrawerOpen(true);
   }
 
   function startEdit(account: InvestmentAccount) {
@@ -213,15 +220,21 @@ export function AccountsPage() {
       notes: account.notes ?? ""
     });
     setIncludeOpeningAssets(false);
-    setOpeningRows(withAvailableOpeningSelections([emptyOpeningRow()], instruments));
+    setOpeningRows([emptyOpeningRow()]);
+    setDrawerOpen(true);
   }
 
-  function clearForm() {
+  function closeDrawer() {
+    setDrawerOpen(false);
     setEditingAccountId(null);
+    resetDrawerForm();
+  }
+
+  function resetDrawerForm() {
     setForm(emptyForm);
     setIncludeOpeningAssets(false);
     setOpeningTradeDate(today);
-    setOpeningRows(withAvailableOpeningSelections([emptyOpeningRow()], instruments));
+    setOpeningRows([emptyOpeningRow()]);
   }
 
   function updateOpeningRow(id: string, patch: Partial<OpeningEntryFormRow>) {
@@ -229,7 +242,7 @@ export function AccountsPage() {
   }
 
   function addOpeningRow() {
-    setOpeningRows((current) => withAvailableOpeningSelections([...current, emptyOpeningRow()], instruments));
+    setOpeningRows((current) => [...current, emptyOpeningRow()]);
   }
 
   function removeOpeningRow(id: string) {
@@ -243,20 +256,105 @@ export function AccountsPage() {
           <h1>投资账户</h1>
           <p>维护券商、基金平台、银行和现金账户。可在保存账户时一并录入期初资产。</p>
         </div>
-        <button className="secondary-button" type="button" onClick={loadAccounts} disabled={loading || saving}>
-          刷新
-        </button>
+        <div className="header-actions">
+          {isAdmin ? (
+            <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving}>
+              新增账户
+            </button>
+          ) : null}
+          <button className="secondary-button" type="button" onClick={loadAccounts} disabled={loading || saving}>
+            刷新
+          </button>
+        </div>
       </header>
 
       {error ? <p className="form-error">{error}</p> : null}
 
-      {isAdmin ? (
-        <form className="account-form" onSubmit={handleSubmit}>
-          <div className="form-heading">
-            <h2>{formTitle}</h2>
-            {editingAccount ? <span>正在编辑：{editingAccount.name}</span> : <span>新增后会立即显示在列表中</span>}
-          </div>
+      {!isAdmin && !loading && user ? (
+        <p className="readonly-note">当前角色为 viewer，可查看账户信息。新增、编辑和删除仅限 admin。</p>
+      ) : null}
 
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>账户名称</th>
+              <th>券商/平台</th>
+              <th>账户类型</th>
+              <th>基准货币</th>
+              <th>主要市场</th>
+              <th>备注</th>
+              {isAdmin ? <th>操作</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={isAdmin ? 7 : 6}>正在加载账户...</td>
+              </tr>
+            ) : accounts.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 7 : 6}>暂无投资账户。</td>
+              </tr>
+            ) : (
+              accounts.map((account) => (
+                <tr key={account.id}>
+                  <td>{account.name}</td>
+                  <td>{account.broker ?? "-"}</td>
+                  <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
+                  <td>{account.baseCurrency}</td>
+                  <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
+                  <td>{account.notes ?? "-"}</td>
+                  {isAdmin ? (
+                    <td>
+                      <div className="table-actions">
+                        <button
+                          aria-label={`编辑账户 ${account.name}`}
+                          className="icon-button"
+                          title="编辑"
+                          type="button"
+                          onClick={() => startEdit(account)}
+                          disabled={saving}
+                        >
+                          <span aria-hidden="true">✎</span>
+                        </button>
+                        <button
+                          aria-label={`删除账户 ${account.name}`}
+                          className="icon-button danger-icon-button"
+                          title="删除"
+                          type="button"
+                          onClick={() => void handleDelete(account)}
+                          disabled={saving}
+                        >
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Drawer
+        open={drawerOpen}
+        title={formTitle}
+        subtitle={editingAccount ? `正在编辑：${editingAccount.name}` : "新增后会立即显示在列表中"}
+        onClose={closeDrawer}
+        footer={
+          <>
+            <button className="primary-button" type="submit" form="account-drawer-form" disabled={saving}>
+              {saving ? "保存中..." : editingAccountId ? "保存修改" : "新增账户"}
+            </button>
+            <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+              取消
+            </button>
+          </>
+        }
+      >
+        <form className="account-form drawer-form" id="account-drawer-form" onSubmit={handleSubmit}>
           <label>
             账户名称
             <input
@@ -395,12 +493,14 @@ export function AccountsPage() {
                         placeholder="可选"
                       />
                       <button
-                        className="text-button"
+                        aria-label="删除期初资产行"
+                        className="icon-button danger-icon-button"
+                        title="删除"
                         type="button"
                         onClick={() => removeOpeningRow(row.id)}
                         disabled={saving || openingRows.length === 1}
                       >
-                        删除
+                        <span aria-hidden="true">×</span>
                       </button>
                     </div>
                   );
@@ -414,76 +514,8 @@ export function AccountsPage() {
               </div>
             </>
           ) : null}
-
-          <div className="form-actions">
-            <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? "保存中..." : editingAccountId ? "保存修改" : "新增账户"}
-            </button>
-            {editingAccountId ? (
-              <button className="secondary-button" type="button" onClick={clearForm} disabled={saving}>
-                取消编辑
-              </button>
-            ) : null}
-          </div>
         </form>
-      ) : !loading && user ? (
-        <p className="readonly-note">当前角色为 viewer，可查看账户信息。新增、编辑和删除仅限 admin。</p>
-      ) : null}
-
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>账户名称</th>
-              <th>券商/平台</th>
-              <th>账户类型</th>
-              <th>基准货币</th>
-              <th>主要市场</th>
-              <th>备注</th>
-              {isAdmin ? <th>操作</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={isAdmin ? 7 : 6}>正在加载账户...</td>
-              </tr>
-            ) : accounts.length === 0 ? (
-              <tr>
-                <td colSpan={isAdmin ? 7 : 6}>暂无投资账户。</td>
-              </tr>
-            ) : (
-              accounts.map((account) => (
-                <tr key={account.id}>
-                  <td>{account.name}</td>
-                  <td>{account.broker ?? "-"}</td>
-                  <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
-                  <td>{account.baseCurrency}</td>
-                  <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
-                  <td>{account.notes ?? "-"}</td>
-                  {isAdmin ? (
-                    <td>
-                      <div className="table-actions">
-                        <button className="text-button" type="button" onClick={() => startEdit(account)} disabled={saving}>
-                          编辑
-                        </button>
-                        <button
-                          className="danger-button"
-                          type="button"
-                          onClick={() => void handleDelete(account)}
-                          disabled={saving}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  ) : null}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      </Drawer>
     </section>
   );
 }
@@ -507,15 +539,6 @@ function emptyOpeningRow(): OpeningEntryFormRow {
     grossAmount: "",
     notes: ""
   };
-}
-
-function withAvailableOpeningSelections(rows: OpeningEntryFormRow[], instruments: Instrument[]): OpeningEntryFormRow[] {
-  return rows.map((row) => ({
-    ...row,
-    instrumentId: instruments.some((instrument) => instrument.id === row.instrumentId)
-      ? row.instrumentId
-      : (instruments[0]?.id ?? "")
-  }));
 }
 
 function toOpeningTransactionInput(

@@ -9,6 +9,7 @@ import {
   type CurrencyCode,
   type Instrument,
   type InvestmentTransaction,
+  type PaginatedResult,
   type TransactionType,
   type UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
@@ -30,8 +31,48 @@ import {
 import { ApiRequestError } from "../utils/apiError";
 import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
 
-export async function getTransactions(): Promise<InvestmentTransaction[]> {
-  return listTransactions();
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const maxLimit = 200;
+const defaultLimit = 50;
+
+export async function getTransactions(
+  query: Record<string, string | undefined> = {}
+): Promise<PaginatedResult<InvestmentTransaction>> {
+  if (!hasTransactionListQuery(query)) {
+    const items = await listTransactions();
+    return {
+      items,
+      pagination: {
+        limit: items.length,
+        offset: 0,
+        hasMore: false
+      }
+    };
+  }
+
+  const from = optionalQueryDate("from", query.from);
+  const to = optionalQueryDate("to", query.to);
+  validateDateRange(from, to);
+
+  const pagination = parsePagination(query);
+  const rows = await listTransactions({
+    from,
+    to,
+    accountId: optionalUuid("accountId", query.accountId),
+    instrumentId: optionalUuid("instrumentId", query.instrumentId),
+    transactionType: optionalTransactionType(query.transactionType),
+    limit: pagination.limit,
+    offset: pagination.offset
+  });
+
+  return {
+    items: rows.slice(0, pagination.limit),
+    pagination: {
+      limit: pagination.limit,
+      offset: pagination.offset,
+      hasMore: rows.length > pagination.limit
+    }
+  };
 }
 
 export async function createInvestmentTransaction(
@@ -309,6 +350,84 @@ function isValuationImpactingPatch(input: UpdateInvestmentTransactionInput): boo
 
 function minDate(left: string, right: string): string {
   return left < right ? left : right;
+}
+
+function hasTransactionListQuery(query: Record<string, string | undefined>): boolean {
+  return ["from", "to", "accountId", "instrumentId", "transactionType", "limit", "offset"].some((key) => Boolean(query[key]));
+}
+
+function optionalQueryDate(name: string, value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (!datePattern.test(value) || !isIsoDate(value)) {
+    throw new ApiRequestError("VALIDATION_ERROR", `${name} must use YYYY-MM-DD format.`, 400);
+  }
+
+  return value;
+}
+
+function validateDateRange(from: string | undefined, to: string | undefined): void {
+  if (from && to && from > to) {
+    throw new ApiRequestError("VALIDATION_ERROR", "from cannot be after to.", 400);
+  }
+}
+
+function optionalUuid(name: string, value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  assertUuid(value, name);
+  return value;
+}
+
+function optionalTransactionType(value: string | undefined): TransactionType | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (!TRANSACTION_TYPES.includes(value as TransactionType)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "transactionType is invalid.", 400);
+  }
+
+  return value as TransactionType;
+}
+
+function parsePagination(query: Record<string, string | undefined>): { limit: number; offset: number } {
+  return {
+    limit: parseLimit(query.limit),
+    offset: parseOffset(query.offset)
+  };
+}
+
+function parseLimit(value: string | undefined): number {
+  if (!value) {
+    return defaultLimit;
+  }
+
+  const limit = Number(value);
+
+  if (!Number.isInteger(limit) || limit < 1 || limit > maxLimit) {
+    throw new ApiRequestError("VALIDATION_ERROR", `limit must be an integer between 1 and ${maxLimit}.`, 400);
+  }
+
+  return limit;
+}
+
+function parseOffset(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const offset = Number(value);
+
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new ApiRequestError("VALIDATION_ERROR", "offset must be a non-negative integer.", 400);
+  }
+
+  return offset;
 }
 
 function parseCreateTransactionInput(record: Record<string, unknown>): CreateInvestmentTransactionInput {

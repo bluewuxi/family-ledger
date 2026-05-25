@@ -2,9 +2,20 @@ import type {
   CreateInvestmentTransactionInput,
   InvestmentTransaction,
   TransactionSource,
+  TransactionType,
   UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
+
+export interface TransactionListFilters {
+  from?: string;
+  to?: string;
+  accountId?: string;
+  instrumentId?: string;
+  transactionType?: TransactionType;
+  limit?: number;
+  offset?: number;
+}
 
 interface InvestmentTransactionRow {
   id: string;
@@ -49,13 +60,34 @@ export class TransactionConstraintError extends Error {
   }
 }
 
-export async function listTransactions(): Promise<InvestmentTransaction[]> {
+export async function listTransactions(input: TransactionListFilters = {}): Promise<InvestmentTransaction[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
+  let query = supabase
     .from("transactions")
     .select(transactionSelect)
     .order("trade_date", { ascending: false })
     .order("created_at", { ascending: false });
+
+  if (input.from) {
+    query = query.gte("trade_date", input.from);
+  }
+  if (input.to) {
+    query = query.lte("trade_date", input.to);
+  }
+  if (input.accountId) {
+    query = query.eq("account_id", input.accountId);
+  }
+  if (input.instrumentId) {
+    query = query.eq("instrument_id", input.instrumentId);
+  }
+  if (input.transactionType) {
+    query = query.eq("transaction_type", input.transactionType);
+  }
+  if (input.limit !== undefined && input.offset !== undefined) {
+    query = query.range(input.offset, input.offset + input.limit);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error("Failed to list transactions.");

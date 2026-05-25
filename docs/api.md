@@ -55,7 +55,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
-`GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending.
+`GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending. It supports `from`, `to`, `accountId`, `instrumentId`, `transactionType`, `limit`, and `offset` query parameters. When pagination parameters are supplied, the response includes `pagination` metadata with `limit`, `offset`, and `hasMore`.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.

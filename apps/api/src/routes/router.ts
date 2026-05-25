@@ -70,7 +70,8 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /transactions": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, transactions: await getTransactions() });
+    const result = await getTransactions(event.queryStringParameters ?? {});
+    return success({ user, transactions: result.items, pagination: result.pagination });
   },
   "POST /transactions": async (event) => {
     const user = await requireRole(event, "admin");
