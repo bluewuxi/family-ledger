@@ -215,7 +215,7 @@ function deployWeb(parameters: DeploymentParameters): void {
 }
 
 function writeTemporaryWebDeployEnv(environmentName: EnvironmentName, env: NodeJS.ProcessEnv): string {
-  const temporaryEnvPath = `.env.${environmentName}.local`;
+  const temporaryEnvPath = join("apps", "web", `.env.${environmentName}.local`);
   writeFileSync(
     temporaryEnvPath,
     [
