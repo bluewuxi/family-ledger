@@ -36,6 +36,17 @@ assert.deepEqual(complete, {
   todayChangePct: "5.50",
   unrealizedGain: "90.00",
   accountCount: 3,
+  accounts: [
+    { accountId: "account-a", accountName: "account-a", marketValue: "345.00" },
+    { accountId: "account-b", accountName: "account-b", marketValue: "0.00" },
+    { accountId: "empty-account", accountName: "empty-account", marketValue: "0.00" }
+  ],
+  allocations: [
+    { id: "account-a", name: "account-a", marketValue: "330.00", allocationType: "account" },
+    { id: "account-b", name: "account-b", marketValue: "0.00", allocationType: "account" },
+    { id: "empty-account", name: "empty-account", marketValue: "0.00", allocationType: "account" },
+    { id: "cash", name: "现金", marketValue: "15.00", allocationType: "cash" }
+  ],
   quoteFetchedAt: null,
   quoteDate: null,
   warnings: []
@@ -59,6 +70,17 @@ assert.deepEqual(completeUsd, {
   todayChangePct: "5.50",
   unrealizedGain: "60.00",
   accountCount: 3,
+  accounts: [
+    { accountId: "account-a", accountName: "account-a", marketValue: "230.00" },
+    { accountId: "account-b", accountName: "account-b", marketValue: "0.00" },
+    { accountId: "empty-account", accountName: "empty-account", marketValue: "0.00" }
+  ],
+  allocations: [
+    { id: "account-a", name: "account-a", marketValue: "220.00", allocationType: "account" },
+    { id: "account-b", name: "account-b", marketValue: "0.00", allocationType: "account" },
+    { id: "empty-account", name: "empty-account", marketValue: "0.00", allocationType: "account" },
+    { id: "cash", name: "现金", marketValue: "10.00", allocationType: "cash" }
+  ],
   quoteFetchedAt: null,
   quoteDate: null,
   warnings: []
@@ -72,6 +94,17 @@ assert.deepEqual(completeCny, {
   todayChangePct: "5.50",
   unrealizedGain: "428.57",
   accountCount: 3,
+  accounts: [
+    { accountId: "account-a", accountName: "account-a", marketValue: "1642.86" },
+    { accountId: "account-b", accountName: "account-b", marketValue: "0.00" },
+    { accountId: "empty-account", accountName: "empty-account", marketValue: "0.00" }
+  ],
+  allocations: [
+    { id: "account-a", name: "account-a", marketValue: "1571.43", allocationType: "account" },
+    { id: "account-b", name: "account-b", marketValue: "0.00", allocationType: "account" },
+    { id: "empty-account", name: "empty-account", marketValue: "0.00", allocationType: "account" },
+    { id: "cash", name: "现金", marketValue: "71.43", allocationType: "cash" }
+  ],
   quoteFetchedAt: null,
   quoteDate: null,
   warnings: []

@@ -611,9 +611,18 @@ textarea {
 }
 
 .allocation-row strong {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   color: #20231f;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.allocation-row strong small {
+  color: #68655e;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .table-wrap {

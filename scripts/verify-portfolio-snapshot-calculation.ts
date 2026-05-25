@@ -17,6 +17,7 @@ import {
   type PriceSource
 } from "@family-ledger/shared";
 import { generatePortfolioSnapshot } from "../apps/jobs/src/services/portfolioSnapshotGenerationService";
+import { getSnapshotDatesThroughYesterday } from "../apps/api/src/services/snapshotRecalculationService";
 
 const snapshotDate = "2026-05-22";
 const accounts = [account("account-a", "Hatch"), account("account-b", "InvestNow")];
@@ -145,9 +146,15 @@ async function main(): Promise<void> {
   });
   assert.equal(firstGeneration.snapshotId, secondGeneration.snapshotId);
   assert.equal(generatedSnapshots.size, 1);
-  assert.equal(generatedSnapshots.get(snapshotDate)?.marketValueUsd, "236.000000");
+assert.equal(generatedSnapshots.get(snapshotDate)?.marketValueUsd, "236.000000");
+assert.deepEqual(getSnapshotDatesThroughYesterday("2026-05-22", new Date("2026-05-25T10:00:00.000Z")), [
+  "2026-05-22",
+  "2026-05-23",
+  "2026-05-24"
+]);
+assert.deepEqual(getSnapshotDatesThroughYesterday("2026-05-25", new Date("2026-05-25T10:00:00.000Z")), []);
 
-  console.log("Portfolio snapshot calculation verification: success");
+console.log("Portfolio snapshot calculation verification: success");
 }
 
 function fakeSnapshotRepository(store: Map<string, PortfolioSnapshotValuation>) {

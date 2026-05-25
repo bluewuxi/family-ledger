@@ -563,6 +563,19 @@ export interface DashboardWarning {
   currency: CurrencyCode;
 }
 
+export interface DashboardAccountSummary {
+  accountId: string;
+  accountName: string;
+  marketValue: string | null;
+}
+
+export interface DashboardAllocationSummary {
+  id: string;
+  name: string;
+  marketValue: string | null;
+  allocationType: "account" | "cash";
+}
+
 export interface DashboardSummary {
   reportingCurrency: SnapshotDisplayCurrency;
   totalAssets: string | null;
@@ -570,6 +583,8 @@ export interface DashboardSummary {
   todayChangePct: string | null;
   unrealizedGain: string | null;
   accountCount: number;
+  accounts: DashboardAccountSummary[];
+  allocations: DashboardAllocationSummary[];
   quoteFetchedAt: string | null;
   quoteDate: string | null;
   warnings: DashboardWarning[];

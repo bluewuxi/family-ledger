@@ -39,6 +39,7 @@ interface TrendPoint {
 interface AllocationPoint {
   name: string;
   value: number;
+  percentage: number;
 }
 
 const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
@@ -141,19 +142,27 @@ export function DashboardPage() {
         .filter((point) => Number.isFinite(point.value)),
     [snapshots]
   );
-  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
   const allocationData = useMemo<AllocationPoint[]>(
-    () =>
-      (latestSnapshot?.accounts ?? [])
+    () => {
+      const values = (dashboard?.allocations ?? [])
         .filter((account) => account.marketValue !== null)
         .map((account) => ({
-          name: account.accountName,
+          name: account.name,
           value: Number(account.marketValue)
         }))
-        .filter((point) => Number.isFinite(point.value) && point.value > 0),
-    [latestSnapshot]
+        .filter((point) => Number.isFinite(point.value) && point.value > 0);
+      const total = values.reduce((sum, point) => sum + point.value, 0);
+
+      return values.map((point) => ({
+        ...point,
+        percentage: total > 0 ? (point.value / total) * 100 : 0
+      }));
+    },
+    [dashboard]
   );
-  const chartsLoading = snapshotsLoading || !currencyInitialized;
+  const trendLoading = snapshotsLoading || !currencyInitialized;
+  const allocationLoading = dashboardLoading || !currencyInitialized;
+  const allocationDate = dashboard?.quoteDate ?? dashboard?.quoteFetchedAt?.slice(0, 10) ?? "暂无日期";
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
 
   return (
@@ -161,7 +170,7 @@ export function DashboardPage() {
       <header className="page-header account-header dashboard-header">
         <div>
           <h1>仪表盘</h1>
-          <p>基于已存储的收盘价、汇率和每日快照，展示当前投资组合概览。</p>
+          <p>基于当前行情、汇率和每日快照，展示投资组合概览。</p>
         </div>
         <div className="dashboard-controls">
           <label>
@@ -231,7 +240,7 @@ export function DashboardPage() {
 
         <div className="dashboard-chart-grid">
           <article className="chart-panel">
-            {chartsLoading ? (
+            {trendLoading ? (
               <div className="empty-chart-state">加载中...</div>
             ) : trendData.length === 0 ? (
               <div className="empty-chart-state">暂无快照数据</div>
@@ -254,12 +263,12 @@ export function DashboardPage() {
           <article className="chart-panel allocation-panel">
             <div className="allocation-heading">
               <h2>账户分布</h2>
-              <span>{latestSnapshot ? latestSnapshot.snapshotDate : "暂无日期"}</span>
+              <span>{allocationDate}</span>
             </div>
-            {chartsLoading ? (
+            {allocationLoading ? (
               <div className="empty-chart-state">加载中...</div>
             ) : allocationData.length === 0 ? (
-              <div className="empty-chart-state">暂无快照数据</div>
+              <div className="empty-chart-state">暂无账户估值数据</div>
             ) : (
               <>
                 <ResponsiveContainer width="100%" height={220}>
@@ -281,6 +290,7 @@ export function DashboardPage() {
                       </span>
                       <strong>
                         {activeCurrency} {formatChartMoney(entry.value)}
+                        <small>{formatPercentage(entry.percentage)}</small>
                       </strong>
                     </div>
                   ))}
@@ -389,6 +399,10 @@ function formatChartMoney(value: number): string {
 function formatTooltipMoney(value: unknown): string {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? formatChartMoney(numericValue) : "--";
+}
+
+function formatPercentage(value: number): string {
+  return `${value.toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
 function formatCompactMoney(value: number, currency: SnapshotDisplayCurrency): string {

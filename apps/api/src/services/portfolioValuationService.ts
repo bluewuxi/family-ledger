@@ -1,6 +1,8 @@
 import Decimal from "decimal.js";
 import type {
   CurrencyCode,
+  DashboardAccountSummary,
+  DashboardAllocationSummary,
   DashboardQuoteRecord,
   DashboardSummary,
   DashboardWarning,
@@ -39,6 +41,7 @@ export function calculateDashboardSummary(
 ): DashboardSummary {
   const valuation = calculateValuedHoldings(holdings, prices, fxRates, reportingCurrency, dashboardQuotes);
   const quoteMetadata = getQuoteMetadata(dashboardQuotes);
+  const dashboardAccounts = buildDashboardAccounts(valuation.holdings, accounts);
 
   return {
     reportingCurrency,
@@ -47,6 +50,8 @@ export function calculateDashboardSummary(
     todayChangePct: valuation.todayChangePct,
     unrealizedGain: valuation.totalUnrealizedGain,
     accountCount: accounts.length,
+    accounts: dashboardAccounts,
+    allocations: buildDashboardAllocations(valuation.holdings, accounts),
     quoteFetchedAt: quoteMetadata.fetchedAt,
     quoteDate: quoteMetadata.quoteDate,
     warnings: valuation.warnings
@@ -313,6 +318,84 @@ function addWarning(
     instrumentName: holding.instrumentName,
     currency: holding.currency
   });
+}
+
+function buildDashboardAccounts(
+  holdings: ValuedHoldingSummary[],
+  accounts: InvestmentAccount[]
+): DashboardAccountSummary[] {
+  const accountValues = new Map<string, Decimal>();
+  const unavailableAccountIds = new Set<string>();
+
+  for (const account of accounts) {
+    accountValues.set(account.id, new Decimal(0));
+  }
+
+  for (const holding of holdings) {
+    if (holding.marketValue === null) {
+      unavailableAccountIds.add(holding.accountId);
+      continue;
+    }
+
+    const currentValue = accountValues.get(holding.accountId) ?? new Decimal(0);
+    accountValues.set(holding.accountId, currentValue.plus(holding.marketValue));
+  }
+
+  return accounts.map((account) => ({
+    accountId: account.id,
+    accountName: account.name,
+    marketValue: unavailableAccountIds.has(account.id) ? null : formatMoney(accountValues.get(account.id) ?? new Decimal(0))
+  }));
+}
+
+function buildDashboardAllocations(
+  holdings: ValuedHoldingSummary[],
+  accounts: InvestmentAccount[]
+): DashboardAllocationSummary[] {
+  const accountValues = new Map<string, Decimal>();
+  const unavailableAccountIds = new Set<string>();
+  let cashValue = new Decimal(0);
+  let cashValueAvailable = true;
+
+  for (const account of accounts) {
+    accountValues.set(account.id, new Decimal(0));
+  }
+
+  for (const holding of holdings) {
+    if (holding.marketValue === null) {
+      if (holding.assetType === "cash") {
+        cashValueAvailable = false;
+      } else {
+        unavailableAccountIds.add(holding.accountId);
+      }
+      continue;
+    }
+
+    if (holding.assetType === "cash") {
+      cashValue = cashValue.plus(holding.marketValue);
+      continue;
+    }
+
+    const currentValue = accountValues.get(holding.accountId) ?? new Decimal(0);
+    accountValues.set(holding.accountId, currentValue.plus(holding.marketValue));
+  }
+
+  const accountAllocations = accounts.map((account) => ({
+    id: account.id,
+    name: account.name,
+    marketValue: unavailableAccountIds.has(account.id) ? null : formatMoney(accountValues.get(account.id) ?? new Decimal(0)),
+    allocationType: "account" as const
+  }));
+
+  return [
+    ...accountAllocations,
+    {
+      id: "cash",
+      name: "现金",
+      marketValue: cashValueAvailable ? formatMoney(cashValue) : null,
+      allocationType: "cash"
+    }
+  ];
 }
 
 function formatMoney(amount: Decimal): string {
