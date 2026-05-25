@@ -14,7 +14,7 @@
 
 ## Environment Files
 
-Use `.env.test` for local/test validation and `.env.prod` for production deployment configuration.
+Use checked-in `.env.test` for test deployment, checked-in `.env.prod` for production deployment, and ignored `.env.local` for local debugging.
 
 Public frontend values may be stored directly:
 
@@ -50,7 +50,7 @@ corepack pnpm install
 Run the frontend:
 
 ```bash
-corepack pnpm dev:web
+corepack pnpm dev:web:local
 ```
 
 Run the local Lambda API adapter:

@@ -5,8 +5,8 @@ Use this runbook when starting the app locally for browser testing against the c
 ## Prerequisites
 
 - Run commands from the repository root.
-- `.env.test` exists locally. It is intentionally ignored by Git.
-- AWS credentials can read the test SSM parameters referenced by `.env.test`.
+- `.env.local` exists locally. It is intentionally ignored by Git and is used only for local debugging.
+- AWS credentials can read the test SSM parameters referenced by `.env.local`.
 - A Supabase Auth test user exists.
 - That Auth user has an active `viewer` or `admin` row in `public.user_roles`. Account create, edit, and delete testing requires `admin`.
 
@@ -14,12 +14,12 @@ Do not store Auth passwords, Supabase secret keys, or resolved SSM values in the
 
 ## Configuration Checks
 
-Before starting the app, confirm these values in `.env.test`:
+Before starting the app, confirm these values in `.env.local`:
 
 ```text
 VITE_SUPABASE_URL=<test Supabase project URL>
 VITE_SUPABASE_ANON_KEY=<test publishable/anon key>
-VITE_API_BASE_URL=http://127.0.0.1:3000
+VITE_API_BASE_URL=http://localhost:3000
 SUPABASE_URL=<same test Supabase project URL>
 SUPABASE_SECRET_KEY_SSM_PARAM=<test service key SSM parameter path>
 AWS_REGION=<SSM parameter region>
@@ -27,12 +27,14 @@ AWS_REGION=<SSM parameter region>
 
 `VITE_SUPABASE_URL` and `SUPABASE_URL` must target the same test project. A stale frontend URL causes login requests to fail before authentication.
 
+`.env.test` is checked in for deployed test configuration and should point `VITE_API_BASE_URL` at `https://test-fund-api.kidrawer.com`, not the local API adapter.
+
 ## Start The Frontend
 
-The Vite project reads environment files from the repository root. Start the test-mode frontend with:
+The Vite project reads environment files from the repository root. Start the local-debug frontend with:
 
 ```powershell
-corepack pnpm dev:web:test
+corepack pnpm dev:web:local
 ```
 
 Open:
@@ -59,7 +61,7 @@ corepack pnpm dev:api
 
 Defaults:
 
-- env file: `.env.test`
+- env file: `.env.local` when present, otherwise `.env.test`
 - host: `127.0.0.1`
 - port: `3000`
 - CORS origin: `http://127.0.0.1:5181`
@@ -67,7 +69,7 @@ Defaults:
 Optional overrides:
 
 ```powershell
-$env:FAMILY_LEDGER_ENV_FILE=".env.prod"
+$env:FAMILY_LEDGER_ENV_FILE=".env.test"
 $env:LOCAL_API_HOST="127.0.0.1"
 $env:LOCAL_API_PORT="3001"
 $env:LOCAL_WEB_ORIGIN="http://127.0.0.1:5173"
@@ -109,13 +111,13 @@ For account CRUD testing, use `admin`. For read-only verification, use `viewer`.
 
 Cause: `VITE_SUPABASE_URL` points to an invalid or stale project hostname.
 
-Check that `VITE_SUPABASE_URL` is reachable and matches `SUPABASE_URL` in `.env.test`, then restart Vite because frontend environment variables are read at startup.
+Check that `VITE_SUPABASE_URL` is reachable and matches `SUPABASE_URL` in `.env.local`, then restart Vite because frontend environment variables are read at startup.
 
 ### Browser reports missing `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY`
 
-Cause: Vite was started without loading the root `.env.test` values.
+Cause: Vite was started without loading the root `.env.local` values.
 
-Restart the frontend using the PowerShell environment-loading step above.
+Restart the frontend with `corepack pnpm dev:web:local`.
 
 ### Accounts or other API calls report `ERR_CONNECTION_REFUSED` for `localhost:3000`
 

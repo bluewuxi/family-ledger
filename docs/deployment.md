@@ -106,7 +106,7 @@ Do not log decrypted SSM parameter values, Supabase service keys, JWT secrets, d
 
 Use AWS Secrets Manager or SSM Parameter Store for production secrets such as Supabase secret keys, JWT configuration, and database passwords. Do not hard-code account IDs, ARNs, credentials, or secret values.
 
-Use `.env.test` for test and `.env.prod` for production.
+Use checked-in `.env.test` for test deployment and checked-in `.env.prod` for production deployment. Use ignored `.env.local` for local debugging.
 
 Environment files may store SSM parameter paths, not secret values:
 
@@ -118,6 +118,14 @@ SUPABASE_DB_PASSWORD_SSM_PARAM=/family-ledger/test_db_password
 ```
 
 Production uses the same names with the `prod_` prefix. Test resource names use the `test_` prefix.
+
+Frontend deployment API endpoints:
+
+```text
+.env.test: VITE_API_BASE_URL=https://test-fund-api.kidrawer.com
+.env.prod: VITE_API_BASE_URL=https://fund-api.kidrawer.com
+.env.local: VITE_API_BASE_URL=http://localhost:3000
+```
 
 Supabase database connection metadata may be stored directly because it is not secret:
 
@@ -156,7 +164,7 @@ Local/test DB tooling may also use:
 
 The Lambda IAM role needs `ssm:GetParameter` permission for the required SSM parameter paths and KMS decrypt permission if a customer-managed KMS key is used. SecureString parameters must be read with decryption enabled.
 
-For local browser testing setup, including root `.env.test` loading, the checked-in Lambda HTTP adapter, test user roles, and troubleshooting, see [`docs/local-testing.md`](local-testing.md).
+For local browser testing setup, including root `.env.local` loading, the checked-in Lambda HTTP adapter, test user roles, and troubleshooting, see [`docs/local-testing.md`](local-testing.md).
 
 Backend deployment/runtime code should:
 

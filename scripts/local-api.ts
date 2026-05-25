@@ -1,10 +1,11 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { URL } from "node:url";
 import dotenv from "dotenv";
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
-const envFile = process.env.FAMILY_LEDGER_ENV_FILE ?? ".env.test";
+const envFile = process.env.FAMILY_LEDGER_ENV_FILE ?? (existsSync(".env.local") ? ".env.local" : ".env.test");
 const port = Number(process.env.LOCAL_API_PORT ?? process.env.PORT ?? "3000");
 const host = process.env.LOCAL_API_HOST ?? "127.0.0.1";
 const allowedOrigin = process.env.LOCAL_WEB_ORIGIN ?? "http://127.0.0.1:5181";
