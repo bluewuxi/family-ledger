@@ -7,6 +7,8 @@ Users are accessors/operators only. User-specific tables are limited to:
 - `profiles`: Supabase Auth user profile data.
 - `user_roles`: active `viewer` / `admin` access role.
 
+New profile rows default to `preferred_currency = 'CNY'` and `gain_color_scheme = 'red_positive'`. Existing saved preferences are not rewritten when defaults change.
+
 Business tables do not use `user_id` as an ownership field. Where useful, they use audit fields only:
 
 - `created_by_user_id`
@@ -120,7 +122,7 @@ Holding rows report native-currency quantity and carrying cost, plus optional va
 The current read-only dashboard summary values current non-zero holdings without persisting a derived dashboard record. Dashboard valuation is USD-centered internally and is displayed in the selected reporting currency: `NZD`, `USD`, or `CNY`.
 
 - `dashboard_instrument_quotes` stores the latest dashboard-only delayed quote cache per instrument and provider. It is refreshed by `GET /dashboard` when older than five minutes.
-- Securities use the dashboard quote cache for current dashboard valuation when available; daily movement compares that quote with the latest stored market close in `instrument_prices`.
+- Securities use the dashboard quote cache for current dashboard valuation when available; daily movement compares that quote with the latest stored market close before the quote date, or the latest stored close as a display baseline when no earlier close exists.
 - Historical snapshots and market-data query pages continue to use stored `instrument_prices` close records, not dashboard quote cache rows.
 - Cash uses its derived cash balance and has zero daily price movement.
 - Stored FX rates are USD-centered in `exchange_rates`. The dashboard converts each holding currency to USD, then converts aggregate monetary values to the requested reporting currency using the latest valuation FX rates.

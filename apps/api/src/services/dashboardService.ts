@@ -1,11 +1,11 @@
 import type {
+  AuthenticatedUser,
   CurrencyCode,
   DashboardQuoteRecord,
   HoldingSummary,
   DashboardSummary,
   Instrument,
-  PriceSource,
-  SnapshotDisplayCurrency
+  PriceSource
 } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
 import {
@@ -24,7 +24,8 @@ import type {
 } from "../providers/IInstrumentQuoteProvider";
 import { YahooFinanceInstrumentQuoteProvider } from "../providers/YahooFinanceInstrumentQuoteProvider";
 import { calculateHoldings } from "./holdingService";
-import { calculateDashboardSummary, parseReportingCurrency } from "./portfolioValuationService";
+import { calculateDashboardSummary } from "./portfolioValuationService";
+import { resolveReportingCurrency } from "./reportingCurrencyService";
 
 export { calculateDashboardSummary } from "./portfolioValuationService";
 
@@ -35,8 +36,8 @@ interface DashboardQuoteRepository {
   upsertDashboardQuote(input: UpsertDashboardQuoteInput): Promise<DashboardQuoteRecord>;
 }
 
-export async function getDashboard(input: { currency?: string } = {}): Promise<DashboardSummary> {
-  const reportingCurrency = parseReportingCurrency(input.currency);
+export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<DashboardSummary> {
+  const reportingCurrency = await resolveReportingCurrency(input);
   const [transactions, accounts, instruments] = await Promise.all([
     listTransactions(),
     listAccounts(),
@@ -69,6 +70,7 @@ export async function getDashboard(input: { currency?: string } = {}): Promise<D
 
   return calculateDashboardSummary(holdings, accounts, prices, fxRates, reportingCurrency, dashboardQuotes);
 }
+
 
 export async function refreshDashboardQuotes(input: {
   holdings: HoldingSummary[];

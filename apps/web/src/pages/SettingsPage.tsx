@@ -1,11 +1,15 @@
 import { type FormEvent, useEffect, useState } from "react";
 import {
+  GAIN_COLOR_SCHEME_LABELS,
+  GAIN_COLOR_SCHEMES,
   SNAPSHOT_DISPLAY_CURRENCIES,
   type AuthenticatedUser,
+  type GainColorScheme,
   type SnapshotDisplayCurrency,
   type UserPreferences
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet, apiPatch } from "../lib/apiClient";
+import { usePreferences } from "../lib/preferencesContext";
 
 interface PreferencesResponse {
   user: AuthenticatedUser;
@@ -13,8 +17,10 @@ interface PreferencesResponse {
 }
 
 export function SettingsPage() {
+  const { setPreferences } = usePreferences();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [preferredCurrency, setPreferredCurrency] = useState<SnapshotDisplayCurrency>("NZD");
+  const [preferredCurrency, setPreferredCurrency] = useState<SnapshotDisplayCurrency>("CNY");
+  const [gainColorScheme, setGainColorScheme] = useState<GainColorScheme>("red_positive");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +39,8 @@ export function SettingsPage() {
       const data = await apiGet<PreferencesResponse>("/settings/preferences");
       setUser(data.user);
       setPreferredCurrency(toDisplayCurrency(data.preferences.preferredCurrency));
+      setGainColorScheme(toGainColorScheme(data.preferences.gainColorScheme));
+      setPreferences(data.preferences);
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
@@ -47,8 +55,10 @@ export function SettingsPage() {
     setNotice(null);
 
     try {
-      const data = await apiPatch<PreferencesResponse>("/settings/preferences", { preferredCurrency });
+      const data = await apiPatch<PreferencesResponse>("/settings/preferences", { preferredCurrency, gainColorScheme });
       setPreferredCurrency(toDisplayCurrency(data.preferences.preferredCurrency));
+      setGainColorScheme(toGainColorScheme(data.preferences.gainColorScheme));
+      setPreferences(data.preferences);
       setNotice("偏好设置已保存。");
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -94,6 +104,21 @@ export function SettingsPage() {
         </label>
 
         <label>
+          涨跌颜色
+          <select
+            value={gainColorScheme}
+            onChange={(event) => setGainColorScheme(event.target.value as GainColorScheme)}
+            disabled={loading || saving}
+          >
+            {GAIN_COLOR_SCHEMES.map((scheme) => (
+              <option key={scheme} value={scheme}>
+                {GAIN_COLOR_SCHEME_LABELS[scheme]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
           界面主题
           <select value="system" disabled>
             <option value="system">跟随系统（待实现）</option>
@@ -113,7 +138,11 @@ export function SettingsPage() {
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
   return SNAPSHOT_DISPLAY_CURRENCIES.includes(value as SnapshotDisplayCurrency)
     ? (value as SnapshotDisplayCurrency)
-    : "NZD";
+    : "CNY";
+}
+
+function toGainColorScheme(value: string): GainColorScheme {
+  return GAIN_COLOR_SCHEMES.includes(value as GainColorScheme) ? (value as GainColorScheme) : "red_positive";
 }
 
 function toErrorMessage(error: unknown): string {

@@ -1,5 +1,6 @@
 import { calculateHoldings as calculateSharedHoldings } from "@family-ledger/shared";
 import type {
+  AuthenticatedUser,
   CurrencyCode,
   HoldingSummary,
   HoldingsValuationSummary,
@@ -12,10 +13,11 @@ import { listLatestValuationRatesToUsd } from "../repositories/fxRateRepository"
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listTransactions } from "../repositories/transactionRepository";
-import { calculateHoldingsValuation, parseReportingCurrency } from "./portfolioValuationService";
+import { calculateHoldingsValuation } from "./portfolioValuationService";
+import { resolveReportingCurrency } from "./reportingCurrencyService";
 
-export async function getHoldings(input: { currency?: string } = {}): Promise<HoldingsValuationSummary> {
-  const reportingCurrency = parseReportingCurrency(input.currency);
+export async function getHoldings(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<HoldingsValuationSummary> {
+  const reportingCurrency = await resolveReportingCurrency(input);
   const [transactions, accounts, instruments] = await Promise.all([
     listTransactions(),
     listAccounts(),

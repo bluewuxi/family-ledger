@@ -133,17 +133,28 @@ export interface Profile {
   email: string | null;
   displayName: string | null;
   preferredCurrency: CurrencyCode;
+  gainColorScheme: GainColorScheme;
   createdAt: string;
   updatedAt: string;
 }
 
+export const GAIN_COLOR_SCHEMES = ["red_positive", "green_positive"] as const;
+export type GainColorScheme = (typeof GAIN_COLOR_SCHEMES)[number];
+
+export const GAIN_COLOR_SCHEME_LABELS: Record<GainColorScheme, string> = {
+  red_positive: "\u7ea2\u8272\u8868\u793a\u76c8\u5229\uff0c\u7eff\u8272\u8868\u793a\u4e8f\u635f",
+  green_positive: "\u7eff\u8272\u8868\u793a\u76c8\u5229\uff0c\u7ea2\u8272\u8868\u793a\u4e8f\u635f"
+};
+
 export interface UserPreferences {
   preferredCurrency: CurrencyCode;
+  gainColorScheme: GainColorScheme;
   uiTheme: "system";
 }
 
 export interface UpdateUserPreferencesInput {
   preferredCurrency?: CurrencyCode;
+  gainColorScheme?: GainColorScheme;
 }
 
 export interface UserRoleRecord {

@@ -1,6 +1,7 @@
-import { SNAPSHOT_DISPLAY_CURRENCIES, type PortfolioSnapshotSummary, type SnapshotDisplayCurrency } from "@family-ledger/shared";
+import type { AuthenticatedUser, PortfolioSnapshotSummary } from "@family-ledger/shared";
 import { listPortfolioSnapshots } from "../repositories/portfolioSnapshotRepository";
 import { ApiRequestError } from "../utils/apiError";
+import { resolveReportingCurrency } from "./reportingCurrencyService";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -8,8 +9,9 @@ export async function getPortfolioSnapshots(input: {
   from?: string;
   to?: string;
   currency?: string;
+  user?: AuthenticatedUser;
 }): Promise<PortfolioSnapshotSummary[]> {
-  const currency = parseCurrency(input.currency);
+  const currency = await resolveReportingCurrency(input);
   const today = new Date().toISOString().slice(0, 10);
   const to = input.to ?? today;
   const from = input.from ?? to;
@@ -22,18 +24,6 @@ export async function getPortfolioSnapshots(input: {
   }
 
   return listPortfolioSnapshots({ from, to, currency });
-}
-
-function parseCurrency(value: string | undefined): SnapshotDisplayCurrency {
-  if (value === undefined || value === "") {
-    return "NZD";
-  }
-
-  if (SNAPSHOT_DISPLAY_CURRENCIES.includes(value as SnapshotDisplayCurrency)) {
-    return value as SnapshotDisplayCurrency;
-  }
-
-  throw new ApiRequestError("VALIDATION_ERROR", "currency must be NZD, USD, or CNY.", 400);
 }
 
 function validateDate(name: string, value: string): void {

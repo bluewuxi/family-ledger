@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, CurrencyCode, Profile } from "@family-ledger/shared";
+import type { AuthenticatedUser, CurrencyCode, GainColorScheme, Profile } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 interface ProfileRow {
@@ -6,6 +6,7 @@ interface ProfileRow {
   email: string | null;
   display_name: string | null;
   preferred_currency: CurrencyCode;
+  gain_color_scheme: GainColorScheme;
   created_at: string;
   updated_at: string;
 }
@@ -41,7 +42,7 @@ export async function getOrCreateProfile(user: AuthenticatedUser): Promise<Profi
 
 export async function updateProfilePreferences(
   user: AuthenticatedUser,
-  input: { preferredCurrency: CurrencyCode }
+  input: { preferredCurrency?: CurrencyCode; gainColorScheme?: GainColorScheme }
 ): Promise<Profile> {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase
@@ -50,7 +51,8 @@ export async function updateProfilePreferences(
       {
         id: user.id,
         email: user.email,
-        preferred_currency: input.preferredCurrency
+        ...(input.preferredCurrency !== undefined ? { preferred_currency: input.preferredCurrency } : {}),
+        ...(input.gainColorScheme !== undefined ? { gain_color_scheme: input.gainColorScheme } : {})
       },
       { onConflict: "id" }
     )
@@ -64,7 +66,7 @@ export async function updateProfilePreferences(
   return mapProfileRow(data);
 }
 
-const profileSelect = ["id", "email", "display_name", "preferred_currency", "created_at", "updated_at"].join(", ");
+const profileSelect = ["id", "email", "display_name", "preferred_currency", "gain_color_scheme", "created_at", "updated_at"].join(", ");
 
 function mapProfileRow(row: ProfileRow): Profile {
   return {
@@ -72,6 +74,7 @@ function mapProfileRow(row: ProfileRow): Profile {
     email: row.email,
     displayName: row.display_name,
     preferredCurrency: row.preferred_currency,
+    gainColorScheme: row.gain_color_scheme,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

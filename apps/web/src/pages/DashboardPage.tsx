@@ -19,6 +19,7 @@ import {
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "../lib/apiClient";
+import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
 interface DashboardResponse {
   dashboard: DashboardSummary;
@@ -44,7 +45,9 @@ const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
 const allocationColors = ["#23443b", "#59736c", "#8a9b65", "#c08b5c", "#8f6f9f", "#5d78a6"];
 
 export function DashboardPage() {
-  const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("NZD");
+  const { preferences, loading: preferencesLoading } = usePreferences();
+  const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
+  const [currencyInitialized, setCurrencyInitialized] = useState(false);
   const [snapshotRangeDays, setSnapshotRangeDays] = useState<SnapshotRangeDays>(90);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
@@ -54,12 +57,23 @@ export function DashboardPage() {
   const [snapshotsError, setSnapshotsError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadDashboard(reportingCurrency);
-  }, [reportingCurrency]);
+    if (!preferencesLoading && !currencyInitialized) {
+      setReportingCurrency(toDisplayCurrency(preferences.preferredCurrency));
+      setCurrencyInitialized(true);
+    }
+  }, [currencyInitialized, preferences.preferredCurrency, preferencesLoading]);
 
   useEffect(() => {
-    void loadSnapshots(reportingCurrency, snapshotRangeDays);
-  }, [reportingCurrency, snapshotRangeDays]);
+    if (currencyInitialized) {
+      void loadDashboard(reportingCurrency);
+    }
+  }, [currencyInitialized, reportingCurrency]);
+
+  useEffect(() => {
+    if (currencyInitialized) {
+      void loadSnapshots(reportingCurrency, snapshotRangeDays);
+    }
+  }, [currencyInitialized, reportingCurrency, snapshotRangeDays]);
 
   async function loadDashboard(currency: SnapshotDisplayCurrency) {
     setDashboardLoading(true);
@@ -102,12 +116,12 @@ export function DashboardPage() {
     {
       label: "今日变动",
       value: formatTodayChange(dashboard, dashboardLoading, reportingCurrency),
-      toneClass: signedMetricClass(dashboard?.todayChange)
+      toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme)
     },
     {
       label: "未实现收益",
       value: formatMoneyMetric(dashboard?.unrealizedGain, dashboardLoading, reportingCurrency),
-      toneClass: signedMetricClass(dashboard?.unrealizedGain)
+      toneClass: signedToneClass(dashboard?.unrealizedGain, preferences.gainColorScheme)
     },
     { label: "账户数量", value: dashboardLoading ? "加载中..." : String(dashboard?.accountCount ?? 0) }
   ];
@@ -135,7 +149,7 @@ export function DashboardPage() {
         .filter((point) => Number.isFinite(point.value) && point.value > 0),
     [latestSnapshot]
   );
-  const chartsLoading = snapshotsLoading;
+  const chartsLoading = snapshotsLoading || !currencyInitialized;
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
 
   return (
@@ -151,6 +165,7 @@ export function DashboardPage() {
             <select
               value={reportingCurrency}
               onChange={(event) => setReportingCurrency(event.target.value as SnapshotDisplayCurrency)}
+              disabled={!currencyInitialized}
             >
               {SNAPSHOT_DISPLAY_CURRENCIES.map((currency) => (
                 <option key={currency} value={currency}>
@@ -163,7 +178,7 @@ export function DashboardPage() {
             className="secondary-button"
             type="button"
             onClick={refreshDashboard}
-            disabled={dashboardLoading || snapshotsLoading}
+            disabled={dashboardLoading || snapshotsLoading || !currencyInitialized}
           >
             刷新
           </button>
@@ -181,9 +196,7 @@ export function DashboardPage() {
         ))}
       </div>
 
-      {!dashboardLoading && dashboard ? (
-        <p className="quote-update-note">{formatQuoteUpdateNote(dashboard)}</p>
-      ) : null}
+      {!dashboardLoading && dashboard ? <p className="quote-update-note">{formatQuoteUpdateNote(dashboard)}</p> : null}
 
       <section className="dashboard-chart-section" aria-label="资产趋势和账户分布">
         <div className="chart-section-header">
@@ -223,14 +236,7 @@ export function DashboardPage() {
                     formatter={(value) => [`${activeCurrency} ${formatTooltipMoney(value)}`, "总资产"]}
                     labelFormatter={(label) => `日期：${label}`}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#23443b"
-                    strokeWidth={2.5}
-                    dot={false}
-                    activeDot={{ r: 5 }}
-                  />
+                  <Line type="monotone" dataKey="value" stroke="#23443b" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -249,21 +255,12 @@ export function DashboardPage() {
               <>
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
-                    <Pie
-                      data={allocationData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={54}
-                      outerRadius={86}
-                      paddingAngle={2}
-                    >
+                    <Pie data={allocationData} dataKey="value" nameKey="name" innerRadius={54} outerRadius={86} paddingAngle={2}>
                       {allocationData.map((entry, index) => (
                         <Cell key={entry.name} fill={allocationColors[index % allocationColors.length]} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      formatter={(value) => [`${activeCurrency} ${formatTooltipMoney(value)}`, "资产"]}
-                    />
+                    <Tooltip formatter={(value) => [`${activeCurrency} ${formatTooltipMoney(value)}`, "资产"]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="allocation-list">
@@ -302,11 +299,7 @@ export function DashboardPage() {
   );
 }
 
-function formatMoneyMetric(
-  value: string | null | undefined,
-  loading: boolean,
-  currency: SnapshotDisplayCurrency
-): string {
+function formatMoneyMetric(value: string | null | undefined, loading: boolean, currency: SnapshotDisplayCurrency): string {
   if (loading) {
     return "加载中...";
   }
@@ -314,11 +307,7 @@ function formatMoneyMetric(
   return value === null || value === undefined ? "--" : `${currency} ${value}`;
 }
 
-function formatTodayChange(
-  dashboard: DashboardSummary | null,
-  loading: boolean,
-  currency: SnapshotDisplayCurrency
-): string {
+function formatTodayChange(dashboard: DashboardSummary | null, loading: boolean, currency: SnapshotDisplayCurrency): string {
   if (loading) {
     return "加载中...";
   }
@@ -329,20 +318,6 @@ function formatTodayChange(
 
   const percentage = dashboard.todayChangePct === null ? "" : ` (${dashboard.todayChangePct}%)`;
   return `${currency} ${dashboard.todayChange}${percentage}`;
-}
-
-function signedMetricClass(value: string | null | undefined): string {
-  if (value === null || value === undefined) {
-    return "metric-neutral";
-  }
-
-  const numericValue = Number(value);
-
-  if (!Number.isFinite(numericValue) || numericValue === 0) {
-    return "metric-neutral";
-  }
-
-  return numericValue > 0 ? "metric-positive" : "metric-negative";
 }
 
 function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
@@ -415,6 +390,12 @@ function formatCompactMoney(value: number, currency: SnapshotDisplayCurrency): s
     return `${currency} ${(value / 1_000).toFixed(0)}K`;
   }
   return `${currency} ${value.toFixed(0)}`;
+}
+
+function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
+  return SNAPSHOT_DISPLAY_CURRENCIES.includes(value as SnapshotDisplayCurrency)
+    ? (value as SnapshotDisplayCurrency)
+    : "CNY";
 }
 
 function toErrorMessage(error: unknown, fallback: string): string {

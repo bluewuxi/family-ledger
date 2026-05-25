@@ -93,6 +93,33 @@ assert.equal(currentQuoteDashboard.unrealizedGain, "105.00");
 assert.equal(currentQuoteDashboard.quoteFetchedAt, "2026-05-23T10:00:00.000Z");
 assert.equal(currentQuoteDashboard.quoteDate, "2026-05-23");
 
+const quoteWithoutPriorClose = dashboardQuote(
+  "usd-early-dashboard-quote",
+  usdSecurity.instrumentId,
+  "2026-05-20",
+  "75",
+  "USD",
+  "2026-05-20T10:00:00.000Z"
+);
+const latestCloseBaselineDashboard = calculateDashboardSummary(
+  [usdSecurity],
+  accounts,
+  [price("usd-latest-only", usdSecurity.instrumentId, "2026-05-22", "70", "USD")],
+  fxRates,
+  "NZD",
+  [quoteWithoutPriorClose]
+);
+assert.equal(latestCloseBaselineDashboard.totalAssets, "225.00");
+assert.equal(latestCloseBaselineDashboard.todayChange, "15.00");
+assert.deepEqual(latestCloseBaselineDashboard.warnings, []);
+
+const quoteWithoutAnyStoredClose = calculateDashboardSummary([usdSecurity], accounts, [], fxRates, "NZD", [
+  quoteWithoutPriorClose
+]);
+assert.equal(quoteWithoutAnyStoredClose.totalAssets, "225.00");
+assert.equal(quoteWithoutAnyStoredClose.todayChange, null);
+assert.deepEqual(quoteWithoutAnyStoredClose.warnings.map((warning) => warning.code), ["MISSING_PREVIOUS_PRICE"]);
+
 const missingLatest = calculateDashboardSummary(
   holdings,
   accounts,

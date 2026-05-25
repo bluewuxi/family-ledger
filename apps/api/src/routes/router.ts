@@ -79,12 +79,12 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /holdings": async (event) => {
     const user = await requireRole(event, "viewer");
-    const holdings = await getHoldings({ currency: event.queryStringParameters?.currency });
+    const holdings = await getHoldings({ currency: event.queryStringParameters?.currency, user });
     return success({ user, ...holdings });
   },
   "GET /dashboard": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, dashboard: await getDashboard({ currency: event.queryStringParameters?.currency }) });
+    return success({ user, dashboard: await getDashboard({ currency: event.queryStringParameters?.currency, user }) });
   },
   "GET /portfolio-snapshots": async (event) => {
     const user = await requireRole(event, "viewer");
@@ -93,7 +93,8 @@ const routes: Record<string, RouteHandler> = {
       snapshots: await getPortfolioSnapshots({
         from: event.queryStringParameters?.from,
         to: event.queryStringParameters?.to,
-        currency: event.queryStringParameters?.currency
+        currency: event.queryStringParameters?.currency,
+        user
       })
     });
   },

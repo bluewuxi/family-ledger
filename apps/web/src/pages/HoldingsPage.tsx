@@ -13,6 +13,7 @@ import {
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "../lib/apiClient";
+import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
 interface HoldingsResponse extends HoldingsValuationSummary {}
 
@@ -24,7 +25,9 @@ const HOLDING_WARNING_LABELS: Record<HoldingWarning, string> = {
 };
 
 export function HoldingsPage() {
-  const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("NZD");
+  const { preferences, loading: preferencesLoading } = usePreferences();
+  const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
+  const [currencyInitialized, setCurrencyInitialized] = useState(false);
   const [summary, setSummary] = useState<HoldingsValuationSummary | null>(null);
   const [accountFilter, setAccountFilter] = useState("all");
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetTypeFilter>("all");
@@ -33,8 +36,17 @@ export function HoldingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadHoldings(reportingCurrency);
-  }, [reportingCurrency]);
+    if (!preferencesLoading && !currencyInitialized) {
+      setReportingCurrency(toDisplayCurrency(preferences.preferredCurrency));
+      setCurrencyInitialized(true);
+    }
+  }, [currencyInitialized, preferences.preferredCurrency, preferencesLoading]);
+
+  useEffect(() => {
+    if (currencyInitialized) {
+      void loadHoldings(reportingCurrency);
+    }
+  }, [currencyInitialized, reportingCurrency]);
 
   async function loadHoldings(currency: SnapshotDisplayCurrency) {
     setLoading(true);
@@ -70,6 +82,7 @@ export function HoldingsPage() {
   );
   const visibleTotals = useMemo(() => summarizeVisibleHoldings(visibleHoldings), [visibleHoldings]);
   const activeCurrency = summary?.reportingCurrency ?? reportingCurrency;
+  const pageLoading = loading || !currencyInitialized;
 
   return (
     <section>
@@ -84,6 +97,7 @@ export function HoldingsPage() {
             <select
               value={reportingCurrency}
               onChange={(event) => setReportingCurrency(event.target.value as SnapshotDisplayCurrency)}
+              disabled={!currencyInitialized}
             >
               {SNAPSHOT_DISPLAY_CURRENCIES.map((currency) => (
                 <option key={currency} value={currency}>
@@ -96,7 +110,7 @@ export function HoldingsPage() {
             className="secondary-button"
             type="button"
             onClick={() => void loadHoldings(reportingCurrency)}
-            disabled={loading}
+            disabled={pageLoading}
           >
             刷新
           </button>
@@ -108,19 +122,21 @@ export function HoldingsPage() {
       <div className="metric-grid holdings-metrics">
         <article className="metric-card">
           <span>总市值</span>
-          <strong>{formatMetric(visibleTotals.totalMarketValue, loading, activeCurrency)}</strong>
+          <strong>{formatMetric(visibleTotals.totalMarketValue, pageLoading, activeCurrency)}</strong>
         </article>
         <article className="metric-card">
           <span>未实现收益/亏损</span>
-          <strong>{formatMetric(visibleTotals.totalUnrealizedGain, loading, activeCurrency)}</strong>
+          <strong className={signedToneClass(visibleTotals.totalUnrealizedGain, preferences.gainColorScheme)}>
+            {formatMetric(visibleTotals.totalUnrealizedGain, pageLoading, activeCurrency)}
+          </strong>
         </article>
         <article className="metric-card">
           <span>持仓数量</span>
-          <strong>{loading ? "加载中..." : String(visibleHoldings.length)}</strong>
+          <strong>{pageLoading ? "加载中..." : String(visibleHoldings.length)}</strong>
         </article>
         <article className="metric-card">
           <span>数据提示</span>
-          <strong>{loading ? "加载中..." : String(summary?.warnings.length ?? 0)}</strong>
+          <strong>{pageLoading ? "加载中..." : String(summary?.warnings.length ?? 0)}</strong>
         </article>
       </div>
 
@@ -178,7 +194,7 @@ export function HoldingsPage() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {pageLoading ? (
               <tr>
                 <td colSpan={11}>正在加载持仓...</td>
               </tr>
@@ -198,7 +214,9 @@ export function HoldingsPage() {
                   <td>{holding.costAmount ?? "-"}</td>
                   <td>{holding.latestPrice ? `${holding.latestPrice} (${holding.latestPriceDate})` : "-"}</td>
                   <td>{holding.marketValue ? `${activeCurrency} ${holding.marketValue}` : "--"}</td>
-                  <td>{holding.unrealizedGain ? `${activeCurrency} ${holding.unrealizedGain}` : "--"}</td>
+                  <td className={signedToneClass(holding.unrealizedGain, preferences.gainColorScheme)}>
+                    {holding.unrealizedGain ? `${activeCurrency} ${holding.unrealizedGain}` : "--"}
+                  </td>
                   <td>{formatWarnings(holding)}</td>
                 </tr>
               ))
@@ -282,6 +300,12 @@ function formatValuationWarning(warning: DashboardWarning): string {
 
 function formatInstrument(holding: ValuedHoldingSummary): string {
   return holding.instrumentSymbol ? `${holding.instrumentSymbol} - ${holding.instrumentName}` : holding.instrumentName;
+}
+
+function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
+  return SNAPSHOT_DISPLAY_CURRENCIES.includes(value as SnapshotDisplayCurrency)
+    ? (value as SnapshotDisplayCurrency)
+    : "CNY";
 }
 
 function toErrorMessage(error: unknown): string {

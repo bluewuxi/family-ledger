@@ -435,14 +435,19 @@ textarea {
   font-size: 24px;
 }
 
+.metric-red,
+.metric-card strong.metric-red,
 .metric-card strong.metric-positive {
   color: #b42318;
 }
 
+.metric-green,
+.metric-card strong.metric-green,
 .metric-card strong.metric-negative {
   color: #1f7a3f;
 }
 
+.metric-neutral,
 .metric-card strong.metric-neutral {
   color: #3d3b36;
 }

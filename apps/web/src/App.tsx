@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AuthProvider, useAuth } from "./lib/authContext";
+import { PreferencesProvider } from "./lib/preferencesContext";
 import { AccountsPage } from "./pages/AccountsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HoldingsPage } from "./pages/HoldingsPage";
@@ -49,8 +50,10 @@ function ProtectedApp() {
   }
 
   return (
-    <Layout>
-      <AppRoutes />
-    </Layout>
+    <PreferencesProvider>
+      <Layout>
+        <AppRoutes />
+      </Layout>
+    </PreferencesProvider>
   );
 }

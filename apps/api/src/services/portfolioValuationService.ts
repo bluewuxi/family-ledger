@@ -160,7 +160,7 @@ function calculateValuedHoldings(
         }
 
         const previousPrice = currentQuote
-          ? holdingPrices.find((price) => price.priceDate < currentQuote.quoteDate)
+          ? (holdingPrices.find((price) => price.priceDate < currentQuote.quoteDate) ?? holdingPrices[0])
           : holdingPrices[1];
 
         if (!previousPrice) {

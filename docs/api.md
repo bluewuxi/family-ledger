@@ -133,12 +133,13 @@ The response includes a `triggerRequestId`. Actual inserted/skipped counts are r
 {
   "preferences": {
     "preferredCurrency": "NZD",
+    "gainColorScheme": "red_positive",
     "uiTheme": "system"
   }
 }
 ```
 
-`PATCH /settings/preferences` updates the current user's report default currency. `preferredCurrency` must be `NZD`, `USD`, or `CNY`. `uiTheme` is a placeholder and is always returned as `system` until theme switching is implemented.
+`PATCH /settings/preferences` updates the current user's report default currency and gain/loss color convention. `preferredCurrency` must be `NZD`, `USD`, or `CNY`. `gainColorScheme` must be `red_positive` or `green_positive`. `uiTheme` is a placeholder and is always returned as `system` until theme switching is implemented.
 
 ### Dashboard Read API
 
@@ -146,7 +147,7 @@ The response includes a `triggerRequestId`. Actual inserted/skipped counts are r
 
 Defaults:
 
-- `currency`: `NZD`
+- `currency`: current user's `preferredCurrency`; new profiles default to `CNY`
 
 It returns values in the selected reporting currency:
 
@@ -171,7 +172,7 @@ The dashboard derives holdings through the existing holdings calculation and may
 - Securities use a dashboard-only delayed quote cache for current valuation when available; cash uses its calculated cash balance.
 - Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`.
 - Holdings are valued internally in USD using the latest USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
-- `todayChange` compares the dashboard quote with the latest stored security close price. Cash has zero daily price movement.
+- `todayChange` compares the dashboard quote with the latest stored security close before the quote date. If no earlier close exists, it uses the latest stored close as a display baseline. Cash has zero daily price movement.
 - Latest FX is applied to current value, preceding value, and carrying cost, so daily change reflects price movement rather than FX movement.
 - `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.
 - `accountCount` includes accounts with no non-zero holdings.
@@ -185,7 +186,7 @@ Aggregate totals are not reported as partial values. A missing latest price or r
 
 Defaults:
 
-- `currency`: `NZD`
+- `currency`: current user's `preferredCurrency`; new profiles default to `CNY`
 
 It returns aggregate valued totals plus one non-zero row for each account and instrument combination:
 
@@ -233,7 +234,7 @@ Holding quantity, average cost, and remaining cost continue to use the instrumen
 
 Defaults:
 
-- `currency`: `NZD`
+- `currency`: current user's `preferredCurrency`; new profiles default to `CNY`
 - `to`: current UTC date
 - `from`: same as `to`
 

@@ -1,5 +1,11 @@
-import type { AuthenticatedUser, CurrencyCode, UpdateUserPreferencesInput, UserPreferences } from "@family-ledger/shared";
-import { SNAPSHOT_DISPLAY_CURRENCIES } from "@family-ledger/shared";
+import type {
+  AuthenticatedUser,
+  CurrencyCode,
+  GainColorScheme,
+  UpdateUserPreferencesInput,
+  UserPreferences
+} from "@family-ledger/shared";
+import { GAIN_COLOR_SCHEMES, SNAPSHOT_DISPLAY_CURRENCIES } from "@family-ledger/shared";
 import {
   getOrCreateProfile,
   updateProfilePreferences as updateProfilePreferencesRecord
@@ -10,6 +16,7 @@ export async function getProfilePreferences(user: AuthenticatedUser): Promise<Us
   const profile = await getOrCreateProfile(user);
   return {
     preferredCurrency: profile.preferredCurrency,
+    gainColorScheme: profile.gainColorScheme,
     uiTheme: "system"
   };
 }
@@ -17,13 +24,14 @@ export async function getProfilePreferences(user: AuthenticatedUser): Promise<Us
 export async function updateProfilePreferences(body: unknown, user: AuthenticatedUser): Promise<UserPreferences> {
   const input = parseUpdatePreferencesInput(body);
 
-  if (!input.preferredCurrency) {
+  if (!input.preferredCurrency && !input.gainColorScheme) {
     return getProfilePreferences(user);
   }
 
-  const profile = await updateProfilePreferencesRecord(user, { preferredCurrency: input.preferredCurrency });
+  const profile = await updateProfilePreferencesRecord(user, input);
   return {
     preferredCurrency: profile.preferredCurrency,
+    gainColorScheme: profile.gainColorScheme,
     uiTheme: "system"
   };
 }
@@ -34,10 +42,14 @@ function parseUpdatePreferencesInput(body: unknown): UpdateUserPreferencesInput 
   }
 
   const input: UpdateUserPreferencesInput = {};
-  const record = body as { preferredCurrency?: unknown };
+  const record = body as { preferredCurrency?: unknown; gainColorScheme?: unknown };
 
   if ("preferredCurrency" in record) {
     input.preferredCurrency = requiredReportCurrency(record.preferredCurrency);
+  }
+
+  if ("gainColorScheme" in record) {
+    input.gainColorScheme = requiredGainColorScheme(record.gainColorScheme);
   }
 
   return input;
@@ -49,4 +61,12 @@ function requiredReportCurrency(value: unknown): CurrencyCode {
   }
 
   return value as CurrencyCode;
+}
+
+function requiredGainColorScheme(value: unknown): GainColorScheme {
+  if (!GAIN_COLOR_SCHEMES.includes(value as GainColorScheme)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "gainColorScheme must be red_positive or green_positive.", 400);
+  }
+
+  return value as GainColorScheme;
 }
