@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface DrawerProps {
   title: string;
@@ -10,12 +10,31 @@ interface DrawerProps {
 }
 
 export function Drawer({ title, subtitle, open, onClose, children, footer }: DrawerProps) {
-  if (!open) {
+  const [shouldRender, setShouldRender] = useState(open);
+  const [visible, setVisible] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setShouldRender(true);
+      const animationFrameId = window.requestAnimationFrame(() => setVisible(true));
+      return () => window.cancelAnimationFrame(animationFrameId);
+    }
+
+    setVisible(false);
+    if (!shouldRender) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => setShouldRender(false), 220);
+    return () => window.clearTimeout(timeoutId);
+  }, [open, shouldRender]);
+
+  if (!shouldRender) {
     return null;
   }
 
   return (
-    <div className="drawer-overlay" role="presentation" onMouseDown={onClose}>
+    <div className="drawer-overlay" data-state={visible ? "open" : "closed"} role="presentation" onMouseDown={onClose}>
       <aside
         aria-modal="true"
         className="drawer-panel"

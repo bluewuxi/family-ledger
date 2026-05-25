@@ -71,6 +71,8 @@ const emptyForm: InstrumentFormState = {
   notes: ""
 };
 
+const supportedPriceSources = new Set<PriceSource>(["manual", "yahoo_finance", "eastmoney", "custom", "investnow_manual"]);
+
 export function InstrumentsPage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
@@ -245,7 +247,7 @@ export function InstrumentsPage() {
               </tr>
             ) : (
               instruments.map((instrument) => (
-                <tr key={instrument.id}>
+                <tr className={editingInstrumentId === instrument.id ? "editing-row" : undefined} key={instrument.id}>
                   <td>{instrument.symbol ?? "-"}</td>
                   <td>{instrument.name}</td>
                   <td>{MARKET_REGION_LABELS[instrument.marketRegion]}</td>
@@ -397,7 +399,7 @@ export function InstrumentsPage() {
               onChange={(event) => setForm({ ...form, priceSource: event.target.value as PriceSource })}
             >
               {PRICE_SOURCES.map((priceSource) => (
-                <option key={priceSource} value={priceSource}>
+                <option key={priceSource} value={priceSource} disabled={!supportedPriceSources.has(priceSource)}>
                   {PRICE_SOURCE_LABELS[priceSource]}
                 </option>
               ))}

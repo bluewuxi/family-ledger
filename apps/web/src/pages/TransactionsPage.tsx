@@ -367,8 +367,8 @@ export function TransactionsPage() {
               <th>账户</th>
               <th>标的</th>
               <th>类型</th>
-              <th>数量</th>
-              <th>金额/费用</th>
+              <th className="numeric-cell">数量</th>
+              <th className="numeric-cell">金额/费用</th>
               <th>币种</th>
               <th>结算/来源</th>
               <th>备注</th>
@@ -391,8 +391,8 @@ export function TransactionsPage() {
                   <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
                   <td>{instrumentNames.get(transaction.instrumentId) ?? "-"}</td>
                   <td>{formatTransactionType(transaction)}</td>
-                  <td>{transaction.quantity ?? "-"}</td>
-                  <td>{displayAmount(transaction)}</td>
+                  <td className="numeric-cell">{transaction.quantity ?? "-"}</td>
+                  <td className="numeric-cell">{displayAmount(transaction)}</td>
                   <td>{transaction.currency}</td>
                   <td>{formatSettlement(transaction)}</td>
                   <td>{transaction.notes ?? "-"}</td>

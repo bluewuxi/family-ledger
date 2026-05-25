@@ -333,6 +333,11 @@ textarea {
   z-index: 40;
   display: flex;
   justify-content: flex-end;
+  background: rgb(32 35 31 / 0%);
+  transition: background-color 180ms ease;
+}
+
+.drawer-overlay[data-state="open"] {
   background: rgb(32 35 31 / 42%);
 }
 
@@ -343,6 +348,12 @@ textarea {
   height: 100%;
   background: #ffffff;
   box-shadow: -18px 0 34px rgb(32 35 31 / 18%);
+  transform: translateX(100%);
+  transition: transform 220ms ease;
+}
+
+.drawer-overlay[data-state="open"] .drawer-panel {
+  transform: translateX(0);
 }
 
 .drawer-header {
@@ -759,11 +770,31 @@ th {
 
 td {
   color: #4b4a45;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.numeric-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 tr.editing-row td {
   background: #fff7df;
   color: #20231f;
+}
+
+.price-date-label {
+  display: inline-block;
+  margin-top: 5px;
+  border: 1px solid #d7e1dc;
+  border-radius: 999px;
+  background: #edf4f0;
+  color: #59736c;
+  padding: 2px 7px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .settings-list {

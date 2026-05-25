@@ -73,7 +73,7 @@ export const PRICE_SOURCE_LABELS: Record<PriceSource, string> = {
   twelvedata: "Twelve Data",
   eastmoney: "\u4e1c\u65b9\u8d22\u5bcc",
   sina: "\u65b0\u6d6a\u8d22\u7ecf",
-  investnow_manual: "InvestNow \u624b\u52a8",
+  investnow_manual: "InvestNow",
   custom: "\u81ea\u5b9a\u4e49"
 };
 

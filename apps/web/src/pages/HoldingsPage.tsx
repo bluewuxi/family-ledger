@@ -194,12 +194,12 @@ export function HoldingsPage() {
               <th>标的</th>
               <th>类型</th>
               <th>币种</th>
-              <th>数量/现金余额</th>
-              <th>平均成本</th>
-              <th>剩余成本</th>
-              <th>最新价格</th>
-              <th>市值</th>
-              <th>未实现收益/亏损</th>
+              <th className="numeric-cell">数量/现金余额</th>
+              <th className="numeric-cell">平均成本</th>
+              <th className="numeric-cell">剩余成本</th>
+              <th className="numeric-cell">最新价格</th>
+              <th className="numeric-cell">市值 ({activeCurrency})</th>
+              <th className="numeric-cell">未实现收益/亏损 ({activeCurrency})</th>
               <th>数据提示</th>
             </tr>
           </thead>
@@ -219,13 +219,13 @@ export function HoldingsPage() {
                   <td>{formatInstrument(holding)}</td>
                   <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
                   <td>{holding.currency}</td>
-                  <td>{holding.quantity}</td>
-                  <td>{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
-                  <td>{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
-                  <td>{holding.latestPrice ? `${formatDisplayPrice(holding.latestPrice)} (${holding.latestPriceDate})` : "-"}</td>
-                  <td>{holding.marketValue ? `${activeCurrency} ${formatDisplayAmount(holding.marketValue)}` : "--"}</td>
-                  <td className={signedToneClass(holding.unrealizedGain, preferences.gainColorScheme)}>
-                    {holding.unrealizedGain ? `${activeCurrency} ${formatDisplayAmount(holding.unrealizedGain)}` : "--"}
+                  <td className="numeric-cell">{holding.quantity}</td>
+                  <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
+                  <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
+                  <td className="numeric-cell">{formatLatestPrice(holding)}</td>
+                  <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue) : "--"}</td>
+                  <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme)}`}>
+                    {holding.unrealizedGain ? formatDisplayAmount(holding.unrealizedGain) : "--"}
                   </td>
                   <td>{formatWarnings(holding)}</td>
                 </tr>
@@ -286,6 +286,24 @@ function formatWarnings(holding: ValuedHoldingSummary): ReactNode {
         </span>
       ))}
     </div>
+  );
+}
+
+function formatLatestPrice(holding: ValuedHoldingSummary): ReactNode {
+  if (!holding.latestPrice) {
+    return "-";
+  }
+
+  return (
+    <>
+      <span>{formatDisplayPrice(holding.latestPrice)}</span>
+      {holding.latestPriceDate ? (
+        <>
+          <br />
+          <span className="price-date-label">{holding.latestPriceDate}</span>
+        </>
+      ) : null}
+    </>
   );
 }
 

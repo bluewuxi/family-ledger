@@ -353,7 +353,7 @@ export function MarketDataPage() {
               <tr>
                 <th>日期</th>
                 <th>币种</th>
-                <th>汇率</th>
+                <th className="numeric-cell">汇率</th>
                 <th>用途</th>
                 <th>来源</th>
                 <th>抓取时间</th>
@@ -371,7 +371,7 @@ export function MarketDataPage() {
                     <td>
                       {rate.fromCurrency} / {rate.toCurrency}
                     </td>
-                    <td>{formatDisplayPrice(rate.rate)}</td>
+                    <td className="numeric-cell">{formatDisplayPrice(rate.rate)}</td>
                     <td>{rate.rateType === "valuation" ? "估值" : "税务辅助"}</td>
                     <td>{rate.provider}</td>
                     <td>{formatDateTime(rate.fetchedAt)}</td>
@@ -441,7 +441,7 @@ export function MarketDataPage() {
               <tr>
                 <th>日期</th>
                 <th>标的</th>
-                <th>价格</th>
+                <th className="numeric-cell">价格</th>
                 <th>币种</th>
                 <th>来源</th>
                 <th>来源代码</th>
@@ -458,7 +458,7 @@ export function MarketDataPage() {
                   <tr key={price.id}>
                     <td>{price.priceDate}</td>
                     <td>{formatInstrumentLabel(price)}</td>
-                    <td>{formatDisplayPrice(price.closePrice)}</td>
+                    <td className="numeric-cell">{formatDisplayPrice(price.closePrice)}</td>
                     <td>{price.currency}</td>
                     <td>{price.provider}</td>
                     <td>{price.sourceSymbol ?? "-"}</td>
@@ -543,7 +543,7 @@ export function MarketDataPage() {
                 <th>触发方式</th>
                 <th>开始时间</th>
                 <th>完成时间</th>
-                <th>新增 / 跳过</th>
+                <th className="numeric-cell">新增 / 跳过</th>
                 <th>详情</th>
               </tr>
             </thead>
@@ -560,7 +560,7 @@ export function MarketDataPage() {
                     <td>{jobRun.triggerSource === "manual" ? "手动" : "计划任务"}</td>
                     <td>{formatDateTime(jobRun.jobStartedAt)}</td>
                     <td>{formatDateTime(jobRun.jobFinishedAt)}</td>
-                    <td>
+                    <td className="numeric-cell">
                       {jobRun.recordsInserted} / {jobRun.recordsSkipped}
                     </td>
                     <td>
@@ -586,7 +586,7 @@ export function MarketDataPage() {
                   <th>状态</th>
                   <th>开始时间</th>
                   <th>完成时间</th>
-                  <th>新增 / 跳过</th>
+                  <th className="numeric-cell">新增 / 跳过</th>
                   <th>错误</th>
                 </tr>
               </thead>
@@ -601,7 +601,7 @@ export function MarketDataPage() {
                       <td>{formatStatus(run.status)}</td>
                       <td>{formatDateTime(run.providerStartedAt)}</td>
                       <td>{formatDateTime(run.providerFinishedAt)}</td>
-                      <td>
+                      <td className="numeric-cell">
                         {run.recordsInserted} / {run.recordsSkipped}
                       </td>
                       <td>{run.errorMessage ?? "-"}</td>

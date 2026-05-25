@@ -5,6 +5,7 @@ import {
   CURRENCY_CODES,
   MARKET_REGION_LABELS,
   MARKET_REGIONS,
+  SNAPSHOT_DISPLAY_CURRENCIES,
   type AccountType,
   type AuthenticatedUser,
   type CreateInvestmentAccountInput,
@@ -13,10 +14,14 @@ import {
   type Instrument,
   type InvestmentAccount,
   type InvestmentTransaction,
-  type MarketRegion
+  type MarketRegion,
+  type PortfolioSnapshotSummary,
+  type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
+import { formatDisplayAmount } from "../lib/numberFormat";
+import { usePreferences } from "../lib/preferencesContext";
 
 interface AccountsResponse {
   user: AuthenticatedUser;
@@ -29,6 +34,10 @@ interface InstrumentsResponse {
 
 interface TransactionsResponse {
   transactions: InvestmentTransaction[];
+}
+
+interface PortfolioSnapshotsResponse {
+  snapshots: PortfolioSnapshotSummary[];
 }
 
 interface AccountResponse {
@@ -61,6 +70,7 @@ interface OpeningEntryFormRow {
 }
 
 const today = new Date().toISOString().slice(0, 10);
+const snapshotStartDate = "2000-01-01";
 
 const emptyForm: AccountFormState = {
   name: "",
@@ -71,9 +81,16 @@ const emptyForm: AccountFormState = {
   notes: ""
 };
 
+interface AccountTotalDisplay {
+  currency: SnapshotDisplayCurrency;
+  marketValue: string | null;
+}
+
 export function AccountsPage() {
+  const { preferences, loading: preferencesLoading } = usePreferences();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
+  const [accountTotals, setAccountTotals] = useState<Map<string, AccountTotalDisplay>>(new Map());
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +104,7 @@ export function AccountsPage() {
   const [openingRows, setOpeningRows] = useState<OpeningEntryFormRow[]>(() => [emptyOpeningRow()]);
 
   const isAdmin = user?.role === "admin";
+  const fallbackSnapshotCurrency = toSnapshotDisplayCurrency(preferences.preferredCurrency);
   const formTitle = editingAccountId ? "编辑账户" : "新增账户";
   const editingAccount = useMemo(
     () => accounts.find((account) => account.id === editingAccountId) ?? null,
@@ -97,8 +115,10 @@ export function AccountsPage() {
     : false;
 
   useEffect(() => {
-    void loadAccounts();
-  }, []);
+    if (!preferencesLoading) {
+      void loadAccounts();
+    }
+  }, [preferencesLoading, fallbackSnapshotCurrency]);
 
   async function loadAccounts() {
     setLoading(true);
@@ -114,6 +134,7 @@ export function AccountsPage() {
       setAccounts(accountData.accounts);
       setInstruments(instrumentData.instruments);
       setTransactions(transactionData.transactions);
+      setAccountTotals(await loadAccountTotals(accountData.accounts, fallbackSnapshotCurrency));
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
@@ -136,14 +157,9 @@ export function AccountsPage() {
         ? await createOpeningTransactions(data.account.id)
         : [];
 
-      setAccounts((current) =>
-        editingAccountId
-          ? current.map((account) => (account.id === data.account.id ? data.account : account))
-          : [...current, data.account].sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))
-      );
-      if (createdOpeningTransactions.length > 0) {
-        setTransactions((current) => [...current, ...createdOpeningTransactions]);
-      }
+      void data;
+      void createdOpeningTransactions;
+      await loadAccounts();
       closeDrawer();
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -191,7 +207,7 @@ export function AccountsPage() {
 
     try {
       await apiDelete<DeleteAccountResponse>(`/accounts/${account.id}`);
-      setAccounts((current) => current.filter((item) => item.id !== account.id));
+      await loadAccounts();
 
       if (editingAccountId === account.id) {
         closeDrawer();
@@ -282,6 +298,7 @@ export function AccountsPage() {
               <th>券商/平台</th>
               <th>账户类型</th>
               <th>基准货币</th>
+              <th className="numeric-cell">账户总额</th>
               <th>主要市场</th>
               <th>备注</th>
               {isAdmin ? <th>操作</th> : null}
@@ -290,19 +307,20 @@ export function AccountsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 7 : 6}>正在加载账户...</td>
+                <td colSpan={isAdmin ? 8 : 7}>正在加载账户...</td>
               </tr>
             ) : accounts.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 7 : 6}>暂无投资账户。</td>
+                <td colSpan={isAdmin ? 8 : 7}>暂无投资账户。</td>
               </tr>
             ) : (
               accounts.map((account) => (
-                <tr key={account.id}>
+                <tr className={editingAccountId === account.id ? "editing-row" : undefined} key={account.id}>
                   <td>{account.name}</td>
                   <td>{account.broker ?? "-"}</td>
                   <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
                   <td>{account.baseCurrency}</td>
+                  <td className="numeric-cell">{formatAccountTotal(accountTotals.get(account.id))}</td>
                   <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
                   <td>{account.notes ?? "-"}</td>
                   {isAdmin ? (
@@ -573,6 +591,77 @@ function decimalString(value: string | number | null | undefined, fallback = "")
 
 function formatInstrument(instrument: Instrument): string {
   return instrument.symbol ? `${instrument.symbol} - ${instrument.name}` : instrument.name;
+}
+
+async function loadAccountTotals(
+  accounts: InvestmentAccount[],
+  fallbackCurrency: SnapshotDisplayCurrency
+): Promise<Map<string, AccountTotalDisplay>> {
+  if (accounts.length === 0) {
+    return new Map();
+  }
+
+  const displayCurrencies = unique([
+    fallbackCurrency,
+    ...accounts
+      .map((account) => account.baseCurrency)
+      .filter((currency): currency is SnapshotDisplayCurrency =>
+        SNAPSHOT_DISPLAY_CURRENCIES.includes(currency as SnapshotDisplayCurrency)
+      )
+  ]);
+  const snapshotsByCurrency = new Map<SnapshotDisplayCurrency, PortfolioSnapshotSummary>();
+  const to = new Date().toISOString().slice(0, 10);
+
+  await Promise.all(
+    displayCurrencies.map(async (currency) => {
+      const data = await apiGet<PortfolioSnapshotsResponse>(
+        `/portfolio-snapshots?from=${snapshotStartDate}&to=${to}&currency=${currency}`
+      );
+      const latestSnapshot = data.snapshots.at(-1);
+
+      if (latestSnapshot) {
+        snapshotsByCurrency.set(currency, latestSnapshot);
+      }
+    })
+  );
+
+  const totals = new Map<string, AccountTotalDisplay>();
+
+  for (const account of accounts) {
+    const preferredCurrency = SNAPSHOT_DISPLAY_CURRENCIES.includes(account.baseCurrency as SnapshotDisplayCurrency)
+      ? (account.baseCurrency as SnapshotDisplayCurrency)
+      : fallbackCurrency;
+    const accountSnapshot =
+      snapshotsByCurrency.get(preferredCurrency)?.accounts.find((snapshotAccount) => snapshotAccount.accountId === account.id) ??
+      snapshotsByCurrency.get(fallbackCurrency)?.accounts.find((snapshotAccount) => snapshotAccount.accountId === account.id);
+
+    if (accountSnapshot) {
+      totals.set(account.id, {
+        currency: accountSnapshot.currency,
+        marketValue: accountSnapshot.marketValue
+      });
+    }
+  }
+
+  return totals;
+}
+
+function formatAccountTotal(total: AccountTotalDisplay | undefined): string {
+  if (!total || total.marketValue === null) {
+    return "--";
+  }
+
+  return `${total.currency} ${formatDisplayAmount(total.marketValue)}`;
+}
+
+function toSnapshotDisplayCurrency(currency: string): SnapshotDisplayCurrency {
+  return SNAPSHOT_DISPLAY_CURRENCIES.includes(currency as SnapshotDisplayCurrency)
+    ? (currency as SnapshotDisplayCurrency)
+    : "CNY";
+}
+
+function unique<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }
 
 function toErrorMessage(error: unknown): string {
