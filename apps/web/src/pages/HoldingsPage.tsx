@@ -13,6 +13,7 @@ import {
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "../lib/apiClient";
+import { formatDisplayAmount, formatDisplayPrice } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
 interface HoldingsResponse extends HoldingsValuationSummary {}
@@ -219,12 +220,12 @@ export function HoldingsPage() {
                   <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
                   <td>{holding.currency}</td>
                   <td>{holding.quantity}</td>
-                  <td>{holding.averageUnitCost ?? "-"}</td>
-                  <td>{holding.costAmount ?? "-"}</td>
-                  <td>{holding.latestPrice ? `${holding.latestPrice} (${holding.latestPriceDate})` : "-"}</td>
-                  <td>{holding.marketValue ? `${activeCurrency} ${holding.marketValue}` : "--"}</td>
+                  <td>{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
+                  <td>{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
+                  <td>{holding.latestPrice ? `${formatDisplayPrice(holding.latestPrice)} (${holding.latestPriceDate})` : "-"}</td>
+                  <td>{holding.marketValue ? `${activeCurrency} ${formatDisplayAmount(holding.marketValue)}` : "--"}</td>
                   <td className={signedToneClass(holding.unrealizedGain, preferences.gainColorScheme)}>
-                    {holding.unrealizedGain ? `${activeCurrency} ${holding.unrealizedGain}` : "--"}
+                    {holding.unrealizedGain ? `${activeCurrency} ${formatDisplayAmount(holding.unrealizedGain)}` : "--"}
                   </td>
                   <td>{formatWarnings(holding)}</td>
                 </tr>
@@ -256,7 +257,7 @@ function summarizeVisibleHoldings(holdings: ValuedHoldingSummary[]): {
 
 function sumMoney(values: string[]): string {
   const total = values.reduce((sum, value) => sum + Number(value), 0);
-  return Number.isFinite(total) ? total.toFixed(2) : "0.00";
+  return Number.isFinite(total) ? String(total) : "0";
 }
 
 function formatMetric(value: string | null, loading: boolean, currency: SnapshotDisplayCurrency): string {
@@ -264,7 +265,7 @@ function formatMetric(value: string | null, loading: boolean, currency: Snapshot
     return "加载中...";
   }
 
-  return value === null ? "--" : `${currency} ${value}`;
+  return value === null ? "--" : `${currency} ${formatDisplayAmount(value)}`;
 }
 
 function formatWarnings(holding: ValuedHoldingSummary): ReactNode {

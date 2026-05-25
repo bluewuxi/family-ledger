@@ -19,6 +19,7 @@ import {
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "../lib/apiClient";
+import { formatDisplayAmount, formatDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
 interface DashboardResponse {
@@ -323,7 +324,7 @@ function formatMoneyMetric(value: string | null | undefined, loading: boolean, c
     return "加载中...";
   }
 
-  return value === null || value === undefined ? "--" : `${currency} ${value}`;
+  return value === null || value === undefined ? "--" : `${currency} ${formatDisplayAmount(value)}`;
 }
 
 function formatTodayChange(dashboard: DashboardSummary | null, loading: boolean, currency: SnapshotDisplayCurrency): string {
@@ -335,8 +336,8 @@ function formatTodayChange(dashboard: DashboardSummary | null, loading: boolean,
     return "--";
   }
 
-  const percentage = dashboard.todayChangePct === null ? "" : ` (${dashboard.todayChangePct}%)`;
-  return `${currency} ${dashboard.todayChange}${percentage}`;
+  const percentage = dashboard.todayChangePct === null ? "" : ` (${formatDisplayPercent(dashboard.todayChangePct)}%)`;
+  return `${currency} ${formatDisplayAmount(dashboard.todayChange)}${percentage}`;
 }
 
 function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
@@ -390,10 +391,7 @@ function formatShortDate(value: string): string {
 }
 
 function formatChartMoney(value: number): string {
-  return value.toLocaleString("zh-CN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return formatDisplayAmount(value);
 }
 
 function formatTooltipMoney(value: unknown): string {
@@ -402,7 +400,7 @@ function formatTooltipMoney(value: unknown): string {
 }
 
 function formatPercentage(value: number): string {
-  return `${value.toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+  return `${formatDisplayPercent(value)}%`;
 }
 
 function formatCompactMoney(value: number, currency: SnapshotDisplayCurrency): string {

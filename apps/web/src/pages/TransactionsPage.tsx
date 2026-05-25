@@ -16,6 +16,7 @@ import {
 import { Drawer } from "../components/Drawer";
 import { PaginationControls } from "../components/PaginationControls";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
+import { formatDisplayAmount } from "../lib/numberFormat";
 
 interface TransactionsResponse {
   user: AuthenticatedUser;
@@ -730,12 +731,12 @@ function formatTransactionType(transaction: InvestmentTransaction): string {
 
 function displayAmount(transaction: InvestmentTransaction): string {
   if (transaction.transactionType === "fee") {
-    return transaction.fee;
+    return formatDisplayAmount(transaction.fee);
   }
   if (transaction.transactionType === "tax") {
-    return transaction.tax;
+    return formatDisplayAmount(transaction.tax);
   }
-  return transaction.grossAmount ?? "-";
+  return transaction.grossAmount === null ? "-" : formatDisplayAmount(transaction.grossAmount);
 }
 
 function formatSettlement(transaction: InvestmentTransaction): string {
@@ -744,7 +745,7 @@ function formatSettlement(transaction: InvestmentTransaction): string {
   }
 
   if ((transaction.transactionType === "buy" || transaction.transactionType === "sell") && transaction.settlementAmount) {
-    return `${transaction.settlementCurrency ?? transaction.currency} ${transaction.settlementAmount}`;
+    return `${transaction.settlementCurrency ?? transaction.currency} ${formatDisplayAmount(transaction.settlementAmount)}`;
   }
 
   return "-";

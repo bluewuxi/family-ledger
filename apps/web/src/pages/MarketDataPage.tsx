@@ -14,6 +14,7 @@ import type {
 } from "@family-ledger/shared";
 import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-ledger/shared";
 import { ApiClientError, apiGet, apiPost } from "../lib/apiClient";
+import { formatDisplayPrice } from "../lib/numberFormat";
 
 type MarketDataTab = "fx" | "prices" | "logs";
 
@@ -370,7 +371,7 @@ export function MarketDataPage() {
                     <td>
                       {rate.fromCurrency} / {rate.toCurrency}
                     </td>
-                    <td>{rate.rate}</td>
+                    <td>{formatDisplayPrice(rate.rate)}</td>
                     <td>{rate.rateType === "valuation" ? "估值" : "税务辅助"}</td>
                     <td>{rate.provider}</td>
                     <td>{formatDateTime(rate.fetchedAt)}</td>
@@ -457,7 +458,7 @@ export function MarketDataPage() {
                   <tr key={price.id}>
                     <td>{price.priceDate}</td>
                     <td>{formatInstrumentLabel(price)}</td>
-                    <td>{price.closePrice}</td>
+                    <td>{formatDisplayPrice(price.closePrice)}</td>
                     <td>{price.currency}</td>
                     <td>{price.provider}</td>
                     <td>{price.sourceSymbol ?? "-"}</td>
