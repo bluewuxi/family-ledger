@@ -559,7 +559,22 @@ export interface DashboardSummary {
   todayChangePct: string | null;
   unrealizedGain: string | null;
   accountCount: number;
+  quoteFetchedAt: string | null;
+  quoteDate: string | null;
   warnings: DashboardWarning[];
+}
+
+export interface DashboardQuoteRecord {
+  id: string;
+  instrumentId: string;
+  quoteDate: string;
+  quotePrice: string;
+  currency: CurrencyCode;
+  provider: string;
+  sourceSymbol: string | null;
+  fetchedAt: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ValuedHoldingSummary extends HoldingSummary {

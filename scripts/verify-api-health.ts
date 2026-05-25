@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   const preflight = await handler(createEvent("OPTIONS", "/transactions"));
   assert.equal(preflight.statusCode, 204);
   assert.equal(preflight.headers?.["access-control-allow-origin"], "https://test-fund.kidrawer.com");
-  assert.equal(preflight.headers?.["access-control-allow-methods"], "GET,POST,PUT,DELETE,OPTIONS");
+  assert.equal(preflight.headers?.["access-control-allow-methods"], "GET,POST,PUT,PATCH,DELETE,OPTIONS");
 
   console.log("API health route verification: success");
 }

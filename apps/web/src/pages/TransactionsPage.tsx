@@ -419,7 +419,7 @@ export function TransactionsPage() {
               </tr>
             ) : (
               transactions.map((transaction) => (
-                <tr key={transaction.id}>
+                <tr className={editingTransactionId === transaction.id ? "editing-row" : undefined} key={transaction.id}>
                   <td>{transaction.tradeDate}</td>
                   <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
                   <td>{instrumentNames.get(transaction.instrumentId) ?? "-"}</td>
@@ -436,11 +436,25 @@ export function TransactionsPage() {
                           <span className="readonly-note">自动生成</span>
                         ) : (
                           <>
-                            <button className="text-button" type="button" onClick={() => startEdit(transaction)} disabled={saving}>
-                              编辑
+                            <button
+                              aria-label={`编辑交易记录 ${transaction.tradeDate}`}
+                              className="icon-button"
+                              title="编辑"
+                              type="button"
+                              onClick={() => startEdit(transaction)}
+                              disabled={saving}
+                            >
+                              <span aria-hidden="true">✎</span>
                             </button>
-                            <button className="danger-button" type="button" onClick={() => void handleDelete(transaction)} disabled={saving}>
-                              删除
+                            <button
+                              aria-label={`删除交易记录 ${transaction.tradeDate}`}
+                              className="icon-button danger-icon-button"
+                              title="删除"
+                              type="button"
+                              onClick={() => void handleDelete(transaction)}
+                              disabled={saving}
+                            >
+                              <span aria-hidden="true">×</span>
                             </button>
                           </>
                         )}

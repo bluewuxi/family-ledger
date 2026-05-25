@@ -119,13 +119,15 @@ Holding rows report native-currency quantity and carrying cost, plus optional va
 
 The current read-only dashboard summary values current non-zero holdings without persisting a derived dashboard record. Dashboard valuation is USD-centered internally and is displayed in the selected reporting currency: `NZD`, `USD`, or `CNY`.
 
-- Securities use the latest stored `instrument_prices` record in the instrument currency; daily movement uses the preceding stored close.
+- `dashboard_instrument_quotes` stores the latest dashboard-only delayed quote cache per instrument and provider. It is refreshed by `GET /dashboard` when older than five minutes.
+- Securities use the dashboard quote cache for current dashboard valuation when available; daily movement compares that quote with the latest stored market close in `instrument_prices`.
+- Historical snapshots and market-data query pages continue to use stored `instrument_prices` close records, not dashboard quote cache rows.
 - Cash uses its derived cash balance and has zero daily price movement.
 - Stored FX rates are USD-centered in `exchange_rates`. The dashboard converts each holding currency to USD, then converts aggregate monetary values to the requested reporting currency using the latest valuation FX rates.
-- The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents stored close-price changes only.
+- The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents price movement only.
 - Unrealized gain is market value less remaining carrying cost for securities only.
 
-The summary and valued holdings response return unavailable (`null`) monetary fields rather than incomplete totals when required stored price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage.
+The summary and valued holdings response return unavailable (`null`) monetary fields rather than incomplete totals when required quote/price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage.
 
 ## Portfolio Valuation Snapshots
 

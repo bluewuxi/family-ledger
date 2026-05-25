@@ -348,7 +348,8 @@ textarea {
 .primary-button,
 .secondary-button,
 .text-button,
-.danger-button {
+.danger-button,
+.icon-button {
   min-height: 38px;
   border-radius: 6px;
   padding: 8px 12px;
@@ -379,10 +380,28 @@ textarea {
   color: #963628;
 }
 
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 38px;
+  border: 1px solid #c7d5ce;
+  background: #edf4f0;
+  color: #18382f;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.danger-icon-button {
+  border-color: #e0b4aa;
+  background: #fff6f3;
+  color: #963628;
+}
+
 .primary-button:disabled,
 .secondary-button:disabled,
 .text-button:disabled,
-.danger-button:disabled {
+.danger-button:disabled,
+.icon-button:disabled {
   cursor: wait;
   opacity: 0.65;
 }
@@ -414,6 +433,24 @@ textarea {
   display: block;
   margin-top: 12px;
   font-size: 24px;
+}
+
+.metric-card strong.metric-positive {
+  color: #b42318;
+}
+
+.metric-card strong.metric-negative {
+  color: #1f7a3f;
+}
+
+.metric-card strong.metric-neutral {
+  color: #3d3b36;
+}
+
+.quote-update-note {
+  margin: 10px 0 0;
+  color: #68655e;
+  font-size: 13px;
 }
 
 .dashboard-warning-panel {
@@ -630,6 +667,11 @@ th {
 
 td {
   color: #4b4a45;
+}
+
+tr.editing-row td {
+  background: #fff7df;
+  color: #20231f;
 }
 
 .settings-list {

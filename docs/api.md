@@ -159,19 +159,23 @@ It returns values in the selected reporting currency:
     "todayChangePct": "0.32",
     "unrealizedGain": "1243.10",
     "accountCount": 3,
+    "quoteFetchedAt": "2026-05-25T03:15:00.000Z",
+    "quoteDate": "2026-05-24",
     "warnings": []
   }
 }
 ```
 
-The dashboard derives holdings through the existing holdings calculation and reads stored data only:
+The dashboard derives holdings through the existing holdings calculation and may refresh delayed quote cache rows during the request:
 
-- Securities use their latest stored close price; cash uses its calculated cash balance.
+- Securities use a dashboard-only delayed quote cache for current valuation when available; cash uses its calculated cash balance.
+- Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`.
 - Holdings are valued internally in USD using the latest USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
-- `todayChange` compares the latest and preceding stored security close prices. Cash has zero daily price movement.
+- `todayChange` compares the dashboard quote with the latest stored security close price. Cash has zero daily price movement.
 - Latest FX is applied to current value, preceding value, and carrying cost, so daily change reflects price movement rather than FX movement.
 - `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.
 - `accountCount` includes accounts with no non-zero holdings.
+- `quoteFetchedAt` and `quoteDate` describe the newest dashboard quote cache row used in the response, or `null` when no dashboard quotes are available.
 
 Aggregate totals are not reported as partial values. A missing latest price or required FX rate returns `null` for all affected monetary metrics. A missing preceding close returns `null` only for daily-change fields. Unavailable cost basis returns `null` only for unrealized gain. The `warnings` array identifies the affected instrument and one of `MISSING_LATEST_PRICE`, `MISSING_PREVIOUS_PRICE`, `MISSING_FX_RATE`, or `COST_BASIS_UNAVAILABLE`.
 

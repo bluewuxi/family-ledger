@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import type {
   ExchangeRateRecord,
+  DashboardQuoteRecord,
   HoldingSummary,
+  Instrument,
   InvestmentAccount,
   PriceRecord
 } from "@family-ledger/shared";
-import { calculateDashboardSummary } from "../apps/api/src/services/dashboardService";
+import { calculateDashboardSummary, refreshDashboardQuotes } from "../apps/api/src/services/dashboardService";
+import type {
+  FetchLatestInstrumentQuotesInput,
+  InstrumentQuoteProviderResult,
+  IInstrumentQuoteProvider
+} from "../apps/api/src/providers/IInstrumentQuoteProvider";
 import { calculateHoldingsValuation } from "../apps/api/src/services/portfolioValuationService";
 
 const accounts = [account("account-a"), account("account-b"), account("empty-account")];
@@ -29,6 +36,8 @@ assert.deepEqual(complete, {
   todayChangePct: "5.50",
   unrealizedGain: "90.00",
   accountCount: 3,
+  quoteFetchedAt: null,
+  quoteDate: null,
   warnings: []
 });
 
@@ -50,6 +59,8 @@ assert.deepEqual(completeUsd, {
   todayChangePct: "5.50",
   unrealizedGain: "60.00",
   accountCount: 3,
+  quoteFetchedAt: null,
+  quoteDate: null,
   warnings: []
 });
 
@@ -61,8 +72,26 @@ assert.deepEqual(completeCny, {
   todayChangePct: "5.50",
   unrealizedGain: "428.57",
   accountCount: 3,
+  quoteFetchedAt: null,
+  quoteDate: null,
   warnings: []
 });
+
+const intradayQuote = dashboardQuote(
+  "usd-dashboard-quote",
+  usdSecurity.instrumentId,
+  "2026-05-23",
+  "75",
+  "USD",
+  "2026-05-23T10:00:00.000Z"
+);
+const currentQuoteDashboard = calculateDashboardSummary(holdings, accounts, prices, fxRates, "NZD", [intradayQuote]);
+assert.equal(currentQuoteDashboard.totalAssets, "360.00");
+assert.equal(currentQuoteDashboard.todayChange, "18.00");
+assert.equal(currentQuoteDashboard.todayChangePct, "5.26");
+assert.equal(currentQuoteDashboard.unrealizedGain, "105.00");
+assert.equal(currentQuoteDashboard.quoteFetchedAt, "2026-05-23T10:00:00.000Z");
+assert.equal(currentQuoteDashboard.quoteDate, "2026-05-23");
 
 const missingLatest = calculateDashboardSummary(
   holdings,
@@ -131,7 +160,96 @@ const rounded = calculateDashboardSummary(
 );
 assert.equal(rounded.totalAssets, "1.01");
 
-console.log("Dashboard calculation verification: success");
+const quoteInstrument = instrument(usdSecurity.instrumentId, "yahoo_finance", "US_TEST", "USD");
+let fetchCount = 0;
+const provider: IInstrumentQuoteProvider = {
+  name: "Yahoo Finance",
+  async fetchLatestQuotes(input: FetchLatestInstrumentQuotesInput): Promise<InstrumentQuoteProviderResult> {
+    fetchCount += 1;
+    return {
+      provider: this.name,
+      fetchedAt: input.fetchedAt,
+      quotes: input.instruments.map((providerInstrument) => ({
+        instrumentId: providerInstrument.instrumentId,
+        sourceSymbol: providerInstrument.sourceSymbol,
+        quoteDate: "2026-05-23",
+        quotePrice: "80",
+        currency: providerInstrument.currency
+      }))
+    };
+  }
+};
+const storedQuotes = new Map<string, DashboardQuoteRecord>([
+  [
+    usdSecurity.instrumentId,
+    dashboardQuote(
+      "fresh-dashboard-quote",
+      usdSecurity.instrumentId,
+      "2026-05-23",
+      "79",
+      "USD",
+      "2026-05-23T10:56:00.000Z",
+      "Yahoo Finance"
+    )
+  ]
+]);
+const quoteRepository = {
+  async listDashboardQuotes(): Promise<DashboardQuoteRecord[]> {
+    return [...storedQuotes.values()];
+  },
+  async upsertDashboardQuote(input: {
+    instrumentId: string;
+    quoteDate: string;
+    quotePrice: string;
+    currency: DashboardQuoteRecord["currency"];
+    provider: string;
+    sourceSymbol?: string | null;
+    fetchedAt: string;
+  }): Promise<DashboardQuoteRecord> {
+    const record = dashboardQuote(
+      `quote-${input.instrumentId}`,
+      input.instrumentId,
+      input.quoteDate,
+      input.quotePrice,
+      input.currency,
+      input.fetchedAt,
+      input.provider
+    );
+    storedQuotes.set(input.instrumentId, record);
+    return record;
+  }
+};
+
+void verifyDashboardQuoteCache()
+  .then(() => {
+    console.log("Dashboard calculation verification: success");
+  })
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+
+async function verifyDashboardQuoteCache(): Promise<void> {
+  const freshQuotes = await refreshDashboardQuotes({
+    holdings: [usdSecurity],
+    instruments: [quoteInstrument],
+    now: new Date("2026-05-23T11:00:00.000Z"),
+    providers: { yahoo_finance: provider },
+    dashboardQuoteRepository: quoteRepository
+  });
+  assert.equal(fetchCount, 0);
+  assert.equal(freshQuotes[0]?.quotePrice, "79");
+
+  const staleQuotes = await refreshDashboardQuotes({
+    holdings: [usdSecurity],
+    instruments: [quoteInstrument],
+    now: new Date("2026-05-23T11:02:00.000Z"),
+    providers: { yahoo_finance: provider },
+    dashboardQuoteRepository: quoteRepository
+  });
+  assert.equal(fetchCount, 1);
+  assert.equal(staleQuotes[0]?.quotePrice, "80");
+}
 
 function account(id: string): InvestmentAccount {
   return {
@@ -190,6 +308,61 @@ function price(
     isAdjusted: false,
     createdAt: `${priceDate}T00:00:00.000Z`,
     updatedAt: `${priceDate}T00:00:00.000Z`
+  };
+}
+
+function instrument(
+  id: string,
+  priceSource: Instrument["priceSource"],
+  priceSourceSymbol: string,
+  currency: Instrument["currency"]
+): Instrument {
+  return {
+    id,
+    symbol: priceSourceSymbol,
+    name: priceSourceSymbol,
+    description: null,
+    marketRegion: "US",
+    exchange: "NASDAQ",
+    currency,
+    assetType: "etf",
+    isin: null,
+    provider: null,
+    priceSource,
+    priceSourceSymbol,
+    priceSourceExchange: null,
+    priceUpdateEnabled: true,
+    priceUpdatePriority: 100,
+    sourceUrl: null,
+    sourceCheckedAt: null,
+    createdByUserId: null,
+    updatedByUserId: null,
+    notes: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+}
+
+function dashboardQuote(
+  id: string,
+  instrumentId: string,
+  quoteDate: string,
+  quotePrice: string,
+  currency: DashboardQuoteRecord["currency"],
+  fetchedAt: string,
+  provider = "manual"
+): DashboardQuoteRecord {
+  return {
+    id,
+    instrumentId,
+    quoteDate,
+    quotePrice,
+    currency,
+    provider,
+    sourceSymbol: null,
+    fetchedAt,
+    createdAt: fetchedAt,
+    updatedAt: fetchedAt
   };
 }
 

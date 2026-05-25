@@ -99,8 +99,16 @@ export function DashboardPage() {
 
   const metrics = [
     { label: "总资产", value: formatMoneyMetric(dashboard?.totalAssets, dashboardLoading, reportingCurrency) },
-    { label: "今日变动", value: formatTodayChange(dashboard, dashboardLoading, reportingCurrency) },
-    { label: "未实现收益", value: formatMoneyMetric(dashboard?.unrealizedGain, dashboardLoading, reportingCurrency) },
+    {
+      label: "今日变动",
+      value: formatTodayChange(dashboard, dashboardLoading, reportingCurrency),
+      toneClass: signedMetricClass(dashboard?.todayChange)
+    },
+    {
+      label: "未实现收益",
+      value: formatMoneyMetric(dashboard?.unrealizedGain, dashboardLoading, reportingCurrency),
+      toneClass: signedMetricClass(dashboard?.unrealizedGain)
+    },
     { label: "账户数量", value: dashboardLoading ? "加载中..." : String(dashboard?.accountCount ?? 0) }
   ];
 
@@ -168,10 +176,14 @@ export function DashboardPage() {
         {metrics.map((metric) => (
           <article className="metric-card" key={metric.label}>
             <span>{metric.label}</span>
-            <strong>{metric.value}</strong>
+            <strong className={metric.toneClass}>{metric.value}</strong>
           </article>
         ))}
       </div>
+
+      {!dashboardLoading && dashboard ? (
+        <p className="quote-update-note">{formatQuoteUpdateNote(dashboard)}</p>
+      ) : null}
 
       <section className="dashboard-chart-section" aria-label="资产趋势和账户分布">
         <div className="chart-section-header">
@@ -317,6 +329,40 @@ function formatTodayChange(
 
   const percentage = dashboard.todayChangePct === null ? "" : ` (${dashboard.todayChangePct}%)`;
   return `${currency} ${dashboard.todayChange}${percentage}`;
+}
+
+function signedMetricClass(value: string | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "metric-neutral";
+  }
+
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue === 0) {
+    return "metric-neutral";
+  }
+
+  return numericValue > 0 ? "metric-positive" : "metric-negative";
+}
+
+function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
+  if (!dashboard.quoteFetchedAt) {
+    return "行情延迟：暂无本次仪表盘报价更新时间。";
+  }
+
+  const fetchedAt = new Date(dashboard.quoteFetchedAt);
+  const formattedTime = Number.isNaN(fetchedAt.getTime())
+    ? dashboard.quoteFetchedAt
+    : fetchedAt.toLocaleString("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+  const quoteDate = dashboard.quoteDate ? `，报价日期 ${dashboard.quoteDate}` : "";
+
+  return `行情延迟：更新时间 ${formattedTime}${quoteDate}`;
 }
 
 function formatWarning(warning: DashboardWarning): string {

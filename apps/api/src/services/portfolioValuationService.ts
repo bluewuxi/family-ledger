@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import type {
   CurrencyCode,
+  DashboardQuoteRecord,
   DashboardSummary,
   DashboardWarning,
   DashboardWarningCode,
@@ -33,9 +34,11 @@ export function calculateDashboardSummary(
   accounts: InvestmentAccount[],
   prices: PriceRecord[],
   fxRates: ExchangeRateRecord[],
-  reportingCurrency: SnapshotDisplayCurrency = "NZD"
+  reportingCurrency: SnapshotDisplayCurrency = "NZD",
+  dashboardQuotes: DashboardQuoteRecord[] = []
 ): DashboardSummary {
-  const valuation = calculateValuedHoldings(holdings, prices, fxRates, reportingCurrency);
+  const valuation = calculateValuedHoldings(holdings, prices, fxRates, reportingCurrency, dashboardQuotes);
+  const quoteMetadata = getQuoteMetadata(dashboardQuotes);
 
   return {
     reportingCurrency,
@@ -44,6 +47,8 @@ export function calculateDashboardSummary(
     todayChangePct: valuation.todayChangePct,
     unrealizedGain: valuation.totalUnrealizedGain,
     accountCount: accounts.length,
+    quoteFetchedAt: quoteMetadata.fetchedAt,
+    quoteDate: quoteMetadata.quoteDate,
     warnings: valuation.warnings
   };
 }
@@ -78,7 +83,8 @@ function calculateValuedHoldings(
   holdings: HoldingSummary[],
   prices: PriceRecord[],
   fxRates: ExchangeRateRecord[],
-  reportingCurrency: SnapshotDisplayCurrency
+  reportingCurrency: SnapshotDisplayCurrency,
+  dashboardQuotes: DashboardQuoteRecord[] = []
 ): PortfolioValuation {
   if (holdings.length === 0) {
     return {
@@ -92,6 +98,7 @@ function calculateValuedHoldings(
   }
 
   const pricesByInstrument = groupValidPricesByInstrument(holdings, prices);
+  const quotesByInstrument = groupValidQuotesByInstrument(holdings, dashboardQuotes);
   const fxRatesByCurrency = new Map(
     fxRates
       .filter((rate) => rate.toCurrency === "USD" && rate.rateType === "valuation")
@@ -130,7 +137,8 @@ function calculateValuedHoldings(
       priorPortfolioValue = priorPortfolioValue.plus(rowMarketValueUsd);
     } else {
       const holdingPrices = pricesByInstrument.get(holding.instrumentId) ?? [];
-      latestPrice = holdingPrices[0] ?? null;
+      const currentQuote = quotesByInstrument.get(holding.instrumentId) ?? null;
+      latestPrice = currentQuote ? dashboardQuoteToPriceRecord(currentQuote) : (holdingPrices[0] ?? null);
 
       if (!latestPrice) {
         addWarning(warnings, warningKeys, "MISSING_LATEST_PRICE", holding);
@@ -151,7 +159,9 @@ function calculateValuedHoldings(
           totalUnrealizedGain = totalUnrealizedGain.plus(rowUnrealizedGainUsd);
         }
 
-        const previousPrice = holdingPrices[1];
+        const previousPrice = currentQuote
+          ? holdingPrices.find((price) => price.priceDate < currentQuote.quoteDate)
+          : holdingPrices[1];
 
         if (!previousPrice) {
           addWarning(warnings, warningKeys, "MISSING_PREVIOUS_PRICE", holding);
@@ -194,6 +204,53 @@ function calculateValuedHoldings(
         : null,
     warnings,
     holdings: valuedHoldings
+  };
+}
+
+function groupValidQuotesByInstrument(
+  holdings: HoldingSummary[],
+  quotes: DashboardQuoteRecord[]
+): Map<string, DashboardQuoteRecord> {
+  const instrumentCurrencies = new Map(holdings.map((holding) => [holding.instrumentId, holding.currency]));
+  const groupedQuotes = new Map<string, DashboardQuoteRecord>();
+
+  for (const quote of quotes) {
+    if (instrumentCurrencies.get(quote.instrumentId) !== quote.currency) {
+      continue;
+    }
+
+    const existing = groupedQuotes.get(quote.instrumentId);
+    if (!existing || quote.fetchedAt > existing.fetchedAt) {
+      groupedQuotes.set(quote.instrumentId, quote);
+    }
+  }
+
+  return groupedQuotes;
+}
+
+function dashboardQuoteToPriceRecord(quote: DashboardQuoteRecord): PriceRecord {
+  return {
+    id: quote.id,
+    instrumentId: quote.instrumentId,
+    priceDate: quote.quoteDate,
+    closePrice: quote.quotePrice,
+    currency: quote.currency,
+    source: quote.provider,
+    sourceSymbol: quote.sourceSymbol,
+    isAdjusted: false,
+    createdAt: quote.createdAt,
+    updatedAt: quote.updatedAt
+  };
+}
+
+function getQuoteMetadata(quotes: DashboardQuoteRecord[]): { fetchedAt: string | null; quoteDate: string | null } {
+  if (quotes.length === 0) {
+    return { fetchedAt: null, quoteDate: null };
+  }
+
+  return {
+    fetchedAt: quotes.map((quote) => quote.fetchedAt).sort().at(-1) ?? null,
+    quoteDate: quotes.map((quote) => quote.quoteDate).sort().at(-1) ?? null
   };
 }
 
