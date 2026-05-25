@@ -117,8 +117,9 @@ const quoteWithoutAnyStoredClose = calculateDashboardSummary([usdSecurity], acco
   quoteWithoutPriorClose
 ]);
 assert.equal(quoteWithoutAnyStoredClose.totalAssets, "225.00");
-assert.equal(quoteWithoutAnyStoredClose.todayChange, null);
-assert.deepEqual(quoteWithoutAnyStoredClose.warnings.map((warning) => warning.code), ["MISSING_PREVIOUS_PRICE"]);
+assert.equal(quoteWithoutAnyStoredClose.todayChange, "0.00");
+assert.equal(quoteWithoutAnyStoredClose.todayChangePct, "0.00");
+assert.deepEqual(quoteWithoutAnyStoredClose.warnings, []);
 
 const missingLatest = calculateDashboardSummary(
   holdings,
@@ -139,10 +140,10 @@ const missingPrevious = calculateDashboardSummary(
   fxRates
 );
 assert.equal(missingPrevious.totalAssets, "345.00");
-assert.equal(missingPrevious.todayChange, null);
-assert.equal(missingPrevious.todayChangePct, null);
+assert.equal(missingPrevious.todayChange, "15.00");
+assert.equal(missingPrevious.todayChangePct, "4.55");
 assert.equal(missingPrevious.unrealizedGain, "90.00");
-assert.deepEqual(missingPrevious.warnings.map((warning) => warning.code), ["MISSING_PREVIOUS_PRICE"]);
+assert.deepEqual(missingPrevious.warnings, []);
 
 const missingFx = calculateDashboardSummary(holdings, accounts, prices, []);
 assert.equal(missingFx.totalAssets, null);

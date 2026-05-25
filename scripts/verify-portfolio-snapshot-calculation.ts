@@ -94,9 +94,10 @@ const missingPrevious = calculatePortfolioSnapshotValuation({
   fxRates: rates
 });
 assert.equal(missingPrevious.marketValueUsd, "236.000000");
-assert.equal(missingPrevious.dailyChangeUsd, null);
+assert.equal(missingPrevious.dailyChangeUsd, "10.000000");
+assert.equal(missingPrevious.dailyChangePct, "4.42477876");
 assert.equal(missingPrevious.unrealizedGainUsd, "58.000000");
-assert.deepEqual(missingPrevious.warnings.map((warning) => warning.code), ["MISSING_PREVIOUS_PRICE"]);
+assert.deepEqual(missingPrevious.warnings, []);
 
 const missingFx = calculatePortfolioSnapshotValuation({
   snapshotDate,

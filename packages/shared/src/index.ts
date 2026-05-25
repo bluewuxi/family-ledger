@@ -926,14 +926,9 @@ function valueHolding(
   }
 
   const previousPrice = prices[1];
+  const baselinePrice = previousPrice ?? latestPrice;
 
-  if (!previousPrice) {
-    addSnapshotWarning(state, "MISSING_PREVIOUS_PRICE", holding);
-    state.dailyChangeAvailable = false;
-    return;
-  }
-
-  const previousValue = quantity.times(previousPrice.closePrice).times(fxRate);
+  const previousValue = quantity.times(baselinePrice.closePrice).times(fxRate);
   state.priorMarketValueUsd = state.priorMarketValueUsd.plus(previousValue);
   state.dailyChangeUsd = state.dailyChangeUsd.plus(marketValue.minus(previousValue));
 }

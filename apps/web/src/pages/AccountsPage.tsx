@@ -168,8 +168,14 @@ export function AccountsPage() {
       throw new ApiClientError("请至少填写一条期初资产。", "EMPTY_OPENING_ROWS");
     }
 
-    const created = await Promise.all(payloads.map((row) => apiPost<TransactionResponse>("/transactions", row)));
-    return created.map((item) => item.transaction);
+    const created: InvestmentTransaction[] = [];
+
+    for (const payload of payloads) {
+      const data = await apiPost<TransactionResponse>("/transactions", payload);
+      created.push(data.transaction);
+    }
+
+    return created;
   }
 
   async function handleDelete(account: InvestmentAccount) {

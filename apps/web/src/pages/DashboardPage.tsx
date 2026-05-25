@@ -43,11 +43,13 @@ interface AllocationPoint {
 
 const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
 const allocationColors = ["#23443b", "#59736c", "#8a9b65", "#c08b5c", "#8f6f9f", "#5d78a6"];
+const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 
 export function DashboardPage() {
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
+  const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
   const [snapshotRangeDays, setSnapshotRangeDays] = useState<SnapshotRangeDays>(90);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
@@ -57,11 +59,13 @@ export function DashboardPage() {
   const [snapshotsError, setSnapshotsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!preferencesLoading && !currencyInitialized) {
-      setReportingCurrency(toDisplayCurrency(preferences.preferredCurrency));
+    if (!preferencesLoading && !currencyManuallySelected) {
+      const storedCurrency = readStoredDisplayCurrency(dashboardCurrencyStorageKey);
+      setReportingCurrency(storedCurrency ?? toDisplayCurrency(preferences.preferredCurrency));
+      setCurrencyManuallySelected(storedCurrency !== null);
       setCurrencyInitialized(true);
     }
-  }, [currencyInitialized, preferences.preferredCurrency, preferencesLoading]);
+  }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
   useEffect(() => {
     if (currencyInitialized) {
@@ -164,7 +168,12 @@ export function DashboardPage() {
             报告币种
             <select
               value={reportingCurrency}
-              onChange={(event) => setReportingCurrency(event.target.value as SnapshotDisplayCurrency)}
+              onChange={(event) => {
+                const nextCurrency = event.target.value as SnapshotDisplayCurrency;
+                writeStoredDisplayCurrency(dashboardCurrencyStorageKey, nextCurrency);
+                setCurrencyManuallySelected(true);
+                setReportingCurrency(nextCurrency);
+              }}
               disabled={!currencyInitialized}
             >
               {SNAPSHOT_DISPLAY_CURRENCIES.map((currency) => (
@@ -396,6 +405,17 @@ function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
   return SNAPSHOT_DISPLAY_CURRENCIES.includes(value as SnapshotDisplayCurrency)
     ? (value as SnapshotDisplayCurrency)
     : "CNY";
+}
+
+function readStoredDisplayCurrency(key: string): SnapshotDisplayCurrency | null {
+  const value = window.localStorage.getItem(key);
+  return SNAPSHOT_DISPLAY_CURRENCIES.includes(value as SnapshotDisplayCurrency)
+    ? (value as SnapshotDisplayCurrency)
+    : null;
+}
+
+function writeStoredDisplayCurrency(key: string, value: SnapshotDisplayCurrency): void {
+  window.localStorage.setItem(key, value);
 }
 
 function toErrorMessage(error: unknown, fallback: string): string {

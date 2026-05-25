@@ -162,16 +162,11 @@ function calculateValuedHoldings(
         const previousPrice = currentQuote
           ? (holdingPrices.find((price) => price.priceDate < currentQuote.quoteDate) ?? holdingPrices[0])
           : holdingPrices[1];
+        const baselinePrice = previousPrice ?? latestPrice;
 
-        if (!previousPrice) {
-          addWarning(warnings, warningKeys, "MISSING_PREVIOUS_PRICE", holding);
-          addWarning(rowWarnings, rowWarningKeys, "MISSING_PREVIOUS_PRICE", holding);
-          todayChangeAvailable = false;
-        } else {
-          const previousValue = quantity.times(previousPrice.closePrice).times(fxRate);
-          priorPortfolioValue = priorPortfolioValue.plus(previousValue);
-          todayChange = todayChange.plus(rowMarketValueUsd.minus(previousValue));
-        }
+        const previousValue = quantity.times(baselinePrice.closePrice).times(fxRate);
+        priorPortfolioValue = priorPortfolioValue.plus(previousValue);
+        todayChange = todayChange.plus(rowMarketValueUsd.minus(previousValue));
       }
     }
 
