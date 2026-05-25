@@ -14,7 +14,7 @@ import {
   insertExchangeRateIfNotExists as defaultInsertExchangeRateIfNotExists,
   type InsertExchangeRateResult
 } from "../repositories/exchangeRateRepository";
-import { listDistinctAccountBaseCurrencies as defaultListDistinctAccountBaseCurrencies } from "../repositories/accountCurrencyRepository";
+import { listDistinctAccountAndInstrumentCurrencies as defaultListDistinctAccountAndInstrumentCurrencies } from "../repositories/accountCurrencyRepository";
 import {
   createDataProviderRun as defaultCreateDataProviderRun,
   createJobRun as defaultCreateJobRun,
@@ -68,7 +68,7 @@ interface JobRunRepository {
 }
 
 interface AccountCurrencyRepository {
-  listDistinctAccountBaseCurrencies(): Promise<CurrencyCode[]>;
+  listDistinctAccountAndInstrumentCurrencies(): Promise<CurrencyCode[]>;
 }
 
 export interface FxRateIngestionResult {
@@ -106,7 +106,7 @@ export async function ingestLatestFrankfurterFxRates(
     insertExchangeRateIfNotExists: defaultInsertExchangeRateIfNotExists
   };
   const accountCurrencyRepository = options.accountCurrencyRepository ?? {
-    listDistinctAccountBaseCurrencies: defaultListDistinctAccountBaseCurrencies
+    listDistinctAccountAndInstrumentCurrencies: defaultListDistinctAccountAndInstrumentCurrencies
   };
   const jobRunRepository = options.jobRunRepository ?? {
     createJobRun: defaultCreateJobRun,
@@ -115,7 +115,7 @@ export async function ingestLatestFrankfurterFxRates(
     finishDataProviderRun: defaultFinishDataProviderRun
   };
 
-  const accountCurrencies = options.targetCurrencies ?? (await accountCurrencyRepository.listDistinctAccountBaseCurrencies());
+  const accountCurrencies = options.targetCurrencies ?? (await accountCurrencyRepository.listDistinctAccountAndInstrumentCurrencies());
   const targetCurrencies = uniqueCurrencies(accountCurrencies.length > 0 ? accountCurrencies : DEFAULT_FRANKFURTER_TARGET_CURRENCIES).filter(
     (currency) => currency !== "USD"
   );

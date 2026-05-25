@@ -13,18 +13,22 @@ import {
   type UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
 import { findAccountById } from "../repositories/accountRepository";
-import { findInstrumentById } from "../repositories/instrumentRepository";
+import { findInstrumentById, listInstruments } from "../repositories/instrumentRepository";
+import { findValuationRateToUsdOnDate } from "../repositories/fxRateRepository";
 import {
   TransactionNotFoundError,
   TransactionConstraintError,
   TransactionReferenceError,
   createTransaction,
+  deleteGeneratedCashLegByParentId,
   deleteTransaction,
+  findGeneratedCashLegByParentId,
   findTransactionById,
   listTransactions,
   updateTransaction
 } from "../repositories/transactionRepository";
 import { ApiRequestError } from "../utils/apiError";
+import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
 
 export async function getTransactions(): Promise<InvestmentTransaction[]> {
   return listTransactions();
@@ -39,7 +43,11 @@ export async function createInvestmentTransaction(
   const validated = await validateTransaction(input, "grossAmount" in record);
 
   try {
-    return await createTransaction(validated, user.id);
+    const settlementInput = await withAutomaticSettlement(validated);
+    const transaction = await createTransaction(settlementInput, user.id);
+    await syncGeneratedCashLeg(transaction, user.id);
+    await recalculateSnapshotsFrom(transaction.tradeDate);
+    return transaction;
   } catch (error) {
     if (error instanceof TransactionReferenceError) {
       throw new ApiRequestError("VALIDATION_ERROR", "Transaction account or instrument was not found.", 400);
@@ -66,6 +74,7 @@ export async function updateInvestmentTransaction(
   if (!existing) {
     throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
   }
+  rejectGeneratedCashLegMutation(existing);
 
   const candidate: CreateInvestmentTransactionInput = {
     accountId: patch.accountId ?? existing.accountId,
@@ -85,9 +94,18 @@ export async function updateInvestmentTransaction(
   };
 
   const validated = await validateTransaction(candidate, "grossAmount" in record);
+  const shouldUpdateDerivedData = isValuationImpactingPatch(patch);
+  const updateInput = shouldUpdateDerivedData ? await withAutomaticSettlement(validated) : validated;
 
   try {
-    return await updateTransaction(id, validated, user.id);
+    const transaction = await updateTransaction(id, updateInput, user.id);
+
+    if (shouldUpdateDerivedData) {
+      await syncGeneratedCashLeg(transaction, user.id);
+      await recalculateSnapshotsFrom(minDate(existing.tradeDate, transaction.tradeDate));
+    }
+
+    return transaction;
   } catch (error) {
     if (error instanceof TransactionNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
@@ -107,9 +125,18 @@ export async function updateInvestmentTransaction(
 
 export async function deleteInvestmentTransaction(id: string): Promise<void> {
   assertUuid(id, "Transaction");
+  const existing = await findTransactionById(id);
+
+  if (!existing) {
+    throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
+  }
+
+  rejectGeneratedCashLegMutation(existing);
 
   try {
+    await deleteGeneratedCashLegByParentId(id);
     await deleteTransaction(id);
+    await recalculateSnapshotsFrom(existing.tradeDate);
   } catch (error) {
     if (error instanceof TransactionNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
@@ -117,6 +144,171 @@ export async function deleteInvestmentTransaction(id: string): Promise<void> {
 
     throw error;
   }
+}
+
+async function withAutomaticSettlement(
+  input: CreateInvestmentTransactionInput
+): Promise<CreateInvestmentTransactionInput> {
+  if (input.transactionType !== "buy" && input.transactionType !== "sell") {
+    return {
+      ...input,
+      settlementCurrency: null,
+      settlementAmount: null
+    };
+  }
+
+  const account = await findAccountById(input.accountId);
+
+  if (!account) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction account was not found.", 400);
+  }
+
+  const settlementCurrency = account.baseCurrency;
+  await findCashInstrument(settlementCurrency);
+  const tradeAmount = calculateTradeCashAmount(input);
+  const settlementAmount = await convertSettlementAmount({
+    amount: tradeAmount,
+    fromCurrency: input.currency,
+    toCurrency: settlementCurrency,
+    tradeDate: input.tradeDate
+  });
+
+  return {
+    ...input,
+    settlementCurrency,
+    settlementAmount
+  };
+}
+
+async function syncGeneratedCashLeg(parent: InvestmentTransaction, userId: string): Promise<void> {
+  const existingCashLeg = await findGeneratedCashLegByParentId(parent.id);
+
+  if (parent.transactionType !== "buy" && parent.transactionType !== "sell") {
+    if (existingCashLeg) {
+      await deleteGeneratedCashLegByParentId(parent.id);
+    }
+    return;
+  }
+
+  if (!parent.settlementCurrency || !parent.settlementAmount) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Settlement cash amount could not be calculated.", 400);
+  }
+
+  const cashInstrument = await findCashInstrument(parent.settlementCurrency);
+  const cashInput: CreateInvestmentTransactionInput = {
+    accountId: parent.accountId,
+    instrumentId: cashInstrument.id,
+    transactionType: parent.transactionType === "buy" ? "withdrawal" : "deposit",
+    tradeDate: parent.tradeDate,
+    settlementDate: parent.settlementDate,
+    quantity: null,
+    price: null,
+    grossAmount: parent.settlementAmount,
+    fee: "0",
+    tax: "0",
+    currency: parent.settlementCurrency,
+    adjustmentDirection: null,
+    transactionSource: "generated_cash_leg",
+    linkedTransactionId: parent.id,
+    settlementCurrency: null,
+    settlementAmount: null,
+    notes: parent.transactionType === "buy" ? "自动现金流水：买入结算" : "自动现金流水：卖出结算"
+  };
+
+  if (existingCashLeg) {
+    await updateTransaction(existingCashLeg.id, cashInput, userId);
+    return;
+  }
+
+  await createTransaction(cashInput, userId);
+}
+
+async function findCashInstrument(currency: CurrencyCode): Promise<Instrument> {
+  const instruments = await listInstruments();
+  const cashInstrument = instruments.find((instrument) => instrument.assetType === "cash" && instrument.currency === currency);
+
+  if (!cashInstrument) {
+    throw new ApiRequestError("VALIDATION_ERROR", `No ${currency} cash instrument is configured.`, 400);
+  }
+
+  return cashInstrument;
+}
+
+function calculateTradeCashAmount(input: CreateInvestmentTransactionInput): Decimal {
+  const grossAmount = requiredAmount(input.grossAmount, "grossAmount");
+  const fee = new Decimal(input.fee ?? "0");
+  const tax = new Decimal(input.tax ?? "0");
+  const amount = input.transactionType === "sell" ? grossAmount.minus(fee).minus(tax) : grossAmount.plus(fee).plus(tax);
+
+  if (!amount.gt(0)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Settlement amount must be greater than zero.", 400);
+  }
+
+  return amount;
+}
+
+function requiredAmount(value: string | null | undefined, field: string): Decimal {
+  if (!value) {
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+  }
+
+  return new Decimal(value);
+}
+
+async function convertSettlementAmount(input: {
+  amount: Decimal;
+  fromCurrency: CurrencyCode;
+  toCurrency: CurrencyCode;
+  tradeDate: string;
+}): Promise<string> {
+  if (input.fromCurrency === input.toCurrency) {
+    return input.amount.toDecimalPlaces(6, Decimal.ROUND_HALF_UP).toFixed(6);
+  }
+
+  const [fromRate, toRate] = await Promise.all([
+    findValuationRateToUsdOnDate(input.fromCurrency, input.tradeDate),
+    findValuationRateToUsdOnDate(input.toCurrency, input.tradeDate)
+  ]);
+
+  if (!fromRate || !toRate) {
+    throw new ApiRequestError(
+      "VALIDATION_ERROR",
+      `Missing valuation FX rate for ${input.fromCurrency}/${input.toCurrency} on or before ${input.tradeDate}.`,
+      400
+    );
+  }
+
+  return input.amount
+    .times(fromRate.rate)
+    .dividedBy(toRate.rate)
+    .toDecimalPlaces(6, Decimal.ROUND_HALF_UP)
+    .toFixed(6);
+}
+
+function rejectGeneratedCashLegMutation(transaction: InvestmentTransaction): void {
+  if (transaction.transactionSource === "generated_cash_leg") {
+    throw new ApiRequestError("VALIDATION_ERROR", "Generated cash transactions must be changed through the parent trade.", 400);
+  }
+}
+
+function isValuationImpactingPatch(input: UpdateInvestmentTransactionInput): boolean {
+  return [
+    "accountId",
+    "instrumentId",
+    "transactionType",
+    "tradeDate",
+    "quantity",
+    "price",
+    "grossAmount",
+    "fee",
+    "tax",
+    "currency",
+    "adjustmentDirection"
+  ].some((field) => field in input);
+}
+
+function minDate(left: string, right: string): string {
+  return left < right ? left : right;
 }
 
 function parseCreateTransactionInput(record: Record<string, unknown>): CreateInvestmentTransactionInput {

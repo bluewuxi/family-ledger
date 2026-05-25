@@ -62,10 +62,10 @@ This section documents the production schedule and retry policy, but does not de
 Configure the FX update Lambda handler exported as `updateFxRates` from `apps/jobs` with an EventBridge schedule:
 
 ```text
-cron(0 1 * * ? *)
+cron(30 15 * * ? *)
 ```
 
-This runs daily at 01:00 UTC.
+This runs daily at 15:30 UTC, after the normal Frankfurter/ECB publication window. In Beijing time this is 23:30.
 
 Recommended EventBridge target settings:
 
@@ -79,10 +79,10 @@ Configure the price update Lambda handler exported as `updatePrices` from `apps/
 
 The web Data Sync page can manually trigger the FX and price jobs. CloudFormation wires the job function names into the API Lambda through `UPDATE_FX_RATES_FUNCTION_NAME` and `UPDATE_PRICES_FUNCTION_NAME`, and grants `lambda:InvokeFunction` only for those two job functions. Manual invocations pass trigger metadata into the job payload and return before ingestion completes; completion status is read from `job_runs` and `data_provider_runs`.
 
-Configure the portfolio snapshot Lambda handler exported as `generatePortfolioSnapshots` from `apps/jobs` after the FX and price jobs have normally completed. A default daily schedule can run at 02:00 UTC:
+Configure the portfolio snapshot Lambda handler exported as `generatePortfolioSnapshots` from `apps/jobs` after the FX and price jobs have normally completed. A default daily schedule can run at 16:00 UTC:
 
 ```text
-cron(0 2 * * ? *)
+cron(0 16 * * ? *)
 ```
 
 The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it uses the EventBridge event time date. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.

@@ -114,6 +114,9 @@ export const ADJUSTMENT_DIRECTION_LABELS: Record<AdjustmentDirection, string> = 
   decrease: "\u51cf\u5c11"
 };
 
+export const TRANSACTION_SOURCES = ["manual", "generated_cash_leg"] as const;
+export type TransactionSource = (typeof TRANSACTION_SOURCES)[number];
+
 export const ACCOUNT_TYPES = ["brokerage", "fund_platform", "bank", "retirement", "other"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
@@ -278,6 +281,10 @@ export interface InvestmentTransaction {
   tax: string;
   currency: CurrencyCode;
   adjustmentDirection: AdjustmentDirection | null;
+  transactionSource: TransactionSource;
+  linkedTransactionId: string | null;
+  settlementCurrency: CurrencyCode | null;
+  settlementAmount: string | null;
   notes: string | null;
   createdByUserId: string | null;
   updatedByUserId: string | null;
@@ -298,6 +305,10 @@ export interface CreateInvestmentTransactionInput {
   tax?: string;
   currency: CurrencyCode;
   adjustmentDirection?: AdjustmentDirection | null;
+  transactionSource?: TransactionSource;
+  linkedTransactionId?: string | null;
+  settlementCurrency?: CurrencyCode | null;
+  settlementAmount?: string | null;
   notes?: string | null;
 }
 
@@ -314,6 +325,10 @@ export interface UpdateInvestmentTransactionInput {
   tax?: string;
   currency?: CurrencyCode;
   adjustmentDirection?: AdjustmentDirection | null;
+  transactionSource?: TransactionSource;
+  linkedTransactionId?: string | null;
+  settlementCurrency?: CurrencyCode | null;
+  settlementAmount?: string | null;
   notes?: string | null;
 }
 

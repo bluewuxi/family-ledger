@@ -141,7 +141,7 @@ async function main(): Promise<void> {
       },
       jobRunRepository: createFakeJobRunRepository(failureCalls),
       accountCurrencyRepository: {
-        async listDistinctAccountBaseCurrencies() {
+        async listDistinctAccountAndInstrumentCurrencies() {
           return ["NZD"];
         }
       },

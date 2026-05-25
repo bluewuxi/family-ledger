@@ -1,6 +1,7 @@
 import type {
   CreateInvestmentTransactionInput,
   InvestmentTransaction,
+  TransactionSource,
   UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
@@ -19,6 +20,10 @@ interface InvestmentTransactionRow {
   tax: string;
   currency: InvestmentTransaction["currency"];
   adjustment_direction: InvestmentTransaction["adjustmentDirection"];
+  transaction_source: TransactionSource;
+  linked_transaction_id: string | null;
+  settlement_currency: InvestmentTransaction["settlementCurrency"];
+  settlement_amount: string | null;
   notes: string | null;
   created_by_user_id: string | null;
   updated_by_user_id: string | null;
@@ -59,6 +64,23 @@ export async function listTransactions(): Promise<InvestmentTransaction[]> {
   return (data as unknown as InvestmentTransactionRow[]).map(mapTransactionRow);
 }
 
+export async function listTransactionsUntil(tradeDate: string): Promise<InvestmentTransaction[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(transactionSelect)
+    .lte("trade_date", tradeDate)
+    .order("trade_date", { ascending: true })
+    .order("created_at", { ascending: true })
+    .returns<InvestmentTransactionRow[]>();
+
+  if (error) {
+    throw new Error("Failed to list snapshot transactions.");
+  }
+
+  return data.map(mapTransactionRow);
+}
+
 export async function findTransactionById(id: string): Promise<InvestmentTransaction | null> {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase
@@ -69,6 +91,22 @@ export async function findTransactionById(id: string): Promise<InvestmentTransac
 
   if (error) {
     throw new Error("Failed to find transaction.");
+  }
+
+  return data ? mapTransactionRow(data) : null;
+}
+
+export async function findGeneratedCashLegByParentId(parentId: string): Promise<InvestmentTransaction | null> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(transactionSelect)
+    .eq("linked_transaction_id", parentId)
+    .eq("transaction_source", "generated_cash_leg")
+    .maybeSingle<InvestmentTransactionRow>();
+
+  if (error) {
+    throw new Error("Failed to find linked cash transaction.");
   }
 
   return data ? mapTransactionRow(data) : null;
@@ -157,6 +195,19 @@ export async function deleteTransaction(id: string): Promise<void> {
   }
 }
 
+export async function deleteGeneratedCashLegByParentId(parentId: string): Promise<void> {
+  const supabase = await getSupabaseAdmin();
+  const { error } = await supabase
+    .from("transactions")
+    .delete()
+    .eq("linked_transaction_id", parentId)
+    .eq("transaction_source", "generated_cash_leg");
+
+  if (error) {
+    throw new Error("Failed to delete linked cash transaction.");
+  }
+}
+
 const transactionSelect = [
   "id",
   "account_id",
@@ -171,6 +222,10 @@ const transactionSelect = [
   "tax",
   "currency",
   "adjustment_direction",
+  "transaction_source",
+  "linked_transaction_id",
+  "settlement_currency",
+  "settlement_amount",
   "notes",
   "created_by_user_id",
   "updated_by_user_id",
@@ -193,6 +248,10 @@ function mapTransactionRow(row: InvestmentTransactionRow): InvestmentTransaction
     tax: row.tax,
     currency: row.currency,
     adjustmentDirection: row.adjustment_direction,
+    transactionSource: row.transaction_source,
+    linkedTransactionId: row.linked_transaction_id,
+    settlementCurrency: row.settlement_currency,
+    settlementAmount: row.settlement_amount,
     notes: row.notes,
     createdByUserId: row.created_by_user_id,
     updatedByUserId: row.updated_by_user_id,
@@ -215,6 +274,10 @@ function toTransactionRow(input: CreateInvestmentTransactionInput) {
     tax: input.tax ?? "0",
     currency: input.currency,
     adjustment_direction: input.adjustmentDirection ?? null,
+    transaction_source: input.transactionSource ?? "manual",
+    linked_transaction_id: input.linkedTransactionId ?? null,
+    settlement_currency: input.settlementCurrency ?? null,
+    settlement_amount: input.settlementAmount ?? null,
     notes: input.notes ?? null
   };
 }
@@ -233,6 +296,10 @@ function toTransactionUpdateRow(input: UpdateInvestmentTransactionInput) {
     ...(input.tax !== undefined ? { tax: input.tax } : {}),
     ...(input.currency !== undefined ? { currency: input.currency } : {}),
     ...(input.adjustmentDirection !== undefined ? { adjustment_direction: input.adjustmentDirection } : {}),
+    ...(input.transactionSource !== undefined ? { transaction_source: input.transactionSource } : {}),
+    ...(input.linkedTransactionId !== undefined ? { linked_transaction_id: input.linkedTransactionId } : {}),
+    ...(input.settlementCurrency !== undefined ? { settlement_currency: input.settlementCurrency } : {}),
+    ...(input.settlementAmount !== undefined ? { settlement_amount: input.settlementAmount } : {}),
     ...(input.notes !== undefined ? { notes: input.notes } : {})
   };
 }

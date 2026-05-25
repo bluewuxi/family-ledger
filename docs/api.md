@@ -408,6 +408,14 @@ Buy request:
 
 For `buy` and `sell`, the API derives `grossAmount` from `quantity * price` using decimal arithmetic and half-up rounding to six decimal places.
 
+For `buy` and `sell`, the API also derives a linked cash movement automatically:
+
+- Settlement currency defaults to the account `baseCurrency`.
+- Settlement FX uses the latest stored valuation FX on or before `tradeDate`.
+- If trade and settlement currencies differ, missing prior-or-same-day FX returns `VALIDATION_ERROR`.
+- `buy` creates a generated cash `withdrawal`; `sell` creates a generated cash `deposit`.
+- Generated cash transactions cannot be directly edited or deleted.
+
 Opening position request:
 
 ```json
@@ -457,6 +465,8 @@ Transaction validation rules:
 - `opening_position` requires a non-cash instrument, positive `quantity`, and positive `grossAmount`; `grossAmount` is total carrying cost.
 - `opening_balance` requires a cash instrument and positive `grossAmount`.
 - `buy` and `sell` require a non-cash instrument, positive `quantity` and `price`; optional `fee` and `tax` are allowed.
+- `buy` settlement amount is `grossAmount + fee + tax`, converted to account base currency when needed.
+- `sell` settlement amount is `grossAmount - fee - tax`, converted to account base currency when needed.
 - `dividend` requires its non-cash source instrument and positive `grossAmount`; optional `tax` records withholding.
 - `deposit`, `withdrawal`, and `interest` require a cash instrument and positive `grossAmount`.
 - `fee` requires a cash instrument and stores its positive value in `fee`.
@@ -464,6 +474,7 @@ Transaction validation rules:
 - `adjustment` requires a cash instrument, positive `grossAmount`, and `adjustmentDirection` of `increase` or `decrease`.
 - Transaction currency must match the selected instrument currency.
 - Optional settlement date cannot precede trade date.
+- Valuation-impacting transaction creates, updates, and deletes recalculate existing portfolio snapshots from the affected trade date onward.
 
 Create/update response data:
 
@@ -482,6 +493,10 @@ Create/update response data:
     "tax": "0",
     "currency": "USD",
     "adjustmentDirection": null,
+    "transactionSource": "manual",
+    "linkedTransactionId": null,
+    "settlementCurrency": "NZD",
+    "settlementAmount": "4300.10",
     "createdByUserId": "uuid",
     "updatedByUserId": "uuid",
     "createdAt": "2026-05-23T00:00:00.000Z",

@@ -55,11 +55,14 @@ Transactions are entered through the Lambda API and always reference an account 
 - `opening_position` references a non-cash instrument and stores the starting quantity plus total carrying cost in `gross_amount`.
 - `opening_balance` references a cash instrument and stores the starting cash balance in `gross_amount`.
 - `buy` and `sell` reference non-cash instruments. Their `gross_amount` is calculated in the API as `quantity * price`, rounded half-up to six decimal places.
+- `buy` and `sell` automatically create or update a generated linked cash transaction in the account base currency. A buy creates a cash `withdrawal`; a sell creates a cash `deposit`.
 - `dividend` references the paying non-cash instrument and may record withholding in `tax`.
 - `deposit`, `withdrawal`, `interest`, `fee`, `tax`, and `adjustment` reference currency-matching cash instruments.
 - Standalone `fee` records store their value in `fee`; standalone `tax` records store their value in `tax`.
 - `adjustment` records store a non-negative `gross_amount` and use `adjustment_direction` (`increase` or `decrease`) to describe direction.
-- Transaction records do not store manual FX rates. Valuation uses stored provider rates from `exchange_rates`; missing valuation FX should be fixed through market-data retrieval rather than transaction entry.
+- Generated cash legs are marked with `transaction_source = 'generated_cash_leg'` and `linked_transaction_id` pointing to the parent trade. They cannot be edited or deleted directly through the API.
+- Parent buy/sell rows store the derived `settlement_currency` and `settlement_amount` for display and audit. The settlement currency defaults to the account `base_currency`.
+- Transaction records do not store manual FX rates. Buy/sell settlement cash amounts use the latest stored valuation FX from `exchange_rates` on or before the trade date; missing settlement FX rejects the write request.
 
 ## Market Data Foundation
 
@@ -79,7 +82,7 @@ Examples:
 
 Valuation FX records use `rate_type = 'valuation'` and must target `USD`. Tax-specific FX handling remains separate through `rate_type = 'tax'` or a future dedicated table.
 
-The FX job derives provider target currencies from distinct `investment_accounts.base_currency` values, skips `USD` provider requests, and no longer persists `USD -> USD` rows. USD is treated as rate `1` inside valuation code only. The job can also fetch a provider rate for a supplied historical `rateDate`; otherwise it retrieves the latest available provider rate date.
+The FX job derives provider target currencies from distinct account base currencies and instrument currencies, skips `USD` provider requests, and no longer persists `USD -> USD` rows. USD is treated as rate `1` inside valuation code only. The job can also fetch a provider rate for a supplied historical `rateDate`; otherwise it retrieves the latest available provider rate date.
 
 `instrument_prices` stores provider-supplied calendar-date instrument close prices in the instrument price currency. `price_date` and `rate_date` are provider-supplied dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
 
@@ -104,8 +107,8 @@ Holdings are a read-only derived view calculated by the Lambda API from transact
 - Opening positions add starting quantity and carrying cost before later buys and sells are applied.
 - Buys add `gross_amount + fee + tax` to carrying cost; sells remove units at the prior average unit cost. Sell-side fees and taxes are not included in remaining carrying cost.
 - Dividends do not change security quantity or carrying cost.
-- Cash balances use only transactions explicitly linked to cash instruments: opening balances, deposits, and interest increase balance; withdrawals, fees, and taxes reduce balance; adjustments use their recorded direction.
-- A security trade does not implicitly update a cash instrument balance.
+- Cash balances use transactions linked to cash instruments: opening balances, deposits, generated sell cash legs, and interest increase balance; withdrawals, generated buy cash legs, fees, and taxes reduce balance; adjustments use their recorded direction.
+- A security buy/sell automatically creates the matching linked cash transaction; other cash movements remain explicit cash transactions.
 - Final zero positions are omitted.
 - A negative cash balance is returned with `NEGATIVE_POSITION`.
 - A security position that becomes negative is returned with `NEGATIVE_POSITION` and `COST_BASIS_UNAVAILABLE`, and its average cost and remaining cost are null.
@@ -142,6 +145,8 @@ Snapshot generation uses as-of data:
 - Latest valuation FX where `rate_date <= snapshot_date`.
 
 Missing latest price or required FX makes affected aggregate market-value fields unavailable (`null`) rather than partial. Missing previous price only makes daily-change fields unavailable. Unavailable cost basis only makes cost and unrealized-gain fields unavailable.
+
+When a valuation-impacting transaction is created, updated, or deleted through the API, existing snapshots with `snapshot_date` on or after the affected trade date are recalculated and upserted. If a transaction update changes trade date, recalculation starts from the earlier old/new trade date.
 
 ## Seeded Instruments
 

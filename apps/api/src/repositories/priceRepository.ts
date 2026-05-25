@@ -47,6 +47,22 @@ export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): P
   return results.flat();
 }
 
+export async function listPricesUntil(priceDate: string): Promise<PriceRecord[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("instrument_prices")
+    .select(priceSelect)
+    .lte("price_date", priceDate)
+    .order("price_date", { ascending: false })
+    .returns<PriceRow[]>();
+
+  if (error) {
+    throw new Error("Failed to list snapshot prices.");
+  }
+
+  return data.map(mapPriceRow);
+}
+
 export async function insertInstrumentPriceIfNotExists(
   input: CreateInstrumentPriceInput
 ): Promise<InstrumentPriceRecord> {

@@ -54,6 +54,63 @@ export async function listLatestValuationRatesToUsd(fromCurrencies: CurrencyCode
   return results.filter((rate): rate is ExchangeRateRecord => rate !== null);
 }
 
+export async function findValuationRateToUsdOnDate(
+  fromCurrency: CurrencyCode,
+  rateDate: string
+): Promise<ExchangeRateRecord | null> {
+  if (fromCurrency === "USD") {
+    return {
+      id: `USD:${rateDate}`,
+      rateDate,
+      fromCurrency: "USD",
+      toCurrency: "USD",
+      rate: "1",
+      rateType: "valuation",
+      provider: "system",
+      providerRateDate: rateDate,
+      fetchedAt: null,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString()
+    };
+  }
+
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("exchange_rates")
+    .select(fxRateSelect)
+    .eq("from_currency", fromCurrency)
+    .eq("to_currency", "USD")
+    .eq("rate_type", "valuation")
+    .lte("rate_date", rateDate)
+    .order("rate_date", { ascending: false })
+    .limit(1)
+    .maybeSingle<FxRateRow>();
+
+  if (error) {
+    throw new Error("Failed to find settlement FX rate.");
+  }
+
+  return data ? mapExchangeRateRow(data) : null;
+}
+
+export async function listValuationRatesToUsdUntil(snapshotDate: string): Promise<ExchangeRateRecord[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("exchange_rates")
+    .select(fxRateSelect)
+    .lte("rate_date", snapshotDate)
+    .eq("rate_type", "valuation")
+    .eq("to_currency", "USD")
+    .order("rate_date", { ascending: false })
+    .returns<FxRateRow[]>();
+
+  if (error) {
+    throw new Error("Failed to list snapshot FX rates.");
+  }
+
+  return data.map(mapExchangeRateRow);
+}
+
 export async function insertExchangeRateIfNotExists(
   input: CreateExchangeRateInput
 ): Promise<ExchangeRateRecord> {

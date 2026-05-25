@@ -73,6 +73,8 @@ export function TransactionsPage() {
     () => new Map(instruments.map((instrument) => [instrument.id, formatInstrument(instrument)])),
     [instruments]
   );
+  const selectedAccount = accounts.find((account) => account.id === form.accountId);
+  const selectedInstrument = instruments.find((instrument) => instrument.id === form.instrumentId);
 
   useEffect(() => {
     void loadPageData();
@@ -114,19 +116,24 @@ export function TransactionsPage() {
       }
 
       const payload = toTransactionInput(form, selectedInstrument);
+      const existingTransaction = transactions.find((transaction) => transaction.id === editingTransactionId);
+
+      if (existingTransaction && isValuationImpactingFormChange(existingTransaction, payload)) {
+        const confirmed = window.confirm(
+          "本次修改会自动更新关联现金流水，并重新计算受影响日期之后的资产快照。确定继续？"
+        );
+
+        if (!confirmed) {
+          return;
+        }
+      }
+
       const data = editingTransactionId
         ? await apiPut<TransactionResponse>(`/transactions/${editingTransactionId}`, payload)
         : await apiPost<TransactionResponse>("/transactions", payload);
 
-      setTransactions((current) =>
-        sortTransactions(
-          editingTransactionId
-            ? current.map((transaction) =>
-                transaction.id === data.transaction.id ? data.transaction : transaction
-              )
-            : [...current, data.transaction]
-        )
-      );
+      void data;
+      await loadPageData();
       clearForm();
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -137,8 +144,12 @@ export function TransactionsPage() {
 
   async function handleDelete(transaction: InvestmentTransaction) {
     const label = `${transaction.tradeDate} ${TRANSACTION_TYPE_LABELS[transaction.transactionType]} ${instrumentNames.get(transaction.instrumentId) ?? ""}`;
+    if (transaction.transactionSource === "generated_cash_leg") {
+      setError("自动生成的现金流水不能直接删除，请删除或修改对应的买卖交易。");
+      return;
+    }
 
-    if (!window.confirm(`确定删除交易记录“${label}”？`)) {
+    if (!window.confirm(`确定删除交易记录“${label}”？关联现金流水会同步删除，受影响日期之后的资产快照会重新计算。`)) {
       return;
     }
 
@@ -147,7 +158,7 @@ export function TransactionsPage() {
 
     try {
       await apiDelete<DeleteTransactionResponse>(`/transactions/${transaction.id}`);
-      setTransactions((current) => current.filter((item) => item.id !== transaction.id));
+      await loadPageData();
 
       if (editingTransactionId === transaction.id) {
         clearForm();
@@ -160,6 +171,11 @@ export function TransactionsPage() {
   }
 
   function startEdit(transaction: InvestmentTransaction) {
+    if (transaction.transactionSource === "generated_cash_leg") {
+      setError("自动生成的现金流水不能直接编辑，请修改对应的买卖交易。");
+      return;
+    }
+
     setEditingTransactionId(transaction.id);
     setForm({
       accountId: transaction.accountId,
@@ -286,9 +302,16 @@ export function TransactionsPage() {
           ) : null}
 
           <label>
-            币种
-            <input value={instruments.find((instrument) => instrument.id === form.instrumentId)?.currency ?? "-"} disabled />
+            交易币种
+            <input value={selectedInstrument?.currency ?? "-"} disabled />
           </label>
+
+          {isTrade ? (
+            <label>
+              结算币种
+              <input value={selectedAccount?.baseCurrency ?? "-"} disabled />
+            </label>
+          ) : null}
 
           {isTrade || isOpeningPosition ? (
             <>
@@ -380,6 +403,7 @@ export function TransactionsPage() {
               <th>数量</th>
               <th>金额/费用</th>
               <th>币种</th>
+              <th>结算/来源</th>
               <th>备注</th>
               {isAdmin ? <th>操作</th> : null}
             </tr>
@@ -387,11 +411,11 @@ export function TransactionsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8}>正在加载交易记录...</td>
+                <td colSpan={isAdmin ? 10 : 9}>正在加载交易记录...</td>
               </tr>
             ) : transactions.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8}>暂无交易记录。</td>
+                <td colSpan={isAdmin ? 10 : 9}>暂无交易记录。</td>
               </tr>
             ) : (
               transactions.map((transaction) => (
@@ -403,16 +427,23 @@ export function TransactionsPage() {
                   <td>{transaction.quantity ?? "-"}</td>
                   <td>{displayAmount(transaction)}</td>
                   <td>{transaction.currency}</td>
+                  <td>{formatSettlement(transaction)}</td>
                   <td>{transaction.notes ?? "-"}</td>
                   {isAdmin ? (
                     <td>
                       <div className="table-actions">
-                        <button className="text-button" type="button" onClick={() => startEdit(transaction)} disabled={saving}>
-                          编辑
-                        </button>
-                        <button className="danger-button" type="button" onClick={() => void handleDelete(transaction)} disabled={saving}>
-                          删除
-                        </button>
+                        {transaction.transactionSource === "generated_cash_leg" ? (
+                          <span className="readonly-note">自动生成</span>
+                        ) : (
+                          <>
+                            <button className="text-button" type="button" onClick={() => startEdit(transaction)} disabled={saving}>
+                              编辑
+                            </button>
+                            <button className="danger-button" type="button" onClick={() => void handleDelete(transaction)} disabled={saving}>
+                              删除
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   ) : null}
@@ -577,7 +608,11 @@ function decimalString(value: string | number | null | undefined, fallback = "")
 
 function formatTransactionType(transaction: InvestmentTransaction): string {
   const label = TRANSACTION_TYPE_LABELS[transaction.transactionType];
-  return transaction.adjustmentDirection ? `${label}（${ADJUSTMENT_DIRECTION_LABELS[transaction.adjustmentDirection]}）` : label;
+  const sourceSuffix = transaction.transactionSource === "generated_cash_leg" ? "（自动现金）" : "";
+  const directionSuffix = transaction.adjustmentDirection
+    ? `（${ADJUSTMENT_DIRECTION_LABELS[transaction.adjustmentDirection]}）`
+    : "";
+  return `${label}${directionSuffix}${sourceSuffix}`;
 }
 
 function displayAmount(transaction: InvestmentTransaction): string {
@@ -590,11 +625,42 @@ function displayAmount(transaction: InvestmentTransaction): string {
   return transaction.grossAmount ?? "-";
 }
 
+function formatSettlement(transaction: InvestmentTransaction): string {
+  if (transaction.transactionSource === "generated_cash_leg") {
+    return transaction.linkedTransactionId ? `关联交易 ${transaction.linkedTransactionId.slice(0, 8)}` : "自动现金流水";
+  }
+
+  if ((transaction.transactionType === "buy" || transaction.transactionType === "sell") && transaction.settlementAmount) {
+    return `${transaction.settlementCurrency ?? transaction.currency} ${transaction.settlementAmount}`;
+  }
+
+  return "-";
+}
+
 function sortTransactions(transactions: InvestmentTransaction[]): InvestmentTransaction[] {
   return [...transactions].sort((left, right) => {
     const dateComparison = right.tradeDate.localeCompare(left.tradeDate);
     return dateComparison || right.createdAt.localeCompare(left.createdAt);
   });
+}
+
+function isValuationImpactingFormChange(
+  transaction: InvestmentTransaction,
+  payload: CreateInvestmentTransactionInput
+): boolean {
+  return (
+    transaction.accountId !== payload.accountId ||
+    transaction.instrumentId !== payload.instrumentId ||
+    transaction.transactionType !== payload.transactionType ||
+    transaction.tradeDate !== payload.tradeDate ||
+    (transaction.quantity ?? null) !== (payload.quantity ?? null) ||
+    (transaction.price ?? null) !== (payload.price ?? null) ||
+    (transaction.grossAmount ?? null) !== (payload.grossAmount ?? null) ||
+    transaction.fee !== (payload.fee ?? "0") ||
+    transaction.tax !== (payload.tax ?? "0") ||
+    transaction.currency !== payload.currency ||
+    (transaction.adjustmentDirection ?? null) !== (payload.adjustmentDirection ?? null)
+  );
 }
 
 function toErrorMessage(error: unknown): string {

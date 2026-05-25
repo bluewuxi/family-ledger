@@ -61,6 +61,10 @@ interface TransactionRow {
   tax: string;
   currency: InvestmentTransaction["currency"];
   adjustment_direction: InvestmentTransaction["adjustmentDirection"];
+  transaction_source: InvestmentTransaction["transactionSource"];
+  linked_transaction_id: string | null;
+  settlement_currency: InvestmentTransaction["settlementCurrency"];
+  settlement_amount: string | null;
   notes: string | null;
   created_by_user_id: string | null;
   updated_by_user_id: string | null;
@@ -280,6 +284,10 @@ const transactionSelect = [
   "tax",
   "currency",
   "adjustment_direction",
+  "transaction_source",
+  "linked_transaction_id",
+  "settlement_currency",
+  "settlement_amount",
   "notes",
   "created_by_user_id",
   "updated_by_user_id",
@@ -387,6 +395,10 @@ function mapTransactionRow(row: TransactionRow): InvestmentTransaction {
     tax: row.tax,
     currency: row.currency,
     adjustmentDirection: row.adjustment_direction,
+    transactionSource: row.transaction_source,
+    linkedTransactionId: row.linked_transaction_id,
+    settlementCurrency: row.settlement_currency,
+    settlementAmount: row.settlement_amount,
     notes: row.notes,
     createdByUserId: row.created_by_user_id,
     updatedByUserId: row.updated_by_user_id,
