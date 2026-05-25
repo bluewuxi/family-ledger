@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import dotenv from "dotenv";
 
 type EnvironmentName = "test" | "prod";
@@ -193,11 +193,24 @@ function deployWeb(parameters: DeploymentParameters): void {
   process.env.VITE_API_BASE_URL = env.VITE_API_BASE_URL;
   process.env.VITE_SUPABASE_URL = env.VITE_SUPABASE_URL;
   process.env.VITE_SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY;
-  const temporaryEnvPath = writeTemporaryWebDeployEnv(parameters.EnvironmentName, env);
+  const temporaryEnvDirectory = writeTemporaryWebDeployEnv(parameters.EnvironmentName, env);
+  const webBuildEnv = {
+    ...env,
+    FAMILY_LEDGER_WEB_ENV_DIR: resolve(temporaryEnvDirectory)
+  };
 
   try {
-    run("corepack", ["pnpm", "--filter", "@family-ledger/web", "exec", "tsc", "-b"], { env });
-    run("corepack", ["pnpm", "--filter", "@family-ledger/web", "exec", "vite", "build", "--mode", parameters.EnvironmentName], { env });
+    run("corepack", ["pnpm", "--filter", "@family-ledger/web", "exec", "tsc", "-b"], { env: webBuildEnv });
+    run("corepack", [
+      "pnpm",
+      "--filter",
+      "@family-ledger/web",
+      "exec",
+      "vite",
+      "build",
+      "--mode",
+      parameters.EnvironmentName
+    ], { env: webBuildEnv });
     verifyWebBuild(parameters, {
       apiBaseUrl: env.VITE_API_BASE_URL,
       supabaseUrl: env.VITE_SUPABASE_URL,
@@ -210,12 +223,14 @@ function deployWeb(parameters: DeploymentParameters): void {
     run("aws", ["s3", "sync", join("apps", "web", "dist"), `s3://${webBucketName}`, "--delete", "--region", parameters.AppRegion]);
     run("aws", ["cloudfront", "create-invalidation", "--distribution-id", distributionId, "--paths", "/*"]);
   } finally {
-    rmSync(temporaryEnvPath, { force: true });
+    rmSync(temporaryEnvDirectory, { force: true, recursive: true });
   }
 }
 
 function writeTemporaryWebDeployEnv(environmentName: EnvironmentName, env: NodeJS.ProcessEnv): string {
-  const temporaryEnvPath = `.env.${environmentName}.local`;
+  const temporaryEnvDirectory = join(".aws-sam", "web-env", environmentName);
+  const temporaryEnvPath = join(temporaryEnvDirectory, `.env.${environmentName}.local`);
+  mkdirSync(temporaryEnvDirectory, { recursive: true });
   writeFileSync(
     temporaryEnvPath,
     [
@@ -226,7 +241,7 @@ function writeTemporaryWebDeployEnv(environmentName: EnvironmentName, env: NodeJ
       ""
     ].join("\n")
   );
-  return temporaryEnvPath;
+  return temporaryEnvDirectory;
 }
 
 function getCertificateArn(parameters: DeploymentParameters): string {
