@@ -22,7 +22,7 @@ Production deployment uses SAM/CloudFormation templates under `infra/aws` when e
 - Deploy `apps/jobs` handlers as Lambda functions.
 - Trigger scheduled jobs with EventBridge.
 - Current handlers include price updates, FX updates, and portfolio snapshots.
-- Schedules are disabled by default in new stacks and can be enabled through `EnableScheduledJobs=true`.
+- Schedules are enabled by default in new stacks through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data and snapshot jobs.
 
 ## Domains
 

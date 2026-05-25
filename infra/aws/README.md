@@ -70,7 +70,7 @@ corepack pnpm deploy:web:test
 
 Production equivalents use the `:prod` suffix. Do not run production deploys until `infra/aws/parameters.prod.json` has been created locally and reviewed.
 
-Scheduled jobs default to disabled through `EnableScheduledJobs=false`. Enable them only after the API, market-data inputs, and snapshot behavior have been verified in the target environment.
+Scheduled jobs default to enabled through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data and snapshot jobs.
 
 ## SSM Parameters
 

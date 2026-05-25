@@ -8,5 +8,5 @@
   "SupabaseUrl": "",
   "SupabaseUrlSsmParam": "/family-ledger/prod_supabase_url",
   "SupabaseServiceKeySsmParam": "/family-ledger/prod_supabase_secret_key",
-  "EnableScheduledJobs": "false"
+  "EnableScheduledJobs": "true"
 }

@@ -45,7 +45,7 @@ Parameters:
     AllowedValues:
       - "true"
       - "false"
-    Default: "false"
+    Default: "true"
     Description: Whether EventBridge schedules should be enabled after deploy.
 
 Conditions:
