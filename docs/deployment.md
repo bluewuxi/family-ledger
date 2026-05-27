@@ -5,6 +5,7 @@ Production deployment uses SAM/CloudFormation templates under `infra/aws` when e
 ## Frontend
 
 - Build `apps/web` as a static Vite app.
+- Write public runtime configuration to `apps/web/dist/config.json` during `deploy:web:<env>`.
 - Host static files from a private S3 bucket behind CloudFront.
 - Configure SPA routing fallback to `index.html`.
 - Use CloudFront for TLS, caching, custom domains, and HTTPS redirects.
@@ -108,6 +109,14 @@ Use AWS Secrets Manager or SSM Parameter Store for production secrets such as Su
 
 Use checked-in `.env.test` for test deployment and checked-in `.env.prod` for production deployment. Use ignored `.env.local` for local debugging.
 
+The deployed web app reads public browser configuration from `/config.json` before creating the Supabase Auth client or calling the Lambda API. `scripts/deploy-aws.ts` creates that file after the Vite build from:
+
+- `ApiDomainName` in `infra/aws/parameters.<env>.json`
+- `VITE_SUPABASE_URL` in `.env.<env>`, falling back to `SupabaseUrl` in `infra/aws/parameters.<env>.json`
+- `VITE_SUPABASE_ANON_KEY` in `.env.<env>`
+
+Vite `VITE_*` variables remain useful for local dev and as a fallback when `/config.json` is absent, but deployment must not depend on Vite embedding the API URL into the JavaScript bundle.
+
 Environment files may store SSM parameter paths, not secret values:
 
 ```text
@@ -119,13 +128,15 @@ SUPABASE_DB_PASSWORD_SSM_PARAM=/family-ledger/test_db_password
 
 Production uses the same names with the `prod_` prefix. Test resource names use the `test_` prefix.
 
-Frontend deployment API endpoints:
+Frontend API endpoint mirrors:
 
 ```text
 .env.test: VITE_API_BASE_URL=https://test-fund-api.kidrawer.com
 .env.prod: VITE_API_BASE_URL=https://fund-api.kidrawer.com
 .env.local: VITE_API_BASE_URL=http://localhost:3000
 ```
+
+For deployment, `VITE_API_BASE_URL` is validated against `ApiDomainName` when present. The generated `/config.json` value is derived from `ApiDomainName`, so the infrastructure parameter remains the deployed API domain source of truth.
 
 Supabase database connection metadata may be stored directly because it is not secret:
 
@@ -145,7 +156,13 @@ Frontend build:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_API_BASE_URL`
+- `VITE_API_BASE_URL` for local fallback only
+
+Frontend deploy/runtime config generation:
+
+- `ApiDomainName`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_URL` or `SupabaseUrl`
 
 API Lambda and jobs Lambda:
 

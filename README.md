@@ -22,6 +22,8 @@ Public frontend values may be stored directly:
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_API_BASE_URL`
 
+Deployments generate `apps/web/dist/config.json` from the checked-in env file plus `infra/aws/parameters.<env>.json`. Vite env values are still used for local development fallback, but deployed API routing comes from the generated public runtime config.
+
 Server-side secrets live in AWS SSM Parameter Store. Env files store parameter paths only:
 
 - `SUPABASE_SECRET_KEY_SSM_PARAM`

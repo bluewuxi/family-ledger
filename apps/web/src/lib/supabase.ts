@@ -1,11 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { RuntimeConfig } from "./runtimeConfig";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+let supabaseClient: SupabaseClient | null = null;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.");
+export function initializeSupabaseClient(config: RuntimeConfig): SupabaseClient {
+  supabaseClient = createClient(config.supabaseUrl, config.supabaseAnonKey);
+  return supabaseClient;
 }
 
-// This client is for Supabase Auth only. Business data access must go through Lambda API.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export function getSupabaseClient(): SupabaseClient {
+  if (!supabaseClient) {
+    throw new Error("Supabase client has not been initialized.");
+  }
+
+  return supabaseClient;
+}

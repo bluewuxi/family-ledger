@@ -1,7 +1,6 @@
 import type { ApiResponse } from "@family-ledger/shared";
-import { supabase } from "./supabase";
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+import { getRuntimeConfig } from "./runtimeConfig";
+import { getSupabaseClient } from "./supabase";
 
 export class ApiClientError extends Error {
   constructor(
@@ -19,11 +18,13 @@ interface ApiRequestOptions {
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { apiBaseUrl } = getRuntimeConfig();
+
   if (!apiBaseUrl) {
     throw new ApiClientError("缺少 API 地址配置。", "MISSING_API_BASE_URL");
   }
 
-  const { data } = await supabase.auth.getSession();
+  const { data } = await getSupabaseClient().auth.getSession();
   const token = data.session?.access_token;
 
   if (!token) {

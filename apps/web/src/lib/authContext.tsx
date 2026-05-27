@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "./supabase";
+import { getSupabaseClient } from "./supabase";
 
 interface AuthContextValue {
   session: Session | null;
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     let mounted = true;
+    const supabase = getSupabaseClient();
 
     supabase.auth.getSession().then(({ data }) => {
       if (mounted) {
@@ -45,7 +46,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       session,
       loading,
       signOut: async () => {
-        await supabase.auth.signOut();
+        await getSupabaseClient().auth.signOut();
       }
     }),
     [loading, session]
