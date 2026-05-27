@@ -64,6 +64,7 @@ interface TransactionFilters {
 const today = new Date().toISOString().slice(0, 10);
 const transactionFetchLimit = 200;
 const emptyFilters: TransactionFilters = { from: "", to: "", accountId: "", instrumentId: "", transactionType: "" };
+const editableTransactionTypes = TRANSACTION_TYPES.filter((transactionType) => transactionType !== "tax");
 
 export function TransactionsPage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
@@ -91,6 +92,10 @@ export function TransactionsPage() {
   );
   const selectedAccount = accounts.find((account) => account.id === form.accountId);
   const selectedInstrument = instruments.find((instrument) => instrument.id === form.instrumentId);
+  const hasSelectedAccount = Boolean(filters.accountId);
+  const drawerTitle = `${editingTransactionId ? "编辑交易记录" : "新增交易记录"}${
+    selectedAccount ? ` - ${selectedAccount.name}` : ""
+  }`;
   const linkedCashLegs = useMemo(
     () =>
       new Map(
@@ -242,11 +247,13 @@ export function TransactionsPage() {
   }
 
   function changeTransactionType(transactionType: TransactionType) {
+    const isOpeningType = transactionType === "opening_position" || transactionType === "opening_balance";
+
     setForm({
       ...form,
       transactionType,
       instrumentId: "",
-      settlementDate: transactionType === "opening_position" || transactionType === "opening_balance" ? "" : form.settlementDate,
+      settlementDate: isOpeningType ? "" : form.settlementDate || today,
       quantity: "",
       price: "",
       grossAmount: "",
@@ -316,11 +323,22 @@ export function TransactionsPage() {
         </div>
         <div className="header-actions">
           {isAdmin ? (
-            <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving}>
+            <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving || !hasSelectedAccount}>
               新增
             </button>
           ) : null}
-          <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving}>
+          <label className="header-account-select">
+            <span>账户</span>
+            <select value={filters.accountId} onChange={(event) => changeAccountFilter(event.target.value)} required>
+              <option value="">请选择账户</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving || !hasSelectedAccount}>
             刷新
           </button>
         </div>
@@ -334,17 +352,6 @@ export function TransactionsPage() {
 
       <form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
         <label>
-          账户
-          <select value={filters.accountId} onChange={(event) => changeAccountFilter(event.target.value)} required>
-            <option value="">请选择账户</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
           开始日期
           <input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} />
         </label>
@@ -352,7 +359,7 @@ export function TransactionsPage() {
           结束日期
           <input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} />
         </label>
-        <label>
+        <label className="transaction-instrument-filter">
           标的
           <select value={filters.instrumentId} onChange={(event) => setFilters({ ...filters, instrumentId: event.target.value })}>
             <option value="">全部</option>
@@ -378,10 +385,10 @@ export function TransactionsPage() {
           </select>
         </label>
         <div className="filter-actions">
-          <button className="secondary-button" type="submit" disabled={loading}>
+          <button className="secondary-button" type="submit" disabled={loading || !hasSelectedAccount}>
             筛选
           </button>
-          <button className="secondary-button" type="button" onClick={clearFilters} disabled={loading}>
+          <button className="secondary-button" type="button" onClick={clearFilters} disabled={loading || !hasSelectedAccount}>
             清空
           </button>
         </div>
@@ -391,6 +398,7 @@ export function TransactionsPage() {
         <table className="transaction-table">
           <thead>
             <tr>
+              <th className="transaction-expand-column"></th>
               <th>日期</th>
               <th>账户</th>
               <th>标的</th>
@@ -406,15 +414,15 @@ export function TransactionsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9}>正在加载交易记录...</td>
+                <td colSpan={isAdmin ? 11 : 10}>正在加载交易记录...</td>
               </tr>
             ) : !filters.accountId ? (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9}>请先选择账户查看交易记录。</td>
+                <td colSpan={isAdmin ? 11 : 10}>请先选择账户查看交易记录。</td>
               </tr>
             ) : visibleTransactions.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9}>暂无符合筛选条件的交易记录。</td>
+                <td colSpan={isAdmin ? 11 : 10}>暂无符合筛选条件的交易记录。</td>
               </tr>
             ) : (
               visibleTransactions.map((transaction) => {
@@ -462,7 +470,7 @@ export function TransactionsPage() {
 
       <Drawer
         open={drawerOpen}
-        title={editingTransactionId ? "编辑交易记录" : "新增交易记录"}
+        title={drawerTitle}
         subtitle="现金类交易请选择对应币种的现金标的"
         onClose={closeDrawer}
         footer={
@@ -471,7 +479,7 @@ export function TransactionsPage() {
               className="primary-button"
               type="submit"
               form="transaction-drawer-form"
-              disabled={saving || accounts.length === 0 || eligibleInstruments.length === 0}
+              disabled={saving || !form.accountId || accounts.length === 0 || eligibleInstruments.length === 0}
             >
               {saving ? "保存中..." : editingTransactionId ? "保存修改" : "新增交易"}
             </button>
@@ -483,21 +491,14 @@ export function TransactionsPage() {
       >
         <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={handleSubmit}>
           <label>
-            账户
-            <select value={form.accountId} onChange={(event) => setForm({ ...form, accountId: event.target.value })} required>
-              <option value="">请选择账户</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
             交易类型
             <select value={form.transactionType} onChange={(event) => changeTransactionType(event.target.value as TransactionType)}>
-              {TRANSACTION_TYPES.map((transactionType) => (
+              {form.transactionType === "tax" ? (
+                <option value="tax" disabled>
+                  {TRANSACTION_TYPE_LABELS.tax}
+                </option>
+              ) : null}
+              {editableTransactionTypes.map((transactionType) => (
                 <option key={transactionType} value={transactionType}>
                   {TRANSACTION_TYPE_LABELS[transactionType]}
                 </option>
@@ -505,7 +506,7 @@ export function TransactionsPage() {
             </select>
           </label>
 
-          <label>
+          <label className="transaction-instrument-field">
             投资标的
             <select value={form.instrumentId} onChange={(event) => setForm({ ...form, instrumentId: event.target.value })} required>
               <option value="">请选择标的</option>
@@ -614,7 +615,7 @@ function emptyForm(accountId = ""): TransactionFormState {
     instrumentId: "",
     transactionType: "buy",
     tradeDate: today,
-    settlementDate: "",
+    settlementDate: today,
     quantity: "",
     price: "",
     grossAmount: "",
@@ -667,6 +668,19 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
         .join(" ")}
       key={isChildRow ? `cash-${transaction.id}` : transaction.id}
     >
+      <td className="transaction-expand-column">
+        {canExpand ? (
+          <button
+            aria-label={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
+            className="transaction-expand-button"
+            title={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
+            type="button"
+            onClick={() => onToggleLinkedCashLeg(transaction.id)}
+          >
+            {isExpanded ? "−" : "+"}
+          </button>
+        ) : null}
+      </td>
       <td>{transaction.tradeDate}</td>
       <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
       <td>
@@ -676,19 +690,6 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
       </td>
       <td>
         <span className="transaction-type-cell">
-          {canExpand ? (
-            <button
-              aria-label={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
-              className="transaction-expand-button"
-              title={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
-              type="button"
-              onClick={() => onToggleLinkedCashLeg(transaction.id)}
-            >
-              {isExpanded ? "−" : "+"}
-            </button>
-          ) : (
-            <span className="transaction-expand-spacer" />
-          )}
           <span className={transactionTypeClassName(transaction)}>{formatTransactionType(transaction)}</span>
         </span>
       </td>

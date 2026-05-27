@@ -133,7 +133,25 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  align-items: flex-end;
   justify-content: flex-end;
+}
+
+.header-account-select {
+  display: grid;
+  gap: 6px;
+  color: #3d3b36;
+  font-size: 13px;
+}
+
+.header-account-select select {
+  min-width: 190px;
+  min-height: 38px;
+  border: 1px solid #cfcac0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #20231f;
+  padding: 8px 10px;
 }
 
 .account-form,
@@ -155,6 +173,10 @@ textarea {
 .wide-field,
 .form-actions {
   grid-column: 1 / -1;
+}
+
+.transaction-instrument-field {
+  grid-column: span 2;
 }
 
 .form-heading {
@@ -295,6 +317,10 @@ textarea {
   gap: 12px;
   align-items: end;
   margin-bottom: 18px;
+}
+
+.transaction-filter-bar {
+  grid-template-columns: minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(360px, 2.4fr) minmax(150px, 0.8fr) auto;
 }
 
 .filter-bar label {
@@ -735,22 +761,18 @@ table {
   min-width: 1220px;
 }
 
-.transaction-type-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.transaction-expand-button,
-.transaction-expand-spacer {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
+.transaction-expand-column {
+  width: 48px;
+  min-width: 48px;
+  text-align: center;
 }
 
 .transaction-expand-button {
-  display: inline-grid;
-  place-items: center;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid #c7d5ce;
   border-radius: 6px;
   background: #edf4f0;
@@ -765,8 +787,9 @@ table {
   background: #e1ebe6;
 }
 
-.transaction-expand-spacer {
-  display: inline-block;
+.transaction-type-cell {
+  display: inline-flex;
+  align-items: center;
 }
 
 .transaction-type {
