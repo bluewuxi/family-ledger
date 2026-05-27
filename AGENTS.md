@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-Project name: `family-ledger`  
+Project name: `family-ledger`
 Chinese product name: `家庭投资账务`
 
-This is a Chinese-language family investment ledger web app.
+This is a Simplified Chinese family investment ledger web app for a very small number of users, usually no more than 3 family members.
 
-The app tracks investments across:
+The app tracks:
 
 - US stocks and ETFs
 - Hong Kong stocks
@@ -15,9 +15,7 @@ The app tracks investments across:
 - New Zealand PIE funds
 - Cash accounts
 
-The expected number of users is very small, usually no more than 3 family members.
-
-The app has only two roles:
+Keep the product simple. The app has only two roles:
 
 - `viewer`: read-only access
 - `admin`: read, write, update, delete, and manage access
@@ -26,42 +24,38 @@ Do not introduce complex RBAC, teams, organizations, workspaces, invitations, or
 
 ---
 
-## Confirmed Architecture
+## Architecture
 
 The project uses a serverless architecture:
 
 ```text
-S3 Static Website
-  ↓
-API Gateway
-  ↓
-Lambda API
-  ↓
-Supabase Postgres
+CloudFront + private S3 static assets
+  -> API Gateway
+  -> Lambda API
+  -> Supabase Postgres
 
 EventBridge
-  ↓
-Lambda scheduled jobs
-  ↓
-Supabase Postgres
+  -> Lambda scheduled jobs
+  -> Supabase Postgres
 ```
 
 Main components:
 
 - Frontend: React + TypeScript + Vite
-- Frontend hosting: AWS S3 Static Website Hosting
 - API: AWS API Gateway + Lambda
-- Scheduled jobs: AWS EventBridge / EventBus + Lambda
-- Database: Supabase Postgres Free
+- Scheduled jobs: AWS EventBridge + Lambda
+- Database: Supabase Postgres
 - Auth: Supabase Auth
 - UI language: Simplified Chinese
 - Repository style: monorepo
+
+There is no always-on backend server. The Lambda API is the primary business and authorization layer. Supabase RLS may be used defensively, but frontend checks are never security boundaries.
 
 ---
 
 ## Repository Structure
 
-Use this structure unless explicitly changed:
+Keep frontend, API, jobs, and shared types clearly separated:
 
 ```text
 family-ledger/
@@ -71,7 +65,7 @@ family-ledger/
     jobs/      # EventBridge-triggered Lambda jobs
 
   packages/
-    shared/    # Shared TypeScript types, constants, validators
+    shared/    # Shared TypeScript types, constants, validators, calculations
 
   supabase/
     migrations/
@@ -81,32 +75,20 @@ family-ledger/
     aws/
 
   docs/
-    architecture.md
-    auth.md
-    api.md
-    data-model.md
-    deployment.md
-    roadmap.md
-
   scripts/
-
   .github/
     workflows/
 ```
 
-Keep frontend, API, jobs, and shared types clearly separated.
+Use `docs/roadmap.md` as the source of truth for implementation status and staged priorities.
 
 ---
 
-## Business Logic Rules
+## Business Logic Boundaries
 
 Business logic must not live only in the frontend.
 
-Layer responsibilities:
-
-### Frontend: `apps/web`
-
-Frontend is responsible for:
+Frontend (`apps/web`) is responsible for:
 
 - Chinese UI
 - Routing
@@ -121,26 +103,18 @@ Frontend must not:
 - Directly write investment business tables
 - Contain authoritative investment calculations
 - Enforce permissions as the only security layer
-- Use Supabase service role key
+- Use Supabase service role keys or server-side secrets
 - Contain tax calculation as the source of truth
 
-Frontend role checks are only UI hints.
-
-### API: `apps/api`
-
-Lambda API is the main business layer.
-
-API is responsible for:
+Lambda API (`apps/api`) is responsible for:
 
 - Verifying Supabase access tokens
-- Loading the current user
+- Loading the current user and role
 - Enforcing `viewer` / `admin` permissions
 - Validating requests
 - Applying business rules
 - Calling repository functions
 - Returning stable API DTOs
-
-Keep handlers thin.
 
 Preferred API structure:
 
@@ -161,53 +135,18 @@ Rules:
 - Put business logic in services.
 - Put database access in repositories.
 - Put auth and role checks in `auth/`.
-- Do not put business logic directly in handlers.
+- Keep handlers thin.
 - Do not let repositories decide business rules.
 
-### Jobs: `apps/jobs`
+Scheduled jobs (`apps/jobs`) are responsible for trusted batch work such as prices, FX rates, portfolio snapshots, recalculations, and future report generation. Jobs may use server-side secrets, but secrets must never be committed or logged.
 
-Scheduled jobs are responsible for trusted batch work:
-
-- Updating prices
-- Updating FX rates
-- Generating portfolio snapshots
-- Recalculating derived data
-- Future report generation
-
-Jobs are triggered by EventBridge.
-
-Jobs may use server-side secrets, but secrets must never be committed.
-
-### Database: Supabase Postgres
-
-Database is responsible for:
-
-- Persistence
-- Foreign keys
-- Check constraints
-- Unique constraints
-- Indexes
-- Data integrity
-- Optional RLS as a defensive layer
-
-Database should not become the main business layer unless explicitly requested.
-
-Do not rely on frontend-only checks for data integrity.
+Database migrations are responsible for persistence, foreign keys, check constraints, unique constraints, indexes, and data integrity. Keep schema simple and readable.
 
 ---
 
-## Auth and Permission Model
+## Auth And Permissions
 
-Use Supabase Auth for identity.
-
-Use a planned `user_roles` table for application permissions:
-
-```text
-viewer = read-only
-admin  = read/write/manage
-```
-
-API endpoints must enforce permissions.
+Use Supabase Auth for identity and the `user_roles` table for application permissions.
 
 General rule:
 
@@ -217,34 +156,22 @@ POST/PUT/PATCH/DELETE endpoints: admin only
 maintenance/job endpoints: admin only
 ```
 
-Do not add complex role systems unless explicitly requested.
-
 Expected auth flow:
 
 ```text
 Frontend logs in with Supabase Auth
-  ↓
-Frontend receives access token
-  ↓
-Frontend calls Lambda API with Authorization: Bearer <token>
-  ↓
-Lambda verifies token
-  ↓
-Lambda loads user role
-  ↓
-Lambda authorizes request
+  -> Frontend receives access token
+  -> Frontend calls Lambda API with Authorization: Bearer <token>
+  -> Lambda verifies token
+  -> Lambda loads user role
+  -> Lambda authorizes request
 ```
 
-Server-side secrets:
-
-- `SUPABASE_SERVICE_ROLE_KEY` must only be used in Lambda/API/jobs.
-- It must never be exposed to frontend code.
-- It must never be committed to Git.
-- Use AWS Secrets Manager or SSM Parameter Store for production secrets.
+Do not add a more complex role system unless explicitly requested.
 
 ---
 
-## Language and UI Requirements
+## Language And UI
 
 The user-facing app must be in Simplified Chinese.
 
@@ -262,38 +189,19 @@ Use Chinese labels such as:
 - 未实现收益
 - 账户数量
 
-Code identifiers should remain in English.
-
-Examples:
-
-```ts
-InvestmentAccount
-Instrument
-InvestmentTransaction
-PortfolioSnapshot
-```
-
-Do not mix Chinese identifiers into code unless there is a strong reason.
+Code identifiers should remain in English, for example `InvestmentAccount`, `Instrument`, `InvestmentTransaction`, and `PortfolioSnapshot`.
 
 ---
 
-## Financial Data Rules
+## Financial Data
 
 Use precise numeric handling.
 
-Do not use floating-point types for persisted money, quantity, price, FX rate, or tax values.
-
-Database values should use PostgreSQL `numeric`.
-
-TypeScript code should avoid careless floating-point calculations for authoritative results.
-
-When calculations become important, prefer:
-
-- database numeric calculations, or
-- decimal libraries, or
-- carefully documented integer minor-unit approaches
-
-Do not implement tax logic casually.
+- Do not use floating-point types for persisted money, quantity, price, FX rate, or tax values.
+- Database values should use PostgreSQL `numeric`.
+- TypeScript code should avoid careless floating-point calculations for authoritative results.
+- Prefer decimal libraries, database numeric calculations, or documented integer minor-unit approaches for important calculations.
+- Do not implement tax logic casually.
 
 For tax-related features, use wording such as:
 
@@ -309,76 +217,15 @@ Avoid wording that implies guaranteed tax compliance, such as:
 
 ---
 
-## Supported Core Types
+## Shared Types
 
-Shared types should live in `packages/shared`.
+Shared enum-like values, DTOs, and reusable calculations live in `packages/shared/src/index.ts`.
 
-Core enum-like values:
-
-```ts
-type UserRole = "viewer" | "admin";
-
-type CurrencyCode =
-  | "NZD"
-  | "USD"
-  | "HKD"
-  | "CNY"
-  | "AUD"
-  | "GBP"
-  | "EUR";
-
-type MarketRegion =
-  | "US"
-  | "HK"
-  | "CN"
-  | "NZ"
-  | "MULTI"
-  | "OTHER";
-
-type AssetType =
-  | "stock"
-  | "etf"
-  | "pie_fund"
-  | "mutual_fund"
-  | "cash"
-  | "bond"
-  | "other";
-
-type TransactionType =
-  | "buy"
-  | "sell"
-  | "dividend"
-  | "fee"
-  | "tax"
-  | "deposit"
-  | "withdrawal"
-  | "interest"
-  | "adjustment";
-
-type AccountType =
-  | "brokerage"
-  | "fund_platform"
-  | "bank"
-  | "retirement"
-  | "other";
-```
-
-Core entities:
-
-- `Profile`
-- `UserRole`
-- `InvestmentAccount`
-- `Instrument`
-- `InvestmentTransaction`
-- `PriceRecord`
-- `FxRateRecord`
-- `PortfolioSnapshot`
-
-Keep shared types stable and practical.
+When adding stable domain values or cross-layer DTOs, update shared types first and then update API, jobs, frontend, migrations, seed data, and docs as needed. Keep shared types practical and stable.
 
 ---
 
-## API Response Format
+## API Responses
 
 Use a consistent API response shape.
 
@@ -403,9 +250,7 @@ Failure:
 }
 ```
 
-Prefer stable error codes.
-
-Examples:
+Prefer stable error codes such as:
 
 - `UNAUTHORIZED`
 - `FORBIDDEN`
@@ -417,52 +262,7 @@ Do not leak secrets or internal stack traces in API responses.
 
 ---
 
-## Database Design Guidelines
-
-Use migrations under:
-
-```text
-supabase/migrations/
-```
-
-Rules:
-
-- Use UUID primary keys.
-- Use `auth.users(id)` references where appropriate.
-- Use `created_at` and `updated_at`.
-- Use `numeric`, not float/double, for financial values.
-- Use check constraints for enum-like values.
-- Avoid PostgreSQL enum types unless explicitly requested.
-- Add useful indexes for common queries.
-- Add unique constraints for natural uniqueness where appropriate.
-- Keep schema simple and readable.
-
-Planned core tables:
-
-- `profiles`
-- `user_roles`
-- `investment_accounts`
-- `instruments`
-- `transactions`
-- `prices`
-- `fx_rates`
-- `portfolio_snapshots`
-
-Do not over-normalize prematurely.
-
-Do not introduce tax-specific tables until tax-assist requirements are clearer.
-
----
-
-## AWS Guidelines
-
-Frontend will be hosted on S3 Static Website Hosting.
-
-Future production setup may include CloudFront.
-
-API will run on Lambda behind API Gateway.
-
-Scheduled jobs will run on Lambda triggered by EventBridge.
+## AWS And Secrets
 
 Do not deploy AWS resources unless explicitly requested.
 
@@ -474,32 +274,9 @@ Do not hard-code:
 - secrets
 - credentials
 
-Use environment variables and deployment configuration.
-Environment files store SSM parameter paths only. Sensitive values are stored in AWS SSM Parameter Store and resolved by API/jobs/server-side scripts at runtime.
+Frontend environment variables may contain public values only. Server-side secret values must live in AWS SSM Parameter Store or AWS Secrets Manager and be resolved only by API/jobs/server-side scripts at runtime.
 
-Expected environment variables:
-
-```text
-# Frontend
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-VITE_API_BASE_URL=
-
-# Server-side Lambda only
-SUPABASE_URL=
-SUPABASE_SECRET_KEY_SSM_PARAM=
-SUPABASE_JWT_SECRET_SSM_PARAM=
-SUPABASE_DB_PASSWORD_SSM_PARAM=
-SUPABASE_DB_HOST=
-SUPABASE_DB_NAME=
-SUPABASE_DB_USER=
-SUPABASE_DB_TRANSACTION_PORT=
-SUPABASE_DB_SESSION_PORT=
-
-# AWS
-AWS_REGION=
-WEB_S3_BUCKET=
-```
+Never expose server-side Supabase keys to `apps/web`, frontend bundles, logs, or Git.
 
 ---
 
@@ -507,32 +284,24 @@ WEB_S3_BUCKET=
 
 Use TypeScript strict mode.
 
-Prefer explicit types.
-
-Avoid `any` unless there is a clear reason.
-
-Keep files small and readable.
-
-Avoid unnecessary dependencies.
-
-Do not introduce heavy frameworks unless explicitly requested.
-
-Preferred style:
+Prefer:
 
 - Small functions
 - Clear module boundaries
+- Explicit types
 - Stable DTOs
 - Shared validation where useful
+- Minimal dependencies
 - No hidden global state
-- No business logic in UI components
+
+Avoid `any` unless there is a clear reason.
 
 For React:
 
 - Keep components focused.
 - Put API calls in service/client modules.
 - Avoid large components with mixed UI, data fetching, and business logic.
-- Use Chinese UI text.
-- Use English code identifiers.
+- Use Chinese UI text and English code identifiers.
 
 For Lambda API:
 
@@ -543,97 +312,22 @@ For Lambda API:
 
 ---
 
-## Development Phases
+## Testing And Validation
 
-Follow staged implementation.
-
-### Stage 0: Project foundation
-
-- Monorepo setup
-- Frontend skeleton
-- API skeleton
-- Jobs skeleton
-- Shared types
-- Documentation
-- CI
-
-### Stage 1: Supabase schema, auth verification, and role model
-
-- Initial database migrations
-- `profiles`
-- `user_roles`
-- Core business tables
-- Auth verification in Lambda API
-- Role loading
-
-### Stage 2: CRUD through Lambda API
-
-- Accounts
-- Instruments
-- Transactions
-- Admin-only write APIs
-- Viewer read APIs
-
-### Stage 3: Holdings and dashboard
-
-- Holdings calculation
-- Portfolio summary
-- Account summary
-- Market/currency allocation
-
-### Stage 4: Prices, FX, and scheduled jobs
-
-- Price records
-- FX rates
-- EventBridge jobs
-- Portfolio snapshots
-
-### Stage 5: Tax-assist and reports
-
-- Tax notes
-- Tax-year summaries
-- CSV export
-- Report generation
-
-### Stage 6: Deployment hardening
-
-- S3 deployment
-- API Gateway/Lambda deployment
-- Secrets handling
-- Backup/export
-- Monitoring/logging
-
-Do not jump ahead unless explicitly requested.
-
----
-
-## Testing and Validation
-
-At minimum, ensure:
+Before considering a task complete, run:
 
 ```bash
-pnpm typecheck
-pnpm build
+corepack pnpm typecheck
+corepack pnpm build
 ```
 
-passes before considering a task complete.
-
-When adding business logic, add tests where practical.
-
-Recommended future tests:
-
-- service-level unit tests
-- API route tests
-- calculation tests
-- repository integration tests if feasible
-
-Do not add a complex test framework before the core structure is stable.
+When adding business logic, add focused tests or verification scripts where practical. Do not add a complex test framework before the core structure needs it.
 
 ---
 
-## Documentation Rules
+## Documentation
 
-Update documentation when architecture, schema, API, or auth decisions change.
+Update documentation when architecture, schema, API, auth, deployment, or roadmap decisions change.
 
 Important docs:
 
@@ -644,29 +338,41 @@ docs/api.md
 docs/data-model.md
 docs/deployment.md
 docs/roadmap.md
+docs/local-testing.md
 ```
 
-Keep docs concise and accurate.
-
-Do not leave docs contradicting code.
+Keep docs concise and accurate. Do not leave docs contradicting code.
 
 ---
 
-## Security Rules
+## Default Development Workflow
 
-Never commit secrets.
+Use the existing `test` branch for routine work. Do not create feature branches unless explicitly requested.
 
-Never expose server-side Supabase keys to frontend code.
+When implementing a feature, prefer small slices:
 
-Never put `SUPABASE_SERVICE_ROLE_KEY` in `apps/web`.
+1. Update shared types and validation.
+2. Add or update database migration if needed.
+3. Add repository methods.
+4. Add service logic.
+5. Add API route/handler.
+6. Add frontend API client.
+7. Add frontend page/component.
+8. Update docs.
+9. Run typecheck/build.
 
-Never rely on frontend role checks for real permission enforcement.
+When the user asks to commit, push, deploy, release, ship, finish, or use the default delivery workflow:
 
-Never return internal stack traces to users.
+1. Run validation.
+2. Review changed files.
+3. Create a GitHub issue with `gh issue create`.
+4. Commit to `test` with a message that references the issue.
+5. Push `test`.
+6. Deploy to the test environment.
+7. Verify the deployment.
+8. Close the GitHub issue only after deployment succeeds.
 
-Always validate user input at the API layer.
-
-Always check ownership and role before write operations.
+GitHub CLI authentication is expected to be available for this project.
 
 ---
 
@@ -686,21 +392,3 @@ Do not:
 - Use floating-point values as authoritative persisted financial data.
 - Implement price scraping without a clear data-source decision.
 - Over-engineer the first version.
-
----
-
-## Preferred Next Task Pattern
-
-When implementing a new feature, prefer small tasks:
-
-1. Update shared types and validation.
-2. Add or update database migration if needed.
-3. Add repository methods.
-4. Add service logic.
-5. Add API route/handler.
-6. Add frontend API client.
-7. Add frontend page/component.
-8. Update docs.
-9. Run typecheck/build.
-
-Avoid large all-in-one changes unless explicitly requested.
