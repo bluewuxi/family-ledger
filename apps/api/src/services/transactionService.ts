@@ -116,11 +116,12 @@ export async function updateInvestmentTransaction(
     throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
   }
   rejectGeneratedCashLegMutation(existing);
+  rejectTransactionTypeChange(patch, existing);
 
   const candidate: CreateInvestmentTransactionInput = {
     accountId: patch.accountId ?? existing.accountId,
     instrumentId: patch.instrumentId ?? existing.instrumentId,
-    transactionType: patch.transactionType ?? existing.transactionType,
+    transactionType: existing.transactionType,
     tradeDate: patch.tradeDate ?? existing.tradeDate,
     settlementDate: patch.settlementDate !== undefined ? patch.settlementDate : existing.settlementDate,
     quantity: patch.quantity !== undefined ? patch.quantity : existing.quantity,
@@ -332,11 +333,19 @@ function rejectGeneratedCashLegMutation(transaction: InvestmentTransaction): voi
   }
 }
 
+function rejectTransactionTypeChange(
+  patch: UpdateInvestmentTransactionInput,
+  existing: InvestmentTransaction
+): void {
+  if (patch.transactionType !== undefined && patch.transactionType !== existing.transactionType) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction type cannot be changed. Delete and recreate the transaction instead.", 400);
+  }
+}
+
 function isValuationImpactingPatch(input: UpdateInvestmentTransactionInput): boolean {
   return [
     "accountId",
     "instrumentId",
-    "transactionType",
     "tradeDate",
     "quantity",
     "price",

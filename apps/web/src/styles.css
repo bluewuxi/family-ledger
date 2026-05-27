@@ -239,6 +239,14 @@ textarea {
   resize: vertical;
 }
 
+.transaction-form input.readonly-display-input:disabled {
+  border-color: #d8d3c8;
+  background: #f2f0ea;
+  color: #68655e;
+  font-weight: 600;
+  cursor: not-allowed;
+}
+
 .checkbox-field {
   align-content: start;
   display: flex;
@@ -270,6 +278,14 @@ textarea {
   margin: 0;
   color: #8a5d16;
   font-size: 14px;
+}
+
+.transaction-edit-warning {
+  grid-column: 1 / -1;
+  border: 1px solid #ead6a8;
+  border-radius: 6px;
+  background: #fff8e8;
+  padding: 10px 12px;
 }
 
 .opening-entry-table {
@@ -806,7 +822,7 @@ table {
 }
 
 .transaction-type-generated {
-  color: #3d3b36;
+  color: #68655e;
 }
 
 .transaction-child-row td {

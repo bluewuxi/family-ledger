@@ -322,11 +322,6 @@ export function TransactionsPage() {
           <p>记录买卖、股息和现金变动。买入和卖出的成交总额由系统按数量和价格计算。</p>
         </div>
         <div className="header-actions">
-          {isAdmin ? (
-            <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving || !hasSelectedAccount}>
-              新增
-            </button>
-          ) : null}
           <label className="header-account-select">
             <span>账户</span>
             <select value={filters.accountId} onChange={(event) => changeAccountFilter(event.target.value)} required>
@@ -338,6 +333,11 @@ export function TransactionsPage() {
               ))}
             </select>
           </label>
+          {isAdmin ? (
+            <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving || !hasSelectedAccount}>
+              新增
+            </button>
+          ) : null}
           <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving || !hasSelectedAccount}>
             刷新
           </button>
@@ -406,7 +406,7 @@ export function TransactionsPage() {
               <th className="numeric-cell">数量</th>
               <th className="numeric-cell">金额/费用</th>
               <th>币种</th>
-              <th>结算/来源</th>
+              <th>结算</th>
               <th>备注</th>
               {isAdmin ? <th>操作</th> : null}
             </tr>
@@ -490,9 +490,19 @@ export function TransactionsPage() {
         }
       >
         <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={handleSubmit}>
+          {editingTransactionId ? (
+            <p className="form-warning transaction-edit-warning">
+              修改交易记录可能会自动更新关联现金流水，并重新计算受影响日期之后的资产快照。交易类型不可在编辑时修改，如需更换类型请删除后重新新增。
+            </p>
+          ) : null}
+
           <label>
             交易类型
-            <select value={form.transactionType} onChange={(event) => changeTransactionType(event.target.value as TransactionType)}>
+            <select
+              value={form.transactionType}
+              onChange={(event) => changeTransactionType(event.target.value as TransactionType)}
+              disabled={Boolean(editingTransactionId)}
+            >
               {form.transactionType === "tax" ? (
                 <option value="tax" disabled>
                   {TRANSACTION_TYPE_LABELS.tax}
@@ -532,13 +542,13 @@ export function TransactionsPage() {
 
           <label>
             交易币种
-            <input value={selectedInstrument?.currency ?? "-"} disabled />
+            <input className="readonly-display-input" value={selectedInstrument?.currency ?? "-"} disabled />
           </label>
 
           {isTrade ? (
             <label>
               结算币种
-              <input value={selectedAccount?.baseCurrency ?? "-"} disabled />
+              <input className="readonly-display-input" value={selectedAccount?.baseCurrency ?? "-"} disabled />
             </label>
           ) : null}
 
@@ -557,7 +567,7 @@ export function TransactionsPage() {
               </label>
               <label>
                 成交总额
-                <input value="由系统计算" disabled />
+                <input className="readonly-display-input" value="由系统计算" disabled />
               </label>
             </>
           ) : null}
@@ -863,6 +873,10 @@ function decimalString(value: string | number | null | undefined, fallback = "")
 }
 
 function formatTransactionType(transaction: InvestmentTransaction): string {
+  if (transaction.transactionSource === "generated_cash_leg") {
+    return "现金结算";
+  }
+
   const label = TRANSACTION_TYPE_LABELS[transaction.transactionType];
   const directionSuffix = transaction.adjustmentDirection
     ? `（${ADJUSTMENT_DIRECTION_LABELS[transaction.adjustmentDirection]}）`
@@ -887,6 +901,10 @@ function transactionTypeClassName(transaction: InvestmentTransaction): string {
 }
 
 function displayAmount(transaction: InvestmentTransaction): string {
+  if (transaction.transactionSource === "generated_cash_leg") {
+    return formatSignedCashSettlement(transaction);
+  }
+
   if (transaction.transactionType === "fee") {
     return formatDisplayAmount(transaction.fee);
   }
@@ -898,7 +916,7 @@ function displayAmount(transaction: InvestmentTransaction): string {
 
 function formatSettlement(transaction: InvestmentTransaction): string {
   if (transaction.transactionSource === "generated_cash_leg") {
-    return "自动现金流水";
+    return formatSignedCashSettlement(transaction);
   }
 
   if ((transaction.transactionType === "buy" || transaction.transactionType === "sell") && transaction.settlementAmount) {
@@ -906,6 +924,15 @@ function formatSettlement(transaction: InvestmentTransaction): string {
   }
 
   return "-";
+}
+
+function formatSignedCashSettlement(transaction: InvestmentTransaction): string {
+  if (!transaction.grossAmount) {
+    return "-";
+  }
+
+  const prefix = transaction.transactionType === "deposit" ? "+" : transaction.transactionType === "withdrawal" ? "-" : "";
+  return `${prefix}${formatDisplayAmount(transaction.grossAmount)}`;
 }
 
 function isValuationImpactingFormChange(

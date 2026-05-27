@@ -306,6 +306,8 @@ Create/update response data:
 }
 ```
 
+Update requests cannot change `transactionType`. To correct a record to a different transaction type, delete the original transaction and create a new one.
+
 Delete response data:
 
 ```json
