@@ -222,7 +222,7 @@ It returns aggregate valued totals plus one non-zero row for each account and in
 
 Transactions are processed by trade date and creation time ascending. Security holdings use weighted average cost: buys add `grossAmount + fee + tax`, sells reduce remaining carrying cost using the prior average unit cost, and dividends do not alter holdings. Security sell fees and taxes do not alter remaining carrying cost.
 
-Cash holdings are calculated only from transactions explicitly linked to cash instruments. Deposits and interest increase balances; withdrawals, fees, and taxes decrease balances; adjustments apply their stated direction. Security trades do not implicitly create cash movements.
+Cash holdings are calculated only from transactions explicitly linked to cash instruments. Deposits, generated sell cash legs, and interest increase balances; withdrawals, generated buy cash legs, fees, and taxes decrease balances; adjustments apply their stated direction.
 
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
 

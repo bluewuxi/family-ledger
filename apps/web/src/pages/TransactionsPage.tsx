@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ADJUSTMENT_DIRECTIONS,
   ADJUSTMENT_DIRECTION_LABELS,
@@ -10,21 +10,19 @@ import {
   type Instrument,
   type InvestmentAccount,
   type InvestmentTransaction,
-  type Pagination,
   type TransactionType
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
-import { PaginationControls } from "../components/PaginationControls";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 import { formatDisplayAmount } from "../lib/numberFormat";
 
 interface TransactionsResponse {
   user: AuthenticatedUser;
   transactions: InvestmentTransaction[];
-  pagination: Pagination;
 }
 
 interface AccountsResponse {
+  user: AuthenticatedUser;
   accounts: InvestmentAccount[];
 }
 
@@ -64,8 +62,7 @@ interface TransactionFilters {
 }
 
 const today = new Date().toISOString().slice(0, 10);
-const pageSize = 20;
-const emptyPagination: Pagination = { limit: pageSize, offset: 0, hasMore: false };
+const transactionFetchLimit = 200;
 const emptyFilters: TransactionFilters = { from: "", to: "", accountId: "", instrumentId: "", transactionType: "" };
 
 export function TransactionsPage() {
@@ -73,11 +70,11 @@ export function TransactionsPage() {
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
-  const [pagination, setPagination] = useState<Pagination>(emptyPagination);
   const [filters, setFilters] = useState<TransactionFilters>(emptyFilters);
   const [form, setForm] = useState<TransactionFormState>(() => emptyForm());
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [expandedTransactionIds, setExpandedTransactionIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,27 +91,54 @@ export function TransactionsPage() {
   );
   const selectedAccount = accounts.find((account) => account.id === form.accountId);
   const selectedInstrument = instruments.find((instrument) => instrument.id === form.instrumentId);
+  const linkedCashLegs = useMemo(
+    () =>
+      new Map(
+        transactions
+          .filter((transaction) => transaction.transactionSource === "generated_cash_leg" && transaction.linkedTransactionId)
+          .map((transaction) => [transaction.linkedTransactionId as string, transaction])
+      ),
+    [transactions]
+  );
+  const visibleTransactions = useMemo(
+    () =>
+      transactions
+        .filter((transaction) => transaction.transactionSource !== "generated_cash_leg")
+        .filter((transaction) => transactionMatchesFilters(transaction, filters)),
+    [filters, transactions]
+  );
 
   useEffect(() => {
-    void loadPageData(0);
+    void loadPageData();
   }, []);
 
-  async function loadPageData(offset = pagination.offset) {
+  async function loadPageData(nextFilters = filters) {
     setLoading(true);
     setError(null);
 
     try {
+      const transactionRequest = nextFilters.accountId
+        ? apiGet<TransactionsResponse>(
+            `/transactions?${toQuery({ accountId: nextFilters.accountId, limit: transactionFetchLimit, offset: 0 })}`
+          )
+        : null;
       const [transactionData, accountData, instrumentData] = await Promise.all([
-        apiGet<TransactionsResponse>(`/transactions?${toQuery({ ...filters, limit: pageSize, offset })}`),
+        transactionRequest,
         apiGet<AccountsResponse>("/accounts"),
         apiGet<InstrumentsResponse>("/instruments")
       ]);
 
-      setUser(transactionData.user);
-      setTransactions(transactionData.transactions);
-      setPagination(transactionData.pagination);
+      if (transactionData) {
+        setUser(transactionData.user);
+        setTransactions(transactionData.transactions);
+      } else {
+        setUser(accountData.user);
+        setTransactions([]);
+      }
+
       setAccounts(accountData.accounts);
       setInstruments(instrumentData.instruments);
+      setExpandedTransactionIds(new Set());
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
@@ -150,7 +174,7 @@ export function TransactionsPage() {
         : await apiPost<TransactionResponse>("/transactions", payload);
 
       void data;
-      await loadPageData(editingTransactionId ? pagination.offset : 0);
+      await loadPageData();
       closeDrawer();
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -175,7 +199,7 @@ export function TransactionsPage() {
 
     try {
       await apiDelete<DeleteTransactionResponse>(`/transactions/${transaction.id}`);
-      await loadPageData(pagination.offset);
+      await loadPageData();
 
       if (editingTransactionId === transaction.id) {
         closeDrawer();
@@ -189,7 +213,7 @@ export function TransactionsPage() {
 
   function startCreate() {
     setEditingTransactionId(null);
-    setForm(emptyForm());
+    setForm(emptyForm(filters.accountId));
     setDrawerOpen(true);
   }
 
@@ -235,33 +259,37 @@ export function TransactionsPage() {
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingTransactionId(null);
-    setForm(emptyForm());
+    setForm(emptyForm(filters.accountId));
   }
 
   function submitFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void loadPageData(0);
+    void loadPageData();
   }
 
   function clearFilters() {
     setFilters(emptyFilters);
-    void loadPageDataWithFilters(emptyFilters);
+    void loadPageData(emptyFilters);
   }
 
-  async function loadPageDataWithFilters(nextFilters: TransactionFilters) {
-    setLoading(true);
-    setError(null);
+  function changeAccountFilter(accountId: string) {
+    const nextFilters = { ...filters, accountId };
+    setFilters(nextFilters);
+    void loadPageData(nextFilters);
+  }
 
-    try {
-      const data = await apiGet<TransactionsResponse>(`/transactions?${toQuery({ ...nextFilters, limit: pageSize, offset: 0 })}`);
-      setUser(data.user);
-      setTransactions(data.transactions);
-      setPagination(data.pagination);
-    } catch (requestError) {
-      setError(toErrorMessage(requestError));
-    } finally {
-      setLoading(false);
-    }
+  function toggleLinkedCashLeg(transactionId: string) {
+    setExpandedTransactionIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(transactionId)) {
+        next.delete(transactionId);
+      } else {
+        next.add(transactionId);
+      }
+
+      return next;
+    });
   }
 
   const isTrade = form.transactionType === "buy" || form.transactionType === "sell";
@@ -292,7 +320,7 @@ export function TransactionsPage() {
               新增
             </button>
           ) : null}
-          <button className="secondary-button" type="button" onClick={() => void loadPageData(pagination.offset)} disabled={loading || saving}>
+          <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving}>
             刷新
           </button>
         </div>
@@ -306,23 +334,23 @@ export function TransactionsPage() {
 
       <form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
         <label>
-          开始日期
-          <input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} />
-        </label>
-        <label>
-          结束日期
-          <input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} />
-        </label>
-        <label>
           账户
-          <select value={filters.accountId} onChange={(event) => setFilters({ ...filters, accountId: event.target.value })}>
-            <option value="">全部</option>
+          <select value={filters.accountId} onChange={(event) => changeAccountFilter(event.target.value)} required>
+            <option value="">请选择账户</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
               </option>
             ))}
           </select>
+        </label>
+        <label>
+          开始日期
+          <input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} />
+        </label>
+        <label>
+          结束日期
+          <input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} />
         </label>
         <label>
           标的
@@ -380,61 +408,57 @@ export function TransactionsPage() {
               <tr>
                 <td colSpan={isAdmin ? 10 : 9}>正在加载交易记录...</td>
               </tr>
-            ) : transactions.length === 0 ? (
+            ) : !filters.accountId ? (
               <tr>
-                <td colSpan={isAdmin ? 10 : 9}>暂无交易记录。</td>
+                <td colSpan={isAdmin ? 10 : 9}>请先选择账户查看交易记录。</td>
+              </tr>
+            ) : visibleTransactions.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 10 : 9}>暂无符合筛选条件的交易记录。</td>
               </tr>
             ) : (
-              transactions.map((transaction) => (
-                <tr className={editingTransactionId === transaction.id ? "editing-row" : undefined} key={transaction.id}>
-                  <td>{transaction.tradeDate}</td>
-                  <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
-                  <td>{instrumentNames.get(transaction.instrumentId) ?? "-"}</td>
-                  <td>{formatTransactionType(transaction)}</td>
-                  <td className="numeric-cell">{transaction.quantity ?? "-"}</td>
-                  <td className="numeric-cell">{displayAmount(transaction)}</td>
-                  <td>{transaction.currency}</td>
-                  <td>{formatSettlement(transaction)}</td>
-                  <td>{transaction.notes ?? "-"}</td>
-                  {isAdmin ? (
-                    <td>
-                      <div className="table-actions">
-                        {transaction.transactionSource === "generated_cash_leg" ? (
-                          <span className="readonly-note">自动生成</span>
-                        ) : (
-                          <>
-                            <button
-                              aria-label={`编辑交易记录 ${transaction.tradeDate}`}
-                              className="icon-button"
-                              title="编辑"
-                              type="button"
-                              onClick={() => startEdit(transaction)}
-                              disabled={saving}
-                            >
-                              <span aria-hidden="true">✎</span>
-                            </button>
-                            <button
-                              aria-label={`删除交易记录 ${transaction.tradeDate}`}
-                              className="icon-button danger-icon-button"
-                              title="删除"
-                              type="button"
-                              onClick={() => void handleDelete(transaction)}
-                              disabled={saving}
-                            >
-                              <span aria-hidden="true">×</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  ) : null}
-                </tr>
-              ))
+              visibleTransactions.map((transaction) => {
+                const linkedCashLeg = linkedCashLegs.get(transaction.id);
+                const isExpanded = expandedTransactionIds.has(transaction.id);
+
+                return (
+                  <Fragment key={transaction.id}>
+                    {renderTransactionRow({
+                      transaction,
+                      accountNames,
+                      instrumentNames,
+                      isAdmin,
+                      saving,
+                      editingTransactionId,
+                      linkedCashLeg,
+                      isExpanded,
+                      onToggleLinkedCashLeg: toggleLinkedCashLeg,
+                      onEdit: startEdit,
+                      onDelete: handleDelete
+                    })}
+                    {linkedCashLeg && isExpanded
+                      ? renderTransactionRow({
+                          transaction: linkedCashLeg,
+                          accountNames,
+                          instrumentNames,
+                          isAdmin,
+                          saving,
+                          editingTransactionId,
+                          linkedCashLeg: undefined,
+                          isExpanded: false,
+                          onToggleLinkedCashLeg: toggleLinkedCashLeg,
+                          onEdit: startEdit,
+                          onDelete: handleDelete,
+                          isChildRow: true
+                        })
+                      : null}
+                  </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
-      <PaginationControls pagination={pagination} loading={loading} onPageChange={(offset) => void loadPageData(offset)} />
 
       <Drawer
         open={drawerOpen}
@@ -459,23 +483,23 @@ export function TransactionsPage() {
       >
         <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={handleSubmit}>
           <label>
-            交易类型
-            <select value={form.transactionType} onChange={(event) => changeTransactionType(event.target.value as TransactionType)}>
-              {TRANSACTION_TYPES.map((transactionType) => (
-                <option key={transactionType} value={transactionType}>
-                  {TRANSACTION_TYPE_LABELS[transactionType]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
             账户
             <select value={form.accountId} onChange={(event) => setForm({ ...form, accountId: event.target.value })} required>
               <option value="">请选择账户</option>
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            交易类型
+            <select value={form.transactionType} onChange={(event) => changeTransactionType(event.target.value as TransactionType)}>
+              {TRANSACTION_TYPES.map((transactionType) => (
+                <option key={transactionType} value={transactionType}>
+                  {TRANSACTION_TYPE_LABELS[transactionType]}
                 </option>
               ))}
             </select>
@@ -584,9 +608,9 @@ export function TransactionsPage() {
   );
 }
 
-function emptyForm(): TransactionFormState {
+function emptyForm(accountId = ""): TransactionFormState {
   return {
-    accountId: "",
+    accountId,
     instrumentId: "",
     transactionType: "buy",
     tradeDate: today,
@@ -599,6 +623,123 @@ function emptyForm(): TransactionFormState {
     adjustmentDirection: "increase",
     notes: ""
   };
+}
+
+interface RenderTransactionRowInput {
+  transaction: InvestmentTransaction;
+  accountNames: Map<string, string>;
+  instrumentNames: Map<string, string>;
+  isAdmin: boolean;
+  saving: boolean;
+  editingTransactionId: string | null;
+  linkedCashLeg: InvestmentTransaction | undefined;
+  isExpanded: boolean;
+  onToggleLinkedCashLeg: (transactionId: string) => void;
+  onEdit: (transaction: InvestmentTransaction) => void;
+  onDelete: (transaction: InvestmentTransaction) => void | Promise<void>;
+  isChildRow?: boolean;
+}
+
+function renderTransactionRow(input: RenderTransactionRowInput) {
+  const {
+    transaction,
+    accountNames,
+    instrumentNames,
+    isAdmin,
+    saving,
+    editingTransactionId,
+    linkedCashLeg,
+    isExpanded,
+    onToggleLinkedCashLeg,
+    onEdit,
+    onDelete,
+    isChildRow = false
+  } = input;
+  const canExpand = Boolean(linkedCashLeg);
+
+  return (
+    <tr
+      className={[
+        editingTransactionId === transaction.id ? "editing-row" : "",
+        isChildRow ? "transaction-child-row" : ""
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      key={isChildRow ? `cash-${transaction.id}` : transaction.id}
+    >
+      <td>{transaction.tradeDate}</td>
+      <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
+      <td>
+        <span className={isChildRow ? "transaction-child-indent" : undefined}>
+          {instrumentNames.get(transaction.instrumentId) ?? "-"}
+        </span>
+      </td>
+      <td>
+        <span className="transaction-type-cell">
+          {canExpand ? (
+            <button
+              aria-label={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
+              className="transaction-expand-button"
+              title={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
+              type="button"
+              onClick={() => onToggleLinkedCashLeg(transaction.id)}
+            >
+              {isExpanded ? "−" : "+"}
+            </button>
+          ) : (
+            <span className="transaction-expand-spacer" />
+          )}
+          <span className={transactionTypeClassName(transaction)}>{formatTransactionType(transaction)}</span>
+        </span>
+      </td>
+      <td className="numeric-cell">{transaction.quantity ?? "-"}</td>
+      <td className="numeric-cell">{displayAmount(transaction)}</td>
+      <td>{transaction.currency}</td>
+      <td>{formatSettlement(transaction)}</td>
+      <td>{transaction.notes ?? "-"}</td>
+      {isAdmin ? (
+        <td>
+          <div className="table-actions">
+            {transaction.transactionSource === "generated_cash_leg" ? (
+              <span className="readonly-note">自动生成</span>
+            ) : (
+              <>
+                <button
+                  aria-label={`编辑交易记录 ${transaction.tradeDate}`}
+                  className="icon-button"
+                  title="编辑"
+                  type="button"
+                  onClick={() => onEdit(transaction)}
+                  disabled={saving}
+                >
+                  <span aria-hidden="true">✎</span>
+                </button>
+                <button
+                  aria-label={`删除交易记录 ${transaction.tradeDate}`}
+                  className="icon-button danger-icon-button"
+                  title="删除"
+                  type="button"
+                  onClick={() => void onDelete(transaction)}
+                  disabled={saving}
+                >
+                  <span aria-hidden="true">×</span>
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+      ) : null}
+    </tr>
+  );
+}
+
+function transactionMatchesFilters(transaction: InvestmentTransaction, filters: TransactionFilters): boolean {
+  return (
+    (!filters.from || transaction.tradeDate >= filters.from) &&
+    (!filters.to || transaction.tradeDate <= filters.to) &&
+    (!filters.instrumentId || transaction.instrumentId === filters.instrumentId) &&
+    (!filters.transactionType || transaction.transactionType === filters.transactionType)
+  );
 }
 
 function isCompatibleInstrument(transactionType: TransactionType, instrument: Instrument): boolean {
@@ -722,11 +863,26 @@ function decimalString(value: string | number | null | undefined, fallback = "")
 
 function formatTransactionType(transaction: InvestmentTransaction): string {
   const label = TRANSACTION_TYPE_LABELS[transaction.transactionType];
-  const sourceSuffix = transaction.transactionSource === "generated_cash_leg" ? "（自动现金）" : "";
   const directionSuffix = transaction.adjustmentDirection
     ? `（${ADJUSTMENT_DIRECTION_LABELS[transaction.adjustmentDirection]}）`
     : "";
-  return `${label}${directionSuffix}${sourceSuffix}`;
+  return `${label}${directionSuffix}`;
+}
+
+function transactionTypeClassName(transaction: InvestmentTransaction): string {
+  if (transaction.transactionSource === "generated_cash_leg") {
+    return "transaction-type transaction-type-generated";
+  }
+
+  if (transaction.transactionType === "buy" || transaction.transactionType === "deposit") {
+    return "transaction-type transaction-type-red";
+  }
+
+  if (transaction.transactionType === "sell" || transaction.transactionType === "withdrawal") {
+    return "transaction-type transaction-type-green";
+  }
+
+  return "transaction-type";
 }
 
 function displayAmount(transaction: InvestmentTransaction): string {
@@ -741,7 +897,7 @@ function displayAmount(transaction: InvestmentTransaction): string {
 
 function formatSettlement(transaction: InvestmentTransaction): string {
   if (transaction.transactionSource === "generated_cash_leg") {
-    return transaction.linkedTransactionId ? `关联交易 ${transaction.linkedTransactionId.slice(0, 8)}` : "自动现金流水";
+    return "自动现金流水";
   }
 
   if ((transaction.transactionType === "buy" || transaction.transactionType === "sell") && transaction.settlementAmount) {
