@@ -32,9 +32,15 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-panel" aria-labelledby="login-title">
-        <p className="eyebrow">family-ledger</p>
-        <h1 id="login-title">家庭投资账务</h1>
-        <p className="login-note">仅限家庭成员使用</p>
+        <div className="login-brand-lockup">
+          <img className="login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
+          <div>
+            <h1 id="login-title">家庭投资账务</h1>
+            <p className="login-brand-subtitle">
+              <span>Family</span> Ledger
+            </p>
+          </div>
+        </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>

@@ -44,7 +44,7 @@ interface AllocationPoint {
 }
 
 const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
-const allocationColors = ["#23443b", "#59736c", "#8a9b65", "#c08b5c", "#8f6f9f", "#5d78a6"];
+const allocationColors = ["#003060", "#80c068", "#b8d860", "#d81820", "#4f8f46", "#4f79a8"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 
 export function DashboardPage() {
@@ -248,14 +248,14 @@ export function DashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trendData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
-                  <CartesianGrid stroke="#ece9e1" vertical={false} />
+                  <CartesianGrid stroke="#dce8d8" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={formatShortDate} tickLine={false} />
                   <YAxis tickFormatter={(value: number) => formatCompactMoney(value, activeCurrency)} tickLine={false} />
                   <Tooltip
                     formatter={(value) => [`${activeCurrency} ${formatTooltipMoney(value)}`, "总资产"]}
                     labelFormatter={(label) => `日期：${label}`}
                   />
-                  <Line type="monotone" dataKey="value" stroke="#23443b" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="value" stroke="#003060" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}

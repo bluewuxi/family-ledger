@@ -29,7 +29,7 @@ export function Layout({ children }: LayoutProps) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">账</span>
+          <img className="brand-mark" src="/icon-64x64.png" alt="" aria-hidden="true" />
           <div>
             <strong>家庭投资账务</strong>
             <span>family-ledger</span>
