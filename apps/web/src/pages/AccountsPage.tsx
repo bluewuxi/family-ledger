@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Eye, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPES,
@@ -56,6 +56,14 @@ interface DeleteAccountResponse {
   deleted: boolean;
 }
 
+interface AccountPasswordRevealResponse {
+  tradingPassword: string;
+}
+
+interface AccountPasswordUpdateResponse {
+  updated: true;
+}
+
 interface AccountFormState {
   name: string;
   broker: string;
@@ -63,6 +71,7 @@ interface AccountFormState {
   baseCurrency: CurrencyCode;
   marketRegion: MarketRegion;
   notes: string;
+  tradingInfo: string;
 }
 
 interface OpeningEntryFormRow {
@@ -82,7 +91,8 @@ const emptyForm: AccountFormState = {
   accountType: "brokerage",
   baseCurrency: "NZD",
   marketRegion: "NZ",
-  notes: ""
+  notes: "",
+  tradingInfo: ""
 };
 
 interface AccountTotalDisplay {
@@ -106,6 +116,13 @@ export function AccountsPage() {
   const [includeOpeningAssets, setIncludeOpeningAssets] = useState(false);
   const [openingTradeDate, setOpeningTradeDate] = useState(today);
   const [openingRows, setOpeningRows] = useState<OpeningEntryFormRow[]>(() => [emptyOpeningRow()]);
+  const [passwordDialogAccount, setPasswordDialogAccount] = useState<InvestmentAccount | null>(null);
+  const [extraPassword, setExtraPassword] = useState("");
+  const [revealedTradingPassword, setRevealedTradingPassword] = useState<string | null>(null);
+  const [newTradingPassword, setNewTradingPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
   const fallbackSnapshotCurrency = toSnapshotDisplayCurrency(preferences.preferredCurrency);
@@ -237,7 +254,8 @@ export function AccountsPage() {
       accountType: account.accountType,
       baseCurrency: account.baseCurrency,
       marketRegion: account.marketRegion,
-      notes: account.notes ?? ""
+      notes: account.notes ?? "",
+      tradingInfo: account.tradingInfo ?? ""
     });
     setIncludeOpeningAssets(false);
     setOpeningRows([emptyOpeningRow()]);
@@ -269,6 +287,72 @@ export function AccountsPage() {
     setOpeningRows((current) => (current.length > 1 ? current.filter((row) => row.id !== id) : current));
   }
 
+  function openPasswordDialog(account: InvestmentAccount) {
+    setPasswordDialogAccount(account);
+    setExtraPassword("");
+    setRevealedTradingPassword(null);
+    setNewTradingPassword("");
+    setPasswordError(null);
+  }
+
+  function closePasswordDialog() {
+    setPasswordDialogAccount(null);
+    setExtraPassword("");
+    setRevealedTradingPassword(null);
+    setNewTradingPassword("");
+    setPasswordError(null);
+    setPasswordLoading(false);
+    setPasswordSaving(false);
+  }
+
+  async function handleRevealPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!passwordDialogAccount) {
+      return;
+    }
+
+    setPasswordLoading(true);
+    setPasswordError(null);
+
+    try {
+      const data = await apiPost<AccountPasswordRevealResponse>(
+        `/accounts/${passwordDialogAccount.id}/trading-password/reveal`,
+        { extraPassword }
+      );
+      setRevealedTradingPassword(data.tradingPassword);
+      setNewTradingPassword(data.tradingPassword);
+    } catch (requestError) {
+      setRevealedTradingPassword(null);
+      setPasswordError(toErrorMessage(requestError));
+    } finally {
+      setPasswordLoading(false);
+    }
+  }
+
+  async function handleUpdatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!passwordDialogAccount) {
+      return;
+    }
+
+    setPasswordSaving(true);
+    setPasswordError(null);
+
+    try {
+      await apiPut<AccountPasswordUpdateResponse>(`/accounts/${passwordDialogAccount.id}/trading-password`, {
+        extraPassword,
+        tradingPassword: newTradingPassword
+      });
+      setRevealedTradingPassword(newTradingPassword);
+    } catch (requestError) {
+      setPasswordError(toErrorMessage(requestError));
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
+
   return (
     <section>
       <header className="page-header account-header">
@@ -293,11 +377,11 @@ export function AccountsPage() {
       {error ? <p className="form-error">{error}</p> : null}
 
       {!isAdmin && !loading && user ? (
-        <p className="readonly-note">当前角色为 viewer，可查看账户信息。新增、编辑和删除仅限 admin。</p>
+        <p className="readonly-note">当前角色为 viewer，可查看账户信息；持有额外密码时也可查看交易密码。新增、编辑、删除和更新交易密码仅限 admin。</p>
       ) : null}
 
       <div className="table-wrap">
-        <table>
+        <table className="account-table">
           <thead>
             <tr>
               <th>账户名称</th>
@@ -306,18 +390,18 @@ export function AccountsPage() {
               <th>基准货币</th>
               <th className="numeric-cell">账户总额</th>
               <th>主要市场</th>
-              <th>备注</th>
-              {isAdmin ? <th>操作</th> : null}
+              <th>交易信息</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 8 : 7}>正在加载账户...</td>
+                <td colSpan={8}>正在加载账户...</td>
               </tr>
             ) : accounts.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 8 : 7}>暂无投资账户。</td>
+                <td colSpan={8}>暂无投资账户。</td>
               </tr>
             ) : (
               accounts.map((account) => (
@@ -328,10 +412,21 @@ export function AccountsPage() {
                   <td>{account.baseCurrency}</td>
                   <td className="numeric-cell">{formatAccountTotal(accountTotals.get(account.id))}</td>
                   <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
-                  <td>{account.notes ?? "-"}</td>
-                  {isAdmin ? (
-                    <td>
-                      <div className="table-actions">
+                  <td className="text-cell">{account.tradingInfo ?? "-"}</td>
+                  <td>
+                    <div className="table-actions">
+                      <button
+                        aria-label={`查看交易密码 ${account.name}`}
+                        className="icon-button"
+                        title="查看交易密码"
+                        type="button"
+                        onClick={() => openPasswordDialog(account)}
+                        disabled={saving}
+                      >
+                        <Eye size={17} aria-hidden="true" />
+                      </button>
+                      {isAdmin ? (
+                        <>
                         <button
                           aria-label={`编辑账户 ${account.name}`}
                           className="icon-button"
@@ -340,7 +435,7 @@ export function AccountsPage() {
                           onClick={() => startEdit(account)}
                           disabled={saving}
                         >
-                          <span aria-hidden="true">✎</span>
+                          <Pencil size={17} aria-hidden="true" />
                         </button>
                         <button
                           aria-label={`删除账户 ${account.name}`}
@@ -350,11 +445,12 @@ export function AccountsPage() {
                           onClick={() => void handleDelete(account)}
                           disabled={saving}
                         >
-                          <span aria-hidden="true">×</span>
+                          <Trash2 size={17} aria-hidden="true" />
                         </button>
-                      </div>
-                    </td>
-                  ) : null}
+                        </>
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -442,7 +538,18 @@ export function AccountsPage() {
 
           <label className="wide-field">
             备注
-            <input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="可选" />
+            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="可选" rows={3} />
+          </label>
+
+          <label className="wide-field">
+            交易信息
+            <textarea
+              className="large-textarea"
+              value={form.tradingInfo}
+              onChange={(event) => setForm({ ...form, tradingInfo: event.target.value })}
+              placeholder="例如 App 安装方式、登录入口、账号提示和操作注意事项"
+              rows={6}
+            />
           </label>
 
           <label className="checkbox-field wide-field">
@@ -512,19 +619,20 @@ export function AccountsPage() {
                         required
                       />
                       <input
+                        className="opening-entry-notes"
                         value={row.notes}
                         onChange={(event) => updateOpeningRow(row.id, { notes: event.target.value })}
                         placeholder="可选"
                       />
                       <button
                         aria-label="删除期初资产行"
-                        className="icon-button danger-icon-button"
+                        className="icon-button danger-icon-button opening-entry-delete"
                         title="删除"
                         type="button"
                         onClick={() => removeOpeningRow(row.id)}
                         disabled={saving || openingRows.length === 1}
                       >
-                        <span aria-hidden="true">×</span>
+                        <Trash2 size={17} aria-hidden="true" />
                       </button>
                     </div>
                   );
@@ -540,6 +648,72 @@ export function AccountsPage() {
           ) : null}
         </form>
       </Drawer>
+
+      {passwordDialogAccount ? (
+        <div className="secret-dialog-backdrop" role="presentation" onMouseDown={closePasswordDialog}>
+          <section
+            aria-labelledby="trading-password-dialog-title"
+            aria-modal="true"
+            className="secret-dialog"
+            role="dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="secret-dialog-header">
+              <div>
+                <h2 id="trading-password-dialog-title">交易密码</h2>
+                <p>{passwordDialogAccount.name}</p>
+              </div>
+              <button aria-label="关闭" className="icon-button" type="button" onClick={closePasswordDialog}>
+                <span aria-hidden="true">×</span>
+              </button>
+            </header>
+
+            {passwordError ? <p className="form-error">{passwordError}</p> : null}
+
+            <form className="secret-dialog-form" onSubmit={handleRevealPassword}>
+              <label>
+                额外密码
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={extraPassword}
+                  onChange={(event) => setExtraPassword(event.target.value)}
+                  disabled={revealedTradingPassword !== null || passwordLoading || passwordSaving}
+                  required
+                />
+              </label>
+              <button className="primary-button" type="submit" disabled={revealedTradingPassword !== null || passwordLoading || passwordSaving}>
+                <KeyRound size={17} aria-hidden="true" />
+                <span>{revealedTradingPassword !== null ? "已验证" : passwordLoading ? "验证中..." : "查看密码"}</span>
+              </button>
+            </form>
+
+            {revealedTradingPassword !== null ? (
+              <label className="secret-value-field">
+                当前交易密码
+                <textarea readOnly value={revealedTradingPassword} rows={3} />
+              </label>
+            ) : null}
+
+            {revealedTradingPassword !== null && isAdmin ? (
+              <form className="secret-dialog-form" onSubmit={handleUpdatePassword}>
+                <label>
+                  更新交易密码
+                  <textarea
+                    value={newTradingPassword}
+                    onChange={(event) => setNewTradingPassword(event.target.value)}
+                    rows={3}
+                    required
+                  />
+                </label>
+                <button className="secondary-button" type="submit" disabled={passwordLoading || passwordSaving}>
+                  {passwordSaving ? "保存中..." : "保存交易密码"}
+                </button>
+              </form>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -551,7 +725,8 @@ function toAccountInput(form: AccountFormState): CreateInvestmentAccountInput {
     accountType: form.accountType,
     baseCurrency: form.baseCurrency,
     marketRegion: form.marketRegion,
-    notes: form.notes
+    notes: form.notes,
+    tradingInfo: form.tradingInfo
   };
 }
 

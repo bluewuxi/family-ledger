@@ -9,6 +9,7 @@ interface InvestmentAccountRow {
   base_currency: InvestmentAccount["baseCurrency"];
   market_region: InvestmentAccount["marketRegion"];
   notes: string | null;
+  trading_info: string | null;
   created_by_user_id: string | null;
   updated_by_user_id: string | null;
   created_at: string;
@@ -70,6 +71,7 @@ export async function createAccount(
       base_currency: input.baseCurrency,
       market_region: input.marketRegion,
       notes: input.notes ?? null,
+      trading_info: input.tradingInfo ?? null,
       created_by_user_id: userId,
       updated_by_user_id: userId
     })
@@ -132,6 +134,20 @@ export async function deleteAccount(id: string): Promise<void> {
   }
 }
 
+export async function countAccountTransactions(id: string): Promise<number> {
+  const supabase = await getSupabaseAdmin();
+  const { count, error } = await supabase
+    .from("transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("account_id", id);
+
+  if (error) {
+    throw new Error("Failed to count account transactions.");
+  }
+
+  return count ?? 0;
+}
+
 const accountSelect = [
   "id",
   "name",
@@ -140,6 +156,7 @@ const accountSelect = [
   "base_currency",
   "market_region",
   "notes",
+  "trading_info",
   "created_by_user_id",
   "updated_by_user_id",
   "created_at",
@@ -155,6 +172,7 @@ function mapAccountRow(row: InvestmentAccountRow): InvestmentAccount {
     baseCurrency: row.base_currency,
     marketRegion: row.market_region,
     notes: row.notes,
+    tradingInfo: row.trading_info,
     createdByUserId: row.created_by_user_id,
     updatedByUserId: row.updated_by_user_id,
     createdAt: row.created_at,
@@ -169,6 +187,7 @@ function toAccountUpdateRow(input: UpdateInvestmentAccountInput) {
     ...(input.accountType !== undefined ? { account_type: input.accountType } : {}),
     ...(input.baseCurrency !== undefined ? { base_currency: input.baseCurrency } : {}),
     ...(input.marketRegion !== undefined ? { market_region: input.marketRegion } : {}),
-    ...(input.notes !== undefined ? { notes: input.notes } : {})
+    ...(input.notes !== undefined ? { notes: input.notes } : {}),
+    ...(input.tradingInfo !== undefined ? { trading_info: input.tradingInfo } : {})
   };
 }

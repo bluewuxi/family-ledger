@@ -13,11 +13,14 @@ import {
 import {
   AccountInUseError,
   AccountNotFoundError,
+  countAccountTransactions,
   createAccount,
   deleteAccount,
+  findAccountById,
   listAccounts,
   updateAccount
 } from "../repositories/accountRepository";
+import { createTradingPasswordPlaceholder, deleteTradingPasswordParameter } from "./accountTradingPasswordService";
 import { ApiRequestError } from "../utils/apiError";
 
 export async function getAccounts(): Promise<InvestmentAccount[]> {
@@ -29,7 +32,24 @@ export async function createInvestmentAccount(
   user: AuthenticatedUser
 ): Promise<InvestmentAccount> {
   const input = parseCreateAccountInput(body);
-  return createAccount(input, user.id);
+  const account = await createAccount(input, user.id);
+
+  try {
+    await createTradingPasswordPlaceholder(account.id);
+  } catch (error) {
+    try {
+      await deleteAccount(account.id);
+    } catch (cleanupError) {
+      console.error("Failed to clean up account after trading password placeholder creation failed", {
+        accountId: account.id,
+        error: cleanupError
+      });
+    }
+
+    throw error;
+  }
+
+  return account;
 }
 
 export async function updateInvestmentAccount(
@@ -55,7 +75,19 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
   assertUuid(id);
 
   try {
+    const account = await findAccountById(id);
+
+    if (!account) {
+      await deleteTradingPasswordParameter(id);
+      throw new AccountNotFoundError();
+    }
+
+    if ((await countAccountTransactions(id)) > 0) {
+      throw new AccountInUseError();
+    }
+
     await deleteAccount(id);
+    await deleteTradingPasswordParameter(id);
   } catch (error) {
     if (error instanceof AccountNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Account was not found.", 404);
@@ -79,7 +111,8 @@ function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {
     accountType: requiredEnum(record.accountType, ACCOUNT_TYPES, "accountType"),
     baseCurrency: requiredEnum(record.baseCurrency, CURRENCY_CODES, "baseCurrency"),
     marketRegion: requiredEnum(record.marketRegion, MARKET_REGIONS, "marketRegion"),
-    notes: optionalString(record.notes, "notes")
+    notes: optionalString(record.notes, "notes"),
+    tradingInfo: optionalString(record.tradingInfo, "tradingInfo")
   };
 }
 
@@ -109,6 +142,10 @@ function parseUpdateAccountInput(body: unknown): UpdateInvestmentAccountInput {
 
   if ("notes" in record) {
     input.notes = optionalString(record.notes, "notes");
+  }
+
+  if ("tradingInfo" in record) {
+    input.tradingInfo = optionalString(record.tradingInfo, "tradingInfo");
   }
 
   if (Object.keys(input).length === 0) {

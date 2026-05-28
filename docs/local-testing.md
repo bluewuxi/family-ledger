@@ -22,6 +22,8 @@ VITE_SUPABASE_ANON_KEY=<test publishable/anon key>
 VITE_API_BASE_URL=http://localhost:3000
 SUPABASE_URL=<same test Supabase project URL>
 SUPABASE_SECRET_KEY_SSM_PARAM=<test service key SSM parameter path>
+TRADING_PASSWORD_GATE_SSM_PARAM=/family-ledger/test_trading_password_gate
+TRADING_PASSWORD_SSM_PREFIX=/family-ledger/test_trading_account_password_
 AWS_REGION=<SSM parameter region>
 ```
 

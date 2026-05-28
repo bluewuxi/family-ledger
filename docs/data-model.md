@@ -16,7 +16,7 @@ Business tables do not use `user_id` as an ownership field. Where useful, they u
 
 ## Shared Business Tables
 
-- `investment_accounts`: shared brokerage, fund platform, bank, retirement, and other accounts.
+- `investment_accounts`: shared brokerage, fund platform, bank, retirement, and other accounts. It includes non-confidential `trading_info` for app installation, login entry, and operational notes.
 - `instruments`: shared instrument/security/fund master list.
 - `transactions`: shared investment transaction records.
 - `currencies`: supported currency reference data.
@@ -26,6 +26,8 @@ Business tables do not use `user_id` as an ownership field. Where useful, they u
 - `data_provider_runs`: per-provider audit records under a job run.
 - `portfolio_snapshots`: shared daily family portfolio valuation snapshots.
 - `portfolio_account_snapshots`: per-account rows under each daily portfolio snapshot.
+
+Trading account passwords are not stored in Postgres. Each account has one SSM SecureString parameter named from the deployment prefix plus the account id. New accounts receive the placeholder value `尚未设置交易密码`; deleting an account also deletes its SSM password parameter after the API confirms the account has no transactions.
 
 ## Instruments
 

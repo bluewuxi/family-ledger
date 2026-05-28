@@ -5,6 +5,12 @@ import {
   getAccounts,
   updateInvestmentAccount
 } from "../services/accountService";
+import {
+  getTradingPasswordGateStatus,
+  revealTradingPassword,
+  updateTradingPassword,
+  updateTradingPasswordGate
+} from "../services/accountTradingPasswordService";
 import { getDashboard } from "../services/dashboardService";
 import { getHoldings } from "../services/holdingService";
 import {
@@ -47,6 +53,10 @@ const routes: Record<string, RouteHandler> = {
     const user = await requireRole(event, "viewer");
     return success({ user, preferences: await getProfilePreferences(user) });
   },
+  "GET /settings/trading-password-gate": async (event) => {
+    await requireRole(event, "admin");
+    return success(await getTradingPasswordGateStatus());
+  },
   "GET /users": async (event) => {
     const user = await requireRole(event, "admin");
     return success({ user, users: await getManagedUsers() });
@@ -54,6 +64,10 @@ const routes: Record<string, RouteHandler> = {
   "PATCH /settings/preferences": async (event) => {
     const user = await requireRole(event, "viewer");
     return success({ user, preferences: await updateProfilePreferences(parseJsonBody(event), user) });
+  },
+  "PATCH /settings/trading-password-gate": async (event) => {
+    await requireRole(event, "admin");
+    return success(await updateTradingPasswordGate(parseJsonBody(event)));
   },
   "GET /accounts": async (event) => {
     const user = await requireRole(event, "viewer");
@@ -132,6 +146,22 @@ const dynamicRoutes: Array<{
   pattern: RegExp;
   handler: DynamicRouteHandler;
 }> = [
+  {
+    method: "POST",
+    pattern: /^\/accounts\/(?<id>[^/]+)\/trading-password\/reveal$/,
+    handler: async (event, params) => {
+      await requireRole(event, "viewer");
+      return success(await revealTradingPassword(params.id, parseJsonBody(event)));
+    }
+  },
+  {
+    method: "PUT",
+    pattern: /^\/accounts\/(?<id>[^/]+)\/trading-password$/,
+    handler: async (event, params) => {
+      await requireRole(event, "admin");
+      return success(await updateTradingPassword(params.id, parseJsonBody(event)));
+    }
+  },
   {
     method: "PUT",
     pattern: /^\/accounts\/(?<id>[^/]+)$/,

@@ -151,7 +151,7 @@ function AppFooter() {
         <span className="footer-brand-mark-wrap" aria-hidden="true">
           <img className="footer-brand-mark" src="/icon-64x64.png" alt="" />
         </span>
-        <div>
+        <div className="footer-brand-copy">
           <strong className="footer-brand-name" aria-label="小家大财">
             <span>小</span>
             <span>家</span>

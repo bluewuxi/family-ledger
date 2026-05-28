@@ -21,7 +21,7 @@
 
 ## Stage 2: CRUD Through Lambda API
 
-- Account CRUD (implemented)
+- Account CRUD (implemented, including non-confidential trading info and SSM-backed trading password reveal/update)
 - Instrument CRUD (implemented)
 - Transaction CRUD (implemented)
 - Admin-only write APIs

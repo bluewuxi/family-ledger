@@ -29,12 +29,14 @@ The expected number of users is no more than 3 family members. Complex RBAC, org
 Lambda API enforces permissions. Frontend role checks are UI hints only.
 
 - GET endpoints: `viewer` and `admin`
-- POST/PUT/PATCH/DELETE endpoints: `admin` only
+- POST/PUT/PATCH/DELETE endpoints: `admin` only, except `POST /accounts/:id/trading-password/reveal`, which is available to `viewer` and `admin` after the extra password check
 - maintenance/job endpoints: `admin` only
 
 No active `user_roles` row means access denied. Admin users can pause/resume existing Supabase Auth users and maintain their `viewer` / `admin` role from the Settings page.
 
 The server-side Supabase key is stored in AWS SSM Parameter Store and must never be exposed to `apps/web`.
+
+Trading account passwords are protected by a second shared password gate. The gate is an SSM String parameter whose value is either `empty` before first setup or the MD5 hex digest of the extra password. Admins maintain the extra password from Settings. A viewer can reveal a trading password only if they know this extra password after it has been initialized; updating the stored trading password remains admin-only.
 
 ## User Management
 

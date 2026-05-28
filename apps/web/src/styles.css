@@ -616,6 +616,12 @@ textarea {
   color: var(--color-text);
 }
 
+.footer-brand-copy {
+  display: flex;
+  align-items: baseline;
+  column-gap: 12px;
+}
+
 .footer-brand-mark-wrap {
   position: relative;
   display: inline-grid;
@@ -680,7 +686,7 @@ textarea {
 }
 
 .footer-brand-subtitle {
-  margin-top: 5px;
+  margin-top: 0;
   font-size: 13px;
 }
 
@@ -820,6 +826,7 @@ textarea {
 
 .account-form input,
 .account-form select,
+.account-form textarea,
 .instrument-form input,
 .instrument-form select,
 .instrument-form textarea,
@@ -879,6 +886,15 @@ textarea {
   resize: vertical;
 }
 
+.account-form textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.account-form textarea.large-textarea {
+  min-height: 150px;
+}
+
 .transaction-form input.readonly-display-input:disabled {
   border-color: var(--color-border-strong);
   background: var(--color-table-soft);
@@ -904,6 +920,7 @@ textarea {
 .form-actions,
 .table-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
 }
@@ -935,9 +952,29 @@ textarea {
 
 .opening-entry-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(120px, 0.8fr) minmax(140px, 0.8fr) minmax(160px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(110px, 0.8fr) minmax(130px, 0.8fr) auto;
   gap: 10px;
   align-items: center;
+}
+
+.opening-entry-row > * {
+  min-width: 0;
+}
+
+.opening-entry-notes,
+.opening-entry-head span:nth-child(4) {
+  grid-column: 1 / 4;
+}
+
+.opening-entry-delete,
+.opening-entry-head span:nth-child(5) {
+  grid-column: 4;
+}
+
+.opening-entry-delete {
+  align-self: stretch;
+  grid-row: 1 / span 2;
+  justify-self: end;
 }
 
 .opening-entry-head {
@@ -1074,6 +1111,7 @@ textarea {
 
 .drawer-footer {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
   border-top: 1px solid var(--color-border);
@@ -1087,6 +1125,80 @@ textarea {
   margin-bottom: 0;
   border: 0;
   padding: 0;
+}
+
+.secret-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgb(4 16 28 / 52%);
+  padding: 20px;
+}
+
+.secret-dialog {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 520px);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+  padding: 20px;
+}
+
+.secret-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.secret-dialog-header h2,
+.secret-dialog-header p {
+  margin: 0;
+}
+
+.secret-dialog-header p {
+  margin-top: 5px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.secret-dialog-form,
+.secret-value-field {
+  display: grid;
+  gap: 10px;
+}
+
+.secret-dialog-form label,
+.secret-value-field {
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.secret-dialog-form input,
+.secret-dialog-form textarea,
+.secret-value-field textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 10px 12px;
+}
+
+.secret-dialog-form textarea,
+.secret-value-field textarea {
+  resize: vertical;
+}
+
+.secret-value-field textarea {
+  background: var(--color-table-soft);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 .sr-only {
@@ -1620,6 +1732,10 @@ table {
   border-collapse: collapse;
 }
 
+.account-table {
+  min-width: 1120px;
+}
+
 .instrument-table {
   min-width: 1060px;
 }
@@ -1747,6 +1863,12 @@ tbody tr.selected-row:hover td {
 .numeric-cell {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.text-cell {
+  max-width: 260px;
+  white-space: pre-line;
+  word-break: break-word;
 }
 
 tr.editing-row td {
@@ -2594,6 +2716,18 @@ tr.editing-row td {
   .filter-bar,
   .opening-entry-row {
     grid-template-columns: 1fr;
+  }
+
+  .opening-entry-notes,
+  .opening-entry-delete,
+  .opening-entry-head span:nth-child(4),
+  .opening-entry-head span:nth-child(5) {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .opening-entry-delete {
+    justify-self: start;
   }
 
   .drawer-panel {

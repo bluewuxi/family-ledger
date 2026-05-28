@@ -84,6 +84,8 @@ Globals:
         SUPABASE_URL: !Ref SupabaseUrl
         SUPABASE_URL_PARAM: !Ref SupabaseUrlSsmParam
         SUPABASE_SECRET_KEY_SSM_PARAM: !Ref SupabaseServiceKeySsmParam
+        TRADING_PASSWORD_SSM_PREFIX: !Sub /family-ledger/${EnvironmentName}_trading_account_password_
+        TRADING_PASSWORD_GATE_SSM_PARAM: !Sub /family-ledger/${EnvironmentName}_trading_password_gate
 
 Resources:
   LambdaExecutionRole:
@@ -108,6 +110,15 @@ Resources:
                 Action:
                   - ssm:GetParameter
                 Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_*
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_trading_account_password_*
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_trading_password_gate
       Tags:
         - Key: Project
           Value: family-ledger

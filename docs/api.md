@@ -43,6 +43,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /dashboard`
 - `GET /holdings`
 - `GET /accounts`
+- `POST /accounts/:id/trading-password/reveal`
 - `GET /instruments`
 - `GET /transactions`
 - `GET /portfolio-snapshots`
@@ -58,7 +59,9 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 These endpoints require a valid Supabase Bearer token and an active `admin` role:
 
 - `GET /users`
+- `GET /settings/trading-password-gate`
 - `PATCH /users/:id`
+- `PATCH /settings/trading-password-gate`
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
@@ -314,6 +317,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 - `POST /accounts`
 - `PUT /accounts/:id`
 - `DELETE /accounts/:id`
+- `PUT /accounts/:id/trading-password`
 
 Create request:
 
@@ -324,7 +328,8 @@ Create request:
   "accountType": "brokerage",
   "baseCurrency": "USD",
   "marketRegion": "US",
-  "notes": "可选备注"
+  "notes": "可选备注",
+  "tradingInfo": "App 安装方式、登录入口和操作提示"
 }
 ```
 
@@ -342,6 +347,7 @@ Create/update response data:
     "baseCurrency": "USD",
     "marketRegion": "US",
     "notes": "可选备注",
+    "tradingInfo": "App 安装方式、登录入口和操作提示",
     "createdByUserId": "uuid",
     "updatedByUserId": "uuid",
     "createdAt": "2026-05-22T00:00:00.000Z",
@@ -361,6 +367,65 @@ Delete response data:
 ```
 
 Account validation errors return `VALIDATION_ERROR`. Missing accounts return `NOT_FOUND`.
+
+### Account Trading Password API
+
+Each account has one deterministic SSM SecureString parameter for its trading password. The database stores only non-confidential `tradingInfo`; the trading password value is never stored in Postgres or frontend storage.
+
+`POST /accounts/:id/trading-password/reveal` is available to authenticated `viewer` and `admin` users. The request must include the extra password:
+
+```json
+{
+  "extraPassword": "family extra password"
+}
+```
+
+When the submitted password's MD5 hex digest matches the SSM gate value, or when the gate value is still `empty`, the response returns the decrypted trading password:
+
+```json
+{
+  "tradingPassword": "stored trading password"
+}
+```
+
+`PUT /accounts/:id/trading-password` is admin-only. It verifies the same extra password and overwrites the account SSM SecureString:
+
+```json
+{
+  "extraPassword": "family extra password",
+  "tradingPassword": "new stored trading password"
+}
+```
+
+Wrong extra passwords return `FORBIDDEN`. Missing accounts return `NOT_FOUND`. Invalid bodies return `VALIDATION_ERROR`.
+
+### Trading Password Gate Settings API
+
+These endpoints are admin-only:
+
+- `GET /settings/trading-password-gate`
+- `PATCH /settings/trading-password-gate`
+
+The gate SSM parameter is a normal String value. It is created as `empty` when first read if missing. After setup, the API stores the MD5 hex digest of the extra password.
+
+`GET /settings/trading-password-gate` returns whether the gate has been initialized:
+
+```json
+{
+  "isInitialized": false
+}
+```
+
+`PATCH /settings/trading-password-gate` sets or changes the extra password. If the current SSM value is `empty`, `currentExtraPassword` may be omitted or null. Otherwise it must match the existing extra password:
+
+```json
+{
+  "currentExtraPassword": "old extra password",
+  "newExtraPassword": "new extra password"
+}
+```
+
+Wrong current passwords return `FORBIDDEN`. Invalid bodies return `VALIDATION_ERROR`.
 
 ## Instrument Write APIs
 

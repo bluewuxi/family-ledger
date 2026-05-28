@@ -140,9 +140,25 @@ SUPABASE_SECRET_KEY_SSM_PARAM=/family-ledger/test_supabase_secret_key
 SUPABASE_URL_PARAM=/family-ledger/test_supabase_url
 SUPABASE_JWT_SECRET_SSM_PARAM=/family-ledger/test_supabase_jwt_secret
 SUPABASE_DB_PASSWORD_SSM_PARAM=/family-ledger/test_db_password
+TRADING_PASSWORD_GATE_SSM_PARAM=/family-ledger/test_trading_password_gate
+TRADING_PASSWORD_SSM_PREFIX=/family-ledger/test_trading_account_password_
 ```
 
-Production uses the same names with the `prod_` prefix. Test resource names use the `test_` prefix.
+Production uses the same names with the `prod_` prefix. Test resource names use the `test_` prefix. The Lambda infrastructure sets `TRADING_PASSWORD_GATE_SSM_PARAM` and `TRADING_PASSWORD_SSM_PREFIX`; local API debugging should provide matching values.
+
+The extra-password gate parameter is an SSM String. It starts as `empty`; after an admin sets the extra password from Settings, the API stores the MD5 hex digest of that password. To initialize it manually instead of through the UI:
+
+```powershell
+$md5 = [System.Security.Cryptography.MD5]::Create()
+$hash = ($md5.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("<extra-password>")) | ForEach-Object { $_.ToString("x2") }) -join ""
+aws ssm put-parameter --name /family-ledger/test_trading_password_gate --type String --value $hash --overwrite
+```
+
+Do not store the extra password itself in SSM, env files, source files, issue comments, or logs. Existing accounts can receive placeholder trading-password parameters with:
+
+```powershell
+corepack pnpm backfill:account-trading-passwords -- --apply
+```
 
 Frontend API endpoint mirrors:
 

@@ -16,6 +16,7 @@ interface AccountRow {
   base_currency: InvestmentAccount["baseCurrency"];
   market_region: InvestmentAccount["marketRegion"];
   notes: string | null;
+  trading_info: string | null;
   created_by_user_id: string | null;
   updated_by_user_id: string | null;
   created_at: string;
@@ -239,6 +240,7 @@ const accountSelect = [
   "base_currency",
   "market_region",
   "notes",
+  "trading_info",
   "created_by_user_id",
   "updated_by_user_id",
   "created_at",
@@ -346,6 +348,7 @@ function mapAccountRow(row: AccountRow): InvestmentAccount {
     baseCurrency: row.base_currency,
     marketRegion: row.market_region,
     notes: row.notes,
+    tradingInfo: row.trading_info,
     createdByUserId: row.created_by_user_id,
     updatedByUserId: row.updated_by_user_id,
     createdAt: row.created_at,

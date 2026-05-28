@@ -294,6 +294,7 @@ export interface InvestmentAccount {
   baseCurrency: CurrencyCode;
   marketRegion: MarketRegion;
   notes: string | null;
+  tradingInfo: string | null;
   createdByUserId: string | null;
   updatedByUserId: string | null;
   createdAt: string;
@@ -307,6 +308,7 @@ export interface CreateInvestmentAccountInput {
   baseCurrency: CurrencyCode;
   marketRegion: MarketRegion;
   notes?: string | null;
+  tradingInfo?: string | null;
 }
 
 export interface UpdateInvestmentAccountInput {
@@ -316,6 +318,7 @@ export interface UpdateInvestmentAccountInput {
   baseCurrency?: CurrencyCode;
   marketRegion?: MarketRegion;
   notes?: string | null;
+  tradingInfo?: string | null;
 }
 
 export interface Instrument {

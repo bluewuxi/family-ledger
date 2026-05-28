@@ -26,6 +26,7 @@
     "verify:holdings": "tsx scripts/verify-holdings-calculation.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
     "verify:preferences": "tsx scripts/verify-preferences.ts",
+    "verify:account-secrets": "tsx scripts/verify-account-trading-passwords.ts",
     "verify:market-data": "tsx scripts/verify-market-data-foundation.ts",
     "verify:frankfurter-provider": "tsx scripts/verify-frankfurter-provider.ts",
     "verify:frankfurter-ingestion": "tsx scripts/verify-frankfurter-ingestion.ts",
@@ -37,6 +38,7 @@
     "verify:portfolio-snapshots": "tsx scripts/verify-portfolio-snapshot-calculation.ts",
     "verify:time-policy": "tsx scripts/verify-time-policy.ts",
     "verify:snapshot-audit": "tsx scripts/verify-test-snapshots.ts",
+    "backfill:account-trading-passwords": "tsx scripts/backfill-account-trading-password-placeholders.ts",
     "fix:snapshot-audit": "tsx scripts/verify-test-snapshots.ts --fix",
     "fx:ingest:frankfurter": "tsx scripts/ingest-frankfurter-fx-rates.ts",
     "typecheck": "tsc -b --pretty false"
