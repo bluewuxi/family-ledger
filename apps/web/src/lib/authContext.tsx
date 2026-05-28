@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { getSupabaseClient } from "./supabase";
+import { getCurrentSession, getSupabaseClient, subscribeAuthSessionExpired } from "./supabase";
 
 interface AuthContextValue {
   session: Session | null;
@@ -23,21 +23,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let mounted = true;
     const supabase = getSupabaseClient();
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (mounted) {
-        setSession(data.session);
-        setLoading(false);
-      }
-    });
+    getCurrentSession()
+      .then((currentSession) => {
+        if (mounted) {
+          setSession(currentSession);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load auth session.", error);
+        if (mounted) {
+          setSession(null);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setLoading(false);
     });
 
+    const unsubscribeSessionExpired = subscribeAuthSessionExpired(() => {
+      setSession(null);
+      setLoading(false);
+    });
+
     return () => {
       mounted = false;
       subscription.subscription.unsubscribe();
+      unsubscribeSessionExpired();
     };
   }, []);
 

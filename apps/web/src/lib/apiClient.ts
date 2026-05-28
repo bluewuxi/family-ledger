@@ -1,6 +1,6 @@
 import type { ApiResponse } from "@family-ledger/shared";
 import { getRuntimeConfig } from "./runtimeConfig";
-import { getSupabaseClient } from "./supabase";
+import { getCurrentSession, notifyAuthSessionExpired } from "./supabase";
 
 export class ApiClientError extends Error {
   constructor(
@@ -24,11 +24,12 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiClientError("缺少 API 地址配置。", "MISSING_API_BASE_URL");
   }
 
-  const { data } = await getSupabaseClient().auth.getSession();
-  const token = data.session?.access_token;
+  const session = await getCurrentSession();
+  const token = session?.access_token;
 
   if (!token) {
-    throw new ApiClientError("请先登录。", "MISSING_SESSION");
+    notifyAuthSessionExpired();
+    throw new ApiClientError("登录状态已失效，请重新登录。", "MISSING_SESSION");
   }
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -45,6 +46,11 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (!response.ok || !body.success) {
     const error = body.success ? null : body.error;
+    if (response.status === 401 || error?.code === "UNAUTHORIZED") {
+      notifyAuthSessionExpired();
+      throw new ApiClientError("登录状态已失效，请重新登录。", "MISSING_SESSION", response.status);
+    }
+
     throw new ApiClientError(error?.message ?? "API 请求失败。", error?.code ?? "HTTP_ERROR", response.status);
   }
 
