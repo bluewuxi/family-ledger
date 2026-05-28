@@ -23,10 +23,12 @@ interface PreferencesContextValue {
   setPreferences: (preferences: UserPreferences) => void;
 }
 
+const themeStorageKey = "family-ledger.uiTheme";
+
 const defaultPreferences: UserPreferences = {
   preferredCurrency: "CNY",
   gainColorScheme: "red_positive",
-  uiTheme: "light"
+  uiTheme: readStoredUiTheme()
 };
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
@@ -73,6 +75,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.theme = preferences.uiTheme;
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", preferences.uiTheme === "dark" ? "#07111F" : "#08264A");
+    window.localStorage.setItem(themeStorageKey, preferences.uiTheme);
   }, [preferences.uiTheme]);
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
@@ -124,6 +127,14 @@ function normalizeGainColorScheme(value: string): GainColorScheme {
 
 function normalizeUiTheme(value: string): UiTheme {
   return value === "dark" ? "dark" : "light";
+}
+
+function readStoredUiTheme(): UiTheme {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  return normalizeUiTheme(window.localStorage.getItem(themeStorageKey) ?? "light");
 }
 
 function toErrorMessage(error: unknown): string {

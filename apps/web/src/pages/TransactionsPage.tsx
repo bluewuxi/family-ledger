@@ -1,4 +1,5 @@
 import { Fragment, type FormEvent, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Eraser, Filter, Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ADJUSTMENT_DIRECTIONS,
   ADJUSTMENT_DIRECTION_LABELS,
@@ -335,11 +336,13 @@ export function TransactionsPage() {
           </label>
           {isAdmin ? (
             <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving || !hasSelectedAccount}>
-              新增
+              <Plus size={17} aria-hidden="true" />
+              <span>新增</span>
             </button>
           ) : null}
           <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving || !hasSelectedAccount}>
-            刷新
+            <RefreshCw size={17} aria-hidden="true" />
+            <span>刷新</span>
           </button>
         </div>
       </header>
@@ -348,6 +351,10 @@ export function TransactionsPage() {
 
       {!isAdmin && !loading && user ? (
         <p className="readonly-note">当前角色为 viewer，可查看交易记录。新增、编辑和删除仅限 admin。</p>
+      ) : null}
+
+      {!loading && !hasSelectedAccount ? (
+        <p className="selection-hint">请先选择账户，再查看或新增交易记录。</p>
       ) : null}
 
       <form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
@@ -386,10 +393,12 @@ export function TransactionsPage() {
         </label>
         <div className="filter-actions">
           <button className="secondary-button" type="submit" disabled={loading || !hasSelectedAccount}>
-            筛选
+            <Filter size={17} aria-hidden="true" />
+            <span>筛选</span>
           </button>
           <button className="secondary-button" type="button" onClick={clearFilters} disabled={loading || !hasSelectedAccount}>
-            清空
+            <Eraser size={17} aria-hidden="true" />
+            <span>清空</span>
           </button>
         </div>
       </form>
@@ -481,10 +490,12 @@ export function TransactionsPage() {
               form="transaction-drawer-form"
               disabled={saving || !form.accountId || accounts.length === 0 || eligibleInstruments.length === 0}
             >
-              {saving ? "保存中..." : editingTransactionId ? "保存修改" : "新增交易"}
+              <Save size={17} aria-hidden="true" />
+              <span>{saving ? "保存中..." : editingTransactionId ? "保存修改" : "新增交易"}</span>
             </button>
             <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
-              取消
+              <X size={17} aria-hidden="true" />
+              <span>取消</span>
             </button>
           </>
         }
@@ -687,7 +698,7 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
             type="button"
             onClick={() => onToggleLinkedCashLeg(transaction.id)}
           >
-            {isExpanded ? "−" : "+"}
+            {isExpanded ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
           </button>
         ) : null}
       </td>
@@ -723,7 +734,7 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
                   onClick={() => onEdit(transaction)}
                   disabled={saving}
                 >
-                  <span aria-hidden="true">✎</span>
+                  <Pencil size={16} aria-hidden="true" />
                 </button>
                 <button
                   aria-label={`删除交易记录 ${transaction.tradeDate}`}
@@ -733,7 +744,7 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
                   onClick={() => void onDelete(transaction)}
                   disabled={saving}
                 >
-                  <span aria-hidden="true">×</span>
+                  <Trash2 size={16} aria-hidden="true" />
                 </button>
               </>
             )}

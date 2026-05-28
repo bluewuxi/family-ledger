@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   Cell,
   CartesianGrid,
@@ -20,7 +21,7 @@ import {
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "../lib/apiClient";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
-import { LoadingBlock } from "../components/LoadingState";
+import { LoadingBlock, LoadingState } from "../components/LoadingState";
 import { formatDisplayAmount, formatDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
@@ -48,6 +49,20 @@ interface AllocationPoint {
 const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
 const allocationColors = ["#08264A", "#F5B52E", "#3D8F67", "#D9534F", "#4D83B8", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
+const chartTooltipContentStyle = {
+  border: "1px solid var(--color-border)",
+  background: "var(--color-surface)",
+  color: "var(--color-text)",
+  boxShadow: "var(--shadow-soft)"
+};
+const chartTooltipLabelStyle = {
+  color: "var(--color-text)",
+  fontWeight: 600
+};
+const chartTooltipItemStyle = {
+  color: "var(--color-brand-leaf)",
+  fontWeight: 600
+};
 
 export function DashboardPage() {
   const { preferences, loading: preferencesLoading } = usePreferences();
@@ -136,7 +151,7 @@ export function DashboardPage() {
       toneClass: signedToneClass(dashboard?.unrealizedGain, preferences.gainColorScheme)
     },
     { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency },
-    { label: "账户数量", value: dashboardLoading ? "加载中..." : String(dashboard?.accountCount ?? 0), compact: true }
+    { label: "账户数量", value: dashboardLoading ? <LoadingState label="加载中" /> : String(dashboard?.accountCount ?? 0), compact: true }
   ];
 
   const trendData = useMemo<TrendPoint[]>(
@@ -197,7 +212,8 @@ export function DashboardPage() {
             onClick={refreshDashboard}
             disabled={dashboardLoading || snapshotsLoading || !currencyInitialized}
           >
-            刷新
+            <RefreshCw size={17} aria-hidden="true" />
+            <span>刷新</span>
           </button>
         </div>
       </header>
@@ -227,17 +243,23 @@ export function DashboardPage() {
             <h2>资产趋势</h2>
             <p>来自已生成的组合快照，按当前报告币种显示。</p>
           </div>
-          <div className="range-toggle" aria-label="快照范围">
-            {snapshotRanges.map((days) => (
-              <button
-                className={snapshotRangeDays === days ? "active" : undefined}
-                key={days}
-                type="button"
-                onClick={() => setSnapshotRangeDays(days)}
-              >
-                {days}天
-              </button>
-            ))}
+          <div className="chart-header-controls">
+            <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
+              <CurrencyFlagIcon currency={activeCurrency} />
+              {activeCurrency}
+            </span>
+            <div className="range-toggle" aria-label="快照范围">
+              {snapshotRanges.map((days) => (
+                <button
+                  className={snapshotRangeDays === days ? "active" : undefined}
+                  key={days}
+                  type="button"
+                  onClick={() => setSnapshotRangeDays(days)}
+                >
+                  {days}天
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -254,10 +276,13 @@ export function DashboardPage() {
                 <LineChart data={trendData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
                   <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={formatShortDate} tickLine={false} />
-                  <YAxis tickFormatter={(value: number) => formatCompactMoney(value, activeCurrency)} tickLine={false} />
+                  <YAxis tickFormatter={(value: number) => formatCompactMoney(value)} tickLine={false} />
                   <Tooltip
-                    formatter={(value) => [`${activeCurrency} ${formatTooltipMoney(value)}`, "总资产"]}
+                    contentStyle={chartTooltipContentStyle}
+                    formatter={(value) => [formatTooltipMoney(value), "总资产"]}
                     labelFormatter={(label) => `日期：${label}`}
+                    labelStyle={chartTooltipLabelStyle}
+                    itemStyle={chartTooltipItemStyle}
                   />
                   <Line type="monotone" dataKey="value" stroke="var(--color-chart-line)" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
                 </LineChart>
@@ -283,7 +308,12 @@ export function DashboardPage() {
                         <Cell key={entry.name} fill={allocationColors[index % allocationColors.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value, _name, item) => [`${activeCurrency} ${formatTooltipMoney(value)}`, (item.payload as AllocationPoint).name]} />
+                    <Tooltip
+                      contentStyle={chartTooltipContentStyle}
+                      formatter={(value, _name, item) => [formatTooltipMoney(value), (item.payload as AllocationPoint).name]}
+                      itemStyle={chartTooltipItemStyle}
+                      labelStyle={chartTooltipLabelStyle}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="allocation-list">
@@ -294,7 +324,7 @@ export function DashboardPage() {
                         {entry.name}
                       </span>
                       <strong>
-                        {activeCurrency} {formatChartMoney(entry.value)}
+                        {formatChartMoney(entry.value)}
                         <small>{formatPercentage(entry.percentage)}</small>
                       </strong>
                     </div>
@@ -323,17 +353,17 @@ export function DashboardPage() {
   );
 }
 
-function formatPlainMoneyMetric(value: string | null | undefined, loading: boolean): string {
+function formatPlainMoneyMetric(value: string | null | undefined, loading: boolean): ReactNode {
   if (loading) {
-    return "加载中...";
+    return <LoadingState label="加载中" />;
   }
 
   return value === null || value === undefined ? "--" : formatDisplayAmount(value);
 }
 
-function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boolean): string {
+function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boolean): ReactNode {
   if (loading) {
-    return "加载中...";
+    return <LoadingState label="加载中" />;
   }
 
   if (!dashboard || dashboard.todayChange === null) {
@@ -407,14 +437,14 @@ function formatPercentage(value: number): string {
   return `${formatDisplayPercent(value)}%`;
 }
 
-function formatCompactMoney(value: number, currency: SnapshotDisplayCurrency): string {
+function formatCompactMoney(value: number): string {
   if (Math.abs(value) >= 1_000_000) {
-    return `${currency} ${(value / 1_000_000).toFixed(1)}M`;
+    return `${(value / 1_000_000).toFixed(1)}M`;
   }
   if (Math.abs(value) >= 1_000) {
-    return `${currency} ${(value / 1_000).toFixed(0)}K`;
+    return `${(value / 1_000).toFixed(0)}K`;
   }
-  return `${currency} ${value.toFixed(0)}`;
+  return value.toFixed(0);
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {

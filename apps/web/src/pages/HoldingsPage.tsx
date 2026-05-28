@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   ASSET_TYPE_LABELS,
   ASSET_TYPES,
@@ -13,6 +14,7 @@ import {
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
+import { LoadingState } from "../components/LoadingState";
 import { ApiClientError, apiGet } from "../lib/apiClient";
 import { formatDisplayAmount, formatDisplayPrice } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
@@ -116,7 +118,8 @@ export function HoldingsPage() {
             onClick={() => void loadHoldings(reportingCurrency)}
             disabled={pageLoading}
           >
-            刷新
+            <RefreshCw size={17} aria-hidden="true" />
+            <span>刷新</span>
           </button>
         </div>
       </header>
@@ -152,11 +155,11 @@ export function HoldingsPage() {
         </article>
         <article className="metric-card metric-card-compact">
           <span>持仓数量</span>
-          <strong>{pageLoading ? "加载中..." : String(visibleHoldings.length)}</strong>
+          <strong>{pageLoading ? <LoadingState label="加载中" /> : String(visibleHoldings.length)}</strong>
         </article>
         <article className="metric-card metric-card-compact">
           <span>数据提示</span>
-          <strong>{pageLoading ? "加载中..." : String(summary?.warnings.length ?? 0)}</strong>
+          <strong>{pageLoading ? <LoadingState label="加载中" /> : String(summary?.warnings.length ?? 0)}</strong>
         </article>
       </div>
 
@@ -216,7 +219,9 @@ export function HoldingsPage() {
           <tbody>
             {pageLoading ? (
               <tr>
-                <td colSpan={11}>正在加载持仓...</td>
+                <td className="table-loading-cell" colSpan={11}>
+                  <LoadingState label="正在加载持仓" />
+                </td>
               </tr>
             ) : visibleHoldings.length === 0 ? (
               <tr>
@@ -280,9 +285,9 @@ function sumMoney(values: string[]): string {
   return Number.isFinite(total) ? String(total) : "0";
 }
 
-function formatMetric(value: string | null, loading: boolean): string {
+function formatMetric(value: string | null, loading: boolean): ReactNode {
   if (loading) {
-    return "加载中...";
+    return <LoadingState label="加载中" />;
   }
 
   return value === null ? "--" : formatDisplayAmount(value);
