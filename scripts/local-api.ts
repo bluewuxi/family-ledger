@@ -9,14 +9,14 @@ const envFile = process.env.FAMILY_LEDGER_ENV_FILE ?? (existsSync(".env.local") 
 const port = Number(process.env.LOCAL_API_PORT ?? process.env.PORT ?? "3000");
 const host = process.env.LOCAL_API_HOST ?? "127.0.0.1";
 const allowedOrigin = process.env.LOCAL_WEB_ORIGIN ?? "http://127.0.0.1:5181";
+const allowedOrigins = new Set([allowedOrigin, "http://127.0.0.1:5181", "http://localhost:5181"]);
 
 dotenv.config({ path: envFile, quiet: true });
 
 const handlerPromise = import("../apps/api/src/handlers/lambda").then((module) => module.handler);
 
-const corsHeaders = {
-  "access-control-allow-origin": allowedOrigin,
-  "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+const baseCorsHeaders = {
+  "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
   "access-control-allow-headers": "authorization,content-type,accept",
   "access-control-max-age": "86400"
 };
@@ -24,19 +24,19 @@ const corsHeaders = {
 const server = http.createServer(async (request, response) => {
   try {
     if (request.method === "OPTIONS") {
-      writeResponse(response, { statusCode: 204, headers: corsHeaders, body: "" });
+      writeResponse(response, { statusCode: 204, headers: corsHeaders(request), body: "" });
       return;
     }
 
     const event = await toApiGatewayEvent(request);
     const handler = await handlerPromise;
     const result = await handler(event);
-    writeResponse(response, withCors(result));
+    writeResponse(response, withCors(result, request));
   } catch (error) {
     console.error("Local API adapter error:", error);
     writeResponse(response, {
       statusCode: 500,
-      headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders },
+      headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders(request) },
       body: JSON.stringify({
         success: false,
         error: {
@@ -133,13 +133,26 @@ function readRequestBody(request: http.IncomingMessage): Promise<string> {
   });
 }
 
-function withCors(result: APIGatewayProxyStructuredResultV2): APIGatewayProxyStructuredResultV2 {
+function withCors(
+  result: APIGatewayProxyStructuredResultV2,
+  request: http.IncomingMessage
+): APIGatewayProxyStructuredResultV2 {
   return {
     ...result,
     headers: {
-      ...corsHeaders,
+      ...corsHeaders(request),
       ...(result.headers ?? {})
     }
+  };
+}
+
+function corsHeaders(request?: http.IncomingMessage): Record<string, string> {
+  const requestOrigin = normalizeHeaderValue(request?.headers.origin);
+  const responseOrigin = requestOrigin && allowedOrigins.has(requestOrigin) ? requestOrigin : allowedOrigin;
+
+  return {
+    "access-control-allow-origin": responseOrigin,
+    ...baseCorsHeaders
   };
 }
 
