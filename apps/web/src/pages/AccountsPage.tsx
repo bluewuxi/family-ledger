@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Plus, RefreshCw } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPES,
@@ -275,11 +276,13 @@ export function AccountsPage() {
         <div className="header-actions">
           {isAdmin ? (
             <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving}>
-              新增账户
+              <Plus size={17} aria-hidden="true" />
+              <span>新账户</span>
             </button>
           ) : null}
           <button className="secondary-button" type="button" onClick={loadAccounts} disabled={loading || saving}>
-            刷新
+            <RefreshCw size={17} aria-hidden="true" />
+            <span>刷新</span>
           </button>
         </div>
       </header>

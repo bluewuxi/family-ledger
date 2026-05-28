@@ -93,15 +93,27 @@ export function Layout({ children }: LayoutProps) {
           {navigationItems.map((item) => {
             const Icon = item.icon;
             return (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "active" : undefined)}>
-              <Icon size={18} aria-hidden="true" />
-              <span>{item.label}</span>
-            </NavLink>
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => (isActive ? "active" : undefined)}
+                title={sidebarCollapsed ? item.label : undefined}
+                data-tooltip={sidebarCollapsed ? item.label : undefined}
+              >
+                <Icon size={18} aria-hidden="true" />
+                <span>{item.label}</span>
+              </NavLink>
             );
           })}
         </nav>
 
-        <button className="logout-button" type="button" onClick={handleSignOut}>
+        <button
+          className="logout-button"
+          type="button"
+          title={sidebarCollapsed ? "退出登录" : undefined}
+          data-tooltip={sidebarCollapsed ? "退出登录" : undefined}
+          onClick={handleSignOut}
+        >
           <LogOut size={17} aria-hidden="true" />
           <span>退出登录</span>
         </button>
@@ -154,17 +166,27 @@ function AppFooter() {
   return (
     <footer className="app-footer">
       <div className="footer-brand">
-        <img src="/icon-64x64.png" alt="" aria-hidden="true" />
+        <span className="footer-brand-mark-wrap" aria-hidden="true">
+          <img className="footer-brand-mark" src="/icon-64x64.png" alt="" />
+        </span>
         <div>
-          <strong>小家大财</strong>
-          <span>Family Ledger</span>
+          <strong className="footer-brand-name" aria-label="小家大财">
+            <span>小</span>
+            <span>家</span>
+            <span className="footer-brand-emphasis">大</span>
+            <span className="footer-brand-gold">财</span>
+          </strong>
+          <span className="brand-subtitle footer-brand-subtitle" aria-label="Family Ledger">
+            <span>Family</span>
+            <span>Ledger</span>
+          </span>
         </div>
       </div>
-      <p>家庭投资记录，仅作辅助参考</p>
+      <p>家庭投资记录，仅作辅助参考。所有者 / 作者：Ricky Yu</p>
       <time dateTime={now.toISOString()}>
         {timeLabel} · {timeZone}
       </time>
-      <Banknote size={18} aria-hidden="true" />
+      <Banknote className="footer-status-icon" size={18} aria-hidden="true" />
     </footer>
   );
 }

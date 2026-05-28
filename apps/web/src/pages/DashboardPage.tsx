@@ -40,6 +40,14 @@ interface TrendPoint {
   value: number;
 }
 
+interface TrendChartPoint {
+  date: string;
+  value: number;
+  snapshotValue: number | null;
+  liveValue: number | null;
+  isSynthetic?: boolean;
+}
+
 interface AllocationPoint {
   name: string;
   value: number;
@@ -165,6 +173,8 @@ export function DashboardPage() {
         .filter((point) => Number.isFinite(point.value)),
     [snapshots]
   );
+  const trendChartData = useMemo(() => buildTrendChartData(trendData, dashboard?.totalAssets), [dashboard?.totalAssets, trendData]);
+  const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
   const allocationData = useMemo<AllocationPoint[]>(
     () => {
       const values = (dashboard?.allocations ?? [])
@@ -273,18 +283,41 @@ export function DashboardPage() {
               <div className="empty-chart-state">暂无快照数据</div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={trendData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
+                <LineChart data={trendChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
                   <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={formatShortDate} tickLine={false} />
-                  <YAxis tickFormatter={(value: number) => formatCompactMoney(value)} tickLine={false} />
+                  <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
+                  <YAxis
+                    domain={trendValueDomain}
+                    tickFormatter={(value: number) => formatCompactMoney(value)}
+                    tickLine={false}
+                    width={72}
+                  />
                   <Tooltip
                     contentStyle={chartTooltipContentStyle}
-                    formatter={(value) => [formatTooltipMoney(value), "总资产"]}
-                    labelFormatter={(label) => `日期：${label}`}
+                    formatter={(value, name) => [formatTooltipMoney(value), name === "liveValue" ? "今日估值" : "总资产"]}
+                    labelFormatter={(label) => formatTrendTooltipLabel(String(label))}
                     labelStyle={chartTooltipLabelStyle}
                     itemStyle={chartTooltipItemStyle}
                   />
-                  <Line type="monotone" dataKey="value" stroke="var(--color-chart-line)" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                  <Line
+                    type="monotone"
+                    dataKey="snapshotValue"
+                    stroke="var(--color-chart-line)"
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                    connectNulls={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="liveValue"
+                    stroke="var(--color-chart-line)"
+                    strokeDasharray="5 5"
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                    connectNulls={false}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -424,6 +457,107 @@ function formatShortDate(value: string): string {
   return value.slice(5);
 }
 
+function formatTrendTickDate(value: string): string {
+  return isSyntheticTrendDate(value) ? "" : formatShortDate(value);
+}
+
+function formatTrendTooltipLabel(value: string): string {
+  return isSyntheticTrendDate(value) ? "今日估值连接线" : `日期：${value}`;
+}
+
+function isSyntheticTrendDate(value: string): boolean {
+  return value.startsWith("__live_midpoint__");
+}
+
+function buildTrendChartData(points: TrendPoint[], liveTotalAssets: string | null | undefined): TrendChartPoint[] {
+  const sortedPoints = [...points].sort((left, right) => left.date.localeCompare(right.date));
+  const chartPoints: TrendChartPoint[] = sortedPoints.map((point) => ({
+    ...point,
+    snapshotValue: point.value,
+    liveValue: null
+  }));
+  const parsedLiveValue = liveTotalAssets === null || liveTotalAssets === undefined ? null : Number(liveTotalAssets);
+
+  if (parsedLiveValue === null || !Number.isFinite(parsedLiveValue)) {
+    return chartPoints;
+  }
+
+  const liveValue = parsedLiveValue;
+  const today = getTodayDateString();
+  const lastPoint = chartPoints.at(-1);
+
+  if (!lastPoint) {
+    return [
+      {
+        date: today,
+        value: liveValue,
+        snapshotValue: null,
+        liveValue
+      }
+    ];
+  }
+
+  if (lastPoint.date >= today) {
+    return chartPoints;
+  }
+
+  const midpointValue = getLiveCurveMidpointValue(lastPoint.value, liveValue);
+
+  return [
+    ...chartPoints.slice(0, -1),
+    {
+      ...lastPoint,
+      liveValue: lastPoint.value
+    },
+    {
+      date: `__live_midpoint__${lastPoint.date}__${today}`,
+      value: midpointValue,
+      snapshotValue: null,
+      liveValue: midpointValue,
+      isSynthetic: true
+    },
+    {
+      date: today,
+      value: liveValue,
+      snapshotValue: null,
+      liveValue
+    }
+  ];
+}
+
+function getLiveCurveMidpointValue(startValue: number, endValue: number): number {
+  const midpointValue = (startValue + endValue) / 2;
+  const delta = endValue - startValue;
+  const direction = delta >= 0 ? 1 : -1;
+  const curveLift = Math.max(Math.abs(delta) * 0.15, Math.max(Math.abs(startValue), Math.abs(endValue)) * 0.0015, 1);
+
+  return midpointValue + direction * curveLift;
+}
+
+function getTodayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
+  const values = points.map((point) => point.value).filter(Number.isFinite);
+
+  if (values.length === 0) {
+    return [0, 1];
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const valueRange = maxValue - minValue;
+
+  if (valueRange === 0) {
+    const padding = Math.max(Math.abs(maxValue) * 0.01, 1);
+    return [Math.max(0, minValue - padding), maxValue + padding];
+  }
+
+  const padding = valueRange * 0.2;
+  return [Math.max(0, minValue - padding), maxValue + padding];
+}
+
 function formatChartMoney(value: number): string {
   return formatDisplayAmount(value);
 }
@@ -439,7 +573,9 @@ function formatPercentage(value: number): string {
 
 function formatCompactMoney(value: number): string {
   if (Math.abs(value) >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
+    const scaledValue = value / 1_000_000;
+    const decimals = Math.abs(scaledValue) < 10 ? 2 : Math.abs(scaledValue) < 100 ? 1 : 0;
+    return `${scaledValue.toFixed(decimals)}M`;
   }
   if (Math.abs(value) >= 1_000) {
     return `${(value / 1_000).toFixed(0)}K`;

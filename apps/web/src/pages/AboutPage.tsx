@@ -16,17 +16,44 @@ const milestones = [
   }
 ];
 
+const designIdeas = [
+  {
+    title: "标志",
+    body: "树形图案来自家庭资产的生长感：根部代表账本和记录，枝叶代表账户、标的和长期积累。它不是装饰图案，而是提醒每一笔变化都应该能回到同一个清晰来源。"
+  },
+  {
+    title: "色彩",
+    body: "深蓝负责稳定和秩序，金色负责价值、收获和提醒，绿色保留家庭项目的生活感。界面尽量克制，让数字、时间和数据缺口成为真正的焦点。"
+  },
+  {
+    title: "字标",
+    body: "“小家”保持亲近，“大”字更高更醒目，表达长期积累带来的分量；“财”用金色收尾，强调财富记录要服务于家庭共识，而不是复杂炫技。"
+  }
+];
+
 export function AboutPage() {
   return (
     <section className="about-page">
       <div className="about-hero">
-        <img className="about-hero-logo" src="/icon-128x128.png" alt="" aria-hidden="true" />
-        <div>
-          <p className="eyebrow">Family Ledger</p>
-          <h1>小家大财</h1>
-          <p>
-            为一个小家庭打造的投资账本。它记录资产，也记录共识：让每一笔变化都能解释，让每一次讨论都基于同一份事实。
-          </p>
+        <div className="about-hero-lockup" aria-label="小家大财 Family Ledger">
+          <div className="about-logo-stack">
+            <img className="about-hero-logo" src="/icon-128x128.png" alt="" aria-hidden="true" />
+            <span className="brand-subtitle about-logo-subtitle" aria-label="Family Ledger">
+              <span>Family</span>
+              <span>Ledger</span>
+            </span>
+          </div>
+          <div className="about-hero-copy">
+            <h1 className="about-brand-name" aria-label="小家大财">
+              <span>小</span>
+              <span>家</span>
+              <span className="about-brand-emphasis">大</span>
+              <span className="about-brand-gold">财</span>
+            </h1>
+            <p>
+              为一个小家庭打造的投资账本。它记录资产，也记录共识：让每一笔变化都能解释，让每一次讨论都基于同一份事实。
+            </p>
+          </div>
         </div>
       </div>
 
@@ -39,6 +66,21 @@ export function AboutPage() {
           这个项目的英文名保留为 Family Ledger，因为它的核心始终是 ledger：清楚、克制、可追溯。中文名“小家大财”强调另一层含义：
           家不必大，资产也未必复杂，但共同理解和长期积累值得被认真对待。
         </p>
+      </section>
+
+      <section className="about-design" aria-labelledby="about-design-title">
+        <div className="about-section-heading">
+          <p className="eyebrow">Design Language</p>
+          <h2 id="about-design-title">灵感 & 创意</h2>
+        </div>
+        <div className="about-design-list">
+          {designIdeas.map((idea) => (
+            <article key={idea.title}>
+              <h3>{idea.title}</h3>
+              <p>{idea.body}</p>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="about-principles" aria-label="项目原则">
@@ -62,7 +104,7 @@ export function AboutPage() {
       <section className="about-timeline" aria-labelledby="about-history">
         <div className="about-section-heading">
           <p className="eyebrow">Project History</p>
-          <h2 id="about-history">项目走过的路径</h2>
+          <h2 id="about-history">心路历程</h2>
         </div>
         <div className="timeline-list">
           {milestones.map((milestone) => (
