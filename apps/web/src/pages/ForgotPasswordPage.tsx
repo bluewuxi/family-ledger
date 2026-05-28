@@ -1,48 +1,47 @@
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { getSupabaseClient } from "../lib/supabase";
 
-export function LoginPage() {
-  const navigate = useNavigate();
+export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError(null);
+    setNotice(null);
 
-    const { error: signInError } = await getSupabaseClient().auth.signInWithPassword({
-      email,
-      password
+    const { error: resetError } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`
     });
 
     setLoading(false);
 
-    if (signInError) {
-      setError("邮箱或密码不正确。");
+    if (resetError) {
+      setError("重置邮件发送失败，请确认邮箱并稍后重试。");
       return;
     }
 
-    navigate("/dashboard", { replace: true });
+    setNotice("如果该邮箱存在，Supabase 将发送密码重置邮件。");
   }
 
   return (
     <main className="login-page">
-      <section className="login-panel" aria-labelledby="login-title">
+      <section className="login-panel" aria-labelledby="forgot-password-title">
         <div className="login-brand-lockup">
           <img className="login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
           <div>
-            <h1 id="login-title">小家大财</h1>
+            <h1 id="forgot-password-title">重置密码</h1>
             <p className="login-brand-subtitle">
               <span>Family</span> Ledger
             </p>
           </div>
         </div>
 
-        <p className="login-note">透明记录家庭资产，共同理解每一次财富变化。</p>
+        <p className="login-note">输入账户邮箱，系统会通过 Supabase 发送重置链接。</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
@@ -57,24 +56,13 @@ export function LoginPage() {
               required
             />
           </label>
-          <label>
-            密码
-            <input
-              type="password"
-              name="password"
-              placeholder="请输入密码"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
           {error ? <p className="form-error">{error}</p> : null}
+          {notice ? <p className="form-success">{notice}</p> : null}
           <button type="submit" disabled={loading}>
-            {loading ? "登录中..." : "登录"}
+            {loading ? "发送中..." : "发送重置邮件"}
           </button>
-          <Link className="login-secondary-link" to="/forgot-password">
-            忘记密码？
+          <Link className="login-secondary-link" to="/login">
+            返回登录
           </Link>
         </form>
       </section>

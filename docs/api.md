@@ -53,6 +53,13 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /settings/preferences`
 - `PATCH /settings/preferences`
 
+## Admin User Management
+
+These endpoints require a valid Supabase Bearer token and an active `admin` role:
+
+- `GET /users`
+- `PATCH /users/:id`
+
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending. It supports `from`, `to`, `accountId`, `instrumentId`, `transactionType`, `limit`, and `offset` query parameters. When pagination parameters are supplied, the response includes `pagination` metadata with `limit`, `offset`, and `hasMore`.
@@ -140,6 +147,43 @@ The response includes a `triggerRequestId`. Actual inserted/skipped counts are r
 ```
 
 `PATCH /settings/preferences` updates the current user's report default currency, gain/loss color convention, and UI theme. `preferredCurrency` must be `NZD`, `USD`, or `CNY`. `gainColorScheme` must be `red_positive` or `green_positive`. `uiTheme` must be `light` or `dark`; new profiles default to `light`.
+
+### User Management API
+
+These endpoints require a valid Supabase Bearer token and an active `admin` role:
+
+- `GET /users`
+- `PATCH /users/:id`
+
+`GET /users` lists existing Supabase Auth users with their application role and active status. Users are created in the Supabase console, not through the app.
+
+```json
+{
+  "users": [
+    {
+      "id": "uuid",
+      "email": "user@example.com",
+      "role": "viewer",
+      "isActive": true,
+      "createdAt": "2026-05-28T00:00:00.000Z",
+      "lastSignInAt": null
+    }
+  ]
+}
+```
+
+`PATCH /users/:id` updates only access status and role:
+
+```json
+{
+  "role": "admin",
+  "isActive": true
+}
+```
+
+The response returns the updated `managedUser`.
+
+Setting `isActive` to `false` pauses application access while preserving the Supabase Auth user and audit history. Admins cannot change their own access from this endpoint.
 
 ### Dashboard Read API
 

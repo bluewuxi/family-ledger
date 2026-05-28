@@ -14,6 +14,7 @@ import {
   getMarketDataProviderRuns,
   triggerMarketDataRetrieval
 } from "../services/marketDataService";
+import { getManagedUsers, updateManagedUser } from "../services/managedUserService";
 import {
   createInvestmentInstrument,
   deleteInvestmentInstrument,
@@ -45,6 +46,10 @@ const routes: Record<string, RouteHandler> = {
   "GET /settings/preferences": async (event) => {
     const user = await requireRole(event, "viewer");
     return success({ user, preferences: await getProfilePreferences(user) });
+  },
+  "GET /users": async (event) => {
+    const user = await requireRole(event, "admin");
+    return success({ user, users: await getManagedUsers() });
   },
   "PATCH /settings/preferences": async (event) => {
     const user = await requireRole(event, "viewer");
@@ -134,6 +139,14 @@ const dynamicRoutes: Array<{
       const user = await requireRole(event, "admin");
       const account = await updateInvestmentAccount(params.id, parseJsonBody(event), user);
       return success({ account });
+    }
+  },
+  {
+    method: "PATCH",
+    pattern: /^\/users\/(?<id>[^/]+)$/,
+    handler: async (event, params) => {
+      const user = await requireRole(event, "admin");
+      return success({ managedUser: await updateManagedUser(params.id, parseJsonBody(event), user) });
     }
   },
   {

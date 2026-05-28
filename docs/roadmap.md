@@ -48,6 +48,8 @@
 - Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
 - Dedicated data-sync monitor (implemented: FX, price, and log tabs with filters and offset pagination)
 - Settings user preferences (implemented: report default currency, gain/loss color convention, and light/dark theme backed by profiles)
+- User access management (implemented: admins can view existing Supabase Auth users, maintain `viewer`/`admin` role, and pause/resume access)
+- Self-service password reset (implemented: Supabase Auth reset emails with app-hosted new password screen)
 
 ## Stage 5: Tax-Assist and Reports
 

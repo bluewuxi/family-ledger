@@ -1800,6 +1800,68 @@ tr.editing-row td {
   color: var(--color-muted);
 }
 
+.settings-user-section {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-section-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-inline-message {
+  margin: 0;
+}
+
+.settings-user-table {
+  min-width: 840px;
+}
+
+.settings-user-table td:first-child strong {
+  display: inline-block;
+  margin-right: 8px;
+  font-weight: 600;
+}
+
+.settings-role-select {
+  min-width: 116px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 8px 10px;
+}
+
+.settings-self-badge,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-self-badge {
+  border: 1px solid var(--color-border);
+  background: var(--color-panel-soft);
+  color: var(--color-muted);
+}
+
+.status-pill-active {
+  border: 1px solid color-mix(in srgb, var(--color-positive) 42%, var(--color-border));
+  background: color-mix(in srgb, var(--color-positive) 12%, var(--color-surface));
+  color: var(--color-positive);
+}
+
+.status-pill-paused {
+  border: 1px solid var(--color-danger-border);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
 .login-page {
   position: relative;
   isolation: isolate;
@@ -1920,6 +1982,18 @@ tr.editing-row td {
 .login-form button:disabled {
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.login-secondary-link {
+  justify-self: center;
+  color: var(--color-brand-navy);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.login-secondary-link:hover {
+  color: var(--color-brand-navy-ink);
+  text-decoration: underline;
 }
 
 .form-error {

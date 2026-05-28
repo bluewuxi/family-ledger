@@ -176,6 +176,20 @@ export interface UserRoleRecord {
   updatedAt: string;
 }
 
+export interface ManagedUser {
+  id: string;
+  email: string | null;
+  role: UserRole | null;
+  isActive: boolean;
+  createdAt: string;
+  lastSignInAt: string | null;
+}
+
+export interface UpdateManagedUserInput {
+  role?: UserRole;
+  isActive?: boolean;
+}
+
 export interface AuthenticatedUser {
   id: string;
   email: string;

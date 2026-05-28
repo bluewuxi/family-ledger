@@ -6,10 +6,12 @@ import { PreferencesProvider } from "./lib/preferencesContext";
 import { AccountsPage } from "./pages/AccountsPage";
 import { AboutPage } from "./pages/AboutPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { HoldingsPage } from "./pages/HoldingsPage";
 import { InstrumentsPage } from "./pages/InstrumentsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MarketDataPage } from "./pages/MarketDataPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
 
@@ -35,6 +37,8 @@ export function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<ProtectedApp />} />
       </Routes>
     </AuthProvider>

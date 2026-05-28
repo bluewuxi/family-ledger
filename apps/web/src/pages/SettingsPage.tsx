@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { RefreshCw, Save } from "lucide-react";
+import { Power, RefreshCw, Save, ShieldCheck, Users } from "lucide-react";
 import {
   GAIN_COLOR_SCHEME_LABELS,
   GAIN_COLOR_SCHEMES,
@@ -8,9 +8,11 @@ import {
   UI_THEMES,
   type AuthenticatedUser,
   type GainColorScheme,
+  type ManagedUser,
   type SnapshotDisplayCurrency,
   type UiTheme,
-  type UserPreferences
+  type UserPreferences,
+  type UserRole
 } from "@family-ledger/shared";
 import { CurrencySelect } from "../components/CurrencySelect";
 import { PageTitle } from "../components/PageTitle";
@@ -22,16 +24,32 @@ interface PreferencesResponse {
   preferences: UserPreferences;
 }
 
+interface ManagedUsersResponse {
+  user: AuthenticatedUser;
+  users: ManagedUser[];
+}
+
+interface UpdateManagedUserResponse {
+  managedUser: ManagedUser;
+}
+
 export function SettingsPage() {
   const { setPreferences } = usePreferences();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [preferredCurrency, setPreferredCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [gainColorScheme, setGainColorScheme] = useState<GainColorScheme>("red_positive");
   const [uiTheme, setUiTheme] = useState<UiTheme>("light");
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userManagementError, setUserManagementError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [userManagementNotice, setUserManagementNotice] = useState<string | null>(null);
+
+  const isAdmin = user?.role === "admin";
 
   useEffect(() => {
     void loadPreferences();
@@ -49,10 +67,31 @@ export function SettingsPage() {
       setGainColorScheme(toGainColorScheme(data.preferences.gainColorScheme));
       setUiTheme(toUiTheme(data.preferences.uiTheme));
       setPreferences(data.preferences);
+
+      if (data.user.role === "admin") {
+        await loadManagedUsers();
+      } else {
+        setManagedUsers([]);
+      }
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadManagedUsers() {
+    setLoadingUsers(true);
+    setUserManagementError(null);
+    setUserManagementNotice(null);
+
+    try {
+      const data = await apiGet<ManagedUsersResponse>("/users");
+      setManagedUsers(data.users);
+    } catch (requestError) {
+      setUserManagementError(toErrorMessage(requestError));
+    } finally {
+      setLoadingUsers(false);
     }
   }
 
@@ -76,14 +115,40 @@ export function SettingsPage() {
     }
   }
 
+  async function handleRoleChange(targetUser: ManagedUser, role: UserRole) {
+    await updateUserAccess(targetUser, { role }, "用户角色已更新。");
+  }
+
+  async function handleAccessToggle(targetUser: ManagedUser) {
+    await updateUserAccess(targetUser, { isActive: !targetUser.isActive }, targetUser.isActive ? "用户访问已停用。" : "用户访问已启用。");
+  }
+
+  async function updateUserAccess(targetUser: ManagedUser, input: { role?: UserRole; isActive?: boolean }, successMessage: string) {
+    setSavingUserId(targetUser.id);
+    setUserManagementError(null);
+    setUserManagementNotice(null);
+
+    try {
+      const data = await apiPatch<UpdateManagedUserResponse>(`/users/${targetUser.id}`, input);
+      setManagedUsers((currentUsers) =>
+        currentUsers.map((item) => (item.id === data.managedUser.id ? data.managedUser : item))
+      );
+      setUserManagementNotice(successMessage);
+    } catch (requestError) {
+      setUserManagementError(toErrorMessage(requestError));
+    } finally {
+      setSavingUserId(null);
+    }
+  }
+
   return (
     <section>
       <header className="page-header account-header">
         <div>
           <PageTitle route="/settings">设置</PageTitle>
-          <p>维护当前用户的显示偏好。行情同步监控已移至“数据同步”。</p>
+          <p>维护当前用户的显示偏好。管理员可停用访问并维护用户角色。</p>
         </div>
-        <button className="secondary-button" type="button" onClick={loadPreferences} disabled={loading || saving}>
+        <button className="secondary-button" type="button" onClick={loadPreferences} disabled={loading || saving || loadingUsers}>
           <RefreshCw size={17} aria-hidden="true" />
           <span>刷新</span>
         </button>
@@ -139,6 +204,101 @@ export function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {isAdmin ? (
+        <section className="settings-user-section" aria-labelledby="user-management-title">
+          <div className="settings-section-header">
+            <div>
+              <h2 id="user-management-title">
+                <Users size={18} aria-hidden="true" />
+                用户访问
+              </h2>
+              <p>Supabase 控制台创建用户后，可在这里维护访问状态和角色。</p>
+            </div>
+            <button className="secondary-button" type="button" onClick={loadManagedUsers} disabled={loadingUsers || savingUserId !== null}>
+              <RefreshCw size={17} aria-hidden="true" />
+              <span>刷新用户</span>
+            </button>
+          </div>
+
+          {userManagementError ? <p className="form-error settings-inline-message">{userManagementError}</p> : null}
+          {userManagementNotice ? <p className="form-success settings-inline-message">{userManagementNotice}</p> : null}
+
+          <div className="table-wrap">
+            <table className="settings-user-table">
+              <thead>
+                <tr>
+                  <th>邮箱</th>
+                  <th>角色</th>
+                  <th>状态</th>
+                  <th>最近登录</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingUsers ? (
+                  <tr>
+                    <td className="table-loading-cell" colSpan={5}>
+                      正在加载用户
+                    </td>
+                  </tr>
+                ) : managedUsers.length === 0 ? (
+                  <tr>
+                    <td className="table-loading-cell" colSpan={5}>
+                      暂无用户
+                    </td>
+                  </tr>
+                ) : (
+                  managedUsers.map((managedUser) => {
+                    const isSelf = managedUser.id === user?.id;
+                    const isSavingUser = savingUserId === managedUser.id;
+                    return (
+                      <tr key={managedUser.id}>
+                        <td>
+                          <strong>{managedUser.email ?? "未设置邮箱"}</strong>
+                          {isSelf ? <span className="settings-self-badge">当前用户</span> : null}
+                        </td>
+                        <td>
+                          <label className="sr-only" htmlFor={`role-${managedUser.id}`}>
+                            角色
+                          </label>
+                          <select
+                            id={`role-${managedUser.id}`}
+                            className="settings-role-select"
+                            value={managedUser.role ?? "viewer"}
+                            onChange={(event) => void handleRoleChange(managedUser, event.target.value as UserRole)}
+                            disabled={isSelf || isSavingUser}
+                          >
+                            <option value="admin">管理员</option>
+                            <option value="viewer">查看者</option>
+                          </select>
+                        </td>
+                        <td>
+                          <span className={managedUser.isActive ? "status-pill status-pill-active" : "status-pill status-pill-paused"}>
+                            {managedUser.isActive ? "已启用" : "已停用"}
+                          </span>
+                        </td>
+                        <td>{formatDateTime(managedUser.lastSignInAt)}</td>
+                        <td>
+                          <button
+                            className={managedUser.isActive ? "danger-button" : "secondary-button"}
+                            type="button"
+                            onClick={() => void handleAccessToggle(managedUser)}
+                            disabled={isSelf || isSavingUser}
+                          >
+                            {managedUser.isActive ? <Power size={16} aria-hidden="true" /> : <ShieldCheck size={16} aria-hidden="true" />}
+                            <span>{managedUser.isActive ? "停用" : "启用"}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }
@@ -155,6 +315,17 @@ function toGainColorScheme(value: string): GainColorScheme {
 
 function toUiTheme(value: string): UiTheme {
   return UI_THEMES.includes(value as UiTheme) ? (value as UiTheme) : "light";
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return "从未登录";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
 
 function toErrorMessage(error: unknown): string {

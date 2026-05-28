@@ -32,9 +32,22 @@ Lambda API enforces permissions. Frontend role checks are UI hints only.
 - POST/PUT/PATCH/DELETE endpoints: `admin` only
 - maintenance/job endpoints: `admin` only
 
-No active `user_roles` row means access denied.
+No active `user_roles` row means access denied. Admin users can pause/resume existing Supabase Auth users and maintain their `viewer` / `admin` role from the Settings page.
 
 The server-side Supabase key is stored in AWS SSM Parameter Store and must never be exposed to `apps/web`.
+
+## User Management
+
+Create Auth users in the Supabase console. The app intentionally does not create, invite, edit email addresses, or delete Auth users. For this family ledger, keep the expected user count to no more than three.
+
+Admins can manage existing users through the Lambda API:
+
+- View Supabase Auth users.
+- Set role to `viewer` or `admin`.
+- Pause access by setting `user_roles.is_active = false`.
+- Resume access by setting `user_roles.is_active = true`.
+
+Password reset is self-service from the login screen. Supabase Auth sends reset emails and redirects the user back to the app to set a new password. Configure Supabase SMTP or allowed recipient settings in the Supabase project as needed.
 
 ## First Admin
 
@@ -46,5 +59,3 @@ values ('<auth-user-id>', 'admin', true)
 on conflict (user_id)
 do update set role = excluded.role, is_active = true;
 ```
-
-Do not add role-management UI until a later stage.

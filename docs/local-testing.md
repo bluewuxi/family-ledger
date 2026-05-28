@@ -94,7 +94,7 @@ The adapter handles `OPTIONS` requests and injects local CORS response headers. 
 
 ## Test Auth And Roles
 
-Passwords cannot be recovered from Supabase Auth or from this repository. Reset a test password in the Supabase Dashboard when needed.
+Passwords cannot be recovered from Supabase Auth or from this repository. Use the login page self-service reset flow or reset a test password in the Supabase Dashboard when needed.
 
 After creating a test Auth user, grant application access from trusted SQL tooling:
 
@@ -106,6 +106,8 @@ do update set role = excluded.role, is_active = true;
 ```
 
 For account CRUD testing, use `admin`. For read-only verification, use `viewer`.
+
+Admin users can also manage existing Auth users from Settings. User creation remains in the Supabase console. If Supabase refuses to send reset emails in a hosted test project, configure custom SMTP or add the test recipients to the Supabase project's allowed/team email settings.
 
 ## Common Failures
 
