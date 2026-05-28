@@ -37,7 +37,7 @@ CloudFront + private S3 static assets
   -> Lambda API
   -> Supabase Postgres
 
-EventBridge
+EventBridge Scheduler
   -> Lambda scheduled jobs
   -> Supabase Postgres
 ```
@@ -46,7 +46,7 @@ Main components:
 
 - Frontend: React + TypeScript + Vite
 - API: AWS API Gateway + Lambda
-- Scheduled jobs: AWS EventBridge + Lambda
+- Scheduled jobs: AWS EventBridge Scheduler + Lambda
 - Database: Supabase Postgres
 - Auth: Supabase Auth
 - UI language: Simplified Chinese
@@ -65,7 +65,7 @@ family-ledger/
   apps/
     web/       # React + TypeScript + Vite frontend
     api/       # API Gateway + Lambda API project
-    jobs/      # EventBridge-triggered Lambda jobs
+    jobs/      # EventBridge Scheduler-triggered Lambda jobs
 
   packages/
     shared/    # Shared TypeScript types, constants, validators, calculations
@@ -188,7 +188,7 @@ Use Chinese labels such as:
 - 持仓总览
 - 设置
 - 总资产
-- 今日变动
+- 最新变动
 - 未实现收益
 - 账户数量
 
@@ -217,6 +217,21 @@ Avoid wording that implies guaranteed tax compliance, such as:
 - 自动报税
 - 准确报税
 - 税务申报系统
+
+---
+
+## Date And Time Handling
+
+Treat date and time handling as a cross-layer product rule.
+
+- Store instants as UTC ISO strings / PostgreSQL `timestamptz`; do not store viewer-local formatted timestamps as data.
+- Store business/calendar dates as `date` / `YYYY-MM-DD` strings only when the value is a date without a time, such as `trade_date`, `settlement_date`, `price_date`, `rate_date`, and `snapshot_date`.
+- Human timestamp display in the web app should use the viewer's local time zone and make that clear in UI text where ambiguity matters.
+- Portfolio business-day logic is global, not viewer-local: use `Asia/Shanghai` with a `09:00` cutoff through shared helpers such as `getAppBusinessDate`.
+- Market-data provider dates (`price_date`, `rate_date`, quote dates) are provider/exchange dates. Do not derive them from viewer-local time.
+- Scheduled jobs must use timezone-aware EventBridge Scheduler configuration and pass Scheduler context (`<aws.scheduler.scheduled-time>` as `time`) into Lambda. Snapshot generation must derive its default date from scheduled time, not Lambda execution/retry time.
+- Avoid ad hoc `new Date().toISOString().slice(0, 10)` for app business dates or UI date defaults. Use shared time helpers from `packages/shared`.
+- When adding date/time behavior, update focused verification scripts such as `verify:time-policy` and document any new semantics.
 
 ---
 

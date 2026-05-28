@@ -59,6 +59,7 @@ interface AllocationPoint {
 }
 
 const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
+const dashboardAutoRefreshIntervalMs = 60 * 1000;
 const allocationColors = ["#08264A", "#F5B52E", "#3D8F67", "#D9534F", "#4D83B8", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 const chartTooltipContentStyle = {
@@ -105,13 +106,40 @@ export function DashboardPage() {
   }, [currencyInitialized, reportingCurrency]);
 
   useEffect(() => {
+    if (!currencyInitialized) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadDashboard(reportingCurrency, { showLoading: false });
+    }, dashboardAutoRefreshIntervalMs);
+
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        void loadDashboard(reportingCurrency, { showLoading: false });
+      }
+    }
+
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [currencyInitialized, reportingCurrency]);
+
+  useEffect(() => {
     if (currencyInitialized) {
       void loadSnapshots(reportingCurrency, snapshotRangeDays);
     }
   }, [currencyInitialized, reportingCurrency, snapshotRangeDays]);
 
-  async function loadDashboard(currency: SnapshotDisplayCurrency) {
-    setDashboardLoading(true);
+  async function loadDashboard(currency: SnapshotDisplayCurrency, options: { showLoading?: boolean } = {}) {
+    const showLoading = options.showLoading ?? true;
+
+    if (showLoading) {
+      setDashboardLoading(true);
+    }
     setDashboardError(null);
 
     try {
@@ -120,7 +148,9 @@ export function DashboardPage() {
     } catch (requestError) {
       setDashboardError(toErrorMessage(requestError, "财富足迹请求失败，请稍后重试。"));
     } finally {
-      setDashboardLoading(false);
+      if (showLoading) {
+        setDashboardLoading(false);
+      }
     }
   }
 
