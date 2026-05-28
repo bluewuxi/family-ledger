@@ -134,12 +134,12 @@ The response includes a `triggerRequestId`. Actual inserted/skipped counts are r
   "preferences": {
     "preferredCurrency": "NZD",
     "gainColorScheme": "red_positive",
-    "uiTheme": "system"
+    "uiTheme": "light"
   }
 }
 ```
 
-`PATCH /settings/preferences` updates the current user's report default currency and gain/loss color convention. `preferredCurrency` must be `NZD`, `USD`, or `CNY`. `gainColorScheme` must be `red_positive` or `green_positive`. `uiTheme` is a placeholder and is always returned as `system` until theme switching is implemented.
+`PATCH /settings/preferences` updates the current user's report default currency, gain/loss color convention, and UI theme. `preferredCurrency` must be `NZD`, `USD`, or `CNY`. `gainColorScheme` must be `red_positive` or `green_positive`. `uiTheme` must be `light` or `dark`; new profiles default to `light`.
 
 ### Dashboard Read API
 

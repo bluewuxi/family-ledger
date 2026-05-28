@@ -3,11 +3,15 @@ import {
   GAIN_COLOR_SCHEME_LABELS,
   GAIN_COLOR_SCHEMES,
   SNAPSHOT_DISPLAY_CURRENCIES,
+  UI_THEME_LABELS,
+  UI_THEMES,
   type AuthenticatedUser,
   type GainColorScheme,
   type SnapshotDisplayCurrency,
+  type UiTheme,
   type UserPreferences
 } from "@family-ledger/shared";
+import { CurrencySelect } from "../components/CurrencySelect";
 import { ApiClientError, apiGet, apiPatch } from "../lib/apiClient";
 import { usePreferences } from "../lib/preferencesContext";
 
@@ -21,6 +25,7 @@ export function SettingsPage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [preferredCurrency, setPreferredCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [gainColorScheme, setGainColorScheme] = useState<GainColorScheme>("red_positive");
+  const [uiTheme, setUiTheme] = useState<UiTheme>("light");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +45,7 @@ export function SettingsPage() {
       setUser(data.user);
       setPreferredCurrency(toDisplayCurrency(data.preferences.preferredCurrency));
       setGainColorScheme(toGainColorScheme(data.preferences.gainColorScheme));
+      setUiTheme(toUiTheme(data.preferences.uiTheme));
       setPreferences(data.preferences);
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -55,9 +61,10 @@ export function SettingsPage() {
     setNotice(null);
 
     try {
-      const data = await apiPatch<PreferencesResponse>("/settings/preferences", { preferredCurrency, gainColorScheme });
+      const data = await apiPatch<PreferencesResponse>("/settings/preferences", { preferredCurrency, gainColorScheme, uiTheme });
       setPreferredCurrency(toDisplayCurrency(data.preferences.preferredCurrency));
       setGainColorScheme(toGainColorScheme(data.preferences.gainColorScheme));
+      setUiTheme(toUiTheme(data.preferences.uiTheme));
       setPreferences(data.preferences);
       setNotice("偏好设置已保存。");
     } catch (requestError) {
@@ -88,20 +95,13 @@ export function SettingsPage() {
           {user ? <span>{user.email}</span> : <span>正在加载偏好设置</span>}
         </div>
 
-        <label>
-          报表默认币种
-          <select
-            value={preferredCurrency}
-            onChange={(event) => setPreferredCurrency(event.target.value as SnapshotDisplayCurrency)}
-            disabled={loading || saving}
-          >
-            {SNAPSHOT_DISPLAY_CURRENCIES.map((currency) => (
-              <option key={currency} value={currency}>
-                {currency}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CurrencySelect
+          label="报表默认币种"
+          options={SNAPSHOT_DISPLAY_CURRENCIES}
+          value={preferredCurrency}
+          onChange={setPreferredCurrency}
+          disabled={loading || saving}
+        />
 
         <label>
           涨跌颜色
@@ -120,8 +120,12 @@ export function SettingsPage() {
 
         <label>
           界面主题
-          <select value="system" disabled>
-            <option value="system">跟随系统（待实现）</option>
+          <select value={uiTheme} onChange={(event) => setUiTheme(event.target.value as UiTheme)} disabled={loading || saving}>
+            {UI_THEMES.map((theme) => (
+              <option key={theme} value={theme}>
+                {UI_THEME_LABELS[theme]}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -143,6 +147,10 @@ function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
 
 function toGainColorScheme(value: string): GainColorScheme {
   return GAIN_COLOR_SCHEMES.includes(value as GainColorScheme) ? (value as GainColorScheme) : "red_positive";
+}
+
+function toUiTheme(value: string): UiTheme {
+  return UI_THEMES.includes(value as UiTheme) ? (value as UiTheme) : "light";
 }
 
 function toErrorMessage(error: unknown): string {

@@ -134,12 +134,21 @@ export interface Profile {
   displayName: string | null;
   preferredCurrency: CurrencyCode;
   gainColorScheme: GainColorScheme;
+  uiTheme: UiTheme;
   createdAt: string;
   updatedAt: string;
 }
 
 export const GAIN_COLOR_SCHEMES = ["red_positive", "green_positive"] as const;
 export type GainColorScheme = (typeof GAIN_COLOR_SCHEMES)[number];
+
+export const UI_THEMES = ["light", "dark"] as const;
+export type UiTheme = (typeof UI_THEMES)[number];
+
+export const UI_THEME_LABELS: Record<UiTheme, string> = {
+  light: "日间模式",
+  dark: "夜间模式"
+};
 
 export const GAIN_COLOR_SCHEME_LABELS: Record<GainColorScheme, string> = {
   red_positive: "\u7ea2\u8272\u8868\u793a\u76c8\u5229\uff0c\u7eff\u8272\u8868\u793a\u4e8f\u635f",
@@ -149,12 +158,13 @@ export const GAIN_COLOR_SCHEME_LABELS: Record<GainColorScheme, string> = {
 export interface UserPreferences {
   preferredCurrency: CurrencyCode;
   gainColorScheme: GainColorScheme;
-  uiTheme: "system";
+  uiTheme: UiTheme;
 }
 
 export interface UpdateUserPreferencesInput {
   preferredCurrency?: CurrencyCode;
   gainColorScheme?: GainColorScheme;
+  uiTheme?: UiTheme;
 }
 
 export interface UserRoleRecord {

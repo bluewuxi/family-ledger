@@ -3,13 +3,14 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/authContext";
 
 const navigationItems = [
-  { to: "/dashboard", label: "仪表盘" },
+  { to: "/dashboard", label: "财富足迹" },
   { to: "/accounts", label: "投资账户" },
   { to: "/instruments", label: "投资标的" },
   { to: "/transactions", label: "交易记录" },
   { to: "/holdings", label: "持仓总览" },
   { to: "/market-data", label: "数据同步" },
-  { to: "/settings", label: "设置" }
+  { to: "/settings", label: "设置" },
+  { to: "/about", label: "关于" }
 ];
 
 interface LayoutProps {
@@ -31,8 +32,8 @@ export function Layout({ children }: LayoutProps) {
         <div className="brand">
           <img className="brand-mark" src="/icon-64x64.png" alt="" aria-hidden="true" />
           <div>
-            <strong>家庭投资账务</strong>
-            <span>family-ledger</span>
+            <strong>小家大财</strong>
+            <span>Family Ledger</span>
           </div>
         </div>
 

@@ -25,7 +25,7 @@ export function Drawer({ title, subtitle, open, onClose, children, footer }: Dra
       return undefined;
     }
 
-    const timeoutId = window.setTimeout(() => setShouldRender(false), 220);
+    const timeoutId = window.setTimeout(() => setShouldRender(false), 260);
     return () => window.clearTimeout(timeoutId);
   }, [open, shouldRender]);
 

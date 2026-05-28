@@ -1,13 +1,13 @@
 # Data Model
 
-`family-ledger` is a single-family shared ledger. Core business data is shared by the family, not owned by individual users.
+`小家大财` / `Family Ledger` is a single-family shared ledger. Core business data is shared by the family, not owned by individual users.
 
 Users are accessors/operators only. User-specific tables are limited to:
 
 - `profiles`: Supabase Auth user profile data.
 - `user_roles`: active `viewer` / `admin` access role.
 
-New profile rows default to `preferred_currency = 'CNY'` and `gain_color_scheme = 'red_positive'`. Existing saved preferences are not rewritten when defaults change.
+New profile rows default to `preferred_currency = 'CNY'`, `gain_color_scheme = 'red_positive'`, and `ui_theme = 'light'`. Existing saved preferences are not rewritten when defaults change.
 
 Business tables do not use `user_id` as an ownership field. Where useful, they use audit fields only:
 

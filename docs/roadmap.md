@@ -47,7 +47,7 @@
 - EventBridge jobs for prices and snapshots (implemented for price updates, FX updates, and portfolio snapshots)
 - Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
 - Dedicated data-sync monitor (implemented: FX, price, and log tabs with filters and offset pagination)
-- Settings user preferences (implemented: report default currency backed by profiles, theme placeholder)
+- Settings user preferences (implemented: report default currency, gain/loss color convention, and light/dark theme backed by profiles)
 
 ## Stage 5: Tax-Assist and Reports
 

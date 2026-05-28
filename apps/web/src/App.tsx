@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { LoadingState } from "./components/LoadingState";
 import { AuthProvider, useAuth } from "./lib/authContext";
 import { PreferencesProvider } from "./lib/preferencesContext";
 import { AccountsPage } from "./pages/AccountsPage";
+import { AboutPage } from "./pages/AboutPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HoldingsPage } from "./pages/HoldingsPage";
 import { InstrumentsPage } from "./pages/InstrumentsPage";
@@ -22,6 +24,7 @@ function AppRoutes() {
       <Route path="/holdings" element={<HoldingsPage />} />
       <Route path="/market-data" element={<MarketDataPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/about" element={<AboutPage />} />
     </Routes>
   );
 }
@@ -42,7 +45,11 @@ function ProtectedApp() {
   const { session, loading } = useAuth();
 
   if (loading) {
-    return <main className="loading-page">正在加载...</main>;
+    return (
+      <main className="loading-page">
+        <LoadingState label="正在加载" />
+      </main>
+    );
   }
 
   if (!session) {

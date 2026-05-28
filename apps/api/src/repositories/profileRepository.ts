@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, CurrencyCode, GainColorScheme, Profile } from "@family-ledger/shared";
+import type { AuthenticatedUser, CurrencyCode, GainColorScheme, Profile, UiTheme } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 interface ProfileRow {
@@ -7,6 +7,7 @@ interface ProfileRow {
   display_name: string | null;
   preferred_currency: CurrencyCode;
   gain_color_scheme: GainColorScheme;
+  ui_theme: UiTheme;
   created_at: string;
   updated_at: string;
 }
@@ -42,7 +43,7 @@ export async function getOrCreateProfile(user: AuthenticatedUser): Promise<Profi
 
 export async function updateProfilePreferences(
   user: AuthenticatedUser,
-  input: { preferredCurrency?: CurrencyCode; gainColorScheme?: GainColorScheme }
+  input: { preferredCurrency?: CurrencyCode; gainColorScheme?: GainColorScheme; uiTheme?: UiTheme }
 ): Promise<Profile> {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase
@@ -52,7 +53,8 @@ export async function updateProfilePreferences(
         id: user.id,
         email: user.email,
         ...(input.preferredCurrency !== undefined ? { preferred_currency: input.preferredCurrency } : {}),
-        ...(input.gainColorScheme !== undefined ? { gain_color_scheme: input.gainColorScheme } : {})
+        ...(input.gainColorScheme !== undefined ? { gain_color_scheme: input.gainColorScheme } : {}),
+        ...(input.uiTheme !== undefined ? { ui_theme: input.uiTheme } : {})
       },
       { onConflict: "id" }
     )
@@ -66,7 +68,16 @@ export async function updateProfilePreferences(
   return mapProfileRow(data);
 }
 
-const profileSelect = ["id", "email", "display_name", "preferred_currency", "gain_color_scheme", "created_at", "updated_at"].join(", ");
+const profileSelect = [
+  "id",
+  "email",
+  "display_name",
+  "preferred_currency",
+  "gain_color_scheme",
+  "ui_theme",
+  "created_at",
+  "updated_at"
+].join(", ");
 
 function mapProfileRow(row: ProfileRow): Profile {
   return {
@@ -75,6 +86,7 @@ function mapProfileRow(row: ProfileRow): Profile {
     displayName: row.display_name,
     preferredCurrency: row.preferred_currency,
     gainColorScheme: row.gain_color_scheme,
+    uiTheme: row.ui_theme,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

@@ -35,12 +35,14 @@ export function LoginPage() {
         <div className="login-brand-lockup">
           <img className="login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
           <div>
-            <h1 id="login-title">家庭投资账务</h1>
+            <h1 id="login-title">小家大财</h1>
             <p className="login-brand-subtitle">
               <span>Family</span> Ledger
             </p>
           </div>
         </div>
+
+        <p className="login-note">透明记录家庭资产，共同理解每一次财富变化。</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>

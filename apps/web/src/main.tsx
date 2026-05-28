@@ -25,7 +25,7 @@ initializeRuntimeConfig()
       <StrictMode>
         <main className="login-page">
           <section className="login-panel" aria-labelledby="config-error-title">
-            <p className="eyebrow">family-ledger</p>
+            <p className="eyebrow">Family Ledger</p>
             <h1 id="config-error-title">应用配置加载失败</h1>
             <p className="login-note">请检查 config.json 或 Vite 环境变量配置。</p>
           </section>

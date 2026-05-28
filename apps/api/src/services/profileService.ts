@@ -3,9 +3,10 @@ import type {
   CurrencyCode,
   GainColorScheme,
   UpdateUserPreferencesInput,
+  UiTheme,
   UserPreferences
 } from "@family-ledger/shared";
-import { GAIN_COLOR_SCHEMES, SNAPSHOT_DISPLAY_CURRENCIES } from "@family-ledger/shared";
+import { GAIN_COLOR_SCHEMES, SNAPSHOT_DISPLAY_CURRENCIES, UI_THEMES } from "@family-ledger/shared";
 import {
   getOrCreateProfile,
   updateProfilePreferences as updateProfilePreferencesRecord
@@ -17,14 +18,14 @@ export async function getProfilePreferences(user: AuthenticatedUser): Promise<Us
   return {
     preferredCurrency: profile.preferredCurrency,
     gainColorScheme: profile.gainColorScheme,
-    uiTheme: "system"
+    uiTheme: profile.uiTheme
   };
 }
 
 export async function updateProfilePreferences(body: unknown, user: AuthenticatedUser): Promise<UserPreferences> {
   const input = parseUpdatePreferencesInput(body);
 
-  if (!input.preferredCurrency && !input.gainColorScheme) {
+  if (!input.preferredCurrency && !input.gainColorScheme && !input.uiTheme) {
     return getProfilePreferences(user);
   }
 
@@ -32,7 +33,7 @@ export async function updateProfilePreferences(body: unknown, user: Authenticate
   return {
     preferredCurrency: profile.preferredCurrency,
     gainColorScheme: profile.gainColorScheme,
-    uiTheme: "system"
+    uiTheme: profile.uiTheme
   };
 }
 
@@ -42,7 +43,7 @@ function parseUpdatePreferencesInput(body: unknown): UpdateUserPreferencesInput 
   }
 
   const input: UpdateUserPreferencesInput = {};
-  const record = body as { preferredCurrency?: unknown; gainColorScheme?: unknown };
+  const record = body as { preferredCurrency?: unknown; gainColorScheme?: unknown; uiTheme?: unknown };
 
   if ("preferredCurrency" in record) {
     input.preferredCurrency = requiredReportCurrency(record.preferredCurrency);
@@ -50,6 +51,10 @@ function parseUpdatePreferencesInput(body: unknown): UpdateUserPreferencesInput 
 
   if ("gainColorScheme" in record) {
     input.gainColorScheme = requiredGainColorScheme(record.gainColorScheme);
+  }
+
+  if ("uiTheme" in record) {
+    input.uiTheme = requiredUiTheme(record.uiTheme);
   }
 
   return input;
@@ -69,4 +74,12 @@ function requiredGainColorScheme(value: unknown): GainColorScheme {
   }
 
   return value as GainColorScheme;
+}
+
+function requiredUiTheme(value: unknown): UiTheme {
+  if (!UI_THEMES.includes(value as UiTheme)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "uiTheme must be light or dark.", 400);
+  }
+
+  return value as UiTheme;
 }

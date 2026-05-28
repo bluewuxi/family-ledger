@@ -19,6 +19,8 @@ import {
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "../lib/apiClient";
+import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
+import { LoadingBlock } from "../components/LoadingState";
 import { formatDisplayAmount, formatDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
@@ -44,7 +46,7 @@ interface AllocationPoint {
 }
 
 const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
-const allocationColors = ["#003060", "#80c068", "#b8d860", "#d81820", "#4f8f46", "#4f79a8"];
+const allocationColors = ["#08264A", "#F5B52E", "#3D8F67", "#D9534F", "#4D83B8", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 
 export function DashboardPage() {
@@ -89,7 +91,7 @@ export function DashboardPage() {
       const data = await apiGet<DashboardResponse>(`/dashboard?currency=${currency}`);
       setDashboard(data.dashboard);
     } catch (requestError) {
-      setDashboardError(toErrorMessage(requestError, "仪表盘请求失败，请稍后重试。"));
+      setDashboardError(toErrorMessage(requestError, "财富足迹请求失败，请稍后重试。"));
     } finally {
       setDashboardLoading(false);
     }
@@ -117,19 +119,24 @@ export function DashboardPage() {
     void loadSnapshots(reportingCurrency, snapshotRangeDays);
   }
 
+  const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
+  const cashValue = dashboard?.allocations.find((allocation) => allocation.allocationType === "cash")?.marketValue;
   const metrics = [
-    { label: "总资产", value: formatMoneyMetric(dashboard?.totalAssets, dashboardLoading, reportingCurrency) },
+    { label: "总资产", value: formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading), currency: activeCurrency },
     {
       label: "今日变动",
-      value: formatTodayChange(dashboard, dashboardLoading, reportingCurrency),
+      value: formatPlainTodayChange(dashboard, dashboardLoading),
+      currency: activeCurrency,
       toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme)
     },
     {
       label: "未实现收益",
-      value: formatMoneyMetric(dashboard?.unrealizedGain, dashboardLoading, reportingCurrency),
+      value: formatPlainMoneyMetric(dashboard?.unrealizedGain, dashboardLoading),
+      currency: activeCurrency,
       toneClass: signedToneClass(dashboard?.unrealizedGain, preferences.gainColorScheme)
     },
-    { label: "账户数量", value: dashboardLoading ? "加载中..." : String(dashboard?.accountCount ?? 0) }
+    { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency },
+    { label: "账户数量", value: dashboardLoading ? "加载中..." : String(dashboard?.accountCount ?? 0), compact: true }
   ];
 
   const trendData = useMemo<TrendPoint[]>(
@@ -164,35 +171,26 @@ export function DashboardPage() {
   const trendLoading = snapshotsLoading || !currencyInitialized;
   const allocationLoading = dashboardLoading || !currencyInitialized;
   const allocationDate = dashboard?.quoteDate ?? dashboard?.quoteFetchedAt?.slice(0, 10) ?? "暂无日期";
-  const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
 
   return (
     <section>
       <header className="page-header account-header dashboard-header">
         <div>
-          <h1>仪表盘</h1>
+          <h1>财富足迹</h1>
           <p>基于当前行情、汇率和每日快照，展示投资组合概览。</p>
         </div>
         <div className="dashboard-controls">
-          <label>
-            报告币种
-            <select
-              value={reportingCurrency}
-              onChange={(event) => {
-                const nextCurrency = event.target.value as SnapshotDisplayCurrency;
+          <CurrencySelect
+            label="报告币种"
+            options={SNAPSHOT_DISPLAY_CURRENCIES}
+            value={reportingCurrency}
+            onChange={(nextCurrency) => {
                 writeStoredDisplayCurrency(dashboardCurrencyStorageKey, nextCurrency);
                 setCurrencyManuallySelected(true);
                 setReportingCurrency(nextCurrency);
-              }}
-              disabled={!currencyInitialized}
-            >
-              {SNAPSHOT_DISPLAY_CURRENCIES.map((currency) => (
-                <option key={currency} value={currency}>
-                  {currency}
-                </option>
-              ))}
-            </select>
-          </label>
+            }}
+            disabled={!currencyInitialized}
+          />
           <button
             className="secondary-button"
             type="button"
@@ -208,8 +206,14 @@ export function DashboardPage() {
 
       <div className="metric-grid">
         {metrics.map((metric) => (
-          <article className="metric-card" key={metric.label}>
+          <article className={metric.compact ? "metric-card metric-card-compact" : "metric-card"} key={metric.label}>
             <span>{metric.label}</span>
+            {metric.currency ? (
+              <small className="metric-currency">
+                <CurrencyFlagIcon currency={metric.currency} />
+                {metric.currency}
+              </small>
+            ) : null}
             <strong className={metric.toneClass}>{metric.value}</strong>
           </article>
         ))}
@@ -242,20 +246,20 @@ export function DashboardPage() {
         <div className="dashboard-chart-grid">
           <article className="chart-panel">
             {trendLoading ? (
-              <div className="empty-chart-state">加载中...</div>
+              <LoadingBlock label="正在加载资产趋势" />
             ) : trendData.length === 0 ? (
               <div className="empty-chart-state">暂无快照数据</div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trendData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
-                  <CartesianGrid stroke="#dce8d8" vertical={false} />
+                  <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={formatShortDate} tickLine={false} />
                   <YAxis tickFormatter={(value: number) => formatCompactMoney(value, activeCurrency)} tickLine={false} />
                   <Tooltip
                     formatter={(value) => [`${activeCurrency} ${formatTooltipMoney(value)}`, "总资产"]}
                     labelFormatter={(label) => `日期：${label}`}
                   />
-                  <Line type="monotone" dataKey="value" stroke="#003060" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="value" stroke="var(--color-chart-line)" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -267,7 +271,7 @@ export function DashboardPage() {
               <span>{allocationDate}</span>
             </div>
             {allocationLoading ? (
-              <div className="empty-chart-state">加载中...</div>
+              <LoadingBlock label="正在加载账户分布" />
             ) : allocationData.length === 0 ? (
               <div className="empty-chart-state">暂无账户估值数据</div>
             ) : (
@@ -279,7 +283,7 @@ export function DashboardPage() {
                         <Cell key={entry.name} fill={allocationColors[index % allocationColors.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => [`${activeCurrency} ${formatTooltipMoney(value)}`, "资产"]} />
+                    <Tooltip formatter={(value, _name, item) => [`${activeCurrency} ${formatTooltipMoney(value)}`, (item.payload as AllocationPoint).name]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="allocation-list">
@@ -319,15 +323,15 @@ export function DashboardPage() {
   );
 }
 
-function formatMoneyMetric(value: string | null | undefined, loading: boolean, currency: SnapshotDisplayCurrency): string {
+function formatPlainMoneyMetric(value: string | null | undefined, loading: boolean): string {
   if (loading) {
     return "加载中...";
   }
 
-  return value === null || value === undefined ? "--" : `${currency} ${formatDisplayAmount(value)}`;
+  return value === null || value === undefined ? "--" : formatDisplayAmount(value);
 }
 
-function formatTodayChange(dashboard: DashboardSummary | null, loading: boolean, currency: SnapshotDisplayCurrency): string {
+function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boolean): string {
   if (loading) {
     return "加载中...";
   }
@@ -337,12 +341,12 @@ function formatTodayChange(dashboard: DashboardSummary | null, loading: boolean,
   }
 
   const percentage = dashboard.todayChangePct === null ? "" : ` (${formatDisplayPercent(dashboard.todayChangePct)}%)`;
-  return `${currency} ${formatDisplayAmount(dashboard.todayChange)}${percentage}`;
+  return `${formatDisplayAmount(dashboard.todayChange)}${percentage}`;
 }
 
 function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
   if (!dashboard.quoteFetchedAt) {
-    return "行情延迟：暂无本次仪表盘报价更新时间。";
+    return "行情延迟：暂无本次财富足迹报价更新时间。";
   }
 
   const fetchedAt = new Date(dashboard.quoteFetchedAt);

@@ -1,12 +1,12 @@
 {
-  "name": "家庭投资账务",
-  "short_name": "家庭账务",
-  "description": "家庭投资账务",
+  "name": "小家大财",
+  "short_name": "小家大财",
+  "description": "小家大财 · Family Ledger",
   "lang": "zh-CN",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4f8f2",
-  "theme_color": "#003060",
+  "background_color": "#F7F6F1",
+  "theme_color": "#08264A",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",

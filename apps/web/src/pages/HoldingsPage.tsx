@@ -12,6 +12,7 @@ import {
   type SnapshotDisplayCurrency,
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
+import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { ApiClientError, apiGet } from "../lib/apiClient";
 import { formatDisplayAmount, formatDisplayPrice } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
@@ -86,6 +87,7 @@ export function HoldingsPage() {
     [accountFilter, assetTypeFilter, currencyFilter, holdings]
   );
   const visibleTotals = useMemo(() => summarizeVisibleHoldings(visibleHoldings), [visibleHoldings]);
+  const visibleCashTotal = useMemo(() => summarizeVisibleCash(visibleHoldings), [visibleHoldings]);
   const activeCurrency = summary?.reportingCurrency ?? reportingCurrency;
   const pageLoading = loading || !currencyInitialized;
 
@@ -97,25 +99,17 @@ export function HoldingsPage() {
           <p>按账户、类型和币种查看当前持仓，使用已存储价格和估值汇率显示市值与未实现收益。</p>
         </div>
         <div className="dashboard-controls">
-          <label>
-            报告币种
-            <select
-              value={reportingCurrency}
-              onChange={(event) => {
-                const nextCurrency = event.target.value as SnapshotDisplayCurrency;
+          <CurrencySelect
+            label="报告币种"
+            options={SNAPSHOT_DISPLAY_CURRENCIES}
+            value={reportingCurrency}
+            onChange={(nextCurrency) => {
                 writeStoredDisplayCurrency(holdingsCurrencyStorageKey, nextCurrency);
                 setCurrencyManuallySelected(true);
                 setReportingCurrency(nextCurrency);
-              }}
-              disabled={!currencyInitialized}
-            >
-              {SNAPSHOT_DISPLAY_CURRENCIES.map((currency) => (
-                <option key={currency} value={currency}>
-                  {currency}
-                </option>
-              ))}
-            </select>
-          </label>
+            }}
+            disabled={!currencyInitialized}
+          />
           <button
             className="secondary-button"
             type="button"
@@ -132,19 +126,35 @@ export function HoldingsPage() {
       <div className="metric-grid holdings-metrics">
         <article className="metric-card">
           <span>总市值</span>
-          <strong>{formatMetric(visibleTotals.totalMarketValue, pageLoading, activeCurrency)}</strong>
+          <small className="metric-currency">
+            <CurrencyFlagIcon currency={activeCurrency} />
+            {activeCurrency}
+          </small>
+          <strong>{formatMetric(visibleTotals.totalMarketValue, pageLoading)}</strong>
         </article>
         <article className="metric-card">
           <span>未实现收益/亏损</span>
+          <small className="metric-currency">
+            <CurrencyFlagIcon currency={activeCurrency} />
+            {activeCurrency}
+          </small>
           <strong className={signedToneClass(visibleTotals.totalUnrealizedGain, preferences.gainColorScheme)}>
-            {formatMetric(visibleTotals.totalUnrealizedGain, pageLoading, activeCurrency)}
+            {formatMetric(visibleTotals.totalUnrealizedGain, pageLoading)}
           </strong>
         </article>
         <article className="metric-card">
+          <span>现金</span>
+          <small className="metric-currency">
+            <CurrencyFlagIcon currency={activeCurrency} />
+            {activeCurrency}
+          </small>
+          <strong>{formatMetric(visibleCashTotal, pageLoading)}</strong>
+        </article>
+        <article className="metric-card metric-card-compact">
           <span>持仓数量</span>
           <strong>{pageLoading ? "加载中..." : String(visibleHoldings.length)}</strong>
         </article>
-        <article className="metric-card">
+        <article className="metric-card metric-card-compact">
           <span>数据提示</span>
           <strong>{pageLoading ? "加载中..." : String(summary?.warnings.length ?? 0)}</strong>
         </article>
@@ -255,17 +265,27 @@ function summarizeVisibleHoldings(holdings: ValuedHoldingSummary[]): {
   };
 }
 
+function summarizeVisibleCash(holdings: ValuedHoldingSummary[]): string | null {
+  const cashValues = holdings.filter((holding) => holding.assetType === "cash").map((holding) => holding.marketValue);
+
+  if (cashValues.length === 0) {
+    return "0.00";
+  }
+
+  return cashValues.every((value): value is string => value !== null) ? sumMoney(cashValues) : null;
+}
+
 function sumMoney(values: string[]): string {
   const total = values.reduce((sum, value) => sum + Number(value), 0);
   return Number.isFinite(total) ? String(total) : "0";
 }
 
-function formatMetric(value: string | null, loading: boolean, currency: SnapshotDisplayCurrency): string {
+function formatMetric(value: string | null, loading: boolean): string {
   if (loading) {
     return "加载中...";
   }
 
-  return value === null ? "--" : `${currency} ${formatDisplayAmount(value)}`;
+  return value === null ? "--" : formatDisplayAmount(value);
 }
 
 function formatWarnings(holding: ValuedHoldingSummary): ReactNode {
@@ -300,7 +320,7 @@ function formatLatestPrice(holding: ValuedHoldingSummary): ReactNode {
       {holding.latestPriceDate ? (
         <>
           <br />
-          <span className="price-date-label">{holding.latestPriceDate}</span>
+          <span className="price-date-label">{formatShortPriceDate(holding.latestPriceDate)}</span>
         </>
       ) : null}
     </>
@@ -328,6 +348,10 @@ function formatValuationWarning(warning: DashboardWarning): string {
 
 function formatInstrument(holding: ValuedHoldingSummary): string {
   return holding.instrumentSymbol ? `${holding.instrumentSymbol} - ${holding.instrumentName}` : holding.instrumentName;
+}
+
+function formatShortPriceDate(value: string): string {
+  return value.length >= 10 ? value.slice(5) : value;
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {

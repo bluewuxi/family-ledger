@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { AuthenticatedUser, GainColorScheme, SnapshotDisplayCurrency, UserPreferences } from "@family-ledger/shared";
+import type {
+  AuthenticatedUser,
+  GainColorScheme,
+  SnapshotDisplayCurrency,
+  UiTheme,
+  UserPreferences
+} from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "./apiClient";
 
 interface PreferencesResponse {
@@ -20,7 +26,7 @@ interface PreferencesContextValue {
 const defaultPreferences: UserPreferences = {
   preferredCurrency: "CNY",
   gainColorScheme: "red_positive",
-  uiTheme: "system"
+  uiTheme: "light"
 };
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
@@ -64,6 +70,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     [error, loading, preferences, refreshPreferences, user]
   );
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = preferences.uiTheme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", preferences.uiTheme === "dark" ? "#07111F" : "#08264A");
+  }, [preferences.uiTheme]);
+
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 }
 
@@ -99,7 +110,7 @@ function normalizePreferences(preferences: UserPreferences): UserPreferences {
   return {
     preferredCurrency: normalizeCurrency(preferences.preferredCurrency),
     gainColorScheme: normalizeGainColorScheme(preferences.gainColorScheme),
-    uiTheme: "system"
+    uiTheme: normalizeUiTheme(preferences.uiTheme)
   };
 }
 
@@ -109,6 +120,10 @@ function normalizeCurrency(value: string): SnapshotDisplayCurrency {
 
 function normalizeGainColorScheme(value: string): GainColorScheme {
   return value === "green_positive" ? "green_positive" : "red_positive";
+}
+
+function normalizeUiTheme(value: string): UiTheme {
+  return value === "dark" ? "dark" : "light";
 }
 
 function toErrorMessage(error: unknown): string {
