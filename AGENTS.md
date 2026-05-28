@@ -3,7 +3,10 @@
 ## Project Overview
 
 Project name: `family-ledger`
-Chinese product name: `家庭投资账务`
+Chinese product name: `小家大财`
+English product name: `Family Ledger`
+
+`family-ledger` is the repository/package name only. Do not show `family-ledger` as user-facing UI text.
 
 This is a Simplified Chinese family investment ledger web app for a very small number of users, usually no more than 3 family members.
 
@@ -178,7 +181,7 @@ The user-facing app must be in Simplified Chinese.
 Use Chinese labels such as:
 
 - 登录
-- 仪表盘
+- 财富足迹
 - 投资账户
 - 投资标的
 - 交易记录
@@ -277,6 +280,23 @@ Do not hard-code:
 Frontend environment variables may contain public values only. Server-side secret values must live in AWS SSM Parameter Store or AWS Secrets Manager and be resolved only by API/jobs/server-side scripts at runtime.
 
 Never expose server-side Supabase keys to `apps/web`, frontend bundles, logs, or Git.
+
+---
+
+## Database Migrations And Tools
+
+Supabase migrations live in `supabase/migrations`.
+
+When applying migrations from Windows, do not assume `psql` is unavailable just because `Get-Command psql` fails. First search common install locations, for example:
+
+```powershell
+Get-ChildItem "C:\Program Files\PostgreSQL" -Recurse -Filter psql.exe -ErrorAction SilentlyContinue
+Get-ChildItem "C:\Program Files" -Recurse -Filter psql.exe -ErrorAction SilentlyContinue
+```
+
+If found, run `psql.exe` by full path or temporarily add its `bin` folder to `PATH` for the session. Use the Supabase DB connection values from the environment files and resolve the database password from AWS SSM. Do not print database passwords, service keys, or connection strings containing secrets.
+
+Only fall back to a temporary Node `pg` client when `psql` cannot be found or cannot run. Keep migration SQL idempotent where practical, and verify the target schema after applying it.
 
 ---
 
