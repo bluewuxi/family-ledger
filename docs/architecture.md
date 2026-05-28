@@ -8,7 +8,7 @@ CloudFront + private S3 static assets
   -> Lambda API
   -> Supabase Postgres
 
-EventBridge
+EventBridge Scheduler
   -> Lambda scheduled jobs
   -> Supabase Postgres
 ```
@@ -31,6 +31,6 @@ The family ledger data is shared. Core business tables do not have per-user owne
 
 API and jobs resolve sensitive server-side values from AWS SSM Parameter Store. Decrypted values must stay in backend runtime memory and must never be exposed to frontend code.
 
-Jobs use trusted server-side Supabase access and run as Lambda functions triggered by EventBridge. Price update jobs use `instruments.price_source` configuration.
+Jobs use trusted server-side Supabase access and run as Lambda functions triggered by EventBridge Scheduler. Price update jobs use `instruments.price_source` configuration.
 
 There is no always-on backend server. Lambda API is the primary business authorization layer, Supabase RLS is defensive, and the frontend must not write investment business tables directly.

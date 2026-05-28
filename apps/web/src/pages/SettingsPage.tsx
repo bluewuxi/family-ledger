@@ -18,6 +18,7 @@ import { CurrencySelect } from "../components/CurrencySelect";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiGet, apiPatch } from "../lib/apiClient";
 import { usePreferences } from "../lib/preferencesContext";
+import { formatLocalDateTime } from "../lib/timeFormat";
 
 interface PreferencesResponse {
   user: AuthenticatedUser;
@@ -318,14 +319,7 @@ function toUiTheme(value: string): UiTheme {
 }
 
 function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "从未登录";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
+  return formatLocalDateTime(value, "从未登录");
 }
 
 function toErrorMessage(error: unknown): string {

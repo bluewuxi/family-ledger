@@ -8,5 +8,9 @@
   "SupabaseUrl": "",
   "SupabaseUrlSsmParam": "/family-ledger/prod_supabase_url",
   "SupabaseServiceKeySsmParam": "/family-ledger/prod_supabase_secret_key",
-  "EnableScheduledJobs": "true"
+  "EnableScheduledJobs": "true",
+  "ScheduledJobsTimezone": "Asia/Shanghai",
+  "UpdateFxRatesScheduleExpression": "cron(5 9 ? * TUE-SAT *)",
+  "UpdatePricesScheduleExpression": "cron(10 9 ? * TUE-SAT *)",
+  "GeneratePortfolioSnapshotsScheduleExpression": "cron(30 9 ? * TUE-SAT *)"
 }

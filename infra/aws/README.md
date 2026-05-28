@@ -7,7 +7,7 @@ Current infrastructure templates cover:
 - Private S3 bucket for `apps/web` build output
 - CloudFront distribution with HTTPS, Origin Access Control, and SPA fallback
 - API Gateway and Lambda for `apps/api`
-- EventBridge schedules and Lambda jobs for `apps/jobs`
+- EventBridge Scheduler schedules and Lambda jobs for `apps/jobs`
 - ACM certificates for custom HTTPS domains
 - Route 53 alias records for web and API domains
 - SSM Parameter Store references for server-side secrets
@@ -70,7 +70,7 @@ corepack pnpm deploy:web:test
 
 Production equivalents use the `:prod` suffix. Do not run production deploys until `infra/aws/parameters.prod.json` has been created locally and reviewed.
 
-Scheduled jobs default to enabled through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data and snapshot jobs.
+Scheduled jobs default to enabled through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data and snapshot jobs. Schedules use EventBridge Scheduler with `ScheduledJobsTimezone=Asia/Shanghai` by default, so the market-data and snapshot cron expressions do not need UTC conversion.
 
 ## SSM Parameters
 

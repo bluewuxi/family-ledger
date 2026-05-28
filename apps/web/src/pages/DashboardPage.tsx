@@ -13,6 +13,8 @@ import {
   YAxis
 } from "recharts";
 import {
+  getAppBusinessDate,
+  getLocalDateString,
   SNAPSHOT_DISPLAY_CURRENCIES,
   type DashboardSummary,
   type DashboardWarning,
@@ -25,6 +27,7 @@ import { LoadingBlock, LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
 import { formatDisplayAmount, formatDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
+import { formatLocalDateTimeNote } from "../lib/timeFormat";
 
 interface DashboardResponse {
   dashboard: DashboardSummary;
@@ -148,7 +151,7 @@ export function DashboardPage() {
   const metrics = [
     { label: "总资产", value: formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading), currency: activeCurrency },
     {
-      label: "今日变动",
+      label: "最新变动",
       value: formatPlainTodayChange(dashboard, dashboardLoading),
       currency: activeCurrency,
       toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme)
@@ -196,7 +199,7 @@ export function DashboardPage() {
   );
   const trendLoading = snapshotsLoading || !currencyInitialized;
   const allocationLoading = dashboardLoading || !currencyInitialized;
-  const allocationDate = dashboard?.quoteDate ?? dashboard?.quoteFetchedAt?.slice(0, 10) ?? "暂无日期";
+  const allocationDate = dashboard?.quoteDate ?? (dashboard?.quoteFetchedAt ? getLocalDateString(dashboard.quoteFetchedAt) : "暂无日期");
 
   return (
     <section>
@@ -413,16 +416,7 @@ function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
     return "行情延迟：暂无本次财富足迹报价更新时间。";
   }
 
-  const fetchedAt = new Date(dashboard.quoteFetchedAt);
-  const formattedTime = Number.isNaN(fetchedAt.getTime())
-    ? dashboard.quoteFetchedAt
-    : fetchedAt.toLocaleString("zh-CN", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit"
-      });
+  const formattedTime = formatLocalDateTimeNote(dashboard.quoteFetchedAt, dashboard.quoteFetchedAt);
   const quoteDate = dashboard.quoteDate ? `，报价日期 ${dashboard.quoteDate}` : "";
 
   return `行情延迟：更新时间 ${formattedTime}${quoteDate}`;
@@ -435,7 +429,7 @@ function formatWarning(warning: DashboardWarning): string {
     case "MISSING_LATEST_PRICE":
       return `${instrument} 缺少最新价格`;
     case "MISSING_PREVIOUS_PRICE":
-      return `${instrument} 缺少前一收盘价，无法计算今日变动`;
+      return `${instrument} 缺少前一收盘价，无法计算最新变动`;
     case "MISSING_FX_RATE":
       return `${instrument} 缺少估值汇率`;
     case "COST_BASIS_UNAVAILABLE":
@@ -444,13 +438,14 @@ function formatWarning(warning: DashboardWarning): string {
 }
 
 function getSnapshotDateRange(days: SnapshotRangeDays): { from: string; to: string } {
-  const toDate = new Date();
+  const to = getAppBusinessDate();
+  const toDate = new Date(`${to}T00:00:00.000Z`);
   const fromDate = new Date(toDate);
   fromDate.setUTCDate(fromDate.getUTCDate() - days + 1);
 
   return {
     from: fromDate.toISOString().slice(0, 10),
-    to: toDate.toISOString().slice(0, 10)
+    to
   };
 }
 
@@ -536,7 +531,7 @@ function getLiveCurveMidpointValue(startValue: number, endValue: number): number
 }
 
 function getTodayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getAppBusinessDate();
 }
 
 function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {

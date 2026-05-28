@@ -143,3 +143,15 @@ After making code changes, run:
 corepack pnpm typecheck
 corepack pnpm build
 ```
+
+Snapshot audit is dry-run by default and is intended for the test Supabase project:
+
+```powershell
+corepack pnpm verify:snapshot-audit
+```
+
+Only after reviewing the dry-run output, rewrite mismatched snapshot valuations with:
+
+```powershell
+corepack pnpm fix:snapshot-audit
+```

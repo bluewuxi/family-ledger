@@ -1,4 +1,5 @@
 import type { ScheduledEvent } from "aws-lambda";
+import { getAppBusinessDate } from "@family-ledger/shared";
 import {
   generatePortfolioSnapshot,
   GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,
@@ -19,26 +20,27 @@ export interface GeneratePortfolioSnapshotsHandlerDependencies {
 
 export function createGeneratePortfolioSnapshotsHandler(
   dependencies: GeneratePortfolioSnapshotsHandlerDependencies = { generatePortfolioSnapshot }
-): (event: ScheduledEvent<PortfolioSnapshotEventDetail>) => Promise<void> {
-  return async (event: ScheduledEvent<PortfolioSnapshotEventDetail>): Promise<void> => {
-    const snapshotDate = event.detail?.snapshotDate ?? event.time.slice(0, 10);
+): (event?: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>>) => Promise<void> {
+  return async (event: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>> = {}): Promise<void> => {
+    const eventTime = event.time ?? new Date().toISOString();
+    const snapshotDate = event.detail?.snapshotDate ?? getAppBusinessDate(eventTime);
 
     logScheduledJob({
       jobName: GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,
-      eventId: event.id,
-      eventTime: event.time,
+      eventId: event.id ?? "schedule",
+      eventTime,
       status: "started"
     });
 
     try {
       const result = await dependencies.generatePortfolioSnapshot({
         snapshotDate,
-        startedAt: event.time
+        startedAt: eventTime
       });
       logScheduledJob({
         jobName: GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,
-        eventId: event.id,
-        eventTime: event.time,
+        eventId: event.id ?? "schedule",
+        eventTime,
         status: "succeeded",
         jobRunId: result.jobRun.id,
         recordsInserted: result.accountsWritten + 1,
@@ -47,8 +49,8 @@ export function createGeneratePortfolioSnapshotsHandler(
     } catch (error) {
       logScheduledJob({
         jobName: GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,
-        eventId: event.id,
-        eventTime: event.time,
+        eventId: event.id ?? "schedule",
+        eventTime,
         status: "failed",
         errorMessage: sanitizeScheduledJobError(error)
       });

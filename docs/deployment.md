@@ -21,7 +21,7 @@ Production deployment uses SAM/CloudFormation templates under `infra/aws` when e
 ## Jobs
 
 - Deploy `apps/jobs` handlers as Lambda functions.
-- Trigger scheduled jobs with EventBridge.
+- Trigger scheduled jobs with EventBridge Scheduler.
 - Current handlers include price updates, FX updates, and portfolio snapshots.
 - Schedules are enabled by default in new stacks through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data and snapshot jobs.
 
@@ -58,35 +58,51 @@ Production uses the same sequence with the `:prod` suffix after creating a local
 
 ## Scheduled Jobs
 
-This section documents the production schedule and retry policy, but does not deploy AWS resources or introduce an IaC framework.
+This section documents the production schedule and retry policy.
 
-Configure the FX update Lambda handler exported as `updateFxRates` from `apps/jobs` with an EventBridge schedule:
+Scheduled jobs use EventBridge Scheduler, not EventBridge Rules, so cron expressions are evaluated in the configured timezone instead of being hand-converted to UTC. The default timezone is `Asia/Shanghai`.
+
+Configure the FX update Lambda handler exported as `updateFxRates` from `apps/jobs` with:
 
 ```text
-cron(30 15 * * ? *)
+ScheduleExpressionTimezone: Asia/Shanghai
+ScheduleExpression: cron(5 9 ? * TUE-SAT *)
+FlexibleTimeWindow: OFF
 ```
 
-This runs daily at 15:30 UTC, after the normal Frankfurter/ECB publication window. In Beijing time this is 23:30.
+Configure the price update Lambda handler exported as `updatePrices` with:
 
-Recommended EventBridge target settings:
+```text
+ScheduleExpressionTimezone: Asia/Shanghai
+ScheduleExpression: cron(10 9 ? * TUE-SAT *)
+FlexibleTimeWindow: OFF
+```
+
+Configure the portfolio snapshot Lambda handler exported as `generatePortfolioSnapshots` after the FX and price jobs have normally completed:
+
+```text
+ScheduleExpressionTimezone: Asia/Shanghai
+ScheduleExpression: cron(30 9 ? * TUE-SAT *)
+FlexibleTimeWindow: OFF
+```
+
+These defaults run shortly after the app's `09:00 Asia/Shanghai` business-day cutoff. Tuesday-Saturday Beijing captures the prior US trading day and the latest available Asia-market close. Duplicate provider dates on holidays are handled by idempotent inserts/skips.
+
+Each Scheduler target must pass the Scheduler context payload into Lambda, including `<aws.scheduler.scheduled-time>` as `time` and `<aws.scheduler.execution-id>` as `id`. The snapshot job derives the business date from the scheduled time so retries and delayed starts do not drift across the cutoff.
+
+Recommended Scheduler target settings:
 
 - Maximum retry attempts: `2`
 - Maximum event age: `1 hour`
 - Dead-letter queue: optional before production, recommended before relying on unattended operation
 
-The Lambda handler must throw on failed ingestion so EventBridge can retry. Duplicate retries are handled by the database uniqueness constraint on exchange rates and the repository insert-if-not-exists behavior. Each attempt creates a `job_runs` row and provider-level `data_provider_runs` row; successful duplicate attempts should record skipped rows instead of duplicate exchange-rate records.
+The Lambda handler must throw on failed ingestion so Scheduler can retry. Duplicate retries are handled by database uniqueness constraints and repository insert-if-not-exists behavior. Each attempt creates a `job_runs` row and provider-level `data_provider_runs` row; successful duplicate attempts should record skipped rows instead of duplicate market-data records.
 
-Configure the price update Lambda handler exported as `updatePrices` from `apps/jobs` on the same daily schedule unless a different market-data cadence is chosen later. The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastmoney public endpoints plus the existing FundRock page parser, so no extra provider API key or secret is required. Price retries are idempotent through the `instrument_prices` uniqueness constraint and insert-if-not-exists behavior.
+The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastmoney public endpoints plus the existing FundRock page parser, so no extra provider API key or secret is required. Price retries are idempotent through the `instrument_prices` uniqueness constraint and insert-if-not-exists behavior.
 
 The web Data Sync page can manually trigger the FX and price jobs. CloudFormation wires the job function names into the API Lambda through `UPDATE_FX_RATES_FUNCTION_NAME` and `UPDATE_PRICES_FUNCTION_NAME`, and grants `lambda:InvokeFunction` only for those two job functions. Manual invocations pass trigger metadata into the job payload and return before ingestion completes; completion status is read from `job_runs` and `data_provider_runs`.
 
-Configure the portfolio snapshot Lambda handler exported as `generatePortfolioSnapshots` from `apps/jobs` after the FX and price jobs have normally completed. A default daily schedule can run at 16:00 UTC:
-
-```text
-cron(0 16 * * ? *)
-```
-
-The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it uses the EventBridge event time date. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
+The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the snapshot date from the `09:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
 
 Structured CloudWatch logs should include:
 

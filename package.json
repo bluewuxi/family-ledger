@@ -35,6 +35,9 @@
     "verify:eastmoney-provider": "tsx scripts/verify-eastmoney-provider.ts",
     "verify:stock-etf-price-ingestion": "tsx scripts/verify-stock-etf-price-ingestion.ts",
     "verify:portfolio-snapshots": "tsx scripts/verify-portfolio-snapshot-calculation.ts",
+    "verify:time-policy": "tsx scripts/verify-time-policy.ts",
+    "verify:snapshot-audit": "tsx scripts/verify-test-snapshots.ts",
+    "fix:snapshot-audit": "tsx scripts/verify-test-snapshots.ts --fix",
     "fx:ingest:frankfurter": "tsx scripts/ingest-frankfurter-fx-rates.ts",
     "typecheck": "tsc -b --pretty false"
   },

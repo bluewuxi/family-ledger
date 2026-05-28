@@ -216,8 +216,8 @@ The dashboard derives holdings through the existing holdings calculation and may
 - Securities use a dashboard-only delayed quote cache for current valuation when available; cash uses its calculated cash balance.
 - Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`.
 - Holdings are valued internally in USD using the latest USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
-- `todayChange` compares the dashboard quote with the latest stored security close before the quote date. If no earlier close exists, it uses the latest stored close as a display baseline. Cash has zero daily price movement.
-- Latest FX is applied to current value, preceding value, and carrying cost, so daily change reflects price movement rather than FX movement.
+- `todayChange` is retained as the wire field name, but the UI labels it `最新变动`. It compares the dashboard quote with the latest stored security close before the quote date. If no earlier close exists, it uses the latest stored close as a display baseline. Cash has zero latest price movement.
+- Latest FX is applied to current value, preceding value, and carrying cost, so latest change reflects price movement rather than FX movement.
 - `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.
 - `accountCount` includes accounts with no non-zero holdings.
 - `quoteFetchedAt` and `quoteDate` describe the newest dashboard quote cache row used in the response, or `null` when no dashboard quotes are available.
@@ -279,7 +279,7 @@ Holding quantity, average cost, and remaining cost continue to use the instrumen
 Defaults:
 
 - `currency`: current user's `preferredCurrency`; new profiles default to `CNY`
-- `to`: current UTC date
+- `to`: current app business date using the `09:00 Asia/Shanghai` cutoff
 - `from`: same as `to`
 
 Response data:

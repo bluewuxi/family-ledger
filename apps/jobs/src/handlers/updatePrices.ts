@@ -19,8 +19,8 @@ export interface UpdatePricesHandlerDependencies {
 
 export function createUpdatePricesHandler(
   dependencies: UpdatePricesHandlerDependencies = { ingestLatestInstrumentPrices }
-): (event: MarketDataJobEvent) => Promise<void> {
-  return async (event: MarketDataJobEvent): Promise<void> => {
+): (event?: MarketDataJobEvent) => Promise<void> {
+  return async (event: MarketDataJobEvent = {}): Promise<void> => {
     const eventId = event.id ?? event.triggerRequestId ?? "manual";
     const eventTime = event.time ?? new Date().toISOString();
 

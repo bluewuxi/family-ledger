@@ -17,6 +17,7 @@ import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-l
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiGet, apiPost } from "../lib/apiClient";
 import { formatDisplayPrice } from "../lib/numberFormat";
+import { formatLocalDateTime } from "../lib/timeFormat";
 
 type MarketDataTab = "fx" | "prices" | "logs";
 
@@ -750,14 +751,7 @@ function formatStatus(status: JobRun["status"]): string {
 }
 
 function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
+  return formatLocalDateTime(value);
 }
 
 function toErrorMessage(error: unknown): string {

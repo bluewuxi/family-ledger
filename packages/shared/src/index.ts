@@ -1,5 +1,86 @@
 import Decimal from "decimal.js";
 
+export const APP_BUSINESS_TIME_ZONE = "Asia/Shanghai";
+export const APP_BUSINESS_DAY_CUTOFF_HOUR = 9;
+
+type DateInput = Date | string;
+
+export function getAppBusinessDate(input: DateInput = new Date()): string {
+  const date = toValidDate(input);
+  const parts = getTimeZoneParts(date, APP_BUSINESS_TIME_ZONE);
+
+  if (parts.hour >= APP_BUSINESS_DAY_CUTOFF_HOUR) {
+    return toIsoDate(parts.year, parts.month, parts.day);
+  }
+
+  const previousDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day - 1));
+  return toIsoDate(previousDate.getUTCFullYear(), previousDate.getUTCMonth() + 1, previousDate.getUTCDate());
+}
+
+export function getLocalDateString(input: DateInput = new Date()): string {
+  const date = toValidDate(input);
+  return toIsoDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+export function getTimeZoneDateString(input: DateInput, timeZone: string): string {
+  const parts = getTimeZoneParts(toValidDate(input), timeZone);
+  return toIsoDate(parts.year, parts.month, parts.day);
+}
+
+export function formatDateTimeInTimeZone(
+  input: DateInput,
+  timeZone: string,
+  locale = "zh-CN",
+  fallback = ""
+): string {
+  try {
+    const date = toValidDate(input);
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone
+    }).format(date);
+  } catch {
+    return fallback || String(input);
+  }
+}
+
+function toValidDate(input: DateInput): Date {
+  const date = input instanceof Date ? input : new Date(input);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date input.");
+  }
+
+  return date;
+}
+
+function getTimeZoneParts(date: Date, timeZone: string): { year: number; month: number; day: number; hour: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.get("year"));
+  const month = Number(values.get("month"));
+  const day = Number(values.get("day"));
+  const hour = Number(values.get("hour"));
+
+  if (![year, month, day, hour].every(Number.isFinite)) {
+    throw new Error(`Failed to resolve date parts for ${timeZone}.`);
+  }
+
+  return { year, month, day, hour };
+}
+
+function toIsoDate(year: number, month: number, day: number): string {
+  return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+}
+
 export const USER_ROLES = ["viewer", "admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 

@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, PortfolioSnapshotSummary } from "@family-ledger/shared";
+import { getAppBusinessDate, type AuthenticatedUser, type PortfolioSnapshotSummary } from "@family-ledger/shared";
 import { listPortfolioSnapshots } from "../repositories/portfolioSnapshotRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
@@ -12,7 +12,7 @@ export async function getPortfolioSnapshots(input: {
   user?: AuthenticatedUser;
 }): Promise<PortfolioSnapshotSummary[]> {
   const currency = await resolveReportingCurrency(input);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getAppBusinessDate();
   const to = input.to ?? today;
   const from = input.from ?? to;
 

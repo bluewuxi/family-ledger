@@ -5,6 +5,7 @@ import {
   ADJUSTMENT_DIRECTION_LABELS,
   TRANSACTION_TYPES,
   TRANSACTION_TYPE_LABELS,
+  getLocalDateString,
   type AdjustmentDirection,
   type AuthenticatedUser,
   type CreateInvestmentTransactionInput,
@@ -63,7 +64,7 @@ interface TransactionFilters {
   transactionType: "" | TransactionType;
 }
 
-const today = new Date().toISOString().slice(0, 10);
+const today = getLocalDateString();
 const transactionFetchLimit = 200;
 const emptyFilters: TransactionFilters = { from: "", to: "", accountId: "", instrumentId: "", transactionType: "" };
 const editableTransactionTypes = TRANSACTION_TYPES.filter((transactionType) => transactionType !== "tax");

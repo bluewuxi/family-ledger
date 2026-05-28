@@ -7,6 +7,8 @@ import {
   MARKET_REGION_LABELS,
   MARKET_REGIONS,
   SNAPSHOT_DISPLAY_CURRENCIES,
+  getAppBusinessDate,
+  getLocalDateString,
   type AccountType,
   type AuthenticatedUser,
   type CreateInvestmentAccountInput,
@@ -71,7 +73,7 @@ interface OpeningEntryFormRow {
   notes: string;
 }
 
-const today = new Date().toISOString().slice(0, 10);
+const today = getLocalDateString();
 const snapshotStartDate = "2000-01-01";
 
 const emptyForm: AccountFormState = {
@@ -614,7 +616,7 @@ async function loadAccountTotals(
       )
   ]);
   const snapshotsByCurrency = new Map<SnapshotDisplayCurrency, PortfolioSnapshotSummary>();
-  const to = new Date().toISOString().slice(0, 10);
+  const to = getAppBusinessDate();
 
   await Promise.all(
     displayCurrencies.map(async (currency) => {

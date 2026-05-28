@@ -48,6 +48,26 @@ Parameters:
     Default: "true"
     Description: Whether EventBridge schedules should be enabled after deploy.
 
+  ScheduledJobsTimezone:
+    Type: String
+    Default: Asia/Shanghai
+    Description: Time zone used to evaluate scheduled market data and snapshot jobs.
+
+  UpdateFxRatesScheduleExpression:
+    Type: String
+    Default: "cron(5 9 ? * TUE-SAT *)"
+    Description: EventBridge Scheduler cron expression for the FX rate update job.
+
+  UpdatePricesScheduleExpression:
+    Type: String
+    Default: "cron(10 9 ? * TUE-SAT *)"
+    Description: EventBridge Scheduler cron expression for the instrument price update job.
+
+  GeneratePortfolioSnapshotsScheduleExpression:
+    Type: String
+    Default: "cron(30 9 ? * TUE-SAT *)"
+    Description: EventBridge Scheduler cron expression for the portfolio snapshot job.
+
 Conditions:
   ScheduledJobsEnabled: !Equals [!Ref EnableScheduledJobs, "true"]
 
@@ -376,71 +396,88 @@ Resources:
               - !GetAtt UpdateFxRatesFunction.Arn
               - !GetAtt UpdatePricesFunction.Arn
 
+  SchedulerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub family-ledger-${EnvironmentName}-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeFamilyLedgerScheduledJobs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt UpdateFxRatesFunction.Arn
+                  - !GetAtt UpdatePricesFunction.Arn
+                  - !GetAtt GeneratePortfolioSnapshotsFunction.Arn
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
   UpdateFxRatesSchedule:
-    Type: AWS::Events::Rule
+    Type: AWS::Scheduler::Schedule
     Properties:
       Name: !Sub family-ledger-${EnvironmentName}-update-fx-rates
       Description: !Sub family-ledger ${EnvironmentName} FX rate update schedule.
-      ScheduleExpression: cron(30 15 * * ? *)
+      ScheduleExpression: !Ref UpdateFxRatesScheduleExpression
+      ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone
+      FlexibleTimeWindow:
+        Mode: OFF
       State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
-      Targets:
-        - Arn: !GetAtt UpdateFxRatesFunction.Arn
-          Id: UpdateFxRatesFunction
-          RetryPolicy:
-            MaximumEventAgeInSeconds: 3600
-            MaximumRetryAttempts: 2
-
-  UpdateFxRatesSchedulePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref UpdateFxRatesFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt UpdateFxRatesSchedule.Arn
+      Target:
+        Arn: !GetAtt UpdateFxRatesFunction.Arn
+        RoleArn: !GetAtt SchedulerExecutionRole.Arn
+        Input: '{"id":"<aws.scheduler.execution-id>","time":"<aws.scheduler.scheduled-time>","triggerSource":"schedule"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 2
 
   UpdatePricesSchedule:
-    Type: AWS::Events::Rule
+    Type: AWS::Scheduler::Schedule
     Properties:
       Name: !Sub family-ledger-${EnvironmentName}-update-prices
       Description: !Sub family-ledger ${EnvironmentName} instrument price update schedule.
-      ScheduleExpression: cron(30 15 * * ? *)
+      ScheduleExpression: !Ref UpdatePricesScheduleExpression
+      ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone
+      FlexibleTimeWindow:
+        Mode: OFF
       State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
-      Targets:
-        - Arn: !GetAtt UpdatePricesFunction.Arn
-          Id: UpdatePricesFunction
-          RetryPolicy:
-            MaximumEventAgeInSeconds: 3600
-            MaximumRetryAttempts: 2
-
-  UpdatePricesSchedulePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref UpdatePricesFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt UpdatePricesSchedule.Arn
+      Target:
+        Arn: !GetAtt UpdatePricesFunction.Arn
+        RoleArn: !GetAtt SchedulerExecutionRole.Arn
+        Input: '{"id":"<aws.scheduler.execution-id>","time":"<aws.scheduler.scheduled-time>","triggerSource":"schedule"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 2
 
   GeneratePortfolioSnapshotsSchedule:
-    Type: AWS::Events::Rule
+    Type: AWS::Scheduler::Schedule
     Properties:
       Name: !Sub family-ledger-${EnvironmentName}-portfolio-snapshots
       Description: !Sub family-ledger ${EnvironmentName} portfolio snapshot generation schedule.
-      ScheduleExpression: cron(0 16 * * ? *)
+      ScheduleExpression: !Ref GeneratePortfolioSnapshotsScheduleExpression
+      ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone
+      FlexibleTimeWindow:
+        Mode: OFF
       State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
-      Targets:
-        - Arn: !GetAtt GeneratePortfolioSnapshotsFunction.Arn
-          Id: GeneratePortfolioSnapshotsFunction
-          RetryPolicy:
-            MaximumEventAgeInSeconds: 3600
-            MaximumRetryAttempts: 2
-
-  GeneratePortfolioSnapshotsSchedulePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref GeneratePortfolioSnapshotsFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt GeneratePortfolioSnapshotsSchedule.Arn
+      Target:
+        Arn: !GetAtt GeneratePortfolioSnapshotsFunction.Arn
+        RoleArn: !GetAtt SchedulerExecutionRole.Arn
+        Input: '{"id":"<aws.scheduler.execution-id>","time":"<aws.scheduler.scheduled-time>"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 2
 
 Outputs:
   WebBucketName:

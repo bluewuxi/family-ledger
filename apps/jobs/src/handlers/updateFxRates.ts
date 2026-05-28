@@ -20,8 +20,8 @@ export interface UpdateFxRatesHandlerDependencies {
 
 export function createUpdateFxRatesHandler(
   dependencies: UpdateFxRatesHandlerDependencies = { ingestLatestFrankfurterFxRates }
-): (event: MarketDataJobEvent) => Promise<void> {
-  return async (event: MarketDataJobEvent): Promise<void> => {
+): (event?: MarketDataJobEvent) => Promise<void> {
+  return async (event: MarketDataJobEvent = {}): Promise<void> => {
     const eventId = event.id ?? event.triggerRequestId ?? "manual";
     const eventTime = event.time ?? new Date().toISOString();
 

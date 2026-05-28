@@ -30,6 +30,8 @@ interface SnapshotRow {
   usd_to_nzd_rate: string;
   usd_to_cny_rate: string;
   warnings: unknown;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AccountSnapshotRow {
@@ -46,6 +48,11 @@ interface AccountSnapshotRow {
 }
 
 interface Mismatch {
+  snapshotDate: string;
+  detail: string;
+}
+
+interface TimingWarning {
   snapshotDate: string;
   detail: string;
 }
@@ -77,6 +84,7 @@ async function main(): Promise<void> {
   const expectedSnapshotDates = getExpectedSnapshotDates(transactions, prices, rates, snapshots);
   const existingSnapshotDates = new Set(snapshots.map((snapshot) => snapshot.snapshot_date));
   const mismatches: Mismatch[] = [];
+  const timingWarnings = snapshots.flatMap(detectSnapshotTimingWarning);
 
   console.log(
     [
@@ -122,6 +130,7 @@ async function main(): Promise<void> {
 
   if (mismatches.length === 0) {
     console.log("Portfolio snapshots in test are correct.");
+    logTimingWarnings(timingWarnings);
     return;
   }
 
@@ -132,10 +141,67 @@ async function main(): Promise<void> {
 
   if (shouldFix) {
     console.log("Mismatched portfolio snapshots were recalculated and rewritten.");
+    logTimingWarnings(timingWarnings);
     return;
   }
 
+  logTimingWarnings(timingWarnings);
   process.exitCode = 1;
+}
+
+function detectSnapshotTimingWarning(snapshot: SnapshotRow): TimingWarning[] {
+  const parts = getShanghaiTimeParts(snapshot.created_at);
+
+  if (!parts || parts.hour >= 9) {
+    return [];
+  }
+
+  return [
+    {
+      snapshotDate: snapshot.snapshot_date,
+      detail: `created before the 09:00 Asia/Shanghai cutoff at ${parts.dateTimeLabel}`
+    }
+  ];
+}
+
+function logTimingWarnings(warnings: TimingWarning[]): void {
+  if (warnings.length === 0) {
+    return;
+  }
+
+  console.log(`Portfolio snapshot timing warnings found: ${warnings.length}`);
+  for (const warning of warnings) {
+    console.log(`- ${warning.snapshotDate}: ${warning.detail}`);
+  }
+}
+
+function getShanghaiTimeParts(value: string): { hour: number; dateTimeLabel: string } | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+  const parts = formatter.formatToParts(date);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const hour = Number(values.get("hour"));
+
+  if (!Number.isFinite(hour)) {
+    return null;
+  }
+
+  return {
+    hour,
+    dateTimeLabel: formatter.format(date)
+  };
 }
 
 function getExpectedSnapshotDates(
@@ -556,7 +622,9 @@ const snapshotSelect = [
   "daily_change_pct",
   "usd_to_nzd_rate",
   "usd_to_cny_rate",
-  "warnings"
+  "warnings",
+  "created_at",
+  "updated_at"
 ].join(", ");
 
 const accountSnapshotSelect = [

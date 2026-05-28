@@ -17,6 +17,10 @@ interface DeploymentParameters {
   SupabaseUrlSsmParam: string;
   SupabaseServiceKeySsmParam: string;
   EnableScheduledJobs: "true" | "false";
+  ScheduledJobsTimezone?: string;
+  UpdateFxRatesScheduleExpression?: string;
+  UpdatePricesScheduleExpression?: string;
+  GeneratePortfolioSnapshotsScheduleExpression?: string;
 }
 
 interface WebRuntimeConfig {
@@ -280,7 +284,11 @@ function appParameterOverrides(parameters: DeploymentParameters, certificateArn:
     parameterOverride("SupabaseUrl", parameters.SupabaseUrl),
     parameterOverride("SupabaseUrlSsmParam", parameters.SupabaseUrlSsmParam),
     parameterOverride("SupabaseServiceKeySsmParam", parameters.SupabaseServiceKeySsmParam),
-    parameterOverride("EnableScheduledJobs", parameters.EnableScheduledJobs)
+    parameterOverride("EnableScheduledJobs", parameters.EnableScheduledJobs),
+    parameterOverride("ScheduledJobsTimezone", parameters.ScheduledJobsTimezone ?? ""),
+    parameterOverride("UpdateFxRatesScheduleExpression", parameters.UpdateFxRatesScheduleExpression ?? ""),
+    parameterOverride("UpdatePricesScheduleExpression", parameters.UpdatePricesScheduleExpression ?? ""),
+    parameterOverride("GeneratePortfolioSnapshotsScheduleExpression", parameters.GeneratePortfolioSnapshotsScheduleExpression ?? "")
   ].filter((override) => !override.endsWith("="));
 }
 
