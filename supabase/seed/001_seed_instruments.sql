@@ -57,6 +57,25 @@ values
     null
   ),
   (
+    'VOO',
+    'Vanguard S&P 500 ETF',
+    'Vanguard S&P 500 ETF seeks to track the performance of the S&P 500 Index and provides large-cap US equity exposure.',
+    'US',
+    'NYSE_ARCA',
+    'USD',
+    'etf',
+    null,
+    'Vanguard',
+    'yahoo_finance',
+    'VOO',
+    'NYSE_ARCA',
+    true,
+    1,
+    'https://investor.vanguard.com/investment-products/etfs/profile/voo',
+    now(),
+    null
+  ),
+  (
     'VGT',
     'Vanguard Information Technology ETF',
     'Vanguard Information Technology ETF seeks to track a benchmark index measuring the investment return of information technology stocks.',

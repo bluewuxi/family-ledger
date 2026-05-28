@@ -34,7 +34,7 @@ export const YAHOO_FINANCE_PROVIDER_NAME = "Yahoo Finance";
 export const EASTMONEY_PROVIDER_NAME = "Eastmoney";
 
 const INSTRUMENT_PRICE_DATA_KIND: DataKind = "instrument_prices";
-const YAHOO_FINANCE_SEEDED_SYMBOLS = ["AMD", "QQQM", "VGT", "SMH", "1810.HK", "0700.HK"] as const;
+const YAHOO_FINANCE_SEEDED_SYMBOLS = ["AMD", "QQQM", "VOO", "VGT", "SMH", "1810.HK", "0700.HK"] as const;
 const EASTMONEY_SEEDED_SYMBOLS = ["161128", "159501", "513500"] as const;
 
 interface InstrumentPriceRepository {

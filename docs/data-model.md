@@ -92,7 +92,7 @@ The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` 
 
 The stock/ETF price job also ingests best-effort latest daily prices for the seeded enabled instruments:
 
-- `yahoo_finance`: seeded US/HK stocks and ETFs (`AMD`, `QQQM`, `VGT`, `SMH`, `1810.HK`, `0700.HK`).
+- `yahoo_finance`: seeded US/HK stocks and ETFs (`AMD`, `QQQM`, `VOO`, `VGT`, `SMH`, `1810.HK`, `0700.HK`).
 - `eastmoney`: seeded China-listed ETFs/funds (`161128`, `159501`, `513500`).
 
 These providers are treated as unofficial market-data sources for a small family ledger. They do not introduce API keys or paid provider secrets. Provider responses are validated before insert, and failures are recorded in `data_provider_runs`, but this is not a guaranteed market-data feed or historical backfill pipeline.
@@ -162,6 +162,7 @@ Seeded instruments:
 
 - AMD
 - QQQM
+- VOO
 - VGT
 - SMH
 - 01810

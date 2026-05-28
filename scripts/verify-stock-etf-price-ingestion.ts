@@ -34,6 +34,7 @@ async function main(): Promise<void> {
     ]),
     [
       ["AMD", "Advanced Micro Devices, Inc.", "USD", "NASDAQ"],
+      ["VOO", "Vanguard S&P 500 ETF", "USD", "NYSE_ARCA"],
       ["1810.HK", "Xiaomi Corporation", "HKD", "HKEX"]
     ]
   );
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
       priceEnabledInstruments("yahoo_finance"),
       [
         { sourceSymbol: "AMD", priceDate: "2026-05-20", closePrice: "123.45", currency: "USD" },
+        { sourceSymbol: "VOO", priceDate: "2026-05-20", closePrice: "537.50", currency: "USD" },
         { sourceSymbol: "1810.HK", priceDate: "2026-05-20", closePrice: "41.2", currency: "HKD" }
       ],
       "Yahoo Finance",
@@ -50,6 +52,7 @@ async function main(): Promise<void> {
     ).map((input) => [input.instrumentId, input.provider, input.sourceSymbol, input.closePrice, input.currency]),
     [
       ["instrument-amd", "Yahoo Finance", "AMD", "123.45", "USD"],
+      ["instrument-voo", "Yahoo Finance", "VOO", "537.50", "USD"],
       ["instrument-1810", "Yahoo Finance", "1810.HK", "41.2", "HKD"]
     ]
   );
@@ -70,6 +73,7 @@ async function main(): Promise<void> {
         priceEnabledInstruments("yahoo_finance"),
         [
           { sourceSymbol: "AMD", priceDate: "2026-05-20", closePrice: "123.45", currency: "USD" },
+          { sourceSymbol: "VOO", priceDate: "2026-05-20", closePrice: "537.50", currency: "USD" },
           { sourceSymbol: "1810.HK", priceDate: "2026-05-20", closePrice: "41.2", currency: "HKD" },
           { sourceSymbol: "UNKNOWN", priceDate: "2026-05-20", closePrice: "41.2", currency: "HKD" }
         ],
@@ -102,15 +106,15 @@ async function main(): Promise<void> {
     }
   });
 
-  assert.equal(result.recordsInserted, 5);
+  assert.equal(result.recordsInserted, 6);
   assert.equal(result.recordsSkipped, 0);
   assert.deepEqual(result.providerRuns.map((run) => run.provider), ["Yahoo Finance", "Eastmoney", "FundRock"]);
-  assert.deepEqual(insertedInputs.map((input) => input.sourceSymbol), ["AMD", "1810.HK", "161128", "159501", "FS_US_500"]);
+  assert.deepEqual(insertedInputs.map((input) => input.sourceSymbol), ["AMD", "VOO", "1810.HK", "161128", "159501", "FS_US_500"]);
   assert.ok(calls.includes(`job:start:${UPDATE_PRICES_JOB_NAME}:2026-05-23T01:00:00.000Z`));
   assert.ok(calls.includes("provider:start:Yahoo Finance:instrument_prices:2026-05-23T01:00:00.000Z"));
   assert.ok(calls.includes("provider:start:Eastmoney:instrument_prices:2026-05-23T01:00:00.000Z"));
   assert.ok(calls.includes("provider:start:FundRock:instrument_prices:2026-05-23T01:00:00.000Z"));
-  assert.ok(calls.includes("job:finish:succeeded:5:0"));
+  assert.ok(calls.includes("job:finish:succeeded:6:0"));
 
   const secondRun = await ingestLatestInstrumentPrices({
     fetchedAt: "2026-05-23T02:00:00.000Z",
@@ -130,7 +134,7 @@ async function main(): Promise<void> {
     }
   });
   assert.equal(secondRun.recordsInserted, 0);
-  assert.equal(secondRun.recordsSkipped, 5);
+  assert.equal(secondRun.recordsSkipped, 6);
 
   const failureCalls: string[] = [];
   await assert.rejects(
@@ -179,7 +183,7 @@ async function main(): Promise<void> {
 
 function providerConfigs(): InstrumentPriceProviderConfig[] {
   return [
-    providerConfig("yahoo_finance", ["AMD", "1810.HK"], providerReturning("Yahoo Finance", "USD")),
+    providerConfig("yahoo_finance", ["AMD", "VOO", "1810.HK"], providerReturning("Yahoo Finance", "USD")),
     providerConfig("eastmoney", ["161128", "159501"], providerReturning("Eastmoney", "CNY")),
     providerConfig("custom", ["FS_US_500"], providerReturning("FundRock", "NZD"))
   ];
@@ -223,6 +227,7 @@ function providerFailing(providerName: string): IInstrumentPriceProvider {
 function priceEnabledInstruments(priceSource: InstrumentPriceProviderConfig["priceSource"]): PriceEnabledInstrument[] {
   const instruments: PriceEnabledInstrument[] = [
     priceEnabledInstrument("instrument-amd", "Advanced Micro Devices, Inc.", "USD", "yahoo_finance", "AMD", "NASDAQ"),
+    priceEnabledInstrument("instrument-voo", "Vanguard S&P 500 ETF", "USD", "yahoo_finance", "VOO", "NYSE_ARCA"),
     priceEnabledInstrument("instrument-1810", "Xiaomi Corporation", "HKD", "yahoo_finance", "1810.HK", "HKEX"),
     priceEnabledInstrument("instrument-161128", "E Fund S&P IT", "CNY", "eastmoney", "161128", "SZSE"),
     priceEnabledInstrument("instrument-159501", "Harvest Nasdaq 100 ETF", "CNY", "eastmoney", "159501", "SZSE"),
@@ -377,7 +382,7 @@ function instrumentPriceIngestionResult(): InstrumentPriceIngestionResult {
     ...jobRunRecord("handler-job-run-id"),
     status: "succeeded" as const,
     jobFinishedAt: "2026-05-23T01:30:00.000Z",
-    recordsInserted: 5,
+    recordsInserted: 6,
     recordsSkipped: 0
   };
 
@@ -386,7 +391,7 @@ function instrumentPriceIngestionResult(): InstrumentPriceIngestionResult {
     providerRuns: [],
     providerFailures: [],
     fetchedAt: "2026-05-23T01:00:00.000Z",
-    recordsInserted: 5,
+    recordsInserted: 6,
     recordsSkipped: 0,
     instrumentPrices: []
   };
