@@ -289,11 +289,11 @@ function appParameterOverrides(parameters: DeploymentParameters, certificateArn:
     parameterOverride("UpdateFxRatesScheduleExpression", parameters.UpdateFxRatesScheduleExpression ?? ""),
     parameterOverride("UpdatePricesScheduleExpression", parameters.UpdatePricesScheduleExpression ?? ""),
     parameterOverride("GeneratePortfolioSnapshotsScheduleExpression", parameters.GeneratePortfolioSnapshotsScheduleExpression ?? "")
-  ].filter((override) => !override.endsWith("="));
+  ].filter((override) => !override.endsWith("ParameterValue="));
 }
 
 function parameterOverride(key: string, value: string): string {
-  return `${key}=${value}`;
+  return `ParameterKey=${key},ParameterValue=${value}`;
 }
 
 function certificateStackName(environmentName: EnvironmentName): string {
