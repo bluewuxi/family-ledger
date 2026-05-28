@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
+import { RefreshCw, Save } from "lucide-react";
 import {
   GAIN_COLOR_SCHEME_LABELS,
   GAIN_COLOR_SCHEMES,
@@ -12,6 +13,7 @@ import {
   type UserPreferences
 } from "@family-ledger/shared";
 import { CurrencySelect } from "../components/CurrencySelect";
+import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiGet, apiPatch } from "../lib/apiClient";
 import { usePreferences } from "../lib/preferencesContext";
 
@@ -78,11 +80,12 @@ export function SettingsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <h1>设置</h1>
+          <PageTitle route="/settings">设置</PageTitle>
           <p>维护当前用户的显示偏好。行情同步监控已移至“数据同步”。</p>
         </div>
         <button className="secondary-button" type="button" onClick={loadPreferences} disabled={loading || saving}>
-          刷新
+          <RefreshCw size={17} aria-hidden="true" />
+          <span>刷新</span>
         </button>
       </header>
 
@@ -131,7 +134,8 @@ export function SettingsPage() {
 
         <div className="form-actions">
           <button className="primary-button" type="submit" disabled={loading || saving}>
-            {saving ? "保存中..." : "保存偏好"}
+            <Save size={17} aria-hidden="true" />
+            <span>{saving ? "保存中..." : "保存偏好"}</span>
           </button>
         </div>
       </form>

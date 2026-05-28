@@ -20,6 +20,7 @@ import {
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
+import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 import { formatDisplayAmount } from "../lib/numberFormat";
 import { usePreferences } from "../lib/preferencesContext";
@@ -270,7 +271,7 @@ export function AccountsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <h1>投资账户</h1>
+          <PageTitle route="/accounts">投资账户</PageTitle>
           <p>维护券商、基金平台、银行和现金账户。可在保存账户时一并录入期初资产。</p>
         </div>
         <div className="header-actions">

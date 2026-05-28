@@ -22,6 +22,7 @@ import {
 import { ApiClientError, apiGet } from "../lib/apiClient";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingBlock, LoadingState } from "../components/LoadingState";
+import { PageTitle } from "../components/PageTitle";
 import { formatDisplayAmount, formatDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
@@ -201,7 +202,7 @@ export function DashboardPage() {
     <section>
       <header className="page-header account-header dashboard-header">
         <div>
-          <h1>财富足迹</h1>
+          <PageTitle route="/dashboard">财富足迹</PageTitle>
           <p>基于当前行情、汇率和每日快照，展示投资组合概览。</p>
         </div>
         <div className="dashboard-controls">

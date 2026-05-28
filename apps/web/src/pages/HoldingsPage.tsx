@@ -15,6 +15,7 @@ import {
 } from "@family-ledger/shared";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingState } from "../components/LoadingState";
+import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiGet } from "../lib/apiClient";
 import { formatDisplayAmount, formatDisplayPrice } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
@@ -97,7 +98,7 @@ export function HoldingsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <h1>持仓总览</h1>
+          <PageTitle route="/holdings">持仓总览</PageTitle>
           <p>按账户、类型和币种查看当前持仓，使用已存储价格和估值汇率显示市值与未实现收益。</p>
         </div>
         <div className="dashboard-controls">

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, CloudDownload, Eye, Filter, RefreshCw } from "lucide-react";
 import type {
   AuthenticatedUser,
   CurrencyCode,
@@ -13,6 +14,7 @@ import type {
   Pagination
 } from "@family-ledger/shared";
 import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-ledger/shared";
+import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiGet, apiPost } from "../lib/apiClient";
 import { formatDisplayPrice } from "../lib/numberFormat";
 
@@ -99,6 +101,10 @@ export function MarketDataPage() {
   const [logFilters, setLogFilters] = useState<LogFilters>({ jobName: "", status: "", triggerSource: "" });
   const [loading, setLoading] = useState(false);
   const [triggeringKind, setTriggeringKind] = useState<MarketDataRetrievalKind | null>(null);
+  const [manualRetrievalSelection, setManualRetrievalSelection] = useState<Record<DataKindOption, boolean>>({
+    exchange_rates: true,
+    instrument_prices: true
+  });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -251,14 +257,27 @@ export function MarketDataPage() {
     }
   }
 
+  function triggerSelectedRetrieval() {
+    const selectedKinds = dataKindOptions.filter((option) => manualRetrievalSelection[option.kind]);
+    if (selectedKinds.length === 0) {
+      setError("请至少选择一种要手动更新的数据。");
+      setNotice(null);
+      return;
+    }
+
+    const kind = selectedKinds.length === dataKindOptions.length ? "all" : selectedKinds[0].kind;
+    void triggerRetrieval(kind);
+  }
+
   return (
     <section>
       <header className="page-header account-header">
         <div>
-          <h1>数据同步</h1>
+          <PageTitle route="/market-data">数据同步</PageTitle>
           <p>查看汇率、价格和同步日志。写入由 Lambda API 和计划任务负责。</p>
         </div>
         <button className="secondary-button" type="button" onClick={() => void loadActiveTab(0)} disabled={loading || triggeringKind !== null}>
+          <RefreshCw size={16} aria-hidden="true" />
           刷新
         </button>
       </header>
@@ -288,17 +307,11 @@ export function MarketDataPage() {
     return (
       <section className="market-data-panel">
         <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
-          <button
-            className="primary-button"
-            type="button"
+          <ManualUpdateButton
+            label={triggeringKind === "exchange_rates" ? "提交中..." : "手动更新"}
             onClick={() => void triggerRetrieval("exchange_rates")}
             disabled={triggeringKind !== null}
-          >
-            {triggeringKind === "exchange_rates" ? "提交中..." : "抓取汇率"}
-          </button>
-          <button className="secondary-button" type="button" onClick={() => void triggerRetrieval("all")} disabled={triggeringKind !== null}>
-            {triggeringKind === "all" ? "提交中..." : "全部抓取"}
-          </button>
+          />
         </Toolbar>
 
         <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); void loadFxRates(0); }}>
@@ -343,6 +356,7 @@ export function MarketDataPage() {
             <input value={fxFilters.provider} onChange={(event) => setFxFilters({ ...fxFilters, provider: event.target.value })} placeholder="Frankfurter" />
           </label>
           <button className="secondary-button" type="submit" disabled={loading}>
+            <Filter size={16} aria-hidden="true" />
             筛选
           </button>
         </form>
@@ -390,17 +404,11 @@ export function MarketDataPage() {
     return (
       <section className="market-data-panel">
         <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
-          <button
-            className="primary-button"
-            type="button"
+          <ManualUpdateButton
+            label={triggeringKind === "instrument_prices" ? "提交中..." : "手动更新"}
             onClick={() => void triggerRetrieval("instrument_prices")}
             disabled={triggeringKind !== null}
-          >
-            {triggeringKind === "instrument_prices" ? "提交中..." : "抓取价格"}
-          </button>
-          <button className="secondary-button" type="button" onClick={() => void triggerRetrieval("all")} disabled={triggeringKind !== null}>
-            {triggeringKind === "all" ? "提交中..." : "全部抓取"}
-          </button>
+          />
         </Toolbar>
 
         <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); void loadPrices(0); }}>
@@ -431,6 +439,7 @@ export function MarketDataPage() {
             <input value={priceFilters.provider} onChange={(event) => setPriceFilters({ ...priceFilters, provider: event.target.value })} />
           </label>
           <button className="secondary-button" type="submit" disabled={loading}>
+            <Filter size={16} aria-hidden="true" />
             筛选
           </button>
         </form>
@@ -478,25 +487,24 @@ export function MarketDataPage() {
     return (
       <section className="market-data-panel">
         <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => void triggerRetrieval("exchange_rates")}
-            disabled={triggeringKind !== null}
-          >
-            抓取汇率
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => void triggerRetrieval("instrument_prices")}
-            disabled={triggeringKind !== null}
-          >
-            抓取价格
-          </button>
-          <button className="secondary-button" type="button" onClick={() => void triggerRetrieval("all")} disabled={triggeringKind !== null}>
-            全部抓取
-          </button>
+          <div className="market-data-manual-options" aria-label="手动更新范围">
+            {dataKindOptions.map((option) => (
+              <label key={option.kind}>
+                <input
+                  type="checkbox"
+                  checked={manualRetrievalSelection[option.kind]}
+                  onChange={(event) =>
+                    setManualRetrievalSelection((current) => ({
+                      ...current,
+                      [option.kind]: event.target.checked
+                    }))
+                  }
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <ManualUpdateButton label={triggeringKind ? "提交中..." : "手动更新"} onClick={triggerSelectedRetrieval} disabled={triggeringKind !== null} />
         </Toolbar>
 
         <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); void loadJobRuns(0); }}>
@@ -530,6 +538,7 @@ export function MarketDataPage() {
             </select>
           </label>
           <button className="secondary-button" type="submit" disabled={loading}>
+            <Filter size={16} aria-hidden="true" />
             筛选
           </button>
         </form>
@@ -554,7 +563,7 @@ export function MarketDataPage() {
                 <EmptyRow colSpan={7} label="暂无同步日志。" />
               ) : (
                 jobRuns.map((jobRun) => (
-                  <tr key={jobRun.id}>
+                  <tr className={selectedJobRunId === jobRun.id ? "selected-row" : undefined} key={jobRun.id}>
                     <td>{jobRun.jobName}</td>
                     <td>{formatStatus(jobRun.status)}</td>
                     <td>{jobRun.triggerSource === "manual" ? "手动" : "计划任务"}</td>
@@ -565,6 +574,7 @@ export function MarketDataPage() {
                     </td>
                     <td>
                       <button className="text-button" type="button" onClick={() => void handleSelectJobRun(jobRun.id)}>
+                        <Eye size={15} aria-hidden="true" />
                         查看
                       </button>
                     </td>
@@ -630,7 +640,7 @@ function Toolbar({
     <div className="settings-section-header">
       <div>
         <h2>同步控制</h2>
-        <p>手动抓取只提交后台任务，完成情况请查看同步日志。</p>
+        <p>手动更新会提交后台任务：汇率更新外币估值汇率，价格更新投资标的收盘价。完成情况请查看同步日志。</p>
       </div>
       {isAdmin ? (
         <div className="market-data-actions">{children}</div>
@@ -639,6 +649,15 @@ function Toolbar({
       )}
       {triggeringKind ? <span className="sr-only">正在提交 {triggeringKind}</span> : null}
     </div>
+  );
+}
+
+function ManualUpdateButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled: boolean }) {
+  return (
+    <button className="primary-button" type="button" onClick={onClick} disabled={disabled}>
+      <CloudDownload size={16} aria-hidden="true" />
+      {label}
+    </button>
   );
 }
 
@@ -677,6 +696,7 @@ function PaginationControls({
         disabled={loading || pagination.offset === 0}
         onClick={() => onPageChange(Math.max(0, pagination.offset - pagination.limit))}
       >
+        <ChevronLeft size={16} aria-hidden="true" />
         上一页
       </button>
       <span>第 {page} 页</span>
@@ -686,11 +706,19 @@ function PaginationControls({
         disabled={loading || !pagination.hasMore}
         onClick={() => onPageChange(pagination.offset + pagination.limit)}
       >
+        <ChevronRight size={16} aria-hidden="true" />
         下一页
       </button>
     </div>
   );
 }
+
+type DataKindOption = "exchange_rates" | "instrument_prices";
+
+const dataKindOptions: Array<{ kind: DataKindOption; label: string }> = [
+  { kind: "exchange_rates", label: "汇率" },
+  { kind: "instrument_prices", label: "价格" }
+];
 
 function toQuery(input: Record<string, string | number | undefined>): string {
   const params = new URLSearchParams();

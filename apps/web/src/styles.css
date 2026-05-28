@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --sidebar-width: 286px;
   --sidebar-collapsed-width: 84px;
   --color-brand-navy: #08264a;
@@ -12,6 +12,8 @@
   --color-sidebar: #fbfaf6;
   --color-panel-soft: #f1eee6;
   --color-panel-strong: #eadfca;
+  --color-hover: #f5efe2;
+  --color-selected: #eadfca;
   --color-border: #ded6c6;
   --color-border-strong: #c9bda9;
   --color-text: #172033;
@@ -49,6 +51,8 @@
   --color-sidebar: #08182b;
   --color-panel-soft: #13243a;
   --color-panel-strong: #213955;
+  --color-hover: #182d47;
+  --color-selected: #213955;
   --color-border: #243750;
   --color-border-strong: #38506e;
   --color-text: #edf4ff;
@@ -134,6 +138,28 @@ body {
   pointer-events: none;
   background: url("/background-tree-transparent.png") right clamp(-130px, -7vw, -58px) bottom clamp(-120px, -6vw, -52px) / min(58vw, 980px) auto no-repeat;
   opacity: 0.22;
+}
+
+:root:not([data-theme="dark"]) #root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-24 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23d99a14' fill-opacity='.40'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.58' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 7% 12% / 104px 104px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(38 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23f5b52e' fill-opacity='.36'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.52' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 21% 83% / 86px 86px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(18 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23d99a14' fill-opacity='.31'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.50' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 42% 21% / 92px 92px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-42 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23f5b52e' fill-opacity='.32'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.48' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 72% 60% / 112px 112px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(62 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23d99a14' fill-opacity='.34'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.52' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 90% 25% / 78px 78px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-12 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23f5b52e' fill-opacity='.29'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.46' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 88% 86% / 88px 88px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(104 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23d99a14' fill-opacity='.28'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.44' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 12% 55% / 74px 74px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-68 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23f5b52e' fill-opacity='.26'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.44' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 34% 48% / 82px 82px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(74 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23d99a14' fill-opacity='.25'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.40' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 58% 88% / 90px 90px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-98 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23f5b52e' fill-opacity='.25'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.42' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 68% 14% / 78px 78px no-repeat,
+    url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(28 36 36)'%3E%3Cpath d='M56 12C33 13 17 25 15 43c-1 10 5 17 15 17 20 0 31-25 26-48Z' fill='%23d99a14' fill-opacity='.24'/%3E%3Cpath d='M21 53c11-16 21-25 35-37' fill='none' stroke='%23ffffff' stroke-opacity='.42' stroke-width='2.2' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") 96% 58% / 72px 72px no-repeat;
+  opacity: 1;
+  mix-blend-mode: multiply;
 }
 
 #root > * {
@@ -462,11 +488,21 @@ textarea {
   transform: translate(0, -50%);
 }
 
-.nav-list a.active,
-.nav-list a:hover {
-  background: var(--color-panel-strong);
+.nav-list a:hover,
+.nav-list a:focus-visible {
+  background: var(--color-hover);
+  color: var(--color-brand-navy-ink);
+}
+
+.nav-list a.active {
+  background: var(--color-selected);
   color: var(--color-brand-navy-ink);
   box-shadow: inset 3px 0 0 var(--color-brand-leaf);
+}
+
+.nav-list a.active:hover,
+.nav-list a.active:focus-visible {
+  background: var(--color-selected);
 }
 
 .logout-button {
@@ -677,6 +713,18 @@ textarea {
   font-size: 30px;
   font-weight: 700;
   letter-spacing: 0;
+}
+
+.page-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-title svg {
+  flex: 0 0 auto;
+  color: var(--color-brand-navy);
+  stroke-width: 2.2;
 }
 
 .page-header p {
@@ -1679,6 +1727,23 @@ td {
     color 180ms ease;
 }
 
+tbody tr:not(.editing-row):hover td {
+  background: var(--color-hover);
+}
+
+tbody tr.selected-row td {
+  background: var(--color-selected);
+  color: var(--color-text);
+}
+
+tbody tr.selected-row td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-brand-leaf);
+}
+
+tbody tr.selected-row:hover td {
+  background: var(--color-selected);
+}
+
 .numeric-cell {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1904,8 +1969,41 @@ tr.editing-row td {
 .market-data-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.market-data-manual-options {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.market-data-manual-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.market-data-manual-options label:hover {
+  background: var(--color-hover);
+}
+
+.market-data-manual-options input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-brand-navy);
 }
 
 .market-data-section {
@@ -2475,3 +2573,4 @@ tr.editing-row td {
     font-size: 21px;
   }
 }
+

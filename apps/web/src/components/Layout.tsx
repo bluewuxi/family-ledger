@@ -1,32 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  AreaChart,
   Banknote,
-  BarChart3,
-  DatabaseZap,
-  FileText,
-  Info,
-  Landmark,
   LogOut,
   Menu,
   PanelLeftClose,
-  PanelLeftOpen,
-  Settings,
-  Tags
+  PanelLeftOpen
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/authContext";
-
-const navigationItems = [
-  { to: "/dashboard", label: "财富足迹", icon: AreaChart },
-  { to: "/accounts", label: "投资账户", icon: Landmark },
-  { to: "/instruments", label: "投资标的", icon: Tags },
-  { to: "/transactions", label: "交易记录", icon: FileText },
-  { to: "/holdings", label: "持仓总览", icon: BarChart3 },
-  { to: "/market-data", label: "数据同步", icon: DatabaseZap },
-  { to: "/settings", label: "设置", icon: Settings },
-  { to: "/about", label: "关于", icon: Info }
-];
+import { navigationItems } from "../lib/navigation";
 
 const sidebarStorageKey = "family-ledger.sidebar.collapsed";
 

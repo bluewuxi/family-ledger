@@ -14,6 +14,7 @@ import {
   type TransactionType
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
+import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 import { formatDisplayAmount } from "../lib/numberFormat";
 
@@ -319,7 +320,7 @@ export function TransactionsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <h1>交易记录</h1>
+          <PageTitle route="/transactions">交易记录</PageTitle>
           <p>记录买卖、股息和现金变动。买入和卖出的成交总额由系统按数量和价格计算。</p>
         </div>
         <div className="header-actions">

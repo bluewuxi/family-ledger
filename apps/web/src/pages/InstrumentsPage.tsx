@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ASSET_TYPE_LABELS,
   ASSET_TYPES,
@@ -16,6 +17,7 @@ import {
   type PriceSource
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
+import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 
 interface InstrumentsResponse {
@@ -200,17 +202,19 @@ export function InstrumentsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <h1>投资标的</h1>
+          <PageTitle route="/instruments">投资标的</PageTitle>
           <p>维护股票、ETF、基金和现金标的，以及后续行情任务使用的价格来源配置。</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (
             <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving}>
-              新增标的
+              <Plus size={17} aria-hidden="true" />
+              <span>新增标的</span>
             </button>
           ) : null}
           <button className="secondary-button" type="button" onClick={loadInstruments} disabled={loading || saving}>
-            刷新
+            <RefreshCw size={17} aria-hidden="true" />
+            <span>刷新</span>
           </button>
         </div>
       </header>
@@ -267,7 +271,7 @@ export function InstrumentsPage() {
                           onClick={() => startEdit(instrument)}
                           disabled={saving}
                         >
-                          <span aria-hidden="true">✎</span>
+                          <Pencil size={15} aria-hidden="true" />
                         </button>
                         <button
                           aria-label={`删除标的 ${instrument.name}`}
@@ -277,7 +281,7 @@ export function InstrumentsPage() {
                           onClick={() => void handleDelete(instrument)}
                           disabled={saving}
                         >
-                          <span aria-hidden="true">×</span>
+                          <Trash2 size={15} aria-hidden="true" />
                         </button>
                       </div>
                     </td>
@@ -297,10 +301,12 @@ export function InstrumentsPage() {
         footer={
           <>
             <button className="primary-button" type="submit" form="instrument-drawer-form" disabled={saving}>
-              {saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}
+              {saving ? <RefreshCw size={17} aria-hidden="true" /> : editingInstrumentId ? <Save size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
+              <span>{saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}</span>
             </button>
             <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
-              取消
+              <X size={17} aria-hidden="true" />
+              <span>取消</span>
             </button>
           </>
         }
