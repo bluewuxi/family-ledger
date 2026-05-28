@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   const template = readFileSync("infra/aws/template.yaml", "utf8");
   assert.match(template, /Type: AWS::Scheduler::Schedule/u);
   assert.match(template, /ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone/u);
-  assert.match(template, /FlexibleTimeWindow:\s*\r?\n\s*Mode: OFF/u);
+  assert.match(template, /FlexibleTimeWindow:\s*\r?\n\s*Mode: "OFF"/u);
   assert.match(template, /<aws\.scheduler\.scheduled-time>/u);
   assert.match(template, /<aws\.scheduler\.execution-id>/u);
   assert.doesNotMatch(template, /Type: AWS::Events::Rule/u);

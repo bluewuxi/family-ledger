@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import dotenv from "dotenv";
 
@@ -150,7 +150,7 @@ function deployInfrastructure(parameters: DeploymentParameters): void {
     "CAPABILITY_IAM",
     "CAPABILITY_NAMED_IAM",
     "--parameter-overrides",
-    ...appParameterOverrides(parameters, certificateArn),
+    appParameterOverridesFile(parameters, certificateArn),
     "--tags",
     "Project=family-ledger",
     `Environment=${parameters.EnvironmentName}`
@@ -175,7 +175,7 @@ function createInfrastructureChangeSet(parameters: DeploymentParameters): void {
     "CAPABILITY_NAMED_IAM",
     "--no-execute-changeset",
     "--parameter-overrides",
-    ...appParameterOverrides(parameters, certificateArn),
+    appParameterOverridesFile(parameters, certificateArn),
     "--tags",
     "Project=family-ledger",
     `Environment=${parameters.EnvironmentName}`
@@ -274,7 +274,7 @@ function getStackOutput(region: string, stackName: string, outputKey: string): s
   ]).trim();
 }
 
-function appParameterOverrides(parameters: DeploymentParameters, certificateArn: string): string[] {
+function appParameterOverrides(parameters: DeploymentParameters, certificateArn: string): Array<{ ParameterKey: string; ParameterValue: string }> {
   return [
     parameterOverride("EnvironmentName", parameters.EnvironmentName),
     parameterOverride("HostedZoneId", parameters.HostedZoneId),
@@ -289,11 +289,29 @@ function appParameterOverrides(parameters: DeploymentParameters, certificateArn:
     parameterOverride("UpdateFxRatesScheduleExpression", parameters.UpdateFxRatesScheduleExpression ?? ""),
     parameterOverride("UpdatePricesScheduleExpression", parameters.UpdatePricesScheduleExpression ?? ""),
     parameterOverride("GeneratePortfolioSnapshotsScheduleExpression", parameters.GeneratePortfolioSnapshotsScheduleExpression ?? "")
-  ].filter((override) => !override.endsWith("ParameterValue="));
+  ].filter((override) => override.ParameterValue !== "");
 }
 
-function parameterOverride(key: string, value: string): string {
-  return `ParameterKey=${key},ParameterValue=${value}`;
+function appParameterOverridesFile(parameters: DeploymentParameters, certificateArn: string): string {
+  const directory = ".aws-sam";
+  mkdirSync(directory, { recursive: true });
+  const path = join(directory, `parameter-overrides-${parameters.EnvironmentName}.yaml`);
+  writeFileSync(path, toYamlParameterOverrides(appParameterOverrides(parameters, certificateArn)));
+  return `file://${path.replace(/\\/gu, "/")}`;
+}
+
+function parameterOverride(key: string, value: string): { ParameterKey: string; ParameterValue: string } {
+  return { ParameterKey: key, ParameterValue: value };
+}
+
+function toYamlParameterOverrides(overrides: Array<{ ParameterKey: string; ParameterValue: string }>): string {
+  return `${overrides
+    .map((override) => `${yamlString(override.ParameterKey)}: ${yamlString(override.ParameterValue)}`)
+    .join("\n")}\n`;
+}
+
+function yamlString(value: string): string {
+  return JSON.stringify(value);
 }
 
 function certificateStackName(environmentName: EnvironmentName): string {

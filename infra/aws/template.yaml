@@ -425,7 +425,7 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
 
-  UpdateFxRatesSchedule:
+  UpdateFxRatesSchedulerSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
       Name: !Sub family-ledger-${EnvironmentName}-update-fx-rates
@@ -433,7 +433,7 @@ Resources:
       ScheduleExpression: !Ref UpdateFxRatesScheduleExpression
       ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone
       FlexibleTimeWindow:
-        Mode: OFF
+        Mode: "OFF"
       State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
       Target:
         Arn: !GetAtt UpdateFxRatesFunction.Arn
@@ -443,7 +443,7 @@ Resources:
           MaximumEventAgeInSeconds: 3600
           MaximumRetryAttempts: 2
 
-  UpdatePricesSchedule:
+  UpdatePricesSchedulerSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
       Name: !Sub family-ledger-${EnvironmentName}-update-prices
@@ -451,7 +451,7 @@ Resources:
       ScheduleExpression: !Ref UpdatePricesScheduleExpression
       ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone
       FlexibleTimeWindow:
-        Mode: OFF
+        Mode: "OFF"
       State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
       Target:
         Arn: !GetAtt UpdatePricesFunction.Arn
@@ -461,7 +461,7 @@ Resources:
           MaximumEventAgeInSeconds: 3600
           MaximumRetryAttempts: 2
 
-  GeneratePortfolioSnapshotsSchedule:
+  GeneratePortfolioSnapshotsSchedulerSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
       Name: !Sub family-ledger-${EnvironmentName}-portfolio-snapshots
@@ -469,7 +469,7 @@ Resources:
       ScheduleExpression: !Ref GeneratePortfolioSnapshotsScheduleExpression
       ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone
       FlexibleTimeWindow:
-        Mode: OFF
+        Mode: "OFF"
       State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
       Target:
         Arn: !GetAtt GeneratePortfolioSnapshotsFunction.Arn
