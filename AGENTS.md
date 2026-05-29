@@ -194,6 +194,17 @@ Use Chinese labels such as:
 
 Code identifiers should remain in English, for example `InvestmentAccount`, `Instrument`, `InvestmentTransaction`, and `PortfolioSnapshot`.
 
+## Mobile UI Guidelines
+
+Treat mobile layout as a first-class requirement for every web UI change.
+
+- Mobile navigation must be closed by default after login and open as an overlay drawer; desktop sidebar collapse controls must not appear on mobile.
+- Use readable Simplified Chinese text on phones: avoid tiny labels, cramped helper text, and controls below 44px tap height.
+- Prefer stacked controls, wrapped actions, and clear spacing on narrow screens; text and controls must not overlap or depend on hover-only affordances.
+- Keep data-heavy pages as horizontally scrollable tables unless a task explicitly asks for a mobile card/list redesign.
+- Drawers, dialogs, filters, pagination, tabs, and footer content must fit common phone widths without clipping important actions.
+- For meaningful frontend changes, verify mobile behavior at `320x740`, `393x852`, `430x932`, `768x1024`, and a desktop width before considering the task complete.
+
 ---
 
 ## Financial Data
