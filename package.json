@@ -39,10 +39,14 @@
     "verify:time-policy": "tsx scripts/verify-time-policy.ts",
     "verify:market-close-repair": "tsx scripts/verify-market-close-repair.ts",
     "verify:snapshot-audit": "tsx scripts/verify-test-snapshots.ts",
+    "verify:backup": "tsx scripts/verify-backup.ts",
     "backfill:account-trading-passwords": "tsx scripts/backfill-account-trading-password-placeholders.ts",
     "repair:market-close-history": "tsx scripts/repair-market-close-history.ts",
     "fix:snapshot-audit": "tsx scripts/verify-test-snapshots.ts --fix",
     "fx:ingest:frankfurter": "tsx scripts/ingest-frankfurter-fx-rates.ts",
+    "backup:ledger:test": "tsx scripts/backup-ledger-data.ts --env test",
+    "backup:ledger:prod": "tsx scripts/backup-ledger-data.ts --env prod",
+    "restore:backup:dry-run": "tsx scripts/restore-backup-dry-run.ts",
     "typecheck": "tsc -b --pretty false"
   },
   "devDependencies": {

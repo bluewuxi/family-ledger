@@ -22,8 +22,8 @@ Production deployment uses SAM/CloudFormation templates under `infra/aws` when e
 
 - Deploy `apps/jobs` handlers as Lambda functions.
 - Trigger scheduled jobs with EventBridge Scheduler.
-- Current handlers include price updates, FX updates, and portfolio snapshots.
-- Schedules are enabled by default in new stacks through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data and snapshot jobs.
+- Current handlers include price updates, FX updates, portfolio snapshots, and ledger backups.
+- Schedules are enabled by default in new stacks through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data, snapshot, and backup jobs.
 
 ## Domains
 
@@ -86,6 +86,14 @@ ScheduleExpression: cron(30 6 ? * TUE-SAT *)
 FlexibleTimeWindow: OFF
 ```
 
+Configure the ledger backup Lambda handler exported as `backupLedgerData` after the batch jobs have normally completed:
+
+```text
+ScheduleExpressionTimezone: Asia/Shanghai
+ScheduleExpression: cron(0 7 * * ? *)
+FlexibleTimeWindow: OFF
+```
+
 These defaults run shortly after the app's `06:00 Asia/Shanghai` business-day cutoff and before China/Hong Kong markets open. Tuesday-Saturday Beijing is a post-US-close global snapshot cadence; it captures the prior US trading day and the latest available provider-published close or unit price. It does not create a separate Monday-before-CN/HK-open snapshot. Duplicate provider dates on holidays are handled by idempotent inserts/skips.
 
 Each Scheduler target must pass the Scheduler context payload into Lambda, including `<aws.scheduler.scheduled-time>` as `time` and `<aws.scheduler.execution-id>` as `id`. The snapshot job derives the business date from the scheduled time so retries and delayed starts do not drift across the cutoff.
@@ -103,6 +111,26 @@ The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastm
 The web Data Sync page can manually trigger the FX and price jobs. CloudFormation wires the job function names into the API Lambda through `UPDATE_FX_RATES_FUNCTION_NAME` and `UPDATE_PRICES_FUNCTION_NAME`, and grants `lambda:InvokeFunction` only for those two job functions. Manual invocations pass trigger metadata into the job payload and return before ingestion completes; completion status is read from `job_runs` and `data_provider_runs`.
 
 The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the snapshot date from the `06:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
+
+The ledger backup handler writes a gzipped JSON object to the private backup S3 bucket under:
+
+```text
+backups/{env}/YYYY/MM/DD/family-ledger-{env}-{timestamp}.json.gz
+```
+
+Backup objects use SSE-S3 encryption, public access is blocked, bucket versioning is enabled, and lifecycle rules expire current and noncurrent backup objects plus expired delete markers after 30 days. The backup manifest records table row counts, deterministic SHA-256 checksums, the backup version, the environment, the database RPC snapshot semantics, external Auth dependencies, and `secretsExcluded=true`. The export includes public app tables only and deliberately excludes Supabase Auth internals, frontend assets, SSM parameters, service keys, and decrypted trading account passwords.
+
+Before exporting, and again before writing the S3 object, the backup job checks for unfinished recent `started` runs from `ingest-frankfurter-fx-rates`, `update-prices`, and `generate-portfolio-snapshots`. If any are still running within the one-hour freshness window, it marks the backup job failed with `BACKUP_BLOCKED_BY_RUNNING_JOB` and throws so EventBridge Scheduler can retry. Older stale `started` rows are logged and ignored so a crashed Lambda does not block backups forever.
+
+Manual backup and verification commands:
+
+```powershell
+corepack pnpm backup:ledger:test
+corepack pnpm verify:backup -- --file <downloaded-backup.json.gz>
+corepack pnpm restore:backup:dry-run -- --file <downloaded-backup.json.gz>
+```
+
+Restore is intentionally operator-run in V1. For a fresh Supabase project, recreate Supabase Auth users first or remap user-linked rows such as `profiles`, `user_roles`, and audit user ids before loading the public ledger tables. See [`backup-restore.md`](backup-restore.md).
 
 Historical price repair is dry-run by default:
 

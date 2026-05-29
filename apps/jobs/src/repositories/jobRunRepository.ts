@@ -90,6 +90,39 @@ export async function finishJobRun(id: string, input: FinishRunInput): Promise<J
   return mapJobRunRow(data);
 }
 
+export async function listStartedJobRuns(
+  jobNames: readonly string[],
+  options: { startedBefore?: string; startedAfter?: string } = {}
+): Promise<JobRun[]> {
+  if (jobNames.length === 0) {
+    return [];
+  }
+
+  const supabase = await getSupabaseAdmin();
+  let query = supabase
+    .from("job_runs")
+    .select(jobRunSelect)
+    .in("job_name", [...jobNames])
+    .eq("status", "started")
+    .order("job_started_at", { ascending: true });
+
+  if (options.startedBefore) {
+    query = query.lt("job_started_at", options.startedBefore);
+  }
+
+  if (options.startedAfter) {
+    query = query.gte("job_started_at", options.startedAfter);
+  }
+
+  const { data, error } = await query.returns<JobRunRow[]>();
+
+  if (error) {
+    throw new Error("Failed to list started job runs.");
+  }
+
+  return data.map(mapJobRunRow);
+}
+
 export async function createDataProviderRun(input: {
   jobRunId: string;
   provider: string;

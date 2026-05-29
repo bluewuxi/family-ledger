@@ -5,6 +5,7 @@ AWS resources are deployed from this directory with SAM/CloudFormation when expl
 Current infrastructure templates cover:
 
 - Private S3 bucket for `apps/web` build output
+- Private encrypted S3 bucket for scheduled ledger backups
 - CloudFront distribution with HTTPS, Origin Access Control, and SPA fallback
 - API Gateway and Lambda for `apps/api`
 - EventBridge Scheduler schedules and Lambda jobs for `apps/jobs`
@@ -70,7 +71,13 @@ corepack pnpm deploy:web:test
 
 Production equivalents use the `:prod` suffix. Do not run production deploys until `infra/aws/parameters.prod.json` has been created locally and reviewed.
 
-Scheduled jobs default to enabled through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data and snapshot jobs. Schedules use EventBridge Scheduler with `ScheduledJobsTimezone=Asia/Shanghai` by default, so the market-data and snapshot cron expressions do not need UTC conversion.
+Scheduled jobs default to enabled through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data, snapshot, and backup jobs. Schedules use EventBridge Scheduler with `ScheduledJobsTimezone=Asia/Shanghai` by default, so the market-data, snapshot, and backup cron expressions do not need UTC conversion.
+
+The backup bucket blocks public access, enables versioning, uses S3-managed server-side encryption (`AES256`), and expires current versions, noncurrent versions, and expired delete markers for ledger backup objects under `backups/{env}/` after 30 days. The backup Lambda role can only write objects under that prefix. The `BackupBucketName` stack output is used by local operator scripts such as:
+
+```bash
+corepack pnpm backup:ledger:test
+```
 
 ## SSM Parameters
 

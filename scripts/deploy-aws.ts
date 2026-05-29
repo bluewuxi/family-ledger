@@ -21,6 +21,7 @@ interface DeploymentParameters {
   UpdateFxRatesScheduleExpression?: string;
   UpdatePricesScheduleExpression?: string;
   GeneratePortfolioSnapshotsScheduleExpression?: string;
+  BackupLedgerDataScheduleExpression?: string;
 }
 
 interface WebRuntimeConfig {
@@ -288,7 +289,8 @@ function appParameterOverrides(parameters: DeploymentParameters, certificateArn:
     parameterOverride("ScheduledJobsTimezone", parameters.ScheduledJobsTimezone ?? ""),
     parameterOverride("UpdateFxRatesScheduleExpression", parameters.UpdateFxRatesScheduleExpression ?? ""),
     parameterOverride("UpdatePricesScheduleExpression", parameters.UpdatePricesScheduleExpression ?? ""),
-    parameterOverride("GeneratePortfolioSnapshotsScheduleExpression", parameters.GeneratePortfolioSnapshotsScheduleExpression ?? "")
+    parameterOverride("GeneratePortfolioSnapshotsScheduleExpression", parameters.GeneratePortfolioSnapshotsScheduleExpression ?? ""),
+    parameterOverride("BackupLedgerDataScheduleExpression", parameters.BackupLedgerDataScheduleExpression ?? "")
   ].filter((override) => override.ParameterValue !== "");
 }
 

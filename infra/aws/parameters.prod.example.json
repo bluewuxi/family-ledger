@@ -12,5 +12,6 @@
   "ScheduledJobsTimezone": "Asia/Shanghai",
   "UpdateFxRatesScheduleExpression": "cron(5 6 ? * TUE-SAT *)",
   "UpdatePricesScheduleExpression": "cron(10 6 ? * TUE-SAT *)",
-  "GeneratePortfolioSnapshotsScheduleExpression": "cron(30 6 ? * TUE-SAT *)"
+  "GeneratePortfolioSnapshotsScheduleExpression": "cron(30 6 ? * TUE-SAT *)",
+  "BackupLedgerDataScheduleExpression": "cron(0 7 * * ? *)"
 }

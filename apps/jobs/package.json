@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1056.0",
     "@aws-sdk/client-ssm": "^3.1052.0",
     "@family-ledger/shared": "workspace:*",
     "@supabase/supabase-js": "^2.48.1",

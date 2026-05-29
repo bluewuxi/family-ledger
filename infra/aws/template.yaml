@@ -68,6 +68,11 @@ Parameters:
     Default: "cron(30 6 ? * TUE-SAT *)"
     Description: EventBridge Scheduler cron expression for the portfolio snapshot job.
 
+  BackupLedgerDataScheduleExpression:
+    Type: String
+    Default: "cron(0 7 * * ? *)"
+    Description: EventBridge Scheduler cron expression for the ledger data backup job.
+
 Conditions:
   ScheduledJobsEnabled: !Equals [!Ref EnableScheduledJobs, "true"]
 
@@ -119,6 +124,14 @@ Resources:
                 Action:
                   - ssm:PutParameter
                 Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_trading_password_gate
+        - PolicyName: WriteFamilyLedgerBackups
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub ${LedgerBackupBucket.Arn}/backups/${EnvironmentName}/*
       Tags:
         - Key: Project
           Value: family-ledger
@@ -135,6 +148,38 @@ Resources:
         RestrictPublicBuckets: true
       VersioningConfiguration:
         Status: Enabled
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  LedgerBackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireDailyLedgerBackups
+            Status: Enabled
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            Prefix: !Sub backups/${EnvironmentName}/
+          - Id: DeleteExpiredLedgerBackupMarkers
+            Status: Enabled
+            ExpiredObjectDeleteMarker: true
+            Prefix: !Sub backups/${EnvironmentName}/
       Tags:
         - Key: Project
           Value: family-ledger
@@ -391,6 +436,28 @@ Resources:
         Sourcemap: true
         Target: es2022
 
+  BackupLedgerDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub family-ledger-${EnvironmentName}-backup-ledger-data
+      CodeUri: ../..
+      Handler: apps/jobs/src/handlers/backupLedgerData.handler
+      Description: !Sub family-ledger ${EnvironmentName} encrypted ledger data backup job.
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          ENVIRONMENT_NAME: !Ref EnvironmentName
+          BACKUP_BUCKET_NAME: !Ref LedgerBackupBucket
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - apps/jobs/src/handlers/backupLedgerData.ts
+        Minify: true
+        Sourcemap: true
+        Target: es2022
+
   ApiInvokeMarketDataJobsPolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -430,6 +497,7 @@ Resources:
                   - !GetAtt UpdateFxRatesFunction.Arn
                   - !GetAtt UpdatePricesFunction.Arn
                   - !GetAtt GeneratePortfolioSnapshotsFunction.Arn
+                  - !GetAtt BackupLedgerDataFunction.Arn
       Tags:
         - Key: Project
           Value: family-ledger
@@ -490,6 +558,24 @@ Resources:
           MaximumEventAgeInSeconds: 3600
           MaximumRetryAttempts: 2
 
+  BackupLedgerDataSchedulerSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub family-ledger-${EnvironmentName}-backup-ledger-data
+      Description: !Sub family-ledger ${EnvironmentName} ledger data backup schedule.
+      ScheduleExpression: !Ref BackupLedgerDataScheduleExpression
+      ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      State: !If [ScheduledJobsEnabled, ENABLED, DISABLED]
+      Target:
+        Arn: !GetAtt BackupLedgerDataFunction.Arn
+        RoleArn: !GetAtt SchedulerExecutionRole.Arn
+        Input: '{"id":"<aws.scheduler.execution-id>","time":"<aws.scheduler.scheduled-time>"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 2
+
 Outputs:
   WebBucketName:
     Description: S3 bucket that stores the built frontend assets.
@@ -498,6 +584,10 @@ Outputs:
   WebDistributionId:
     Description: CloudFront distribution id for frontend invalidations.
     Value: !Ref WebDistribution
+
+  BackupBucketName:
+    Description: S3 bucket that stores encrypted ledger backup objects.
+    Value: !Ref LedgerBackupBucket
 
   WebUrl:
     Description: HTTPS web app URL.

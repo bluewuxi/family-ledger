@@ -27,6 +27,8 @@ Business tables do not use `user_id` as an ownership field. Where useful, they u
 - `portfolio_snapshots`: shared daily family portfolio valuation snapshots.
 - `portfolio_account_snapshots`: per-account rows under each daily portfolio snapshot.
 
+Scheduled ledger backups export these public app tables only through the allowlisted `public.export_ledger_backup()` database RPC, which reads all backup tables in one PostgreSQL statement snapshot. The backup deliberately excludes Supabase Auth internals, frontend assets, AWS/SSM secrets, and decrypted trading account passwords. Restoring into a fresh Supabase project therefore requires recreating Auth users first or remapping user-linked rows such as `profiles`, `user_roles`, and audit user ids.
+
 Trading account passwords are not stored in Postgres. Each account has one SSM SecureString parameter named from the deployment prefix plus the account id. New accounts receive the placeholder value `尚未设置交易密码`; deleting an account also deletes its SSM password parameter after the API confirms the account has no transactions.
 
 ## Instruments

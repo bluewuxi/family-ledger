@@ -64,7 +64,8 @@
 - S3 deployment
 - API Gateway/Lambda deployment
 - Secrets handling
-- Backup/export
+- Ledger backup (implemented: scheduled public-ledger Postgres RPC snapshot export to encrypted private S3 with 30-day lifecycle retention, running-batch-job guard, and restore dry-run validation)
+- User-facing CSV export
 - Monitoring/logging
 
 ## Stage 7: Reporting Currency Selector and Charts
