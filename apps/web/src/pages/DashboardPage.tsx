@@ -28,6 +28,7 @@ import { PageTitle } from "../components/PageTitle";
 import { formatDisplayAmount, formatDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 import { formatLocalDateTimeNote } from "../lib/timeFormat";
+import { buildTrendChartData, isSyntheticTrendDate, type TrendChartPoint, type TrendPoint } from "../lib/trendChartData";
 
 interface DashboardResponse {
   dashboard: DashboardSummary;
@@ -38,19 +39,6 @@ interface PortfolioSnapshotsResponse {
 }
 
 type SnapshotRangeDays = 30 | 90 | 365;
-
-interface TrendPoint {
-  date: string;
-  value: number;
-}
-
-interface TrendChartPoint {
-  date: string;
-  value: number;
-  snapshotValue: number | null;
-  liveValue: number | null;
-  isSynthetic?: boolean;
-}
 
 interface AllocationPoint {
   name: string;
@@ -207,7 +195,10 @@ export function DashboardPage() {
         .filter((point) => Number.isFinite(point.value)),
     [snapshots]
   );
-  const trendChartData = useMemo(() => buildTrendChartData(trendData, dashboard?.totalAssets), [dashboard?.totalAssets, trendData]);
+  const trendChartData = useMemo(
+    () => buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.quoteDate),
+    [dashboard?.quoteDate, dashboard?.totalAssets, trendData]
+  );
   const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
   const allocationData = useMemo<AllocationPoint[]>(
     () => {
@@ -489,79 +480,6 @@ function formatTrendTickDate(value: string): string {
 
 function formatTrendTooltipLabel(value: string): string {
   return isSyntheticTrendDate(value) ? "今日估值连接线" : `日期：${value}`;
-}
-
-function isSyntheticTrendDate(value: string): boolean {
-  return value.startsWith("__live_midpoint__");
-}
-
-function buildTrendChartData(points: TrendPoint[], liveTotalAssets: string | null | undefined): TrendChartPoint[] {
-  const sortedPoints = [...points].sort((left, right) => left.date.localeCompare(right.date));
-  const chartPoints: TrendChartPoint[] = sortedPoints.map((point) => ({
-    ...point,
-    snapshotValue: point.value,
-    liveValue: null
-  }));
-  const parsedLiveValue = liveTotalAssets === null || liveTotalAssets === undefined ? null : Number(liveTotalAssets);
-
-  if (parsedLiveValue === null || !Number.isFinite(parsedLiveValue)) {
-    return chartPoints;
-  }
-
-  const liveValue = parsedLiveValue;
-  const today = getTodayDateString();
-  const lastPoint = chartPoints.at(-1);
-
-  if (!lastPoint) {
-    return [
-      {
-        date: today,
-        value: liveValue,
-        snapshotValue: null,
-        liveValue
-      }
-    ];
-  }
-
-  if (lastPoint.date >= today) {
-    return chartPoints;
-  }
-
-  const midpointValue = getLiveCurveMidpointValue(lastPoint.value, liveValue);
-
-  return [
-    ...chartPoints.slice(0, -1),
-    {
-      ...lastPoint,
-      liveValue: lastPoint.value
-    },
-    {
-      date: `__live_midpoint__${lastPoint.date}__${today}`,
-      value: midpointValue,
-      snapshotValue: null,
-      liveValue: midpointValue,
-      isSynthetic: true
-    },
-    {
-      date: today,
-      value: liveValue,
-      snapshotValue: null,
-      liveValue
-    }
-  ];
-}
-
-function getLiveCurveMidpointValue(startValue: number, endValue: number): number {
-  const midpointValue = (startValue + endValue) / 2;
-  const delta = endValue - startValue;
-  const direction = delta >= 0 ? 1 : -1;
-  const curveLift = Math.max(Math.abs(delta) * 0.15, Math.max(Math.abs(startValue), Math.abs(endValue)) * 0.0015, 1);
-
-  return midpointValue + direction * curveLift;
-}
-
-function getTodayDateString(): string {
-  return getAppBusinessDate();
 }
 
 function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {

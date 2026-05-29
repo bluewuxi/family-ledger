@@ -238,8 +238,10 @@ Treat date and time handling as a cross-layer product rule.
 - Store instants as UTC ISO strings / PostgreSQL `timestamptz`; do not store viewer-local formatted timestamps as data.
 - Store business/calendar dates as `date` / `YYYY-MM-DD` strings only when the value is a date without a time, such as `trade_date`, `settlement_date`, `price_date`, `rate_date`, and `snapshot_date`.
 - Human timestamp display in the web app should use the viewer's local time zone and make that clear in UI text where ambiguity matters.
-- Portfolio business-day logic is global, not viewer-local: use `Asia/Shanghai` with a `09:00` cutoff through shared helpers such as `getAppBusinessDate`.
+- Portfolio business-day logic is global, not viewer-local: use `Asia/Shanghai` with a `06:00` cutoff through shared helpers such as `getAppBusinessDate`.
 - Market-data provider dates (`price_date`, `rate_date`, quote dates) are provider/exchange dates. Do not derive them from viewer-local time.
+- Persisted historical `instrument_prices` rows should represent confirmed closes or published unit prices, not live intraday quotes. Dashboard/live quote values belong in the dashboard quote cache.
+- NZ PIE/FundRock unit prices may lag by multiple days; snapshots should use the latest published unit price available rather than treating the lag as an error.
 - Scheduled jobs must use timezone-aware EventBridge Scheduler configuration and pass Scheduler context (`<aws.scheduler.scheduled-time>` as `time`) into Lambda. Snapshot generation must derive its default date from scheduled time, not Lambda execution/retry time.
 - Avoid ad hoc `new Date().toISOString().slice(0, 10)` for app business dates or UI date defaults. Use shared time helpers from `packages/shared`.
 - When adding date/time behavior, update focused verification scripts such as `verify:time-policy` and document any new semantics.

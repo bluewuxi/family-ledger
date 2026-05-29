@@ -28,6 +28,7 @@ import {
   finishJobRun as defaultFinishJobRun
 } from "../repositories/jobRunRepository";
 import { FUNDROCK_FOUNDATION_SERIES_FUNDS } from "./fundRockPriceIngestionService";
+import { getUnconfirmedMarketCloseReason } from "./marketClosePolicy";
 
 export const UPDATE_PRICES_JOB_NAME = "update-prices";
 export const YAHOO_FINANCE_PROVIDER_NAME = "Yahoo Finance";
@@ -95,6 +96,7 @@ export interface InstrumentPriceProviderRunResult {
   fetchedAt: string;
   recordsInserted: number;
   recordsSkipped: number;
+  recordsSkippedByClosePolicy: number;
   instrumentPrices: InstrumentPriceRecord[];
 }
 
@@ -232,7 +234,7 @@ export function toProviderInstruments(
     sourceSymbol: instrument.priceSourceSymbol,
     providerInstrumentName: providerInstrumentNames[instrument.priceSourceSymbol] ?? instrument.name,
     currency: instrument.currency,
-    sourceExchange: instrument.priceSourceExchange
+    sourceExchange: instrument.priceSourceExchange ?? instrument.exchange
   }));
 }
 
@@ -252,7 +254,7 @@ export function toInstrumentPriceInputs(
     throw new Error(`${provider} did not return prices for ${missingSourceSymbols.join(", ")}.`);
   }
 
-  return providerPrices.map((price) => {
+  return providerPrices.flatMap((price) => {
     const instrument = instrumentsBySourceSymbol.get(price.sourceSymbol);
 
     if (!instrument) {
@@ -263,17 +265,54 @@ export function toInstrumentPriceInputs(
       throw new Error(`${provider} returned ${price.currency} currency for ${price.sourceSymbol}; expected ${instrument.currency}.`);
     }
 
-    return {
-      instrumentId: instrument.id,
+    const unconfirmedCloseReason = getUnconfirmedMarketCloseReason({
       priceDate: price.priceDate,
-      closePrice: price.closePrice,
-      currency: price.currency,
-      provider,
-      sourceSymbol: price.sourceSymbol,
-      isAdjusted: false,
-      fetchedAt
-    };
+      fetchedAt,
+      priceSource: instrument.priceSource,
+      sourceExchange: instrument.priceSourceExchange ?? instrument.exchange
+    });
+
+    if (unconfirmedCloseReason) {
+      return [];
+    }
+
+    return [
+      {
+        instrumentId: instrument.id,
+        priceDate: price.priceDate,
+        closePrice: price.closePrice,
+        currency: price.currency,
+        provider,
+        sourceSymbol: price.sourceSymbol,
+        isAdjusted: false,
+        fetchedAt
+      }
+    ];
   });
+}
+
+export function countUnconfirmedMarketClosePrices(
+  instruments: PriceEnabledInstrument[],
+  providerPrices: InstrumentPriceProviderPrice[],
+  fetchedAt: string
+): number {
+  const instrumentsBySourceSymbol = new Map(instruments.map((instrument) => [instrument.priceSourceSymbol, instrument]));
+
+  return providerPrices.filter((price) => {
+    const instrument = instrumentsBySourceSymbol.get(price.sourceSymbol);
+    if (!instrument || price.currency !== instrument.currency) {
+      return false;
+    }
+
+    return (
+      getUnconfirmedMarketCloseReason({
+        priceDate: price.priceDate,
+        fetchedAt,
+        priceSource: instrument.priceSource,
+        sourceExchange: instrument.priceSourceExchange ?? instrument.exchange
+      }) !== null
+    );
+  }).length;
 }
 
 class InstrumentPriceIngestionError extends Error {
@@ -322,9 +361,22 @@ async function runProvider(input: {
       providerConfig.provider.name,
       providerResult.fetchedAt
     );
+    const recordsSkippedByClosePolicy = countUnconfirmedMarketClosePrices(
+      instruments,
+      providerResult.prices,
+      providerResult.fetchedAt
+    );
     const instrumentPrices: InstrumentPriceRecord[] = [];
     let recordsInserted = 0;
-    let recordsSkipped = 0;
+    let recordsSkipped = recordsSkippedByClosePolicy;
+
+    if (recordsSkippedByClosePolicy > 0) {
+      console.log("Skipped unconfirmed market close prices.", {
+        provider: providerConfig.provider.name,
+        priceSource: providerConfig.priceSource,
+        recordsSkippedByClosePolicy
+      });
+    }
 
     for (const priceInput of priceInputs) {
       const insertResult = await instrumentPriceRepository.insertInstrumentPriceIfNotExists(priceInput);
@@ -353,6 +405,7 @@ async function runProvider(input: {
         fetchedAt: providerResult.fetchedAt,
         recordsInserted,
         recordsSkipped,
+        recordsSkippedByClosePolicy,
         instrumentPrices
       }
     };

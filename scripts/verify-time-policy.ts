@@ -2,12 +2,13 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { formatDateTimeInTimeZone, getAppBusinessDate } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
+import { buildTrendChartData } from "../apps/web/src/lib/trendChartData";
 
 void main();
 
 async function main(): Promise<void> {
-  assert.equal(getAppBusinessDate("2026-05-28T00:59:59.000Z"), "2026-05-27");
-  assert.equal(getAppBusinessDate("2026-05-28T01:00:00.000Z"), "2026-05-28");
+  assert.equal(getAppBusinessDate("2026-05-27T21:59:59.000Z"), "2026-05-27");
+  assert.equal(getAppBusinessDate("2026-05-27T22:00:00.000Z"), "2026-05-28");
   assert.equal(getAppBusinessDate("2026-05-28T01:30:00.000Z"), "2026-05-28");
 
   const timestamp = "2026-05-28T00:30:00.000Z";
@@ -19,6 +20,9 @@ async function main(): Promise<void> {
   assert.match(template, /Type: AWS::Scheduler::Schedule/u);
   assert.match(template, /ScheduleExpressionTimezone: !Ref ScheduledJobsTimezone/u);
   assert.match(template, /FlexibleTimeWindow:\s*\r?\n\s*Mode: "OFF"/u);
+  assert.match(template, /Default: "cron\(5 6 \? \* TUE-SAT \*\)"/u);
+  assert.match(template, /Default: "cron\(10 6 \? \* TUE-SAT \*\)"/u);
+  assert.match(template, /Default: "cron\(30 6 \? \* TUE-SAT \*\)"/u);
   assert.match(template, /<aws\.scheduler\.scheduled-time>/u);
   assert.match(template, /<aws\.scheduler\.execution-id>/u);
   assert.doesNotMatch(template, /Type: AWS::Events::Rule/u);
@@ -26,6 +30,37 @@ async function main(): Promise<void> {
   const dashboard = readFileSync("apps/web/src/pages/DashboardPage.tsx", "utf8");
   assert.match(dashboard, /最新变动/u);
   assert.doesNotMatch(dashboard, /今日变动/u);
+
+  const aShareOpenTime = "2026-05-29T02:18:00.000Z";
+  const sameDayLiveChart = buildTrendChartData(
+    [{ date: "2026-05-29", value: 100 }],
+    "110",
+    "2026-05-29",
+    aShareOpenTime
+  );
+  assert.equal(sameDayLiveChart.length, 3);
+  assert.equal(sameDayLiveChart[0]?.date, "2026-05-29");
+  assert.equal(sameDayLiveChart[0]?.snapshotValue, 100);
+  assert.equal(sameDayLiveChart[0]?.liveValue, 100);
+  assert.equal(sameDayLiveChart[2]?.date, "__live_endpoint__2026-05-29");
+  assert.equal(sameDayLiveChart[2]?.liveValue, 110);
+
+  const previousDayLiveChart = buildTrendChartData(
+    [{ date: "2026-05-28", value: 100 }],
+    "110",
+    "2026-05-29",
+    aShareOpenTime
+  );
+  assert.equal(previousDayLiveChart.at(-1)?.date, "2026-05-29");
+  assert.equal(previousDayLiveChart.at(-1)?.liveValue, 110);
+
+  const staleQuoteChart = buildTrendChartData(
+    [{ date: "2026-05-28", value: 100 }],
+    "110",
+    "2026-05-28",
+    aShareOpenTime
+  );
+  assert.deepEqual(staleQuoteChart, [{ date: "2026-05-28", value: 100, snapshotValue: 100, liveValue: null }]);
 
   let generatedSnapshotDate: string | null = null;
   const handler = createGeneratePortfolioSnapshotsHandler({
@@ -71,8 +106,11 @@ async function main(): Promise<void> {
   );
   assert.equal(generatedSnapshotDate, "2026-05-20");
 
-  await withMutedConsole(() => handler({ id: "derived-date", time: "2026-05-28T00:59:59.000Z" }));
+  await withMutedConsole(() => handler({ id: "derived-date", time: "2026-05-27T21:59:59.000Z" }));
   assert.equal(generatedSnapshotDate, "2026-05-27");
+
+  await withMutedConsole(() => handler({ id: "derived-new-date", time: "2026-05-27T22:00:00.000Z" }));
+  assert.equal(generatedSnapshotDate, "2026-05-28");
 
   console.log("Time policy verification: success");
 }

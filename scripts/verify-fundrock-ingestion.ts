@@ -206,6 +206,7 @@ function priceEnabledInstruments(): PriceEnabledInstrument[] {
       currency: "NZD",
       priceSource: "custom",
       priceSourceSymbol: "FS_NASDAQ_100",
+      exchange: "INVESTNOW",
       priceSourceExchange: "INVESTNOW"
     },
     {
@@ -214,6 +215,7 @@ function priceEnabledInstruments(): PriceEnabledInstrument[] {
       currency: "NZD",
       priceSource: "custom",
       priceSourceSymbol: "FS_TOTAL_WORLD",
+      exchange: "INVESTNOW",
       priceSourceExchange: "INVESTNOW"
     },
     {
@@ -222,6 +224,7 @@ function priceEnabledInstruments(): PriceEnabledInstrument[] {
       currency: "NZD",
       priceSource: "custom",
       priceSourceSymbol: "FS_US_500",
+      exchange: "INVESTNOW",
       priceSourceExchange: "INVESTNOW"
     }
   ];

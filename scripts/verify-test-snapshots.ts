@@ -152,14 +152,14 @@ async function main(): Promise<void> {
 function detectSnapshotTimingWarning(snapshot: SnapshotRow): TimingWarning[] {
   const parts = getShanghaiTimeParts(snapshot.created_at);
 
-  if (!parts || parts.hour >= 9) {
+  if (!parts || parts.hour >= 6) {
     return [];
   }
 
   return [
     {
       snapshotDate: snapshot.snapshot_date,
-      detail: `created before the 09:00 Asia/Shanghai cutoff at ${parts.dateTimeLabel}`
+      detail: `created before the 06:00 Asia/Shanghai cutoff at ${parts.dateTimeLabel}`
     }
   ];
 }

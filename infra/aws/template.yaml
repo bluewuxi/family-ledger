@@ -55,17 +55,17 @@ Parameters:
 
   UpdateFxRatesScheduleExpression:
     Type: String
-    Default: "cron(5 9 ? * TUE-SAT *)"
+    Default: "cron(5 6 ? * TUE-SAT *)"
     Description: EventBridge Scheduler cron expression for the FX rate update job.
 
   UpdatePricesScheduleExpression:
     Type: String
-    Default: "cron(10 9 ? * TUE-SAT *)"
+    Default: "cron(10 6 ? * TUE-SAT *)"
     Description: EventBridge Scheduler cron expression for the instrument price update job.
 
   GeneratePortfolioSnapshotsScheduleExpression:
     Type: String
-    Default: "cron(30 9 ? * TUE-SAT *)"
+    Default: "cron(30 6 ? * TUE-SAT *)"
     Description: EventBridge Scheduler cron expression for the portfolio snapshot job.
 
 Conditions:

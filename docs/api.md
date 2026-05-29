@@ -282,7 +282,7 @@ Holding quantity, average cost, and remaining cost continue to use the instrumen
 Defaults:
 
 - `currency`: current user's `preferredCurrency`; new profiles default to `CNY`
-- `to`: current app business date using the `09:00 Asia/Shanghai` cutoff
+- `to`: current app business date using the `06:00 Asia/Shanghai` cutoff
 - `from`: same as `to`
 
 Response data:

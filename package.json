@@ -37,8 +37,10 @@
     "verify:stock-etf-price-ingestion": "tsx scripts/verify-stock-etf-price-ingestion.ts",
     "verify:portfolio-snapshots": "tsx scripts/verify-portfolio-snapshot-calculation.ts",
     "verify:time-policy": "tsx scripts/verify-time-policy.ts",
+    "verify:market-close-repair": "tsx scripts/verify-market-close-repair.ts",
     "verify:snapshot-audit": "tsx scripts/verify-test-snapshots.ts",
     "backfill:account-trading-passwords": "tsx scripts/backfill-account-trading-password-placeholders.ts",
+    "repair:market-close-history": "tsx scripts/repair-market-close-history.ts",
     "fix:snapshot-audit": "tsx scripts/verify-test-snapshots.ts --fix",
     "fx:ingest:frankfurter": "tsx scripts/ingest-frankfurter-fx-rates.ts",
     "typecheck": "tsc -b --pretty false"

@@ -7,6 +7,7 @@ export interface PriceEnabledInstrument {
   currency: CurrencyCode;
   priceSource: PriceSource;
   priceSourceSymbol: string;
+  exchange: string | null;
   priceSourceExchange: string | null;
 }
 
@@ -16,6 +17,7 @@ interface InstrumentRow {
   currency: CurrencyCode;
   price_source: PriceSource;
   price_source_symbol: string | null;
+  exchange: string | null;
   price_source_exchange: string | null;
 }
 
@@ -49,7 +51,7 @@ export async function listPriceEnabledInstrumentsBySource(input: {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase
     .from("instruments")
-    .select(["id", "name", "currency", "price_source", "price_source_symbol", "price_source_exchange"].join(", "))
+    .select(["id", "name", "currency", "price_source", "price_source_symbol", "exchange", "price_source_exchange"].join(", "))
     .eq("price_source", input.priceSource)
     .eq("price_update_enabled", true)
     .in("price_source_symbol", input.sourceSymbols)
@@ -121,6 +123,7 @@ function mapInstrumentRow(row: InstrumentRow): PriceEnabledInstrument {
     currency: row.currency,
     priceSource: row.price_source,
     priceSourceSymbol: row.price_source_symbol,
+    exchange: row.exchange,
     priceSourceExchange: row.price_source_exchange
   };
 }

@@ -66,7 +66,7 @@ Configure the FX update Lambda handler exported as `updateFxRates` from `apps/jo
 
 ```text
 ScheduleExpressionTimezone: Asia/Shanghai
-ScheduleExpression: cron(5 9 ? * TUE-SAT *)
+ScheduleExpression: cron(5 6 ? * TUE-SAT *)
 FlexibleTimeWindow: OFF
 ```
 
@@ -74,7 +74,7 @@ Configure the price update Lambda handler exported as `updatePrices` with:
 
 ```text
 ScheduleExpressionTimezone: Asia/Shanghai
-ScheduleExpression: cron(10 9 ? * TUE-SAT *)
+ScheduleExpression: cron(10 6 ? * TUE-SAT *)
 FlexibleTimeWindow: OFF
 ```
 
@@ -82,11 +82,11 @@ Configure the portfolio snapshot Lambda handler exported as `generatePortfolioSn
 
 ```text
 ScheduleExpressionTimezone: Asia/Shanghai
-ScheduleExpression: cron(30 9 ? * TUE-SAT *)
+ScheduleExpression: cron(30 6 ? * TUE-SAT *)
 FlexibleTimeWindow: OFF
 ```
 
-These defaults run shortly after the app's `09:00 Asia/Shanghai` business-day cutoff. Tuesday-Saturday Beijing captures the prior US trading day and the latest available Asia-market close. Duplicate provider dates on holidays are handled by idempotent inserts/skips.
+These defaults run shortly after the app's `06:00 Asia/Shanghai` business-day cutoff and before China/Hong Kong markets open. Tuesday-Saturday Beijing is a post-US-close global snapshot cadence; it captures the prior US trading day and the latest available provider-published close or unit price. It does not create a separate Monday-before-CN/HK-open snapshot. Duplicate provider dates on holidays are handled by idempotent inserts/skips.
 
 Each Scheduler target must pass the Scheduler context payload into Lambda, including `<aws.scheduler.scheduled-time>` as `time` and `<aws.scheduler.execution-id>` as `id`. The snapshot job derives the business date from the scheduled time so retries and delayed starts do not drift across the cutoff.
 
@@ -98,11 +98,29 @@ Recommended Scheduler target settings:
 
 The Lambda handler must throw on failed ingestion so Scheduler can retry. Duplicate retries are handled by database uniqueness constraints and repository insert-if-not-exists behavior. Each attempt creates a `job_runs` row and provider-level `data_provider_runs` row; successful duplicate attempts should record skipped rows instead of duplicate market-data records.
 
-The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastmoney public endpoints plus the existing FundRock page parser, so no extra provider API key or secret is required. Price retries are idempotent through the `instrument_prices` uniqueness constraint and insert-if-not-exists behavior.
+The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastmoney public endpoints plus the existing FundRock page parser, so no extra provider API key or secret is required. Price retries are idempotent through the `instrument_prices` uniqueness constraint and insert-if-not-exists behavior. Persisted `instrument_prices` rows are for confirmed daily closes or published unit prices; same-day rows fetched before the relevant exchange close-confirmation cutoff are skipped. FundRock/NZ PIE unit prices may lag by multiple days and the latest published unit price is acceptable for snapshots.
 
 The web Data Sync page can manually trigger the FX and price jobs. CloudFormation wires the job function names into the API Lambda through `UPDATE_FX_RATES_FUNCTION_NAME` and `UPDATE_PRICES_FUNCTION_NAME`, and grants `lambda:InvokeFunction` only for those two job functions. Manual invocations pass trigger metadata into the job payload and return before ingestion completes; completion status is read from `job_runs` and `data_provider_runs`.
 
-The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the snapshot date from the `09:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
+The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the snapshot date from the `06:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
+
+Historical price repair is dry-run by default:
+
+```powershell
+corepack pnpm repair:market-close-history -- --env test
+```
+
+After reviewing the suspect rows, apply the repair with:
+
+```powershell
+corepack pnpm repair:market-close-history -- --env test --apply
+```
+
+The repair writes a local JSON backup under `tmp/market-close-repair/`, deletes only unconfirmed same-day close rows, and then recalculates affected snapshots using the remaining confirmed prices. If recalculation is interrupted after deletion, rerun `corepack pnpm verify:snapshot-audit` and `corepack pnpm fix:snapshot-audit` to complete snapshot reconciliation. Production apply requires an explicit project reference confirmation:
+
+```powershell
+corepack pnpm repair:market-close-history -- --env prod --apply --confirm-prod-repair <supabase-project-ref>
+```
 
 Structured CloudWatch logs should include:
 

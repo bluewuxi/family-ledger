@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 
 export const APP_BUSINESS_TIME_ZONE = "Asia/Shanghai";
-export const APP_BUSINESS_DAY_CUTOFF_HOUR = 9;
+export const APP_BUSINESS_DAY_CUTOFF_HOUR = 6;
 
 type DateInput = Date | string;
 

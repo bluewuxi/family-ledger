@@ -136,6 +136,67 @@ async function main(): Promise<void> {
   assert.equal(secondRun.recordsInserted, 0);
   assert.equal(secondRun.recordsSkipped, 6);
 
+  const preCloseInputs = toInstrumentPriceInputs(
+    priceEnabledInstruments("eastmoney"),
+    [
+      { sourceSymbol: "161128", priceDate: "2026-05-29", closePrice: "1.1", currency: "CNY" },
+      { sourceSymbol: "159501", priceDate: "2026-05-29", closePrice: "1.2", currency: "CNY" }
+    ],
+    "Eastmoney",
+    "2026-05-29T06:00:00.000Z"
+  );
+  assert.deepEqual(preCloseInputs, []);
+
+  const closePolicyCalls: string[] = [];
+  const closePolicyRun = await withMutedConsole(() =>
+    ingestLatestInstrumentPrices({
+      fetchedAt: "2026-05-29T06:00:00.000Z",
+      now: fixedNow(),
+      providerConfigs: [providerConfig("eastmoney", ["161128", "159501"], providerReturningDate("Eastmoney", "CNY", "2026-05-29"))],
+      jobRunRepository: createFakeJobRunRepository(closePolicyCalls),
+      instrumentPriceRepository: {
+        async listPriceEnabledInstrumentsBySource(input) {
+          return priceEnabledInstruments(input.priceSource);
+        },
+        async insertInstrumentPriceIfNotExists(input) {
+          return { inserted: true, record: instrumentPriceRecord(input) };
+        }
+      }
+    })
+  );
+  assert.equal(closePolicyRun.recordsInserted, 0);
+  assert.equal(closePolicyRun.recordsSkipped, 2);
+  assert.equal(closePolicyRun.providerRuns[0]?.recordsSkippedByClosePolicy, 2);
+  assert.ok(closePolicyCalls.includes("provider:finish:succeeded:0:2"));
+
+  const postCloseInputs = toInstrumentPriceInputs(
+    priceEnabledInstruments("eastmoney").filter((instrument) => instrument.priceSourceSymbol === "161128"),
+    [{ sourceSymbol: "161128", priceDate: "2026-05-29", closePrice: "1.1", currency: "CNY" }],
+    "Eastmoney",
+    "2026-05-29T07:20:00.000Z"
+  );
+  assert.deepEqual(postCloseInputs.map((input) => [input.sourceSymbol, input.priceDate]), [["161128", "2026-05-29"]]);
+
+  const preHkCloseInputs = toInstrumentPriceInputs(
+    priceEnabledInstruments("yahoo_finance"),
+    [
+      { sourceSymbol: "AMD", priceDate: "2026-05-28", closePrice: "123.45", currency: "USD" },
+      { sourceSymbol: "VOO", priceDate: "2026-05-28", closePrice: "537.50", currency: "USD" },
+      { sourceSymbol: "1810.HK", priceDate: "2026-05-29", closePrice: "41.2", currency: "HKD" }
+    ],
+    "Yahoo Finance",
+    "2026-05-29T07:30:00.000Z"
+  );
+  assert.deepEqual(preHkCloseInputs.map((input) => input.sourceSymbol), ["AMD", "VOO"]);
+
+  const laggedFundRockInputs = toInstrumentPriceInputs(
+    priceEnabledInstruments("custom"),
+    [{ sourceSymbol: "FS_US_500", priceDate: "2026-05-27", closePrice: "1.23", currency: "NZD" }],
+    "FundRock",
+    "2026-05-29T06:00:00.000Z"
+  );
+  assert.deepEqual(laggedFundRockInputs.map((input) => [input.sourceSymbol, input.priceDate]), [["FS_US_500", "2026-05-27"]]);
+
   const failureCalls: string[] = [];
   await assert.rejects(
     ingestLatestInstrumentPrices({
@@ -198,6 +259,14 @@ function providerConfig(
 }
 
 function providerReturning(providerName: string, fallbackCurrency: "USD" | "HKD" | "CNY" | "NZD"): IInstrumentPriceProvider {
+  return providerReturningDate(providerName, fallbackCurrency, "2026-05-20");
+}
+
+function providerReturningDate(
+  providerName: string,
+  fallbackCurrency: "USD" | "HKD" | "CNY" | "NZD",
+  priceDate: string
+): IInstrumentPriceProvider {
   return {
     name: providerName,
     async fetchLatestPrices(input) {
@@ -206,7 +275,7 @@ function providerReturning(providerName: string, fallbackCurrency: "USD" | "HKD"
         fetchedAt: input.fetchedAt,
         prices: input.instruments.map((instrument, index) => ({
           sourceSymbol: instrument.sourceSymbol,
-          priceDate: "2026-05-20",
+          priceDate,
           closePrice: (index + 1).toString(),
           currency: instrument.currency ?? fallbackCurrency
         }))
@@ -251,6 +320,7 @@ function priceEnabledInstrument(
     currency,
     priceSource,
     priceSourceSymbol,
+    exchange: priceSourceExchange,
     priceSourceExchange
   };
 }
@@ -393,6 +463,7 @@ function instrumentPriceIngestionResult(): InstrumentPriceIngestionResult {
     fetchedAt: "2026-05-23T01:00:00.000Z",
     recordsInserted: 6,
     recordsSkipped: 0,
+    recordsSkippedByClosePolicy: 0,
     instrumentPrices: []
   };
 }
@@ -411,14 +482,14 @@ function scheduledEvent(): ScheduledEvent {
   };
 }
 
-async function withMutedConsole(action: () => Promise<void>): Promise<void> {
+async function withMutedConsole<T>(action: () => Promise<T>): Promise<T> {
   const originalLog = console.log;
   const originalError = console.error;
   console.log = () => undefined;
   console.error = () => undefined;
 
   try {
-    await action();
+    return await action();
   } finally {
     console.log = originalLog;
     console.error = originalError;

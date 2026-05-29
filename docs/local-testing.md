@@ -157,3 +157,18 @@ Only after reviewing the dry-run output, rewrite mismatched snapshot valuations 
 ```powershell
 corepack pnpm fix:snapshot-audit
 ```
+
+Historical market-close repair is dry-run by default:
+
+```powershell
+corepack pnpm repair:market-close-history -- --env test
+```
+
+After reviewing suspect unconfirmed close rows:
+
+```powershell
+corepack pnpm repair:market-close-history -- --env test --apply
+corepack pnpm verify:snapshot-audit
+```
+
+The apply path writes a local JSON backup under `tmp/market-close-repair/`, deletes suspect rows, then recalculates snapshots. If recalculation is interrupted, rerun `corepack pnpm verify:snapshot-audit` and `corepack pnpm fix:snapshot-audit`.
