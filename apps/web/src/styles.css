@@ -2141,7 +2141,7 @@ tr.editing-row td {
   font-size: 14px;
 }
 
-.market-data-panel {
+.data-maintenance-panel {
   display: grid;
   gap: 22px;
 }
@@ -2160,7 +2160,7 @@ tr.editing-row td {
 
 .settings-section-header h2,
 .settings-section-header p,
-.market-data-section h3 {
+.data-maintenance-section h3 {
   margin: 0;
 }
 
@@ -2173,7 +2173,7 @@ tr.editing-row td {
   color: var(--color-muted);
 }
 
-.market-data-actions {
+.data-maintenance-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2181,14 +2181,14 @@ tr.editing-row td {
   justify-content: flex-end;
 }
 
-.market-data-manual-options {
+.data-maintenance-manual-options {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.market-data-manual-options label {
+.data-maintenance-manual-options label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2203,31 +2203,90 @@ tr.editing-row td {
   cursor: pointer;
 }
 
-.market-data-manual-options label:hover {
+.data-maintenance-manual-options label:hover {
   background: var(--color-hover);
 }
 
-.market-data-manual-options input {
+.data-maintenance-manual-options input {
   width: 15px;
   height: 15px;
   accent-color: var(--color-brand-navy);
 }
 
-.market-data-section {
+.data-maintenance-section {
   display: grid;
   gap: 10px;
 }
 
-.market-data-section h3 {
+.data-maintenance-section h3 {
   font-size: 16px;
 }
 
-.market-price-table {
+.data-maintenance-price-table {
   min-width: 980px;
 }
 
-.market-job-table {
+.data-maintenance-job-table {
   min-width: 1060px;
+}
+
+.data-maintenance-backup-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.data-maintenance-backup-metric {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 14px;
+  box-shadow: var(--shadow-soft);
+}
+
+.data-maintenance-backup-metric span {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.data-maintenance-backup-metric strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-size: 18px;
+}
+
+.data-maintenance-backup-table {
+  min-width: 980px;
+}
+
+.data-maintenance-restore-instructions {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 18px;
+}
+
+.data-maintenance-restore-instructions h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.data-maintenance-restore-instructions ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--color-muted);
+}
+
+.data-maintenance-restore-instructions li {
+  line-height: 1.6;
 }
 
 .loading-page {
@@ -2839,13 +2898,13 @@ tr.editing-row td {
 
   .dashboard-controls,
   .header-actions,
-  .market-data-actions {
+  .data-maintenance-actions {
     align-items: stretch;
   }
 
   .dashboard-controls > *,
   .header-actions > *,
-  .market-data-actions > * {
+  .data-maintenance-actions > * {
     width: 100%;
   }
 
@@ -2869,8 +2928,12 @@ tr.editing-row td {
     justify-content: flex-start;
   }
 
-  .market-data-actions {
+  .data-maintenance-actions {
     justify-content: flex-start;
+  }
+
+  .data-maintenance-backup-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .primary-button,
@@ -3107,6 +3170,10 @@ tr.editing-row td {
   }
 
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .data-maintenance-backup-summary {
     grid-template-columns: 1fr;
   }
 

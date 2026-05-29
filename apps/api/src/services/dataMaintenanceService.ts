@@ -2,13 +2,15 @@ import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type {
   AuthenticatedUser,
   CurrencyCode,
+  DataMaintenanceBackupRun,
+  DataMaintenanceBackupSummary,
+  DataMaintenanceRetrievalKind,
+  DataMaintenanceRetrievalRequest,
   DataProviderRun,
   ExchangeRateRecord,
   JobRun,
   JobRunStatus,
   JobTriggerSource,
-  MarketDataRetrievalKind,
-  MarketDataRetrievalRequest,
   PaginatedResult
 } from "@family-ledger/shared";
 import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-ledger/shared";
@@ -18,15 +20,17 @@ import {
   listInstrumentPrices,
   listJobRuns,
   type InstrumentPriceListRecord
-} from "../repositories/marketDataRepository";
+} from "../repositories/dataMaintenanceRepository";
 import { ApiRequestError } from "../utils/apiError";
 
+export const BACKUP_LEDGER_JOB_NAME = "backup-ledger-data";
+const backupBlockedByRunningJobCode = "BACKUP_BLOCKED_BY_RUNNING_JOB";
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const maxLimit = 200;
 const defaultLimit = 50;
 const retrievalKinds = ["exchange_rates", "instrument_prices", "all"] as const;
 
-export async function getMarketDataFxRates(
+export async function getDataMaintenanceFxRates(
   query: Record<string, string | undefined>
 ): Promise<PaginatedResult<ExchangeRateRecord>> {
   const from = optionalDate("from", query.from);
@@ -46,7 +50,7 @@ export async function getMarketDataFxRates(
   return toPaginatedResult(rows, pagination.limit, pagination.offset);
 }
 
-export async function getMarketDataInstrumentPrices(
+export async function getDataMaintenanceInstrumentPrices(
   query: Record<string, string | undefined>
 ): Promise<PaginatedResult<InstrumentPriceListRecord>> {
   const from = optionalDate("from", query.from);
@@ -65,7 +69,7 @@ export async function getMarketDataInstrumentPrices(
   return toPaginatedResult(rows, pagination.limit, pagination.offset);
 }
 
-export async function getMarketDataJobRuns(query: Record<string, string | undefined>): Promise<PaginatedResult<JobRun>> {
+export async function getDataMaintenanceJobRuns(query: Record<string, string | undefined>): Promise<PaginatedResult<JobRun>> {
   const pagination = parsePagination(query);
   const rows = await listJobRuns({
     jobName: optionalSearchText(query.jobName),
@@ -74,18 +78,53 @@ export async function getMarketDataJobRuns(query: Record<string, string | undefi
     limit: pagination.limit,
     offset: pagination.offset
   });
-  return toPaginatedResult(rows, pagination.limit, pagination.offset);
+  return toPaginatedResult(rows.map(sanitizeJobRunForDataMaintenance), pagination.limit, pagination.offset);
 }
 
-export async function getMarketDataProviderRuns(jobRunId: string): Promise<DataProviderRun[]> {
+export async function getDataMaintenanceProviderRuns(jobRunId: string): Promise<DataProviderRun[]> {
   return listDataProviderRuns(requiredUuid("jobRunId", jobRunId));
 }
 
-export async function triggerMarketDataRetrieval(
+export async function getDataMaintenanceBackupRuns(
+  query: Record<string, string | undefined>
+): Promise<PaginatedResult<DataMaintenanceBackupRun> & { summary: DataMaintenanceBackupSummary }> {
+  const pagination = parsePagination(query);
+  const [rows, latestRows, latestSucceededRows] = await Promise.all([
+    listJobRuns({
+      jobName: BACKUP_LEDGER_JOB_NAME,
+      status: optionalStatus(query.status),
+      triggerSource: optionalTriggerSource(query.triggerSource),
+      limit: pagination.limit,
+      offset: pagination.offset
+    }),
+    listJobRuns({
+      jobName: BACKUP_LEDGER_JOB_NAME,
+      limit: 1,
+      offset: 0
+    }),
+    listJobRuns({
+      jobName: BACKUP_LEDGER_JOB_NAME,
+      status: "succeeded",
+      limit: 1,
+      offset: 0
+    })
+  ]);
+  const result = toPaginatedResult(rows.map(toBackupRunDto), pagination.limit, pagination.offset);
+
+  return {
+    ...result,
+    summary: {
+      latestRun: latestRows[0] ? toBackupRunDto(latestRows[0]) : null,
+      latestSucceededRun: latestSucceededRows[0] ? toBackupRunDto(latestSucceededRows[0]) : null
+    }
+  };
+}
+
+export async function triggerDataMaintenanceRetrieval(
   body: unknown,
   user: AuthenticatedUser,
   requestId: string
-): Promise<{ kind: MarketDataRetrievalKind; triggered: string[]; triggerRequestId: string }> {
+): Promise<{ kind: DataMaintenanceRetrievalKind; triggered: string[]; triggerRequestId: string }> {
   const request = parseRetrievalRequest(body);
   const targetFunctions = getTargetFunctions(request.kind);
 
@@ -114,7 +153,57 @@ export async function triggerMarketDataRetrieval(
   return { kind: request.kind, triggered: targetFunctions, triggerRequestId: requestId };
 }
 
-function parseRetrievalRequest(body: unknown): MarketDataRetrievalRequest {
+function toBackupRunDto(jobRun: JobRun): DataMaintenanceBackupRun {
+  return {
+    id: jobRun.id,
+    status: jobRun.status,
+    triggerSource: jobRun.triggerSource ?? null,
+    startedAt: jobRun.jobStartedAt ?? null,
+    finishedAt: jobRun.jobFinishedAt ?? null,
+    durationSeconds: calculateDurationSeconds(jobRun.jobStartedAt, jobRun.jobFinishedAt),
+    recordsInserted: Number.isFinite(jobRun.recordsInserted) ? jobRun.recordsInserted : null,
+    friendlyFailureReason: toFriendlyBackupFailureReason(jobRun)
+  };
+}
+
+function sanitizeJobRunForDataMaintenance(jobRun: JobRun): JobRun {
+  if (jobRun.jobName !== BACKUP_LEDGER_JOB_NAME) {
+    return jobRun;
+  }
+
+  return {
+    ...jobRun,
+    errorMessage: toFriendlyBackupFailureReason(jobRun)
+  };
+}
+
+function calculateDurationSeconds(startedAt: string | null, finishedAt: string | null): number | null {
+  if (!startedAt || !finishedAt) {
+    return null;
+  }
+
+  const startedMs = Date.parse(startedAt);
+  const finishedMs = Date.parse(finishedAt);
+  if (!Number.isFinite(startedMs) || !Number.isFinite(finishedMs) || finishedMs < startedMs) {
+    return null;
+  }
+
+  return Math.round((finishedMs - startedMs) / 1000);
+}
+
+function toFriendlyBackupFailureReason(jobRun: JobRun): string | null {
+  if (jobRun.status !== "failed") {
+    return null;
+  }
+
+  if (jobRun.errorMessage?.includes(backupBlockedByRunningJobCode)) {
+    return "有批处理任务仍在运行，备份会稍后重试。";
+  }
+
+  return "备份失败，请查看后台日志。";
+}
+
+function parseRetrievalRequest(body: unknown): DataMaintenanceRetrievalRequest {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new ApiRequestError("VALIDATION_ERROR", "Request body must be an object.", 400);
   }
@@ -122,14 +211,14 @@ function parseRetrievalRequest(body: unknown): MarketDataRetrievalRequest {
   const kind = (body as { kind?: unknown }).kind;
   const rateDate = optionalDate("rateDate", (body as { rateDate?: unknown }).rateDate as string | undefined);
 
-  if (!retrievalKinds.includes(kind as MarketDataRetrievalKind)) {
+  if (!retrievalKinds.includes(kind as DataMaintenanceRetrievalKind)) {
     throw new ApiRequestError("VALIDATION_ERROR", "kind must be exchange_rates, instrument_prices, or all.", 400);
   }
 
-  return { kind: kind as MarketDataRetrievalKind, ...(rateDate ? { rateDate } : {}) };
+  return { kind: kind as DataMaintenanceRetrievalKind, ...(rateDate ? { rateDate } : {}) };
 }
 
-function getTargetFunctions(kind: MarketDataRetrievalKind): string[] {
+function getTargetFunctions(kind: DataMaintenanceRetrievalKind): string[] {
   const fxFunctionName = process.env.UPDATE_FX_RATES_FUNCTION_NAME;
   const priceFunctionName = process.env.UPDATE_PRICES_FUNCTION_NAME;
 

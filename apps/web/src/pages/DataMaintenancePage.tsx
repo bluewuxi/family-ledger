@@ -3,6 +3,9 @@ import { ChevronLeft, ChevronRight, CloudDownload, Eye, Filter, RefreshCw } from
 import type {
   AuthenticatedUser,
   CurrencyCode,
+  DataMaintenanceBackupRun,
+  DataMaintenanceBackupSummary,
+  DataMaintenanceRetrievalKind,
   DataProviderRun,
   ExchangeRateRecord,
   Instrument,
@@ -10,7 +13,6 @@ import type {
   JobRun,
   JobRunStatus,
   JobTriggerSource,
-  MarketDataRetrievalKind,
   Pagination
 } from "@family-ledger/shared";
 import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-ledger/shared";
@@ -19,7 +21,7 @@ import { ApiClientError, apiGet, apiPost } from "../lib/apiClient";
 import { formatDisplayPrice } from "../lib/numberFormat";
 import { formatLocalDateTime } from "../lib/timeFormat";
 
-type MarketDataTab = "fx" | "prices" | "logs";
+type DataMaintenanceTab = "fx" | "prices" | "logs" | "backups" | "restore";
 
 interface FxRatesResponse {
   user: AuthenticatedUser;
@@ -49,13 +51,20 @@ interface ProviderRunsResponse {
   providerRuns: DataProviderRun[];
 }
 
+interface BackupRunsResponse {
+  user: AuthenticatedUser;
+  backupRuns: DataMaintenanceBackupRun[];
+  backupSummary: DataMaintenanceBackupSummary;
+  pagination: Pagination;
+}
+
 interface InstrumentsResponse {
   instruments: Instrument[];
 }
 
 interface RetrievalResponse {
   retrieval: {
-    kind: MarketDataRetrievalKind;
+    kind: DataMaintenanceRetrievalKind;
     triggered: string[];
     triggerRequestId: string;
   };
@@ -83,25 +92,31 @@ interface LogFilters {
 }
 
 const pageSize = 20;
+const backupPageSize = 10;
 const emptyPagination: Pagination = { limit: pageSize, offset: 0, hasMore: false };
+const emptyBackupPagination: Pagination = { limit: backupPageSize, offset: 0, hasMore: false };
+const emptyBackupSummary: DataMaintenanceBackupSummary = { latestRun: null, latestSucceededRun: null };
 
-export function MarketDataPage() {
+export function DataMaintenancePage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [activeTab, setActiveTab] = useState<MarketDataTab>("fx");
+  const [activeTab, setActiveTab] = useState<DataMaintenanceTab>("fx");
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [fxRates, setFxRates] = useState<ExchangeRateRecord[]>([]);
   const [prices, setPrices] = useState<InstrumentPriceListRecord[]>([]);
   const [jobRuns, setJobRuns] = useState<JobRun[]>([]);
   const [providerRuns, setProviderRuns] = useState<DataProviderRun[]>([]);
+  const [backupRuns, setBackupRuns] = useState<DataMaintenanceBackupRun[]>([]);
+  const [backupSummary, setBackupSummary] = useState<DataMaintenanceBackupSummary>(emptyBackupSummary);
   const [selectedJobRunId, setSelectedJobRunId] = useState<string | null>(null);
   const [fxPagination, setFxPagination] = useState<Pagination>(emptyPagination);
   const [pricePagination, setPricePagination] = useState<Pagination>(emptyPagination);
   const [logPagination, setLogPagination] = useState<Pagination>(emptyPagination);
+  const [backupPagination, setBackupPagination] = useState<Pagination>(emptyBackupPagination);
   const [fxFilters, setFxFilters] = useState<FxFilters>({ from: "", to: "", fromCurrency: "", toCurrency: "USD", provider: "" });
   const [priceFilters, setPriceFilters] = useState<PriceFilters>({ from: "", to: "", instrumentId: "", provider: "" });
   const [logFilters, setLogFilters] = useState<LogFilters>({ jobName: "", status: "", triggerSource: "" });
   const [loading, setLoading] = useState(false);
-  const [triggeringKind, setTriggeringKind] = useState<MarketDataRetrievalKind | null>(null);
+  const [triggeringKind, setTriggeringKind] = useState<DataMaintenanceRetrievalKind | null>(null);
   const [manualRetrievalSelection, setManualRetrievalSelection] = useState<Record<DataKindOption, boolean>>({
     exchange_rates: true,
     instrument_prices: true
@@ -114,6 +129,7 @@ export function MarketDataPage() {
     () => jobRuns.find((jobRun) => jobRun.id === selectedJobRunId) ?? null,
     [jobRuns, selectedJobRunId]
   );
+  const latestBackupRun = backupSummary.latestRun;
 
   useEffect(() => {
     void loadInitialData();
@@ -130,7 +146,7 @@ export function MarketDataPage() {
     try {
       const [instrumentData, fxData] = await Promise.all([
         apiGet<InstrumentsResponse>("/instruments"),
-        apiGet<FxRatesResponse>(`/market-data/fx-rates?${toQuery({ limit: pageSize, offset: 0, toCurrency: "USD" })}`)
+        apiGet<FxRatesResponse>(`/data-maintenance/fx-rates?${toQuery({ limit: pageSize, offset: 0, toCurrency: "USD" })}`)
       ]);
       setInstruments(instrumentData.instruments);
       setUser(fxData.user);
@@ -148,8 +164,12 @@ export function MarketDataPage() {
       await loadFxRates(offset);
     } else if (activeTab === "prices") {
       await loadPrices(offset);
-    } else {
+    } else if (activeTab === "logs") {
       await loadJobRuns(offset);
+    } else if (activeTab === "backups") {
+      await loadBackupRuns(offset);
+    } else {
+      setError(null);
     }
   }
 
@@ -159,7 +179,7 @@ export function MarketDataPage() {
 
     try {
       const data = await apiGet<FxRatesResponse>(
-        `/market-data/fx-rates?${toQuery({
+        `/data-maintenance/fx-rates?${toQuery({
           ...fxFilters,
           limit: pageSize,
           offset
@@ -181,7 +201,7 @@ export function MarketDataPage() {
 
     try {
       const data = await apiGet<PricesResponse>(
-        `/market-data/instrument-prices?${toQuery({
+        `/data-maintenance/instrument-prices?${toQuery({
           ...priceFilters,
           limit: pageSize,
           offset
@@ -203,7 +223,7 @@ export function MarketDataPage() {
 
     try {
       const data = await apiGet<JobRunsResponse>(
-        `/market-data/job-runs?${toQuery({
+        `/data-maintenance/job-runs?${toQuery({
           ...logFilters,
           limit: pageSize,
           offset
@@ -227,9 +247,31 @@ export function MarketDataPage() {
     }
   }
 
+  async function loadBackupRuns(offset = backupPagination.offset) {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await apiGet<BackupRunsResponse>(
+        `/data-maintenance/backups?${toQuery({
+          limit: backupPageSize,
+          offset
+        })}`
+      );
+      setUser(data.user);
+      setBackupRuns(data.backupRuns);
+      setBackupSummary(data.backupSummary);
+      setBackupPagination(data.pagination);
+    } catch (requestError) {
+      setError(toErrorMessage(requestError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function loadProviderRuns(jobRunId: string) {
     try {
-      const data = await apiGet<ProviderRunsResponse>(`/market-data/job-runs/${jobRunId}/provider-runs`);
+      const data = await apiGet<ProviderRunsResponse>(`/data-maintenance/job-runs/${jobRunId}/provider-runs`);
       setProviderRuns(data.providerRuns);
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -242,14 +284,14 @@ export function MarketDataPage() {
     await loadProviderRuns(jobRunId);
   }
 
-  async function triggerRetrieval(kind: MarketDataRetrievalKind) {
+  async function triggerRetrieval(kind: DataMaintenanceRetrievalKind) {
     setTriggeringKind(kind);
     setError(null);
     setNotice(null);
 
     try {
-      const data = await apiPost<RetrievalResponse>("/market-data/retrievals", { kind });
-      setNotice(`已提交抓取任务，请稍后刷新日志。请求编号：${data.retrieval.triggerRequestId}`);
+      const data = await apiPost<RetrievalResponse>("/data-maintenance/retrievals", { kind });
+      setNotice(`已提交抓取任务，请稍后刷新任务日志。请求编号：${data.retrieval.triggerRequestId}`);
       await loadActiveTab(0);
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -274,8 +316,8 @@ export function MarketDataPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <PageTitle route="/market-data">数据同步</PageTitle>
-          <p>查看汇率、价格和同步日志。写入由 Lambda API 和计划任务负责。</p>
+          <PageTitle route="/data-maintenance">数据维护</PageTitle>
+          <p>查看汇率、价格、任务日志、数据备份和数据恢复说明。写入由 Lambda API 和计划任务负责。</p>
         </div>
         <button className="secondary-button" type="button" onClick={() => void loadActiveTab(0)} disabled={loading || triggeringKind !== null}>
           <RefreshCw size={16} aria-hidden="true" />
@@ -286,7 +328,7 @@ export function MarketDataPage() {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
-      <div className="tabs" role="tablist" aria-label="数据同步分类">
+      <div className="tabs" role="tablist" aria-label="数据维护分类">
         <button className={activeTab === "fx" ? "active" : undefined} type="button" onClick={() => setActiveTab("fx")}>
           汇率
         </button>
@@ -294,19 +336,27 @@ export function MarketDataPage() {
           价格
         </button>
         <button className={activeTab === "logs" ? "active" : undefined} type="button" onClick={() => setActiveTab("logs")}>
-          同步日志
+          任务日志
+        </button>
+        <button className={activeTab === "backups" ? "active" : undefined} type="button" onClick={() => setActiveTab("backups")}>
+          数据备份
+        </button>
+        <button className={activeTab === "restore" ? "active" : undefined} type="button" onClick={() => setActiveTab("restore")}>
+          数据恢复
         </button>
       </div>
 
       {activeTab === "fx" ? renderFxTab() : null}
       {activeTab === "prices" ? renderPricesTab() : null}
       {activeTab === "logs" ? renderLogsTab() : null}
+      {activeTab === "backups" ? renderBackupsTab() : null}
+      {activeTab === "restore" ? renderRestoreTab() : null}
     </section>
   );
 
   function renderFxTab() {
     return (
-      <section className="market-data-panel">
+      <section className="data-maintenance-panel">
         <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
           <ManualUpdateButton
             label={triggeringKind === "exchange_rates" ? "提交中..." : "手动更新"}
@@ -362,7 +412,7 @@ export function MarketDataPage() {
           </button>
         </form>
 
-        <MarketDataTable title="汇率记录">
+        <DataMaintenanceTable title="汇率记录">
           <table>
             <thead>
               <tr>
@@ -395,7 +445,7 @@ export function MarketDataPage() {
               )}
             </tbody>
           </table>
-        </MarketDataTable>
+        </DataMaintenanceTable>
         <PaginationControls pagination={fxPagination} loading={loading} onPageChange={(offset) => void loadFxRates(offset)} />
       </section>
     );
@@ -403,7 +453,7 @@ export function MarketDataPage() {
 
   function renderPricesTab() {
     return (
-      <section className="market-data-panel">
+      <section className="data-maintenance-panel">
         <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
           <ManualUpdateButton
             label={triggeringKind === "instrument_prices" ? "提交中..." : "手动更新"}
@@ -445,8 +495,8 @@ export function MarketDataPage() {
           </button>
         </form>
 
-        <MarketDataTable title="价格记录">
-          <table className="market-price-table">
+        <DataMaintenanceTable title="价格记录">
+          <table className="data-maintenance-price-table">
             <thead>
               <tr>
                 <th>日期</th>
@@ -478,7 +528,7 @@ export function MarketDataPage() {
               )}
             </tbody>
           </table>
-        </MarketDataTable>
+        </DataMaintenanceTable>
         <PaginationControls pagination={pricePagination} loading={loading} onPageChange={(offset) => void loadPrices(offset)} />
       </section>
     );
@@ -486,9 +536,9 @@ export function MarketDataPage() {
 
   function renderLogsTab() {
     return (
-      <section className="market-data-panel">
+      <section className="data-maintenance-panel">
         <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
-          <div className="market-data-manual-options" aria-label="手动更新范围">
+          <div className="data-maintenance-manual-options" aria-label="手动更新范围">
             {dataKindOptions.map((option) => (
               <label key={option.kind}>
                 <input
@@ -533,7 +583,7 @@ export function MarketDataPage() {
               <option value="">全部</option>
               {JOB_TRIGGER_SOURCES.map((source) => (
                 <option key={source} value={source}>
-                  {source === "manual" ? "手动" : "计划任务"}
+                  {formatTriggerSource(source)}
                 </option>
               ))}
             </select>
@@ -544,8 +594,8 @@ export function MarketDataPage() {
           </button>
         </form>
 
-        <MarketDataTable title="同步日志">
-          <table className="market-job-table">
+        <DataMaintenanceTable title="任务日志">
+          <table className="data-maintenance-job-table">
             <thead>
               <tr>
                 <th>任务</th>
@@ -559,15 +609,15 @@ export function MarketDataPage() {
             </thead>
             <tbody>
               {loading ? (
-                <EmptyRow colSpan={7} label="正在加载日志..." />
+                <EmptyRow colSpan={7} label="正在加载任务日志..." />
               ) : jobRuns.length === 0 ? (
-                <EmptyRow colSpan={7} label="暂无同步日志。" />
+                <EmptyRow colSpan={7} label="暂无任务日志。" />
               ) : (
                 jobRuns.map((jobRun) => (
                   <tr className={selectedJobRunId === jobRun.id ? "selected-row" : undefined} key={jobRun.id}>
                     <td>{jobRun.jobName}</td>
                     <td>{formatStatus(jobRun.status)}</td>
-                    <td>{jobRun.triggerSource === "manual" ? "手动" : "计划任务"}</td>
+                    <td>{formatTriggerSource(jobRun.triggerSource)}</td>
                     <td>{formatDateTime(jobRun.jobStartedAt)}</td>
                     <td>{formatDateTime(jobRun.jobFinishedAt)}</td>
                     <td className="numeric-cell">
@@ -584,11 +634,11 @@ export function MarketDataPage() {
               )}
             </tbody>
           </table>
-        </MarketDataTable>
+        </DataMaintenanceTable>
         <PaginationControls pagination={logPagination} loading={loading} onPageChange={(offset) => void loadJobRuns(offset)} />
 
         {selectedJobRun ? (
-          <MarketDataTable title={`提供方日志：${selectedJobRun.jobName}`}>
+          <DataMaintenanceTable title={`提供方日志：${selectedJobRun.jobName}`}>
             <table>
               <thead>
                 <tr>
@@ -621,8 +671,115 @@ export function MarketDataPage() {
                 )}
               </tbody>
             </table>
-          </MarketDataTable>
+          </DataMaintenanceTable>
         ) : null}
+      </section>
+    );
+  }
+
+  function renderBackupsTab() {
+    return (
+      <section className="data-maintenance-panel">
+        <section className="data-maintenance-backup-summary" aria-label="备份状态">
+          <MetricBlock label="最新状态" value={latestBackupRun ? formatStatus(latestBackupRun.status) : "暂无备份记录"} />
+          <MetricBlock
+            label="最近成功"
+            value={backupSummary.latestSucceededRun ? formatDateTime(backupSummary.latestSucceededRun.finishedAt) : "--"}
+          />
+          <MetricBlock label="备份行数" value={formatOptionalNumber(latestBackupRun?.recordsInserted ?? null)} />
+          <MetricBlock label="耗时" value={formatDuration(latestBackupRun?.durationSeconds ?? null)} />
+        </section>
+
+        {latestBackupRun ? (
+          <section className="settings-section-header">
+            <div>
+              <h2>{formatBackupHeadline(latestBackupRun)}</h2>
+              <p>{formatBackupDetail(latestBackupRun)}</p>
+            </div>
+          </section>
+        ) : (
+          <section className="settings-section-header">
+            <div>
+              <h2>暂无备份记录</h2>
+              <p>计划任务完成后会在这里显示最近的账本备份状态。</p>
+            </div>
+          </section>
+        )}
+
+        <section className="settings-section-header">
+          <div>
+            <h2>备份范围</h2>
+            <p>备份写入私有加密 S3，保留 30 天；不包含 Supabase Auth 内部表、SSM 参数、服务密钥或交易密码明文。</p>
+          </div>
+        </section>
+
+        <DataMaintenanceTable title="备份记录">
+          <table className="data-maintenance-backup-table">
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>触发方式</th>
+                <th>开始时间</th>
+                <th>完成时间</th>
+                <th className="numeric-cell">备份行数</th>
+                <th className="numeric-cell">耗时</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <EmptyRow colSpan={7} label="正在加载备份记录..." />
+              ) : backupRuns.length === 0 ? (
+                <EmptyRow colSpan={7} label="暂无备份记录。" />
+              ) : (
+                backupRuns.map((backupRun) => (
+                  <tr key={backupRun.id}>
+                    <td>{formatStatus(backupRun.status)}</td>
+                    <td>{formatOptionalTriggerSource(backupRun.triggerSource)}</td>
+                    <td>{formatDateTime(backupRun.startedAt)}</td>
+                    <td>{formatDateTime(backupRun.finishedAt)}</td>
+                    <td className="numeric-cell">{formatOptionalNumber(backupRun.recordsInserted)}</td>
+                    <td className="numeric-cell">{formatDuration(backupRun.durationSeconds)}</td>
+                    <td>{backupRun.friendlyFailureReason ?? "--"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </DataMaintenanceTable>
+        <PaginationControls pagination={backupPagination} loading={loading} onPageChange={(offset) => void loadBackupRuns(offset)} />
+      </section>
+    );
+  }
+
+  function renderRestoreTab() {
+    return (
+      <section className="data-maintenance-panel">
+        <section className="settings-section-header">
+          <div>
+            <h2>数据恢复说明</h2>
+            <p>数据恢复目前不在网页中执行。需要恢复时，由维护人员在受控环境中使用最近一次可用备份进行验证和恢复。</p>
+          </div>
+        </section>
+
+        <section className="data-maintenance-restore-instructions" aria-label="数据恢复步骤">
+          <h3>恢复步骤</h3>
+          <ol>
+            <li>确认需要恢复的目标时间点，并在“数据备份”页查看最近一次成功备份的完成时间和备份行数。</li>
+            <li>暂停会写入账本数据的计划任务和手动维护操作，避免恢复过程中产生新的价格、汇率或账本变更。</li>
+            <li>在后端受控环境中从私有加密 S3 备份桶取回对应备份对象，不要把备份文件下载到个人设备或提交到仓库。</li>
+            <li>先执行恢复 dry-run，确认备份文件可读、表结构匹配、记录数量符合预期，并保存验证日志。</li>
+            <li>确认 dry-run 通过后，再执行正式恢复；恢复完成后运行数据校验脚本，并检查登录、持仓、交易、汇率、价格和任务日志页面。</li>
+            <li>恢复验证完成后重新启用计划任务，并记录恢复原因、备份时间点、操作者和验证结果。</li>
+          </ol>
+        </section>
+
+        <section className="settings-section-header">
+          <div>
+            <h2>注意事项</h2>
+            <p>恢复操作可能覆盖现有数据，只允许在明确批准后由维护人员执行。网页只展示说明，不提供恢复按钮、下载链接或备份对象路径。</p>
+          </div>
+        </section>
       </section>
     );
   }
@@ -634,19 +791,19 @@ function Toolbar({
   children
 }: {
   isAdmin: boolean;
-  triggeringKind: MarketDataRetrievalKind | null;
+  triggeringKind: DataMaintenanceRetrievalKind | null;
   children: ReactNode;
 }) {
   return (
     <div className="settings-section-header">
       <div>
-        <h2>同步控制</h2>
-        <p>手动更新会提交后台任务：汇率更新外币估值汇率，价格更新投资标的收盘价。完成情况请查看同步日志。</p>
+        <h2>维护控制</h2>
+        <p>手动更新会提交后台任务：汇率更新外币估值汇率，价格更新投资标的收盘价。完成情况请查看任务日志。</p>
       </div>
       {isAdmin ? (
-        <div className="market-data-actions">{children}</div>
+        <div className="data-maintenance-actions">{children}</div>
       ) : (
-        <p className="readonly-note">当前角色为 viewer，可查看行情数据和日志；手动抓取仅限 admin。</p>
+        <p className="readonly-note">当前角色为 viewer，可查看维护数据和日志；手动抓取仅限 admin。</p>
       )}
       {triggeringKind ? <span className="sr-only">正在提交 {triggeringKind}</span> : null}
     </div>
@@ -662,12 +819,21 @@ function ManualUpdateButton({ label, onClick, disabled }: { label: string; onCli
   );
 }
 
-function MarketDataTable({ title, children }: { title: string; children: ReactNode }) {
+function DataMaintenanceTable({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="market-data-section">
+    <section className="data-maintenance-section">
       <h3>{title}</h3>
       <div className="table-wrap">{children}</div>
     </section>
+  );
+}
+
+function MetricBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="data-maintenance-backup-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -740,7 +906,7 @@ function formatInstrumentLabel(price: InstrumentPriceListRecord): string {
   return symbol ? `${symbol} ${price.instrumentName}` : price.instrumentName || price.instrumentId;
 }
 
-function formatStatus(status: JobRun["status"]): string {
+function formatStatus(status: JobRunStatus): string {
   if (status === "succeeded") {
     return "成功";
   }
@@ -748,6 +914,56 @@ function formatStatus(status: JobRun["status"]): string {
     return "失败";
   }
   return "进行中";
+}
+
+function formatTriggerSource(source: JobTriggerSource): string {
+  return source === "manual" ? "手动" : "计划任务";
+}
+
+function formatOptionalTriggerSource(source: JobTriggerSource | null): string {
+  return source ? formatTriggerSource(source) : "--";
+}
+
+function formatBackupHeadline(backupRun: DataMaintenanceBackupRun): string {
+  if (backupRun.status === "started") {
+    return "备份进行中";
+  }
+
+  if (backupRun.status === "succeeded") {
+    return "最近备份成功";
+  }
+
+  return backupRun.friendlyFailureReason === "有批处理任务仍在运行，备份会稍后重试。" ? "备份暂缓" : "最近备份失败";
+}
+
+function formatBackupDetail(backupRun: DataMaintenanceBackupRun): string {
+  if (backupRun.status === "started") {
+    return "备份任务已开始，完成后会更新记录。";
+  }
+
+  if (backupRun.status === "succeeded") {
+    return `完成时间：${formatDateTime(backupRun.finishedAt)}，备份行数：${formatOptionalNumber(backupRun.recordsInserted)}。`;
+  }
+
+  return backupRun.friendlyFailureReason ?? "备份失败，请查看后台日志。";
+}
+
+function formatOptionalNumber(value: number | null): string {
+  return value === null ? "--" : String(value);
+}
+
+function formatDuration(value: number | null): string {
+  if (value === null) {
+    return "--";
+  }
+
+  if (value < 60) {
+    return `${value} 秒`;
+  }
+
+  const minutes = Math.floor(value / 60);
+  const seconds = value % 60;
+  return seconds === 0 ? `${minutes} 分钟` : `${minutes} 分 ${seconds} 秒`;
 }
 
 function formatDateTime(value: string | null): string {
@@ -759,5 +975,5 @@ function toErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "行情数据请求失败，请稍后重试。";
+  return "数据维护请求失败，请稍后重试。";
 }

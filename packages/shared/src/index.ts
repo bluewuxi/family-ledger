@@ -818,10 +818,10 @@ export interface JobRun {
   updatedAt: string;
 }
 
-export type MarketDataRetrievalKind = DataKind | "all";
+export type DataMaintenanceRetrievalKind = DataKind | "all";
 
-export interface MarketDataRetrievalRequest {
-  kind: MarketDataRetrievalKind;
+export interface DataMaintenanceRetrievalRequest {
+  kind: DataMaintenanceRetrievalKind;
   rateDate?: string;
 }
 
@@ -849,6 +849,22 @@ export interface DataProviderRun {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DataMaintenanceBackupRun {
+  id: string;
+  status: JobRunStatus;
+  triggerSource: JobTriggerSource | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationSeconds: number | null;
+  recordsInserted: number | null;
+  friendlyFailureReason: string | null;
+}
+
+export interface DataMaintenanceBackupSummary {
+  latestRun: DataMaintenanceBackupRun | null;
+  latestSucceededRun: DataMaintenanceBackupRun | null;
 }
 
 export interface PortfolioSnapshot {

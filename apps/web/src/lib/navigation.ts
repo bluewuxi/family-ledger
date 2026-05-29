@@ -22,7 +22,7 @@ export const navigationItems: NavigationItem[] = [
   { to: "/instruments", label: "投资标的", icon: Tags },
   { to: "/transactions", label: "交易记录", icon: FileText },
   { to: "/holdings", label: "持仓总览", icon: BarChart3 },
-  { to: "/market-data", label: "数据同步", icon: DatabaseZap },
+  { to: "/data-maintenance", label: "数据维护", icon: DatabaseZap },
   { to: "/settings", label: "设置", icon: Settings },
   { to: "/about", label: "关于", icon: Info }
 ];

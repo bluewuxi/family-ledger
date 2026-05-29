@@ -47,7 +47,7 @@
 - Price-source adapters for `yahoo_finance` and `eastmoney` (implemented for seeded instruments)
 - EventBridge jobs for prices and snapshots (implemented for price updates, FX updates, and portfolio snapshots)
 - Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
-- Dedicated data-sync monitor (implemented: FX, price, and log tabs with filters and offset pagination)
+- Data maintenance UI (implemented: FX, price, task log, data backup monitor, and data restore instruction tabs with filters and offset pagination where applicable)
 - Settings user preferences (implemented: report default currency, gain/loss color convention, and light/dark theme backed by profiles)
 - User access management (implemented: admins can view existing Supabase Auth users, maintain `viewer`/`admin` role, and pause/resume access)
 - Self-service password reset (implemented: Supabase Auth reset emails with app-hosted new password screen)

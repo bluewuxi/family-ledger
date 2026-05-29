@@ -14,12 +14,13 @@ import {
 import { getDashboard } from "../services/dashboardService";
 import { getHoldings } from "../services/holdingService";
 import {
-  getMarketDataFxRates,
-  getMarketDataInstrumentPrices,
-  getMarketDataJobRuns,
-  getMarketDataProviderRuns,
-  triggerMarketDataRetrieval
-} from "../services/marketDataService";
+  getDataMaintenanceBackupRuns,
+  getDataMaintenanceFxRates,
+  getDataMaintenanceInstrumentPrices,
+  getDataMaintenanceJobRuns,
+  getDataMaintenanceProviderRuns,
+  triggerDataMaintenanceRetrieval
+} from "../services/dataMaintenanceService";
 import { getManagedUsers, updateManagedUser } from "../services/managedUserService";
 import {
   createInvestmentInstrument,
@@ -118,25 +119,30 @@ const routes: Record<string, RouteHandler> = {
       })
     });
   },
-  "GET /market-data/fx-rates": async (event) => {
+  "GET /data-maintenance/fx-rates": async (event) => {
     const user = await requireRole(event, "viewer");
-    const result = await getMarketDataFxRates(event.queryStringParameters ?? {});
+    const result = await getDataMaintenanceFxRates(event.queryStringParameters ?? {});
     return success({ user, fxRates: result.items, pagination: result.pagination });
   },
-  "GET /market-data/instrument-prices": async (event) => {
+  "GET /data-maintenance/instrument-prices": async (event) => {
     const user = await requireRole(event, "viewer");
-    const result = await getMarketDataInstrumentPrices(event.queryStringParameters ?? {});
+    const result = await getDataMaintenanceInstrumentPrices(event.queryStringParameters ?? {});
     return success({ user, prices: result.items, pagination: result.pagination });
   },
-  "GET /market-data/job-runs": async (event) => {
+  "GET /data-maintenance/job-runs": async (event) => {
     const user = await requireRole(event, "viewer");
-    const result = await getMarketDataJobRuns(event.queryStringParameters ?? {});
+    const result = await getDataMaintenanceJobRuns(event.queryStringParameters ?? {});
     return success({ user, jobRuns: result.items, pagination: result.pagination });
   },
-  "POST /market-data/retrievals": async (event) => {
+  "GET /data-maintenance/backups": async (event) => {
+    const user = await requireRole(event, "viewer");
+    const result = await getDataMaintenanceBackupRuns(event.queryStringParameters ?? {});
+    return success({ user, backupRuns: result.items, backupSummary: result.summary, pagination: result.pagination });
+  },
+  "POST /data-maintenance/retrievals": async (event) => {
     const user = await requireRole(event, "admin");
     const requestId = event.requestContext.requestId;
-    const retrieval = await triggerMarketDataRetrieval(parseJsonBody(event), user, requestId);
+    const retrieval = await triggerDataMaintenanceRetrieval(parseJsonBody(event), user, requestId);
     return success({ user, retrieval }, 202);
   }
 };
@@ -226,10 +232,10 @@ const dynamicRoutes: Array<{
   },
   {
     method: "GET",
-    pattern: /^\/market-data\/job-runs\/(?<id>[^/]+)\/provider-runs$/,
+    pattern: /^\/data-maintenance\/job-runs\/(?<id>[^/]+)\/provider-runs$/,
     handler: async (event, params) => {
       const user = await requireRole(event, "viewer");
-      return success({ user, providerRuns: await getMarketDataProviderRuns(params.id) });
+      return success({ user, providerRuns: await getDataMaintenanceProviderRuns(params.id) });
     }
   }
 ];

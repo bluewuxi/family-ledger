@@ -16,7 +16,7 @@ Production deployment uses SAM/CloudFormation templates under `infra/aws` when e
 - Keep handlers thin and route to services.
 - Configure server-side secrets outside Git.
 - Use API Gateway Regional custom domains for HTTPS API endpoints.
-- The API Lambda may asynchronously invoke the FX and price job Lambdas for admin-triggered market-data retrieval.
+- The API Lambda may asynchronously invoke the FX and price job Lambdas for admin-triggered data maintenance retrieval of market data.
 
 ## Jobs
 
@@ -110,7 +110,9 @@ The Lambda handler must throw on failed ingestion so Scheduler can retry. Duplic
 
 The seeded stock/ETF providers currently use best-effort Yahoo Finance and Eastmoney public endpoints plus the existing FundRock page parser, so no extra provider API key or secret is required. Price retries are idempotent through the `instrument_prices` uniqueness constraint and insert-if-not-exists behavior. Persisted `instrument_prices` rows are for confirmed daily closes or published unit prices; same-day rows fetched before the relevant exchange close-confirmation cutoff are skipped. FundRock/NZ PIE unit prices may lag by multiple days, including one provider day behind the snapshot date, and the latest published unit price is acceptable for snapshots.
 
-The web Data Sync page can manually trigger the FX and price jobs. CloudFormation wires the job function names into the API Lambda through `UPDATE_FX_RATES_FUNCTION_NAME` and `UPDATE_PRICES_FUNCTION_NAME`, and grants `lambda:InvokeFunction` only for those two job functions. Manual invocations pass trigger metadata into the job payload and return before ingestion completes; completion status is read from `job_runs` and `data_provider_runs`.
+The web Data Maintenance page can manually trigger the FX and price jobs. CloudFormation wires the job function names into the API Lambda through `UPDATE_FX_RATES_FUNCTION_NAME` and `UPDATE_PRICES_FUNCTION_NAME`, and grants `lambda:InvokeFunction` only for those two job functions. Manual invocations pass trigger metadata into the job payload and return before ingestion completes; completion status is read from `job_runs` and `data_provider_runs`.
+
+Because only the test environment exists and production has not started, the data maintenance API surface was renamed directly without a production compatibility window. Deploy API and web together in the same test rollout so the test frontend does not temporarily call removed legacy endpoints.
 
 The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the snapshot date from the `06:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
 

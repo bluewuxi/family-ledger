@@ -47,10 +47,11 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /instruments`
 - `GET /transactions`
 - `GET /portfolio-snapshots`
-- `GET /market-data/fx-rates`
-- `GET /market-data/instrument-prices`
-- `GET /market-data/job-runs`
-- `GET /market-data/job-runs/:id/provider-runs`
+- `GET /data-maintenance/fx-rates`
+- `GET /data-maintenance/instrument-prices`
+- `GET /data-maintenance/job-runs`
+- `GET /data-maintenance/job-runs/:id/provider-runs`
+- `GET /data-maintenance/backups`
 - `GET /settings/preferences`
 - `PATCH /settings/preferences`
 
@@ -84,13 +85,15 @@ Response data:
 }
 ```
 
-### Market Data Read API
+### Data Maintenance Read API
 
-`GET /market-data/fx-rates` supports `fromCurrency`, `toCurrency`, `from`, `to`, `provider`, `limit`, and `offset` filters. Existing stored `USD/USD` rows are not returned.
+`GET /data-maintenance/fx-rates` supports `fromCurrency`, `toCurrency`, `from`, `to`, `provider`, `limit`, and `offset` filters. Existing stored `USD/USD` rows are not returned.
 
-`GET /market-data/instrument-prices` supports `instrumentId`, `from`, `to`, `provider`, `limit`, and `offset` filters.
+`GET /data-maintenance/instrument-prices` supports `instrumentId`, `from`, `to`, `provider`, `limit`, and `offset` filters.
 
-`GET /market-data/job-runs` supports `jobName`, `status`, `triggerSource`, `limit`, and `offset` filters. Use `GET /market-data/job-runs/:id/provider-runs` to inspect per-provider results for a selected job run.
+`GET /data-maintenance/job-runs` supports `jobName`, `status`, `triggerSource`, `limit`, and `offset` filters. Use `GET /data-maintenance/job-runs/:id/provider-runs` to inspect per-provider results for a selected job run. Filtering by `jobName=backup-ledger-data` is applied in the API/repository query before pagination.
+
+`GET /data-maintenance/backups` returns sanitized backup monitor rows for the UI plus a sanitized `backupSummary` with the latest backup run and latest successful backup run. The summary is calculated independently of pagination so the page header does not change when browsing older backup rows. The response includes only safe fields such as status, trigger source, start/end timestamps, duration, backed-up row count, and friendly failure reason. It does not expose S3 object keys, raw error messages, stack traces, environment details, secrets, or backup payload metadata.
 
 Defaults:
 
@@ -112,9 +115,9 @@ List responses include pagination metadata:
 }
 ```
 
-### Market Data Retrieval API
+### Data Maintenance Retrieval API
 
-`POST /market-data/retrievals` is admin-only. It asynchronously invokes the existing market-data job Lambdas and returns `202`.
+`POST /data-maintenance/retrievals` is admin-only. It asynchronously invokes the existing market-data job Lambdas and returns `202`.
 
 Request:
 

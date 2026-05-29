@@ -10,7 +10,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { HoldingsPage } from "./pages/HoldingsPage";
 import { InstrumentsPage } from "./pages/InstrumentsPage";
 import { LoginPage } from "./pages/LoginPage";
-import { MarketDataPage } from "./pages/MarketDataPage";
+import { DataMaintenancePage } from "./pages/DataMaintenancePage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
@@ -24,7 +24,7 @@ function AppRoutes() {
       <Route path="/instruments" element={<InstrumentsPage />} />
       <Route path="/transactions" element={<TransactionsPage />} />
       <Route path="/holdings" element={<HoldingsPage />} />
-      <Route path="/market-data" element={<MarketDataPage />} />
+      <Route path="/data-maintenance" element={<DataMaintenancePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/about" element={<AboutPage />} />
     </Routes>
