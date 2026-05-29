@@ -242,6 +242,7 @@ Treat date and time handling as a cross-layer product rule.
 - Market-data provider dates (`price_date`, `rate_date`, quote dates) are provider/exchange dates. Do not derive them from viewer-local time.
 - Persisted historical `instrument_prices` rows should represent confirmed closes or published unit prices, not live intraday quotes. Dashboard/live quote values belong in the dashboard quote cache.
 - NZ PIE/FundRock unit prices may lag by multiple days; snapshots should use the latest published unit price available rather than treating the lag as an error.
+- Do not move the main global batch schedule solely to match NZ PIE/FundRock publication timing. The US/global close cadence is more important; if NZ PIE freshness needs improvement later, add a separate FundRock-only refresh and keep provider `price_date` semantics intact.
 - Scheduled jobs must use timezone-aware EventBridge Scheduler configuration and pass Scheduler context (`<aws.scheduler.scheduled-time>` as `time`) into Lambda. Snapshot generation must derive its default date from scheduled time, not Lambda execution/retry time.
 - Avoid ad hoc `new Date().toISOString().slice(0, 10)` for app business dates or UI date defaults. Use shared time helpers from `packages/shared`.
 - When adding date/time behavior, update focused verification scripts such as `verify:time-policy` and document any new semantics.

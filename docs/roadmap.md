@@ -40,8 +40,8 @@
 - Frankfurter FX maintenance handler (implemented: scheduled Lambda handler syncs account-base currencies, supports optional historical date fetches, logs structured EventBridge context, and relies on retry-safe inserts)
 - FundRock PIE unit price maintenance handler (implemented: scheduled Lambda handler ingests latest public FundRock unit prices for seeded Foundation Series PIE funds)
 - Stock/ETF price providers (implemented: seeded US/HK instruments use Yahoo Finance best-effort chart data; seeded China-listed ETFs/funds use Eastmoney best-effort quote data)
-- Scheduled execution policy (implemented: EventBridge Scheduler runs FX, price, and snapshot jobs after the `06:00 Asia/Shanghai` business-day cutoff with retry attempts `2` and maximum event age `1 hour`)
-- Historical close policy (implemented: stock/ETF price ingestion skips same-day provider rows fetched before exchange close-confirmation cutoffs; FundRock/NZ PIE snapshots use the latest published lagged unit price)
+- Scheduled execution policy (implemented: EventBridge Scheduler runs FX, price, and snapshot jobs after the `06:00 Asia/Shanghai` business-day cutoff with retry attempts `2` and maximum event age `1 hour`; US/global close cadence has priority over NZ PIE publication timing)
+- Historical close policy (implemented: stock/ETF price ingestion skips same-day provider rows fetched before exchange close-confirmation cutoffs; FundRock/NZ PIE snapshots use the latest published lagged unit price without treating normal provider lag as stale)
 - Retry/job logging hardening (implemented for FX ingestion with durable job/provider run status and best-effort failure finalization)
 - Additional price maintenance and automated instrument price updates
 - Price-source adapters for `yahoo_finance` and `eastmoney` (implemented for seeded instruments)

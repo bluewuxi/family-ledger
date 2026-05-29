@@ -92,7 +92,7 @@ The FX job derives provider target currencies from distinct account base currenc
 
 `instrument_prices` stores provider-supplied calendar-date instrument close prices or published unit prices in the instrument price currency. `price_date` and `rate_date` are provider-supplied dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
 
-The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` values as NZD instrument prices for the seeded `FS_NASDAQ_100`, `FS_TOTAL_WORLD`, and `FS_US_500` instruments. It does not store FundRock buy price, sell price, NAV, transaction spreads, fees, distributions, or historical backfills. FundRock unit prices may lag by multiple days; snapshots use the latest published unit price available.
+The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` values as NZD instrument prices for the seeded `FS_NASDAQ_100`, `FS_TOTAL_WORLD`, and `FS_US_500` instruments. It does not store FundRock buy price, sell price, NAV, transaction spreads, fees, distributions, or historical backfills. FundRock unit prices may lag by multiple days; one provider day behind the snapshot date is expected when the main batch runs before the NZ evening publication window. Snapshots use the latest published unit price available and must keep the provider-supplied `price_date`.
 
 The stock/ETF price job also ingests best-effort latest daily prices for the seeded enabled instruments:
 
@@ -153,6 +153,8 @@ Snapshot generation uses as-of data:
 - Latest instrument price where `price_date <= snapshot_date`.
 - Previous instrument close before that latest price date for daily movement.
 - Latest valuation FX where `rate_date <= snapshot_date`.
+
+For NZ PIE/FundRock instruments, an older latest unit price is an accepted provider lag unless there is no usable historical price at all. Snapshot warnings should not classify the normal Foundation Series publication lag as a missing or stale price.
 
 Missing latest price or required FX makes affected aggregate market-value fields unavailable (`null`) rather than partial. Missing previous price only makes daily-change fields unavailable. Unavailable cost basis only makes cost and unrealized-gain fields unavailable.
 

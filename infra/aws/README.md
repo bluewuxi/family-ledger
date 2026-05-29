@@ -71,7 +71,7 @@ corepack pnpm deploy:web:test
 
 Production equivalents use the `:prod` suffix. Do not run production deploys until `infra/aws/parameters.prod.json` has been created locally and reviewed.
 
-Scheduled jobs default to enabled through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data, snapshot, and backup jobs. Schedules use EventBridge Scheduler with `ScheduledJobsTimezone=Asia/Shanghai` by default, so the market-data, snapshot, and backup cron expressions do not need UTC conversion.
+Scheduled jobs default to enabled through `EnableScheduledJobs=true`. Set `EnableScheduledJobs=false` only when a test stack should not run unattended market-data, snapshot, and backup jobs. Schedules use EventBridge Scheduler with `ScheduledJobsTimezone=Asia/Shanghai` by default, so the market-data, snapshot, and backup cron expressions do not need UTC conversion. Keep the main batch aligned to the US/global close cadence; NZ PIE/FundRock publication lag should be handled as accepted lag or by a future provider-specific refresh.
 
 The backup bucket blocks public access, enables versioning, uses S3-managed server-side encryption (`AES256`), and expires current versions, noncurrent versions, and expired delete markers for ledger backup objects under `backups/{env}/` after 30 days. The backup Lambda role can only write objects under that prefix. The `BackupBucketName` stack output is used by local operator scripts such as:
 
