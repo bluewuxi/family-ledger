@@ -1,7 +1,7 @@
-import { calculateHoldings as calculateSharedHoldings } from "@family-ledger/shared";
+import { calculateHoldings as calculateSharedHoldings, getAppBusinessDate } from "@family-ledger/shared";
 import type {
   AuthenticatedUser,
-  CurrencyCode,
+  ExchangeRateRecord,
   HoldingSummary,
   HoldingsValuationSummary,
   Instrument,
@@ -9,7 +9,7 @@ import type {
   InvestmentTransaction
 } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
-import { listLatestValuationRatesToUsd } from "../repositories/fxRateRepository";
+import { listValuationRatesToUsdUntil } from "../repositories/fxRateRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listTransactions } from "../repositories/transactionRepository";
@@ -23,18 +23,18 @@ export async function getHoldings(input: { currency?: string; user?: Authenticat
     listAccounts(),
     listInstruments()
   ]);
-  const holdings = calculateHoldings(transactions, accounts, instruments);
+  const preliminaryHoldings = calculateHoldings(transactions, accounts, instruments);
   const securityInstruments = uniqueBy(
-    holdings
+    preliminaryHoldings
       .filter((holding) => holding.assetType !== "cash")
       .map((holding) => ({ instrumentId: holding.instrumentId, currency: holding.currency })),
     (instrument) => instrument.instrumentId
   );
-  const requiredFxCurrencies = getRequiredFxCurrencies(holdings, reportingCurrency);
   const [prices, fxRates] = await Promise.all([
     listLatestPrices(securityInstruments),
-    listLatestValuationRatesToUsd(requiredFxCurrencies)
+    listValuationRatesToUsdUntil(getAppBusinessDate())
   ]);
+  const holdings = calculateHoldings(transactions, accounts, instruments, fxRates);
 
   return calculateHoldingsValuation(holdings, prices, fxRates, reportingCurrency);
 }
@@ -42,23 +42,10 @@ export async function getHoldings(input: { currency?: string; user?: Authenticat
 export function calculateHoldings(
   transactions: InvestmentTransaction[],
   accounts: InvestmentAccount[],
-  instruments: Instrument[]
+  instruments: Instrument[],
+  fxRates?: ExchangeRateRecord[]
 ): HoldingSummary[] {
-  return calculateSharedHoldings(transactions, accounts, instruments);
-}
-
-function getRequiredFxCurrencies(
-  holdings: HoldingSummary[],
-  reportingCurrency: CurrencyCode
-): CurrencyCode[] {
-  return unique([
-    ...holdings.map((holding) => holding.currency).filter((currency) => currency !== "USD"),
-    ...(reportingCurrency === "USD" ? [] : [reportingCurrency])
-  ]);
-}
-
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
+  return calculateSharedHoldings(transactions, accounts, instruments, fxRates ? { fxRates } : undefined);
 }
 
 function uniqueBy<T>(values: T[], keyOf: (value: T) => string): T[] {

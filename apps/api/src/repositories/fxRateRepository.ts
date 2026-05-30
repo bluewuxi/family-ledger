@@ -1,5 +1,11 @@
 import Decimal from "decimal.js";
-import type { CreateExchangeRateInput, CurrencyCode, ExchangeRateRecord, FxRateRecord } from "@family-ledger/shared";
+import {
+  selectPreferredExchangeRateRecord,
+  type CreateExchangeRateInput,
+  type CurrencyCode,
+  type ExchangeRateRecord,
+  type FxRateRecord
+} from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 interface FxRateRow {
@@ -83,14 +89,15 @@ export async function findValuationRateToUsdOnDate(
     .eq("rate_type", "valuation")
     .lte("rate_date", rateDate)
     .order("rate_date", { ascending: false })
-    .limit(1)
-    .maybeSingle<FxRateRow>();
+    .limit(20)
+    .returns<FxRateRow[]>();
 
   if (error) {
     throw new Error("Failed to find settlement FX rate.");
   }
 
-  return data ? mapExchangeRateRow(data) : null;
+  const rates = selectLatestExchangeRateRecordsByDistinctDates(data.map(mapExchangeRateRow), 1);
+  return rates[0] ?? null;
 }
 
 export async function listValuationRatesToUsdUntil(snapshotDate: string): Promise<ExchangeRateRecord[]> {
@@ -170,14 +177,33 @@ async function findLatestValuationRateToUsd(fromCurrency: CurrencyCode): Promise
     .eq("to_currency", "USD")
     .eq("rate_type", "valuation")
     .order("rate_date", { ascending: false })
-    .limit(1)
-    .maybeSingle<FxRateRow>();
+    .limit(20)
+    .returns<FxRateRow[]>();
 
   if (error) {
     throw new Error("Failed to list latest FX rates.");
   }
 
-  return data ? mapExchangeRateRow(data) : null;
+  const rates = selectLatestExchangeRateRecordsByDistinctDates(data.map(mapExchangeRateRow), 1);
+  return rates[0] ?? null;
+}
+
+function selectLatestExchangeRateRecordsByDistinctDates(
+  records: ExchangeRateRecord[],
+  maxDates: number
+): ExchangeRateRecord[] {
+  const recordsByDate = new Map<string, ExchangeRateRecord[]>();
+
+  for (const record of records) {
+    const recordsForDate = recordsByDate.get(record.rateDate) ?? [];
+    recordsForDate.push(record);
+    recordsByDate.set(record.rateDate, recordsForDate);
+  }
+
+  return [...recordsByDate.entries()]
+    .sort(([leftDate], [rightDate]) => rightDate.localeCompare(leftDate))
+    .slice(0, maxDates)
+    .map(([, recordsForDate]) => selectPreferredExchangeRateRecord(recordsForDate));
 }
 
 function mapUsdRateToLegacyNzdRate(

@@ -1,4 +1,9 @@
-import type { CreateInstrumentPriceInput, InstrumentPriceRecord, PriceRecord } from "@family-ledger/shared";
+import {
+  selectLatestPriceRecordsByDistinctDates,
+  type CreateInstrumentPriceInput,
+  type InstrumentPriceRecord,
+  type PriceRecord
+} from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 interface HeldInstrumentPriceKey {
@@ -34,13 +39,13 @@ export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): P
         .eq("instrument_id", instrumentId)
         .eq("currency", currency)
         .order("price_date", { ascending: false })
-        .limit(2);
+        .limit(20);
 
       if (error) {
         throw new Error("Failed to list latest prices.");
       }
 
-      return (data as unknown as PriceRow[]).map(mapPriceRow);
+      return selectLatestPriceRecordsByDistinctDates((data as unknown as PriceRow[]).map(mapPriceRow), 2);
     })
   );
 

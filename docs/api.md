@@ -254,10 +254,10 @@ The dashboard derives holdings through the existing holdings calculation and may
 
 - Securities use a dashboard-only delayed quote cache for current valuation when available; cash uses its calculated cash balance.
 - Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`.
-- Holdings are valued internally in USD using the latest USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
-- `todayChange` is retained as the wire field name, but the UI labels it `最新变动`. It compares the dashboard quote with the latest stored security close before the quote date. If no earlier close exists, it uses the latest stored close as a display baseline. Cash has zero latest price movement.
-- Latest FX is applied to current value, preceding value, and carrying cost, so latest change reflects price movement rather than FX movement.
-- `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.
+- Holdings are valued internally in USD using USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
+- `todayChange` is retained as the wire field name, but the UI labels it `最新变动`. It compares current quantity at the dashboard quote/latest stored price with the same current quantity at the preceding stored security close. It is latest-price movement on current holdings, not cash-flow-adjusted portfolio daily P&L.
+- Current market value and latest-price movement use latest valuation FX. Unrealized gain uses transaction-date USD cost basis when historical FX is available, so reported cost does not move with later FX rates.
+- `unrealizedGain` applies only to non-cash holdings with available remaining cost basis.
 - `dailyTradeCount` counts buy/sell transactions on the current app business date, excluding generated cash legs and cash instruments.
 - `accountCount` includes accounts with no non-zero holdings.
 - `allocations` drives the `账户分布` chart and contains account rows plus one combined cash row.
@@ -307,13 +307,13 @@ It returns aggregate valued totals plus one non-zero row for each account and in
 }
 ```
 
-Transactions are processed by trade date and creation time ascending. Security holdings use weighted average cost: buys add `grossAmount + fee + tax`, sells reduce remaining carrying cost using the prior average unit cost, and dividends do not alter holdings. Security sell fees and taxes do not alter remaining carrying cost.
+Transactions are processed by trade date and creation time ascending. Security holdings use weighted average cost: buys add `grossAmount + fee + tax`, sells reduce remaining carrying cost using the prior average unit cost, and dividends do not alter holdings. When historical valuation FX is available, buy cost also carries a transaction-date USD basis from settlement cash or native trade cost. Security sell fees and taxes do not alter remaining carrying cost.
 
 Cash holdings are calculated only from transactions explicitly linked to cash instruments. Deposits, generated sell cash legs, and interest increase balances; withdrawals, generated buy cash legs, fees, and taxes decrease balances; adjustments apply their stated direction.
 
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
 
-Holding quantity, average cost, and remaining cost continue to use the instrument currency. Valuation fields use the requested reporting currency. Missing latest price or required FX makes affected market-value totals unavailable (`null`). Missing cost basis makes unrealized-gain totals unavailable (`null`). The API does not return partial totals as complete values.
+Holding quantity, average cost, and remaining cost continue to use the instrument currency. Valuation fields use the requested reporting currency. Missing latest price or required FX makes affected market-value totals unavailable (`null`). Missing historical cost basis makes unrealized-gain totals unavailable (`null`). The API does not return partial totals as complete values.
 
 ### Portfolio Snapshots Read API
 
@@ -350,7 +350,7 @@ Response data:
 }
 ```
 
-Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals. For dashboard recent-snapshot activity, compare adjacent returned rows' `marketValue` values client-side. Do not reuse `dailyChange` or `dailyChangePct` for `较上一快照`; those fields are stored valuation movement versus prior available prices inside that snapshot.
+Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals. For dashboard recent-snapshot activity, compare adjacent returned rows' `marketValue` values client-side. Do not reuse `dailyChange` or `dailyChangePct` for `较上一快照`; those fields are latest-price movement on current snapshot holdings, not cash-flow-adjusted portfolio daily P&L.
 
 ## Account Write APIs
 

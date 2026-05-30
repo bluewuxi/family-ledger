@@ -246,7 +246,8 @@ function calculateExpectedValuation(
   const holdings = calculateHoldings(
     input.transactions.filter((transaction) => transaction.tradeDate <= snapshotDate),
     input.accounts,
-    input.instruments
+    input.instruments,
+    { fxRates: input.rates.filter((rate) => rate.rateDate <= snapshotDate) }
   );
 
   return calculatePortfolioSnapshotValuation({

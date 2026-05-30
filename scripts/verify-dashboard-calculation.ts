@@ -59,6 +59,35 @@ assert.deepEqual(complete, {
   warnings: []
 });
 
+const duplicateProviderPrices = calculateDashboardSummary(
+  [holding("provider-dedupe", "Provider Dedupe", "stock", "USD", "1", "0")],
+  accounts,
+  [
+    price("provider-latest-yahoo", "provider-dedupe", "2026-05-22", "12", "USD", "Yahoo Finance"),
+    price("provider-latest-manual", "provider-dedupe", "2026-05-22", "10", "USD", "manual"),
+    price("provider-previous", "provider-dedupe", "2026-05-21", "8", "USD", "manual")
+  ],
+  fxRates
+);
+assert.equal(duplicateProviderPrices.totalAssets, "15.00");
+assert.equal(duplicateProviderPrices.todayChange, "3.00");
+
+const duplicateProviderFx = calculateDashboardSummary(
+  [holding("fx-dedupe", "FX Dedupe", "stock", "CNY", "1", "0")],
+  accounts,
+  [
+    price("fx-latest", "fx-dedupe", "2026-05-22", "10", "CNY"),
+    price("fx-previous", "fx-dedupe", "2026-05-21", "8", "CNY")
+  ],
+  [
+    fxRate("cny-provider", "CNY", "0.10", "Provider"),
+    fxRate("cny-manual", "CNY", "0.20", "manual"),
+    fxRate("nzd-usd", "NZD", "0.5")
+  ]
+);
+assert.equal(duplicateProviderFx.totalAssets, "4.00");
+assert.equal(duplicateProviderFx.todayChange, "0.80");
+
 const valuedHoldings = calculateHoldingsValuation(holdings, prices, fxRates, "NZD");
 assert.equal(valuedHoldings.totalMarketValue, "345.00");
 assert.equal(valuedHoldings.totalUnrealizedGain, "90.00");
@@ -467,7 +496,8 @@ function price(
   instrumentId: string,
   priceDate: string,
   closePrice: string,
-  currency: PriceRecord["currency"]
+  currency: PriceRecord["currency"],
+  source = "manual"
 ): PriceRecord {
   return {
     id,
@@ -475,7 +505,7 @@ function price(
     priceDate,
     closePrice,
     currency,
-    source: "manual",
+    source,
     sourceSymbol: null,
     isAdjusted: false,
     createdAt: `${priceDate}T00:00:00.000Z`,
@@ -540,7 +570,12 @@ function dashboardQuote(
   };
 }
 
-function fxRate(id: string, fromCurrency: ExchangeRateRecord["fromCurrency"], rate: string): ExchangeRateRecord {
+function fxRate(
+  id: string,
+  fromCurrency: ExchangeRateRecord["fromCurrency"],
+  rate: string,
+  provider = "manual"
+): ExchangeRateRecord {
   return {
     id,
     fromCurrency,
@@ -548,7 +583,7 @@ function fxRate(id: string, fromCurrency: ExchangeRateRecord["fromCurrency"], ra
     rateDate: "2026-05-22",
     rate,
     rateType: "valuation",
-    provider: "manual",
+    provider,
     providerRateDate: "2026-05-22",
     fetchedAt: "2026-05-22T00:00:00.000Z",
     createdAt: "2026-05-22T00:00:00.000Z",

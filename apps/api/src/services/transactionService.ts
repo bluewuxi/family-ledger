@@ -354,6 +354,7 @@ function isValuationImpactingPatch(input: UpdateInvestmentTransactionInput): boo
     "accountId",
     "instrumentId",
     "tradeDate",
+    "settlementDate",
     "quantity",
     "price",
     "grossAmount",

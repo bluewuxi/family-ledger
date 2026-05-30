@@ -248,7 +248,8 @@ function calculateSnapshotValuation(
   const holdings = calculateHoldings(
     data.transactions.filter((transaction) => transaction.tradeDate <= snapshotDate),
     data.accounts,
-    data.instruments
+    data.instruments,
+    { fxRates: data.rates.filter((rate) => rate.rateDate <= snapshotDate) }
   );
 
   return calculatePortfolioSnapshotValuation({

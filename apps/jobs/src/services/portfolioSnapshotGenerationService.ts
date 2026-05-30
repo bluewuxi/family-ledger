@@ -91,7 +91,7 @@ export async function generatePortfolioSnapshot(
       snapshotRepository.listSnapshotPrices(options.snapshotDate),
       snapshotRepository.listSnapshotExchangeRates(options.snapshotDate)
     ]);
-    const holdings = calculateHoldings(transactions, accounts, instruments);
+    const holdings = calculateHoldings(transactions, accounts, instruments, { fxRates });
     const valuation = calculatePortfolioSnapshotValuation({
       snapshotDate: options.snapshotDate,
       holdings,

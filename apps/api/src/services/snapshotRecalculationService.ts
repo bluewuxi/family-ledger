@@ -26,7 +26,8 @@ export async function recalculateSnapshotsFrom(fromDate: string): Promise<void> 
     const holdings = calculateHoldings(
       transactions.filter((transaction) => transaction.tradeDate <= snapshotDate),
       accounts,
-      instruments
+      instruments,
+      { fxRates: fxRates.filter((rate) => rate.rateDate <= snapshotDate) }
     );
     const valuation = calculatePortfolioSnapshotValuation({
       snapshotDate,

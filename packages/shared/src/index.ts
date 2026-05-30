@@ -508,6 +508,7 @@ export interface HoldingSummary {
   quantity: string;
   averageUnitCost: string | null;
   costAmount: string | null;
+  costAmountUsd?: string | null;
   warnings: HoldingWarning[];
 }
 
@@ -516,18 +517,27 @@ interface HoldingState {
   instrument: Instrument;
   quantity: Decimal;
   costAmount: Decimal;
+  costAmountUsd: Decimal;
+  trackUsdCostBasis: boolean;
+  costBasisUsdUnavailable: boolean;
   costBasisUnavailable: boolean;
   warnings: Set<HoldingWarning>;
+}
+
+interface CalculateHoldingsOptions {
+  fxRates?: ExchangeRateRecord[];
 }
 
 export function calculateHoldings(
   transactions: InvestmentTransaction[],
   accounts: InvestmentAccount[],
-  instruments: Instrument[]
+  instruments: Instrument[],
+  options: CalculateHoldingsOptions = {}
 ): HoldingSummary[] {
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
   const instrumentsById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
   const states = new Map<string, HoldingState>();
+  const trackUsdCostBasis = options.fxRates !== undefined;
 
   for (const transaction of sortTransactions(transactions)) {
     const account = accountsById.get(transaction.accountId);
@@ -538,13 +548,13 @@ export function calculateHoldings(
     }
 
     const key = `${account.id}:${instrument.id}`;
-    const state = states.get(key) ?? createHoldingState(account, instrument);
+    const state = states.get(key) ?? createHoldingState(account, instrument, trackUsdCostBasis);
     states.set(key, state);
 
     if (instrument.assetType === "cash") {
       applyCashTransaction(state, transaction);
     } else {
-      applySecurityTransaction(state, transaction);
+      applySecurityTransaction(state, transaction, options.fxRates ?? []);
     }
   }
 
@@ -558,27 +568,34 @@ export function calculateHoldings(
     });
 }
 
-function applySecurityTransaction(state: HoldingState, transaction: InvestmentTransaction): void {
+function applySecurityTransaction(
+  state: HoldingState,
+  transaction: InvestmentTransaction,
+  fxRates: ExchangeRateRecord[]
+): void {
   switch (transaction.transactionType) {
     case "opening_position": {
       const quantity = requiredAmount(transaction.quantity);
+      const costAmount = requiredAmount(transaction.grossAmount);
       state.quantity = state.quantity.plus(quantity);
 
       if (!state.costBasisUnavailable) {
-        state.costAmount = state.costAmount.plus(requiredAmount(transaction.grossAmount));
+        state.costAmount = state.costAmount.plus(costAmount);
       }
+      addSecurityCostUsd(state, transaction, costAmount, fxRates);
       return;
     }
     case "buy": {
       const quantity = requiredAmount(transaction.quantity);
+      const costAmount = requiredAmount(transaction.grossAmount)
+        .plus(requiredAmount(transaction.fee))
+        .plus(requiredAmount(transaction.tax));
       state.quantity = state.quantity.plus(quantity);
 
       if (!state.costBasisUnavailable) {
-        state.costAmount = state.costAmount
-          .plus(requiredAmount(transaction.grossAmount))
-          .plus(requiredAmount(transaction.fee))
-          .plus(requiredAmount(transaction.tax));
+        state.costAmount = state.costAmount.plus(costAmount);
       }
+      addSecurityCostUsd(state, transaction, costAmount, fxRates);
       return;
     }
     case "sell": {
@@ -592,12 +609,25 @@ function applySecurityTransaction(state: HoldingState, transaction: InvestmentTr
         markCostBasisUnavailable(state);
       }
 
+      if (
+        state.trackUsdCostBasis &&
+        !state.costBasisUsdUnavailable &&
+        priorQuantity.greaterThan(0) &&
+        soldQuantity.lessThanOrEqualTo(priorQuantity)
+      ) {
+        const priorAverageCostUsd = state.costAmountUsd.dividedBy(priorQuantity);
+        state.costAmountUsd = state.costAmountUsd.minus(soldQuantity.times(priorAverageCostUsd));
+      } else if (state.trackUsdCostBasis) {
+        state.costBasisUsdUnavailable = true;
+      }
+
       state.quantity = state.quantity.minus(soldQuantity);
 
       if (state.quantity.isNegative()) {
         markCostBasisUnavailable(state);
       } else if (state.quantity.isZero() && !state.costBasisUnavailable) {
         state.costAmount = new Decimal(0);
+        state.costAmountUsd = new Decimal(0);
       }
       return;
     }
@@ -606,6 +636,31 @@ function applySecurityTransaction(state: HoldingState, transaction: InvestmentTr
     default:
       throw new Error("A non-cash instrument has an unsupported holdings transaction.");
   }
+}
+
+function addSecurityCostUsd(
+  state: HoldingState,
+  transaction: InvestmentTransaction,
+  nativeCostAmount: Decimal,
+  fxRates: ExchangeRateRecord[]
+): void {
+  if (!state.trackUsdCostBasis || state.costBasisUsdUnavailable) {
+    return;
+  }
+
+  const settlementAmount =
+    transaction.transactionType === "buy" && transaction.settlementCurrency && transaction.settlementAmount
+      ? convertAmountToUsd(new Decimal(transaction.settlementAmount), transaction.settlementCurrency, transaction.tradeDate, fxRates)
+      : null;
+  const costAmountUsd =
+    settlementAmount ?? convertAmountToUsd(nativeCostAmount, transaction.currency, transaction.tradeDate, fxRates);
+
+  if (costAmountUsd === null) {
+    state.costBasisUsdUnavailable = true;
+    return;
+  }
+
+  state.costAmountUsd = state.costAmountUsd.plus(costAmountUsd);
 }
 
 function applyCashTransaction(state: HoldingState, transaction: InvestmentTransaction): void {
@@ -651,6 +706,12 @@ function toHoldingSummary(state: HoldingState): HoldingSummary {
   const costAmount = isCash || state.costBasisUnavailable ? null : formatFlexibleDecimal(state.costAmount, 6);
   const averageUnitCost =
     isCash || state.costBasisUnavailable ? null : formatFlexibleDecimal(state.costAmount.dividedBy(state.quantity), 10);
+  const costAmountUsd =
+    isCash || !state.trackUsdCostBasis
+      ? undefined
+      : state.costBasisUsdUnavailable
+        ? null
+        : formatFlexibleDecimal(state.costAmountUsd, 6);
 
   return {
     accountId: state.account.id,
@@ -664,12 +725,14 @@ function toHoldingSummary(state: HoldingState): HoldingSummary {
     quantity: state.quantity.toString(),
     averageUnitCost,
     costAmount,
+    ...(state.trackUsdCostBasis ? { costAmountUsd } : {}),
     warnings: [...state.warnings]
   };
 }
 
 function markCostBasisUnavailable(state: HoldingState): void {
   state.costBasisUnavailable = true;
+  state.costBasisUsdUnavailable = true;
   state.warnings.add("NEGATIVE_POSITION");
   state.warnings.add("COST_BASIS_UNAVAILABLE");
 }
@@ -681,12 +744,55 @@ function requiredAmount(value: string | null): Decimal {
   return new Decimal(value);
 }
 
-function createHoldingState(account: InvestmentAccount, instrument: Instrument): HoldingState {
+function convertAmountToUsd(
+  amount: Decimal,
+  currency: CurrencyCode,
+  date: string,
+  fxRates: ExchangeRateRecord[]
+): Decimal | null {
+  if (currency === "USD") {
+    return amount;
+  }
+
+  const rate = findValuationRateToUsdOnOrBefore(currency, date, fxRates);
+  return rate === null ? null : amount.times(rate.rate);
+}
+
+function findValuationRateToUsdOnOrBefore(
+  currency: CurrencyCode,
+  date: string,
+  fxRates: ExchangeRateRecord[]
+): ExchangeRateRecord | null {
+  const ratesByDate = new Map<string, ExchangeRateRecord[]>();
+
+  for (const rate of fxRates) {
+    if (
+      rate.fromCurrency !== currency ||
+      rate.toCurrency !== "USD" ||
+      rate.rateType !== "valuation" ||
+      rate.rateDate > date
+    ) {
+      continue;
+    }
+
+    const ratesForDate = ratesByDate.get(rate.rateDate) ?? [];
+    ratesForDate.push(rate);
+    ratesByDate.set(rate.rateDate, ratesForDate);
+  }
+
+  const [latestDate] = [...ratesByDate.keys()].sort((left, right) => right.localeCompare(left));
+  return latestDate ? selectPreferredExchangeRateRecord(ratesByDate.get(latestDate) ?? []) : null;
+}
+
+function createHoldingState(account: InvestmentAccount, instrument: Instrument, trackUsdCostBasis: boolean): HoldingState {
   return {
     account,
     instrument,
     quantity: new Decimal(0),
     costAmount: new Decimal(0),
+    costAmountUsd: new Decimal(0),
+    trackUsdCostBasis,
+    costBasisUsdUnavailable: false,
     costBasisUnavailable: false,
     warnings: new Set<HoldingWarning>()
   };
@@ -856,6 +962,68 @@ export interface CreateExchangeRateInput {
   provider: string;
   providerRateDate?: string | null;
   fetchedAt?: string | null;
+}
+
+export function selectLatestPriceRecordsByDistinctDates(records: PriceRecord[], maxDates: number): PriceRecord[] {
+  const recordsByDate = new Map<string, PriceRecord[]>();
+
+  for (const record of records) {
+    const recordsForDate = recordsByDate.get(record.priceDate) ?? [];
+    recordsForDate.push(record);
+    recordsByDate.set(record.priceDate, recordsForDate);
+  }
+
+  return [...recordsByDate.entries()]
+    .sort(([leftDate], [rightDate]) => rightDate.localeCompare(leftDate))
+    .slice(0, maxDates)
+    .map(([, recordsForDate]) => selectPreferredPriceRecord(recordsForDate));
+}
+
+export function selectPreferredPriceRecord(records: PriceRecord[]): PriceRecord {
+  const [selected] = [...records].sort(comparePriceRecordsForValuation);
+
+  if (!selected) {
+    throw new Error("Cannot select a preferred price from an empty record set.");
+  }
+
+  return selected;
+}
+
+export function selectPreferredExchangeRateRecord(records: ExchangeRateRecord[]): ExchangeRateRecord {
+  const [selected] = [...records].sort(compareExchangeRateRecordsForValuation);
+
+  if (!selected) {
+    throw new Error("Cannot select a preferred exchange rate from an empty record set.");
+  }
+
+  return selected;
+}
+
+function comparePriceRecordsForValuation(left: PriceRecord, right: PriceRecord): number {
+  return (
+    providerPreference(left.source).localeCompare(providerPreference(right.source)) ||
+    right.updatedAt.localeCompare(left.updatedAt) ||
+    right.createdAt.localeCompare(left.createdAt) ||
+    left.id.localeCompare(right.id)
+  );
+}
+
+function compareExchangeRateRecordsForValuation(left: ExchangeRateRecord, right: ExchangeRateRecord): number {
+  return (
+    providerPreference(left.provider).localeCompare(providerPreference(right.provider)) ||
+    (right.fetchedAt ?? "").localeCompare(left.fetchedAt ?? "") ||
+    right.updatedAt.localeCompare(left.updatedAt) ||
+    right.createdAt.localeCompare(left.createdAt) ||
+    left.id.localeCompare(right.id)
+  );
+}
+
+function providerPreference(provider: string | null): string {
+  if (provider === "manual") {
+    return "00:manual";
+  }
+
+  return `10:${provider ?? ""}`;
 }
 
 export interface JobRun {
@@ -1111,14 +1279,15 @@ function valueHolding(
   const marketValue = quantity.times(latestPrice.closePrice).times(fxRate);
   state.marketValueUsd = state.marketValueUsd.plus(marketValue);
 
-  if (holding.costAmount === null) {
+  const holdingCostUsd = getHoldingCostUsd(holding, fxRate);
+
+  if (holdingCostUsd === null) {
     addSnapshotWarning(state, "COST_BASIS_UNAVAILABLE", holding);
     state.costAvailable = false;
     state.unrealizedGainAvailable = false;
   } else {
-    const cost = new Decimal(holding.costAmount).times(fxRate);
-    state.costUsd = state.costUsd.plus(cost);
-    state.unrealizedGainUsd = state.unrealizedGainUsd.plus(marketValue.minus(cost));
+    state.costUsd = state.costUsd.plus(holdingCostUsd);
+    state.unrealizedGainUsd = state.unrealizedGainUsd.plus(marketValue.minus(holdingCostUsd));
   }
 
   const previousPrice = prices[1];
@@ -1127,6 +1296,14 @@ function valueHolding(
   const previousValue = quantity.times(baselinePrice.closePrice).times(fxRate);
   state.priorMarketValueUsd = state.priorMarketValueUsd.plus(previousValue);
   state.dailyChangeUsd = state.dailyChangeUsd.plus(marketValue.minus(previousValue));
+}
+
+function getHoldingCostUsd(holding: HoldingSummary, latestFxRate: Decimal): Decimal | null {
+  if (holding.costAmountUsd !== undefined) {
+    return holding.costAmountUsd === null ? null : new Decimal(holding.costAmountUsd);
+  }
+
+  return holding.costAmount === null ? null : new Decimal(holding.costAmount).times(latestFxRate);
 }
 
 function groupValidPricesByInstrument(
@@ -1148,8 +1325,7 @@ function groupValidPricesByInstrument(
   }
 
   for (const records of groupedPrices.values()) {
-    records.sort((left, right) => right.priceDate.localeCompare(left.priceDate));
-    records.splice(2);
+    records.splice(0, records.length, ...selectLatestPriceRecordsByDistinctDates(records, 2));
   }
 
   return groupedPrices;
@@ -1159,14 +1335,27 @@ function groupLatestUsdRatesByCurrency(
   rates: ExchangeRateRecord[],
   snapshotDate: string
 ): Map<CurrencyCode, Decimal> {
-  const sortedRates = [...rates]
-    .filter((rate) => rate.rateType === "valuation" && rate.toCurrency === "USD" && rate.rateDate <= snapshotDate)
-    .sort((left, right) => right.rateDate.localeCompare(left.rateDate));
   const ratesByCurrency = new Map<CurrencyCode, Decimal>([["USD", new Decimal(1)]]);
+  const groupedRates = new Map<CurrencyCode, Map<string, ExchangeRateRecord[]>>();
 
-  for (const rate of sortedRates) {
-    if (!ratesByCurrency.has(rate.fromCurrency)) {
-      ratesByCurrency.set(rate.fromCurrency, new Decimal(rate.rate));
+  for (const rate of rates) {
+    if (rate.rateType !== "valuation" || rate.toCurrency !== "USD" || rate.rateDate > snapshotDate) {
+      continue;
+    }
+
+    const ratesByDate = groupedRates.get(rate.fromCurrency) ?? new Map<string, ExchangeRateRecord[]>();
+    const ratesForDate = ratesByDate.get(rate.rateDate) ?? [];
+    ratesForDate.push(rate);
+    ratesByDate.set(rate.rateDate, ratesForDate);
+    groupedRates.set(rate.fromCurrency, ratesByDate);
+  }
+
+  for (const [currency, ratesByDate] of groupedRates) {
+    const [latestDate] = [...ratesByDate.keys()].sort((left, right) => right.localeCompare(left));
+    const selected = latestDate ? selectPreferredExchangeRateRecord(ratesByDate.get(latestDate) ?? []) : null;
+
+    if (selected) {
+      ratesByCurrency.set(currency, new Decimal(selected.rate));
     }
   }
 

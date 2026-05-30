@@ -15,7 +15,7 @@ import {
   upsertDashboardQuote,
   type UpsertDashboardQuoteInput
 } from "../repositories/dashboardQuoteRepository";
-import { listLatestValuationRatesToUsd } from "../repositories/fxRateRepository";
+import { listValuationRatesToUsdUntil } from "../repositories/fxRateRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listTransactions } from "../repositories/transactionRepository";
@@ -40,37 +40,31 @@ interface DashboardQuoteRepository {
 
 export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<DashboardSummary> {
   const now = new Date();
+  const businessDate = getAppBusinessDate(now);
   const reportingCurrency = await resolveReportingCurrency(input);
   const [transactions, accounts, instruments] = await Promise.all([
     listTransactions(),
     listAccounts(),
     listInstruments()
   ]);
-  const holdings = calculateHoldings(transactions, accounts, instruments);
+  const preliminaryHoldings = calculateHoldings(transactions, accounts, instruments);
   const securityInstruments = uniqueBy(
-    holdings
+    preliminaryHoldings
       .filter((holding) => holding.assetType !== "cash")
       .map((holding) => ({ instrumentId: holding.instrumentId, currency: holding.currency })),
     (instrument) => instrument.instrumentId
   );
-  const foreignCurrencies = unique(
-    holdings.filter((holding) => holding.currency !== "NZD").map((holding) => holding.currency)
-  );
-  const requiredFxCurrencies = unique([
-    ...foreignCurrencies,
-    ...holdings.filter((holding) => holding.currency === "NZD").map((holding) => holding.currency),
-    ...(reportingCurrency === "USD" ? [] : [reportingCurrency])
-  ]);
   const [prices, fxRates] = await Promise.all([
     listLatestPrices(securityInstruments),
-    listLatestValuationRatesToUsd(requiredFxCurrencies)
+    listValuationRatesToUsdUntil(businessDate)
   ]);
+  const holdings = calculateHoldings(transactions, accounts, instruments, fxRates);
   const dashboardQuotes = await refreshDashboardQuotes({
     holdings,
     instruments,
     now
   });
-  const dailyTradeCount = countDailyTrades(transactions, instruments, getAppBusinessDate(now));
+  const dailyTradeCount = countDailyTrades(transactions, instruments, businessDate);
 
   return calculateDashboardSummary(holdings, accounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
 }
@@ -282,10 +276,6 @@ function isQuoteStale(quote: DashboardQuoteRecord | undefined, now: Date): boole
 
   return now.getTime() - fetchedAt.getTime() >= DASHBOARD_QUOTE_CACHE_TTL_MS;
 }
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
-}
-
 function uniqueBy<T>(values: T[], keyOf: (value: T) => string): T[] {
   const seen = new Set<string>();
 

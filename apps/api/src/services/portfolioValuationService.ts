@@ -1,4 +1,8 @@
 import Decimal from "decimal.js";
+import {
+  selectLatestPriceRecordsByDistinctDates,
+  selectPreferredExchangeRateRecord
+} from "@family-ledger/shared";
 import type {
   CurrencyCode,
   DashboardAccountSummary,
@@ -108,11 +112,7 @@ function calculateValuedHoldings(
 
   const pricesByInstrument = groupValidPricesByInstrument(holdings, prices);
   const quotesByInstrument = groupValidQuotesByInstrument(holdings, dashboardQuotes);
-  const fxRatesByCurrency = new Map(
-    fxRates
-      .filter((rate) => rate.toCurrency === "USD" && rate.rateType === "valuation")
-      .map((rate) => [rate.fromCurrency, new Decimal(rate.rate)])
-  );
+  const fxRatesByCurrency = groupLatestUsdRatesByCurrency(fxRates);
   const displayRate = getDisplayRate(reportingCurrency, fxRatesByCurrency);
   const warnings: DashboardWarning[] = [];
   const warningKeys = new Set<string>();
@@ -159,12 +159,14 @@ function calculateValuedHoldings(
         rowMarketValueUsd = quantity.times(latestPrice.closePrice).times(fxRate);
         totalMarketValue = totalMarketValue.plus(rowMarketValueUsd);
 
-        if (holding.costAmount === null) {
+        const holdingCostUsd = getHoldingCostUsd(holding, fxRate);
+
+        if (holdingCostUsd === null) {
           addWarning(warnings, warningKeys, "COST_BASIS_UNAVAILABLE", holding);
           addWarning(rowWarnings, rowWarningKeys, "COST_BASIS_UNAVAILABLE", holding);
           totalUnrealizedGainAvailable = false;
         } else {
-          rowUnrealizedGainUsd = rowMarketValueUsd.minus(new Decimal(holding.costAmount).times(fxRate));
+          rowUnrealizedGainUsd = rowMarketValueUsd.minus(holdingCostUsd);
           totalUnrealizedGain = totalUnrealizedGain.plus(rowUnrealizedGainUsd);
         }
 
@@ -276,11 +278,39 @@ function groupValidPricesByInstrument(
   }
 
   for (const records of groupedPrices.values()) {
-    records.sort((left, right) => right.priceDate.localeCompare(left.priceDate));
-    records.splice(2);
+    records.splice(0, records.length, ...selectLatestPriceRecordsByDistinctDates(records, 2));
   }
 
   return groupedPrices;
+}
+
+function groupLatestUsdRatesByCurrency(fxRates: ExchangeRateRecord[]): Map<CurrencyCode, Decimal> {
+  const ratesByCurrencyAndDate = new Map<CurrencyCode, Map<string, ExchangeRateRecord[]>>();
+
+  for (const rate of fxRates) {
+    if (rate.toCurrency !== "USD" || rate.rateType !== "valuation") {
+      continue;
+    }
+
+    const ratesByDate = ratesByCurrencyAndDate.get(rate.fromCurrency) ?? new Map<string, ExchangeRateRecord[]>();
+    const ratesForDate = ratesByDate.get(rate.rateDate) ?? [];
+    ratesForDate.push(rate);
+    ratesByDate.set(rate.rateDate, ratesForDate);
+    ratesByCurrencyAndDate.set(rate.fromCurrency, ratesByDate);
+  }
+
+  const ratesByCurrency = new Map<CurrencyCode, Decimal>();
+
+  for (const [currency, ratesByDate] of ratesByCurrencyAndDate) {
+    const [latestDate] = [...ratesByDate.keys()].sort((left, right) => right.localeCompare(left));
+    const selected = latestDate ? selectPreferredExchangeRateRecord(ratesByDate.get(latestDate) ?? []) : null;
+
+    if (selected) {
+      ratesByCurrency.set(currency, new Decimal(selected.rate));
+    }
+  }
+
+  return ratesByCurrency;
 }
 
 function getCurrencyToUsdRate(currency: CurrencyCode, fxRatesByCurrency: Map<CurrencyCode, Decimal>): Decimal | null {
@@ -301,6 +331,14 @@ function getDisplayRate(
 
   const currencyToUsd = fxRatesByCurrency.get(currency);
   return currencyToUsd && !currencyToUsd.isZero() ? new Decimal(1).dividedBy(currencyToUsd) : null;
+}
+
+function getHoldingCostUsd(holding: HoldingSummary, latestFxRate: Decimal): Decimal | null {
+  if (holding.costAmountUsd !== undefined) {
+    return holding.costAmountUsd === null ? null : new Decimal(holding.costAmountUsd);
+  }
+
+  return holding.costAmount === null ? null : new Decimal(holding.costAmount).times(latestFxRate);
 }
 
 function addWarning(

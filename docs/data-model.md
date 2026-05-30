@@ -112,7 +112,8 @@ Scheduled price ingestion skips same-day stock/ETF prices fetched before the rel
 
 Holdings are a read-only derived view calculated by the Lambda API from transaction history, grouped by account and instrument. No separate holdings table is introduced.
 
-- Security quantities and remaining carrying cost use weighted average cost in the instrument currency.
+- Security quantities and native remaining carrying cost use weighted average cost in the instrument currency.
+- When historical valuation FX is available, holdings also carry a USD cost basis derived from buy settlement cash amounts or transaction-date native carrying cost. This USD cost basis is reduced on sells with the same weighted-average method and is used for reporting-currency unrealized gain so cost does not move with later FX rates.
 - Opening positions add starting quantity and carrying cost before later buys and sells are applied.
 - Buys add `gross_amount + fee + tax` to carrying cost; sells remove units at the prior average unit cost. Sell-side fees and taxes are not included in remaining carrying cost.
 - Dividends do not change security quantity or carrying cost.
@@ -133,8 +134,8 @@ The current read-only dashboard summary values current non-zero holdings without
 - Historical snapshots and data maintenance query pages continue to use stored `instrument_prices` close records, not dashboard quote cache rows.
 - Cash uses its derived cash balance and has zero daily price movement.
 - Stored FX rates are USD-centered in `exchange_rates`. The dashboard converts each holding currency to USD, then converts aggregate monetary values to the requested reporting currency using the latest valuation FX rates.
-- The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents price movement only.
-- Unrealized gain is market value less remaining carrying cost for securities only.
+- `todayChange` / latest movement is price movement on current holdings: current quantity times current/latest price minus current quantity times the preceding stored price. It is not cash-flow-adjusted portfolio daily P&L, so buys and sells on the same business date can affect the movement base.
+- Unrealized gain is market value less transaction-date USD cost basis for securities only, converted to the requested reporting currency for display.
 - Dashboard `allocations` are account-plus-cash rows for `账户分布`; `holdingAllocations` are instrument-plus-cash rows for `持仓分布`.
 - `holdingAllocations` aggregate the same non-cash instrument across all accounts and combine all cash currencies into one `现金` row. Unavailable row market values make the aggregate value and percentage unavailable. Percentages are omitted when total assets are unavailable or zero.
 - `dailyTradeCount` uses the current app business date and counts only buy/sell security transactions, excluding generated cash legs.
@@ -156,8 +157,9 @@ Snapshot generation uses as-of data:
 
 - Transactions with `trade_date <= snapshot_date`.
 - Latest instrument price where `price_date <= snapshot_date`.
-- Previous instrument close before that latest price date for daily movement.
-- Latest valuation FX where `rate_date <= snapshot_date`.
+- Previous instrument close before that latest price date for latest-price movement.
+- Latest valuation FX where `rate_date <= snapshot_date`, plus historical valuation FX needed to derive transaction-date USD cost basis.
+- If multiple price or FX providers have records on the selected date, valuation picks one deterministic provider record for that date, preferring `manual` records and then provider name order.
 
 For NZ PIE/FundRock instruments, an older latest unit price is an accepted provider lag unless there is no usable historical price at all. Snapshot warnings should not classify the normal Foundation Series publication lag as a missing or stale price.
 

@@ -41,6 +41,7 @@ const prices = [
   price("p4", "nzd-security", "2026-05-21", "39", "NZD")
 ];
 const rates = [
+  rate("r0", "NZD", "2026-05-20", "0.5"),
   rate("r1", "NZD", "2026-05-22", "0.6"),
   rate("r2", "CNY", "2026-05-22", "0.14"),
   rate("future-rate", "NZD", "2026-05-23", "0.9")
@@ -49,7 +50,8 @@ const rates = [
 const holdings = calculateHoldings(
   transactions.filter((record) => record.tradeDate <= snapshotDate),
   accounts,
-  instruments
+  instruments,
+  { fxRates: rates.filter((record) => record.rateDate <= snapshotDate) }
 );
 const complete = calculatePortfolioSnapshotValuation({
   snapshotDate,
@@ -60,8 +62,8 @@ const complete = calculatePortfolioSnapshotValuation({
 });
 
 assert.equal(complete.marketValueUsd, "236.000000");
-assert.equal(complete.costUsd, "178.000000");
-assert.equal(complete.unrealizedGainUsd, "58.000000");
+assert.equal(complete.costUsd, "169.000000");
+assert.equal(complete.unrealizedGainUsd, "67.000000");
 assert.equal(complete.dailyChangeUsd, "11.800000");
 assert.equal(complete.dailyChangePct, "5.26315789");
 assert.equal(complete.usdToNzdRate, "1.6666666667");
@@ -97,7 +99,7 @@ const missingPrevious = calculatePortfolioSnapshotValuation({
 assert.equal(missingPrevious.marketValueUsd, "236.000000");
 assert.equal(missingPrevious.dailyChangeUsd, "10.000000");
 assert.equal(missingPrevious.dailyChangePct, "4.42477876");
-assert.equal(missingPrevious.unrealizedGainUsd, "58.000000");
+assert.equal(missingPrevious.unrealizedGainUsd, "67.000000");
 assert.deepEqual(missingPrevious.warnings, []);
 
 const missingFx = calculatePortfolioSnapshotValuation({
@@ -114,7 +116,9 @@ assert.deepEqual(missingFx.warnings.map((warning) => warning.code), ["MISSING_FX
 const unavailableCost = calculatePortfolioSnapshotValuation({
   snapshotDate,
   holdings: holdings.map((holding) =>
-    holding.instrumentId === "nzd-security" ? { ...holding, costAmount: null, averageUnitCost: null } : holding
+    holding.instrumentId === "nzd-security"
+      ? { ...holding, costAmount: null, costAmountUsd: null, averageUnitCost: null }
+      : holding
   ),
   accounts,
   prices,
@@ -125,6 +129,17 @@ assert.equal(unavailableCost.costUsd, null);
 assert.equal(unavailableCost.unrealizedGainUsd, null);
 assert.equal(unavailableCost.dailyChangeUsd, "11.800000");
 assert.deepEqual(unavailableCost.warnings.map((warning) => warning.code), ["COST_BASIS_UNAVAILABLE"]);
+
+const duplicateProviderValuation = calculatePortfolioSnapshotValuation({
+  snapshotDate,
+  holdings,
+  accounts,
+  prices: [...prices, price("p3-provider", "nzd-security", "2026-05-22", "45", "NZD", "Provider")],
+  fxRates: [...rates, rate("r1-provider", "NZD", "2026-05-22", "0.9", "Provider")]
+});
+assert.equal(duplicateProviderValuation.marketValueUsd, "236.000000");
+assert.equal(duplicateProviderValuation.costUsd, "169.000000");
+assert.equal(duplicateProviderValuation.dailyChangeUsd, "11.800000");
 
 void main();
 
@@ -275,7 +290,8 @@ function price(
   instrumentId: string,
   priceDate: string,
   closePrice: string,
-  currency: CurrencyCode
+  currency: CurrencyCode,
+  source = "manual"
 ): PriceRecord {
   return {
     id,
@@ -283,7 +299,7 @@ function price(
     priceDate,
     closePrice,
     currency,
-    source: "manual",
+    source,
     sourceSymbol: null,
     isAdjusted: false,
     createdAt: `${priceDate}T00:00:00.000Z`,
@@ -291,7 +307,13 @@ function price(
   };
 }
 
-function rate(id: string, fromCurrency: CurrencyCode, rateDate: string, rateValue: string): ExchangeRateRecord {
+function rate(
+  id: string,
+  fromCurrency: CurrencyCode,
+  rateDate: string,
+  rateValue: string,
+  provider = "manual"
+): ExchangeRateRecord {
   return {
     id,
     rateDate,
@@ -299,7 +321,7 @@ function rate(id: string, fromCurrency: CurrencyCode, rateDate: string, rateValu
     toCurrency: "USD",
     rate: rateValue,
     rateType: "valuation",
-    provider: "manual",
+    provider,
     providerRateDate: rateDate,
     fetchedAt: `${rateDate}T00:00:00.000Z`,
     createdAt: `${rateDate}T00:00:00.000Z`,
