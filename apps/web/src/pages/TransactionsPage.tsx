@@ -1,5 +1,5 @@
 import { Fragment, type FormEvent, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Eraser, Filter, Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Eraser, Eye, Filter, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ADJUSTMENT_DIRECTIONS,
   ADJUSTMENT_DIRECTION_LABELS,
@@ -64,6 +64,8 @@ interface TransactionFilters {
   transactionType: "" | TransactionType;
 }
 
+type DrawerMode = "create" | "view" | "modify";
+
 const today = getLocalDateString();
 const transactionFetchLimit = 200;
 const emptyFilters: TransactionFilters = { from: "", to: "", accountId: "", instrumentId: "", transactionType: "" };
@@ -77,6 +79,7 @@ export function TransactionsPage() {
   const [filters, setFilters] = useState<TransactionFilters>(emptyFilters);
   const [form, setForm] = useState<TransactionFormState>(() => emptyForm());
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expandedTransactionIds, setExpandedTransactionIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
@@ -96,9 +99,10 @@ export function TransactionsPage() {
   const selectedAccount = accounts.find((account) => account.id === form.accountId);
   const selectedInstrument = instruments.find((instrument) => instrument.id === form.instrumentId);
   const hasSelectedAccount = Boolean(filters.accountId);
-  const drawerTitle = `${editingTransactionId ? "编辑交易记录" : "新增交易记录"}${
+  const drawerTitle = `${drawerMode === "create" ? "新增交易记录" : drawerMode === "modify" ? "编辑交易记录" : "交易记录详情"}${
     selectedAccount ? ` - ${selectedAccount.name}` : ""
   }`;
+  const isDrawerReadOnly = drawerMode === "view";
   const linkedCashLegs = useMemo(
     () =>
       new Map(
@@ -156,6 +160,10 @@ export function TransactionsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isDrawerReadOnly) {
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -221,17 +229,14 @@ export function TransactionsPage() {
 
   function startCreate() {
     setEditingTransactionId(null);
+    setDrawerMode("create");
     setForm(emptyForm(filters.accountId));
     setDrawerOpen(true);
   }
 
-  function startEdit(transaction: InvestmentTransaction) {
-    if (transaction.transactionSource === "generated_cash_leg") {
-      setError("自动生成的现金流水不能直接编辑，请修改对应的买卖交易。");
-      return;
-    }
-
+  function startDetail(transaction: InvestmentTransaction) {
     setEditingTransactionId(transaction.id);
+    setDrawerMode(isAdmin && transaction.transactionSource !== "generated_cash_leg" ? "modify" : "view");
     setForm({
       accountId: transaction.accountId,
       instrumentId: transaction.instrumentId,
@@ -269,6 +274,7 @@ export function TransactionsPage() {
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingTransactionId(null);
+    setDrawerMode("create");
     setForm(emptyForm(filters.accountId));
   }
 
@@ -419,21 +425,21 @@ export function TransactionsPage() {
               <th>币种</th>
               <th>结算</th>
               <th>备注</th>
-              {isAdmin ? <th>操作</th> : null}
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 11 : 10}>正在加载交易记录...</td>
+                <td colSpan={11}>正在加载交易记录...</td>
               </tr>
             ) : !filters.accountId ? (
               <tr>
-                <td colSpan={isAdmin ? 11 : 10}>请先选择账户查看交易记录。</td>
+                <td colSpan={11}>请先选择账户查看交易记录。</td>
               </tr>
             ) : visibleTransactions.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 11 : 10}>暂无符合筛选条件的交易记录。</td>
+                <td colSpan={11}>暂无符合筛选条件的交易记录。</td>
               </tr>
             ) : (
               visibleTransactions.map((transaction) => {
@@ -452,7 +458,7 @@ export function TransactionsPage() {
                       linkedCashLeg,
                       isExpanded,
                       onToggleLinkedCashLeg: toggleLinkedCashLeg,
-                      onEdit: startEdit,
+                      onDetail: startDetail,
                       onDelete: handleDelete
                     })}
                     {linkedCashLeg && isExpanded
@@ -466,7 +472,7 @@ export function TransactionsPage() {
                           linkedCashLeg: undefined,
                           isExpanded: false,
                           onToggleLinkedCashLeg: toggleLinkedCashLeg,
-                          onEdit: startEdit,
+                          onDetail: startDetail,
                           onDelete: handleDelete,
                           isChildRow: true
                         })
@@ -485,25 +491,32 @@ export function TransactionsPage() {
         subtitle="现金类交易请选择对应币种的现金标的"
         onClose={closeDrawer}
         footer={
-          <>
-            <button
-              className="primary-button"
-              type="submit"
-              form="transaction-drawer-form"
-              disabled={saving || !form.accountId || accounts.length === 0 || eligibleInstruments.length === 0}
-            >
-              <Save size={17} aria-hidden="true" />
-              <span>{saving ? "保存中..." : editingTransactionId ? "保存修改" : "新增交易"}</span>
-            </button>
-            <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+          drawerMode === "view" ? (
+            <button className="secondary-button" type="button" onClick={closeDrawer}>
               <X size={17} aria-hidden="true" />
-              <span>取消</span>
+              <span>关闭</span>
             </button>
-          </>
+          ) : (
+            <>
+              <button
+                className="primary-button"
+                type="submit"
+                form="transaction-drawer-form"
+                disabled={saving || !form.accountId || accounts.length === 0 || eligibleInstruments.length === 0}
+              >
+                <Save size={17} aria-hidden="true" />
+                <span>{saving ? "保存中..." : editingTransactionId ? "保存修改" : "新增交易"}</span>
+              </button>
+              <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+                <X size={17} aria-hidden="true" />
+                <span>取消</span>
+              </button>
+            </>
+          )
         }
       >
         <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={handleSubmit}>
-          {editingTransactionId ? (
+          {editingTransactionId && drawerMode === "modify" ? (
             <p className="form-warning transaction-edit-warning">
               修改交易记录可能会自动更新关联现金流水，并重新计算受影响日期之后的资产快照。交易类型不可在编辑时修改，如需更换类型请删除后重新新增。
             </p>
@@ -514,7 +527,7 @@ export function TransactionsPage() {
             <select
               value={form.transactionType}
               onChange={(event) => changeTransactionType(event.target.value as TransactionType)}
-              disabled={Boolean(editingTransactionId)}
+              disabled={Boolean(editingTransactionId) || isDrawerReadOnly}
             >
               {form.transactionType === "tax" ? (
                 <option value="tax" disabled>
@@ -531,7 +544,12 @@ export function TransactionsPage() {
 
           <label className="transaction-instrument-field">
             投资标的
-            <select value={form.instrumentId} onChange={(event) => setForm({ ...form, instrumentId: event.target.value })} required>
+            <select
+              value={form.instrumentId}
+              onChange={(event) => setForm({ ...form, instrumentId: event.target.value })}
+              disabled={isDrawerReadOnly}
+              required
+            >
               <option value="">请选择标的</option>
               {eligibleInstruments.map((instrument) => (
                 <option key={instrument.id} value={instrument.id}>
@@ -543,13 +561,24 @@ export function TransactionsPage() {
 
           <label>
             {isOpeningTransaction ? "期初日期" : "交易日期"}
-            <input type="date" value={form.tradeDate} onChange={(event) => setForm({ ...form, tradeDate: event.target.value })} required />
+            <input
+              type="date"
+              value={form.tradeDate}
+              onChange={(event) => setForm({ ...form, tradeDate: event.target.value })}
+              disabled={isDrawerReadOnly}
+              required
+            />
           </label>
 
           {!isOpeningTransaction ? (
             <label>
               结算日期
-              <input type="date" value={form.settlementDate} onChange={(event) => setForm({ ...form, settlementDate: event.target.value })} />
+              <input
+                type="date"
+                value={form.settlementDate}
+                onChange={(event) => setForm({ ...form, settlementDate: event.target.value })}
+                disabled={isDrawerReadOnly}
+              />
             </label>
           ) : null}
 
@@ -568,7 +597,13 @@ export function TransactionsPage() {
           {isTrade || isOpeningPosition ? (
             <label>
               数量
-              <input value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} placeholder="0.0000000000" required />
+              <input
+                value={form.quantity}
+                onChange={(event) => setForm({ ...form, quantity: event.target.value })}
+                placeholder="0.0000000000"
+                disabled={isDrawerReadOnly}
+                required
+              />
             </label>
           ) : null}
 
@@ -576,7 +611,13 @@ export function TransactionsPage() {
             <>
               <label>
                 单价
-                <input value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} placeholder="0.0000000000" required />
+                <input
+                  value={form.price}
+                  onChange={(event) => setForm({ ...form, price: event.target.value })}
+                  placeholder="0.0000000000"
+                  disabled={isDrawerReadOnly}
+                  required
+                />
               </label>
               <label>
                 成交总额
@@ -588,21 +629,39 @@ export function TransactionsPage() {
           {hasGrossAmount ? (
             <label>
               金额
-              <input value={form.grossAmount} onChange={(event) => setForm({ ...form, grossAmount: event.target.value })} placeholder="0.000000" required />
+              <input
+                value={form.grossAmount}
+                onChange={(event) => setForm({ ...form, grossAmount: event.target.value })}
+                placeholder="0.000000"
+                disabled={isDrawerReadOnly}
+                required
+              />
             </label>
           ) : null}
 
           {hasFee ? (
             <label>
               费用
-              <input value={form.fee} onChange={(event) => setForm({ ...form, fee: event.target.value })} placeholder={form.transactionType === "fee" ? "必填" : "可选"} required={form.transactionType === "fee"} />
+              <input
+                value={form.fee}
+                onChange={(event) => setForm({ ...form, fee: event.target.value })}
+                placeholder={form.transactionType === "fee" ? "必填" : "可选"}
+                disabled={isDrawerReadOnly}
+                required={form.transactionType === "fee"}
+              />
             </label>
           ) : null}
 
           {hasTax ? (
             <label>
               税务记录
-              <input value={form.tax} onChange={(event) => setForm({ ...form, tax: event.target.value })} placeholder={form.transactionType === "tax" ? "必填" : "可选"} required={form.transactionType === "tax"} />
+              <input
+                value={form.tax}
+                onChange={(event) => setForm({ ...form, tax: event.target.value })}
+                placeholder={form.transactionType === "tax" ? "必填" : "可选"}
+                disabled={isDrawerReadOnly}
+                required={form.transactionType === "tax"}
+              />
             </label>
           ) : null}
 
@@ -612,6 +671,7 @@ export function TransactionsPage() {
               <select
                 value={form.adjustmentDirection}
                 onChange={(event) => setForm({ ...form, adjustmentDirection: event.target.value as AdjustmentDirection })}
+                disabled={isDrawerReadOnly}
               >
                 {ADJUSTMENT_DIRECTIONS.map((direction) => (
                   <option key={direction} value={direction}>
@@ -624,7 +684,13 @@ export function TransactionsPage() {
 
           <label className="wide-field">
             备注
-            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="可选" rows={2} />
+            <textarea
+              value={form.notes}
+              onChange={(event) => setForm({ ...form, notes: event.target.value })}
+              placeholder="可选"
+              rows={2}
+              disabled={isDrawerReadOnly}
+            />
           </label>
         </form>
       </Drawer>
@@ -659,7 +725,7 @@ interface RenderTransactionRowInput {
   linkedCashLeg: InvestmentTransaction | undefined;
   isExpanded: boolean;
   onToggleLinkedCashLeg: (transactionId: string) => void;
-  onEdit: (transaction: InvestmentTransaction) => void;
+  onDetail: (transaction: InvestmentTransaction) => void;
   onDelete: (transaction: InvestmentTransaction) => void | Promise<void>;
   isChildRow?: boolean;
 }
@@ -675,7 +741,7 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
     linkedCashLeg,
     isExpanded,
     onToggleLinkedCashLeg,
-    onEdit,
+    onDetail,
     onDelete,
     isChildRow = false
   } = input;
@@ -721,38 +787,32 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
       <td>{transaction.currency}</td>
       <td>{formatSettlement(transaction)}</td>
       <td>{transaction.notes ?? "-"}</td>
-      {isAdmin ? (
-        <td>
-          <div className="table-actions">
-            {transaction.transactionSource === "generated_cash_leg" ? (
-              <span className="readonly-note">自动生成</span>
-            ) : (
-              <>
-                <button
-                  aria-label={`编辑交易记录 ${transaction.tradeDate}`}
-                  className="icon-button"
-                  title="编辑"
-                  type="button"
-                  onClick={() => onEdit(transaction)}
-                  disabled={saving}
-                >
-                  <Pencil size={16} aria-hidden="true" />
-                </button>
-                <button
-                  aria-label={`删除交易记录 ${transaction.tradeDate}`}
-                  className="icon-button danger-icon-button"
-                  title="删除"
-                  type="button"
-                  onClick={() => void onDelete(transaction)}
-                  disabled={saving}
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </button>
-              </>
-            )}
-          </div>
-        </td>
-      ) : null}
+      <td>
+        <div className="table-actions">
+          <button
+            aria-label={`${isAdmin && transaction.transactionSource !== "generated_cash_leg" ? "编辑" : "查看"}交易记录 ${transaction.tradeDate}`}
+            className="icon-button"
+            title={isAdmin && transaction.transactionSource !== "generated_cash_leg" ? "查看/编辑" : "查看"}
+            type="button"
+            onClick={() => onDetail(transaction)}
+            disabled={saving}
+          >
+            <Eye size={16} aria-hidden="true" />
+          </button>
+          {isAdmin && transaction.transactionSource !== "generated_cash_leg" ? (
+            <button
+              aria-label={`删除交易记录 ${transaction.tradeDate}`}
+              className="icon-button danger-icon-button"
+              title="删除"
+              type="button"
+              onClick={() => void onDelete(transaction)}
+              disabled={saving}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+      </td>
     </tr>
   );
 }

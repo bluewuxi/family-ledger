@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Eye, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPES,
@@ -82,6 +82,8 @@ interface OpeningEntryFormRow {
   notes: string;
 }
 
+type DrawerMode = "create" | "view" | "modify";
+
 const today = getLocalDateString();
 const snapshotStartDate = "2000-01-01";
 
@@ -112,25 +114,25 @@ export function AccountsPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<AccountFormState>(emptyForm);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [includeOpeningAssets, setIncludeOpeningAssets] = useState(false);
   const [openingTradeDate, setOpeningTradeDate] = useState(today);
   const [openingRows, setOpeningRows] = useState<OpeningEntryFormRow[]>(() => [emptyOpeningRow()]);
-  const [passwordDialogAccount, setPasswordDialogAccount] = useState<InvestmentAccount | null>(null);
   const [extraPassword, setExtraPassword] = useState("");
   const [revealedTradingPassword, setRevealedTradingPassword] = useState<string | null>(null);
   const [newTradingPassword, setNewTradingPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
   const fallbackSnapshotCurrency = toSnapshotDisplayCurrency(preferences.preferredCurrency);
-  const formTitle = editingAccountId ? "编辑账户" : "新增账户";
+  const formTitle = drawerMode === "create" ? "新增账户" : drawerMode === "modify" ? "编辑账户" : "账户详情";
   const editingAccount = useMemo(
     () => accounts.find((account) => account.id === editingAccountId) ?? null,
     [accounts, editingAccountId]
   );
+  const isDrawerReadOnly = drawerMode === "view";
   const editingAccountHasHistory = editingAccountId
     ? transactions.some((transaction) => transaction.accountId === editingAccountId)
     : false;
@@ -165,14 +167,30 @@ export function AccountsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isDrawerReadOnly) {
+      return;
+    }
+
     setSaving(true);
     setError(null);
+    setPasswordError(null);
 
     try {
       const payload = toAccountInput(form);
       const data = editingAccountId
         ? await apiPut<AccountResponse>(`/accounts/${editingAccountId}`, payload)
         : await apiPost<AccountResponse>("/accounts", payload);
+
+      if (
+        editingAccountId &&
+        revealedTradingPassword !== null &&
+        newTradingPassword !== revealedTradingPassword
+      ) {
+        await apiPut<AccountPasswordUpdateResponse>(`/accounts/${editingAccountId}/trading-password`, {
+          extraPassword,
+          tradingPassword: newTradingPassword
+        });
+      }
 
       const createdOpeningTransactions = includeOpeningAssets
         ? await createOpeningTransactions(data.account.id)
@@ -242,12 +260,15 @@ export function AccountsPage() {
 
   function startCreate() {
     setEditingAccountId(null);
+    setDrawerMode("create");
     resetDrawerForm();
+    resetTradingPasswordReveal();
     setDrawerOpen(true);
   }
 
-  function startEdit(account: InvestmentAccount) {
+  function startDetail(account: InvestmentAccount) {
     setEditingAccountId(account.id);
+    setDrawerMode(isAdmin ? "modify" : "view");
     setForm({
       name: account.name,
       broker: account.broker ?? "",
@@ -259,13 +280,16 @@ export function AccountsPage() {
     });
     setIncludeOpeningAssets(false);
     setOpeningRows([emptyOpeningRow()]);
+    resetTradingPasswordReveal();
     setDrawerOpen(true);
   }
 
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingAccountId(null);
+    setDrawerMode("create");
     resetDrawerForm();
+    resetTradingPasswordReveal();
   }
 
   function resetDrawerForm() {
@@ -287,28 +311,16 @@ export function AccountsPage() {
     setOpeningRows((current) => (current.length > 1 ? current.filter((row) => row.id !== id) : current));
   }
 
-  function openPasswordDialog(account: InvestmentAccount) {
-    setPasswordDialogAccount(account);
-    setExtraPassword("");
-    setRevealedTradingPassword(null);
-    setNewTradingPassword("");
-    setPasswordError(null);
-  }
-
-  function closePasswordDialog() {
-    setPasswordDialogAccount(null);
+  function resetTradingPasswordReveal() {
     setExtraPassword("");
     setRevealedTradingPassword(null);
     setNewTradingPassword("");
     setPasswordError(null);
     setPasswordLoading(false);
-    setPasswordSaving(false);
   }
 
-  async function handleRevealPassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!passwordDialogAccount) {
+  async function handleRevealPassword() {
+    if (!editingAccountId) {
       return;
     }
 
@@ -317,7 +329,7 @@ export function AccountsPage() {
 
     try {
       const data = await apiPost<AccountPasswordRevealResponse>(
-        `/accounts/${passwordDialogAccount.id}/trading-password/reveal`,
+        `/accounts/${editingAccountId}/trading-password/reveal`,
         { extraPassword }
       );
       setRevealedTradingPassword(data.tradingPassword);
@@ -327,29 +339,6 @@ export function AccountsPage() {
       setPasswordError(toErrorMessage(requestError));
     } finally {
       setPasswordLoading(false);
-    }
-  }
-
-  async function handleUpdatePassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!passwordDialogAccount) {
-      return;
-    }
-
-    setPasswordSaving(true);
-    setPasswordError(null);
-
-    try {
-      await apiPut<AccountPasswordUpdateResponse>(`/accounts/${passwordDialogAccount.id}/trading-password`, {
-        extraPassword,
-        tradingPassword: newTradingPassword
-      });
-      setRevealedTradingPassword(newTradingPassword);
-    } catch (requestError) {
-      setPasswordError(toErrorMessage(requestError));
-    } finally {
-      setPasswordSaving(false);
     }
   }
 
@@ -390,18 +379,17 @@ export function AccountsPage() {
               <th>基准货币</th>
               <th className="numeric-cell">账户总额</th>
               <th>主要市场</th>
-              <th>交易信息</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8}>正在加载账户...</td>
+                <td colSpan={7}>正在加载账户...</td>
               </tr>
             ) : accounts.length === 0 ? (
               <tr>
-                <td colSpan={8}>暂无投资账户。</td>
+                <td colSpan={7}>暂无投资账户。</td>
               </tr>
             ) : (
               accounts.map((account) => (
@@ -412,31 +400,19 @@ export function AccountsPage() {
                   <td>{account.baseCurrency}</td>
                   <td className="numeric-cell">{formatAccountTotal(accountTotals.get(account.id))}</td>
                   <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
-                  <td className="text-cell">{account.tradingInfo ?? "-"}</td>
                   <td>
                     <div className="table-actions">
                       <button
-                        aria-label={`查看交易密码 ${account.name}`}
+                        aria-label={`${isAdmin ? "编辑" : "查看"}账户 ${account.name}`}
                         className="icon-button"
-                        title="查看交易密码"
+                        title={isAdmin ? "查看/编辑" : "查看"}
                         type="button"
-                        onClick={() => openPasswordDialog(account)}
+                        onClick={() => startDetail(account)}
                         disabled={saving}
                       >
                         <Eye size={17} aria-hidden="true" />
                       </button>
                       {isAdmin ? (
-                        <>
-                        <button
-                          aria-label={`编辑账户 ${account.name}`}
-                          className="icon-button"
-                          title="编辑"
-                          type="button"
-                          onClick={() => startEdit(account)}
-                          disabled={saving}
-                        >
-                          <Pencil size={17} aria-hidden="true" />
-                        </button>
                         <button
                           aria-label={`删除账户 ${account.name}`}
                           className="icon-button danger-icon-button"
@@ -447,7 +423,6 @@ export function AccountsPage() {
                         >
                           <Trash2 size={17} aria-hidden="true" />
                         </button>
-                        </>
                       ) : null}
                     </div>
                   </td>
@@ -461,17 +436,27 @@ export function AccountsPage() {
       <Drawer
         open={drawerOpen}
         title={formTitle}
-        subtitle={editingAccount ? `正在编辑：${editingAccount.name}` : "新增后会立即显示在列表中"}
+        subtitle={
+          editingAccount
+            ? `${drawerMode === "modify" ? "正在编辑" : "正在查看"}：${editingAccount.name}`
+            : "新增后会立即显示在列表中"
+        }
         onClose={closeDrawer}
         footer={
-          <>
-            <button className="primary-button" type="submit" form="account-drawer-form" disabled={saving}>
-              {saving ? "保存中..." : editingAccountId ? "保存修改" : "新增账户"}
+          drawerMode === "view" ? (
+            <button className="secondary-button" type="button" onClick={closeDrawer}>
+              关闭
             </button>
-            <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
-              取消
-            </button>
-          </>
+          ) : (
+            <>
+              <button className="primary-button" type="submit" form="account-drawer-form" disabled={saving}>
+                {saving ? "保存中..." : editingAccountId ? "保存修改" : "新增账户"}
+              </button>
+              <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+                取消
+              </button>
+            </>
+          )
         }
       >
         <form className="account-form drawer-form" id="account-drawer-form" onSubmit={handleSubmit}>
@@ -481,6 +466,7 @@ export function AccountsPage() {
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               placeholder="例如 Hatch 美股账户"
+              disabled={isDrawerReadOnly}
               required
             />
           </label>
@@ -491,6 +477,7 @@ export function AccountsPage() {
               value={form.broker}
               onChange={(event) => setForm({ ...form, broker: event.target.value })}
               placeholder="例如 Hatch、IBKR、InvestNow"
+              disabled={isDrawerReadOnly}
             />
           </label>
 
@@ -499,6 +486,7 @@ export function AccountsPage() {
             <select
               value={form.accountType}
               onChange={(event) => setForm({ ...form, accountType: event.target.value as AccountType })}
+              disabled={isDrawerReadOnly}
             >
               {ACCOUNT_TYPES.map((accountType) => (
                 <option key={accountType} value={accountType}>
@@ -513,6 +501,7 @@ export function AccountsPage() {
             <select
               value={form.baseCurrency}
               onChange={(event) => setForm({ ...form, baseCurrency: event.target.value as CurrencyCode })}
+              disabled={isDrawerReadOnly}
             >
               {CURRENCY_CODES.map((currency) => (
                 <option key={currency} value={currency}>
@@ -527,6 +516,7 @@ export function AccountsPage() {
             <select
               value={form.marketRegion}
               onChange={(event) => setForm({ ...form, marketRegion: event.target.value as MarketRegion })}
+              disabled={isDrawerReadOnly}
             >
               {MARKET_REGIONS.map((marketRegion) => (
                 <option key={marketRegion} value={marketRegion}>
@@ -538,7 +528,13 @@ export function AccountsPage() {
 
           <label className="wide-field">
             备注
-            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="可选" rows={3} />
+            <textarea
+              value={form.notes}
+              onChange={(event) => setForm({ ...form, notes: event.target.value })}
+              placeholder="可选"
+              rows={3}
+              disabled={isDrawerReadOnly}
+            />
           </label>
 
           <label className="wide-field">
@@ -549,19 +545,70 @@ export function AccountsPage() {
               onChange={(event) => setForm({ ...form, tradingInfo: event.target.value })}
               placeholder="例如 App 安装方式、登录入口、账号提示和操作注意事项"
               rows={6}
+              disabled={isDrawerReadOnly}
             />
           </label>
 
-          <label className="checkbox-field wide-field">
-            <input
-              type="checkbox"
-              checked={includeOpeningAssets}
-              onChange={(event) => setIncludeOpeningAssets(event.target.checked)}
-            />
-            同时录入期初资产
-          </label>
+          {editingAccountId ? (
+            <section className="drawer-secret-section wide-field">
+              <div className="settings-section-header drawer-inner-panel">
+                <div>
+                  <h2>交易密码</h2>
+                  <p>输入额外密码后才会显示。未显示时，保存账户不会更新交易密码。</p>
+                </div>
+              </div>
 
-          {includeOpeningAssets ? (
+              {passwordError ? <p className="form-error">{passwordError}</p> : null}
+
+              <div className="secret-dialog-form">
+                <label>
+                  额外密码
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={extraPassword}
+                    onChange={(event) => setExtraPassword(event.target.value)}
+                    disabled={revealedTradingPassword !== null || passwordLoading || saving}
+                    required
+                  />
+                </label>
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => void handleRevealPassword()}
+                  disabled={revealedTradingPassword !== null || passwordLoading || saving || !extraPassword.trim()}
+                >
+                  <KeyRound size={17} aria-hidden="true" />
+                  <span>{revealedTradingPassword !== null ? "已验证" : passwordLoading ? "验证中..." : "查看密码"}</span>
+                </button>
+              </div>
+
+              {revealedTradingPassword !== null ? (
+                <label className="secret-value-field">
+                  当前交易密码
+                  <textarea
+                    readOnly={!isAdmin}
+                    value={isAdmin ? newTradingPassword : revealedTradingPassword}
+                    onChange={(event) => setNewTradingPassword(event.target.value)}
+                    rows={3}
+                  />
+                </label>
+              ) : null}
+            </section>
+          ) : null}
+
+          {drawerMode !== "view" ? (
+            <label className="checkbox-field wide-field">
+              <input
+                type="checkbox"
+                checked={includeOpeningAssets}
+                onChange={(event) => setIncludeOpeningAssets(event.target.checked)}
+              />
+              同时录入期初资产
+            </label>
+          ) : null}
+
+          {drawerMode !== "view" && includeOpeningAssets ? (
             <>
               <label>
                 期初日期
@@ -648,72 +695,6 @@ export function AccountsPage() {
           ) : null}
         </form>
       </Drawer>
-
-      {passwordDialogAccount ? (
-        <div className="secret-dialog-backdrop" role="presentation" onMouseDown={closePasswordDialog}>
-          <section
-            aria-labelledby="trading-password-dialog-title"
-            aria-modal="true"
-            className="secret-dialog"
-            role="dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header className="secret-dialog-header">
-              <div>
-                <h2 id="trading-password-dialog-title">交易密码</h2>
-                <p>{passwordDialogAccount.name}</p>
-              </div>
-              <button aria-label="关闭" className="icon-button" type="button" onClick={closePasswordDialog}>
-                <span aria-hidden="true">×</span>
-              </button>
-            </header>
-
-            {passwordError ? <p className="form-error">{passwordError}</p> : null}
-
-            <form className="secret-dialog-form" onSubmit={handleRevealPassword}>
-              <label>
-                额外密码
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={extraPassword}
-                  onChange={(event) => setExtraPassword(event.target.value)}
-                  disabled={revealedTradingPassword !== null || passwordLoading || passwordSaving}
-                  required
-                />
-              </label>
-              <button className="primary-button" type="submit" disabled={revealedTradingPassword !== null || passwordLoading || passwordSaving}>
-                <KeyRound size={17} aria-hidden="true" />
-                <span>{revealedTradingPassword !== null ? "已验证" : passwordLoading ? "验证中..." : "查看密码"}</span>
-              </button>
-            </form>
-
-            {revealedTradingPassword !== null ? (
-              <label className="secret-value-field">
-                当前交易密码
-                <textarea readOnly value={revealedTradingPassword} rows={3} />
-              </label>
-            ) : null}
-
-            {revealedTradingPassword !== null && isAdmin ? (
-              <form className="secret-dialog-form" onSubmit={handleUpdatePassword}>
-                <label>
-                  更新交易密码
-                  <textarea
-                    value={newTradingPassword}
-                    onChange={(event) => setNewTradingPassword(event.target.value)}
-                    rows={3}
-                    required
-                  />
-                </label>
-                <button className="secondary-button" type="submit" disabled={passwordLoading || passwordSaving}>
-                  {passwordSaving ? "保存中..." : "保存交易密码"}
-                </button>
-              </form>
-            ) : null}
-          </section>
-        </div>
-      ) : null}
     </section>
   );
 }

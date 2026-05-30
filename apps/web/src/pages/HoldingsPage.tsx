@@ -235,7 +235,7 @@ export function HoldingsPage() {
                   <td>{formatInstrument(holding)}</td>
                   <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
                   <td>{holding.currency}</td>
-                  <td className="numeric-cell">{holding.quantity}</td>
+                  <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
                   <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
                   <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
                   <td className="numeric-cell">{formatLatestPrice(holding)}</td>
@@ -331,6 +331,35 @@ function formatLatestPrice(holding: ValuedHoldingSummary): ReactNode {
       ) : null}
     </>
   );
+}
+
+function formatHoldingQuantity(holding: ValuedHoldingSummary): string {
+  if (holding.assetType === "cash") {
+    return formatDisplayAmount(holding.quantity);
+  }
+
+  return formatCompactDecimal(holding.quantity, 6);
+}
+
+function formatCompactDecimal(value: string | number | null | undefined, maximumFractionDigits: number): string {
+  if (value === null || value === undefined) {
+    return "--";
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return "--";
+  }
+
+  const numericValue = Number(normalized);
+  if (!Number.isFinite(numericValue)) {
+    return normalized;
+  }
+
+  return numericValue.toLocaleString("zh-CN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits
+  });
 }
 
 function unique<T>(values: T[]): T[] {

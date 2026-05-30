@@ -936,10 +936,16 @@ textarea {
   align-items: center;
 }
 
+.table-actions {
+  flex-wrap: nowrap;
+  width: max-content;
+}
+
 .filter-actions {
   display: flex;
   gap: 10px;
   align-items: center;
+  min-width: max-content;
 }
 
 .form-warning {
@@ -1023,8 +1029,21 @@ textarea {
   margin-bottom: 18px;
 }
 
+.filter-bar > * {
+  min-width: 0;
+}
+
 .transaction-filter-bar {
-  grid-template-columns: minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(360px, 2.4fr) minmax(150px, 0.8fr) auto;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(220px, 2fr) minmax(130px, 0.8fr) auto;
+}
+
+.data-maintenance-filter-bar {
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)) auto;
+}
+
+.data-maintenance-filter-bar button,
+.transaction-filter-bar .filter-actions {
+  align-self: end;
 }
 
 .filter-bar label {
@@ -1036,6 +1055,7 @@ textarea {
 
 .filter-bar input,
 .filter-bar select {
+  width: 100%;
   min-height: 42px;
   border: 1px solid var(--color-border-strong);
   border-radius: 6px;
@@ -1256,12 +1276,20 @@ textarea {
   border-radius: 6px;
   padding: 8px 12px;
   cursor: pointer;
+  white-space: nowrap;
   transition:
     transform 120ms ease,
     background-color 160ms ease,
     border-color 160ms ease,
     color 160ms ease,
     box-shadow 160ms ease;
+}
+
+.primary-button span,
+.secondary-button span,
+.text-button span,
+.danger-button span {
+  white-space: nowrap;
 }
 
 .primary-button svg,
@@ -1744,15 +1772,15 @@ table {
 }
 
 .account-table {
-  min-width: 1120px;
+  min-width: 980px;
 }
 
 .instrument-table {
-  min-width: 1060px;
+  min-width: 1000px;
 }
 
 .transaction-table {
-  min-width: 1220px;
+  min-width: 1180px;
 }
 
 .transaction-expand-column {
@@ -2228,6 +2256,69 @@ tr.editing-row td {
 
 .data-maintenance-job-table {
   min-width: 1060px;
+}
+
+.data-maintenance-provider-table {
+  min-width: 920px;
+}
+
+.detail-drawer-content {
+  display: grid;
+  gap: 22px;
+}
+
+.detail-section {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-section h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.detail-grid div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-panel-soft);
+  padding: 10px 12px;
+}
+
+.detail-grid dt {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detail-grid dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.drawer-secret-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.drawer-inner-panel {
+  display: block;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .data-maintenance-backup-summary {
@@ -3045,9 +3136,14 @@ tr.editing-row td {
     gap: 14px;
   }
 
+  .data-maintenance-filter-bar > button {
+    width: 100%;
+  }
+
   .filter-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
   }
 
   .opening-entry-notes,
@@ -3207,6 +3303,10 @@ tr.editing-row td {
   .filter-actions,
   .drawer-footer {
     grid-template-columns: 1fr;
+  }
+
+  .transaction-filter-bar .filter-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .drawer-footer {

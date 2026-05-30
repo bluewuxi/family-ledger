@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Eye, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ASSET_TYPE_LABELS,
   ASSET_TYPES,
@@ -53,6 +53,8 @@ interface InstrumentFormState {
   notes: string;
 }
 
+type DrawerMode = "create" | "view" | "modify";
+
 const emptyForm: InstrumentFormState = {
   symbol: "",
   name: "",
@@ -83,14 +85,16 @@ export function InstrumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<InstrumentFormState>(emptyForm);
   const [editingInstrumentId, setEditingInstrumentId] = useState<string | null>(null);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isAdmin = user?.role === "admin";
-  const formTitle = editingInstrumentId ? "编辑投资标的" : "新增投资标的";
+  const formTitle = drawerMode === "create" ? "新增投资标的" : drawerMode === "modify" ? "编辑投资标的" : "投资标的详情";
   const editingInstrument = useMemo(
     () => instruments.find((instrument) => instrument.id === editingInstrumentId) ?? null,
     [instruments, editingInstrumentId]
   );
+  const isDrawerReadOnly = drawerMode === "view";
 
   useEffect(() => {
     void loadInstruments();
@@ -113,6 +117,10 @@ export function InstrumentsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isDrawerReadOnly) {
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -164,12 +172,14 @@ export function InstrumentsPage() {
 
   function startCreate() {
     setEditingInstrumentId(null);
+    setDrawerMode("create");
     setForm(emptyForm);
     setDrawerOpen(true);
   }
 
-  function startEdit(instrument: Instrument) {
+  function startDetail(instrument: Instrument) {
     setEditingInstrumentId(instrument.id);
+    setDrawerMode(isAdmin ? "modify" : "view");
     setForm({
       symbol: instrument.symbol ?? "",
       name: instrument.name,
@@ -195,6 +205,7 @@ export function InstrumentsPage() {
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingInstrumentId(null);
+    setDrawerMode("create");
     setForm(emptyForm);
   }
 
@@ -237,17 +248,17 @@ export function InstrumentsPage() {
               <th>类型</th>
               <th>价格来源</th>
               <th>自动更新</th>
-              {isAdmin ? <th>操作</th> : null}
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8}>正在加载投资标的...</td>
+                <td colSpan={9}>正在加载投资标的...</td>
               </tr>
             ) : instruments.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8}>暂无投资标的。</td>
+                <td colSpan={9}>暂无投资标的。</td>
               </tr>
             ) : (
               instruments.map((instrument) => (
@@ -258,21 +269,21 @@ export function InstrumentsPage() {
                   <td>{instrument.exchange ?? "-"}</td>
                   <td>{instrument.currency}</td>
                   <td>{ASSET_TYPE_LABELS[instrument.assetType]}</td>
-                  <td>{PRICE_SOURCE_LABELS[instrument.priceSource]}</td>
-                  <td>{instrument.priceUpdateEnabled ? "是" : "否"}</td>
-                  {isAdmin ? (
-                    <td>
-                      <div className="table-actions">
-                        <button
-                          aria-label={`编辑标的 ${instrument.name}`}
-                          className="icon-button"
-                          title="编辑"
-                          type="button"
-                          onClick={() => startEdit(instrument)}
-                          disabled={saving}
-                        >
-                          <Pencil size={15} aria-hidden="true" />
-                        </button>
+                  <td>{instrument.assetType === "cash" ? "-" : PRICE_SOURCE_LABELS[instrument.priceSource]}</td>
+                  <td>{instrument.assetType === "cash" ? "-" : instrument.priceUpdateEnabled ? "是" : "否"}</td>
+                  <td>
+                    <div className="table-actions">
+                      <button
+                        aria-label={`${isAdmin ? "编辑" : "查看"}标的 ${instrument.name}`}
+                        className="icon-button"
+                        title={isAdmin ? "查看/编辑" : "查看"}
+                        type="button"
+                        onClick={() => startDetail(instrument)}
+                        disabled={saving}
+                      >
+                        <Eye size={15} aria-hidden="true" />
+                      </button>
+                      {isAdmin ? (
                         <button
                           aria-label={`删除标的 ${instrument.name}`}
                           className="icon-button danger-icon-button"
@@ -283,9 +294,9 @@ export function InstrumentsPage() {
                         >
                           <Trash2 size={15} aria-hidden="true" />
                         </button>
-                      </div>
-                    </td>
-                  ) : null}
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -296,19 +307,30 @@ export function InstrumentsPage() {
       <Drawer
         open={drawerOpen}
         title={formTitle}
-        subtitle={editingInstrument ? `正在编辑：${editingInstrument.name}` : "价格来源仅保存配置，不会自动抓取行情"}
+        subtitle={
+          editingInstrument
+            ? `${drawerMode === "modify" ? "正在编辑" : "正在查看"}：${editingInstrument.name}`
+            : "价格来源仅保存配置，不会自动抓取行情"
+        }
         onClose={closeDrawer}
         footer={
-          <>
-            <button className="primary-button" type="submit" form="instrument-drawer-form" disabled={saving}>
-              {saving ? <RefreshCw size={17} aria-hidden="true" /> : editingInstrumentId ? <Save size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
-              <span>{saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}</span>
-            </button>
-            <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+          drawerMode === "view" ? (
+            <button className="secondary-button" type="button" onClick={closeDrawer}>
               <X size={17} aria-hidden="true" />
-              <span>取消</span>
+              <span>关闭</span>
             </button>
-          </>
+          ) : (
+            <>
+              <button className="primary-button" type="submit" form="instrument-drawer-form" disabled={saving}>
+                {saving ? <RefreshCw size={17} aria-hidden="true" /> : editingInstrumentId ? <Save size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
+                <span>{saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}</span>
+              </button>
+              <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+                <X size={17} aria-hidden="true" />
+                <span>取消</span>
+              </button>
+            </>
+          )
         }
       >
         <form className="instrument-form drawer-form" id="instrument-drawer-form" onSubmit={handleSubmit}>
@@ -318,6 +340,7 @@ export function InstrumentsPage() {
               value={form.symbol}
               onChange={(event) => setForm({ ...form, symbol: event.target.value })}
               placeholder="例如 AMD、0700"
+              disabled={isDrawerReadOnly}
               required={form.assetType !== "other"}
             />
           </label>
@@ -328,6 +351,7 @@ export function InstrumentsPage() {
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               placeholder="例如 Advanced Micro Devices"
+              disabled={isDrawerReadOnly}
               required
             />
           </label>
@@ -337,6 +361,7 @@ export function InstrumentsPage() {
             <select
               value={form.assetType}
               onChange={(event) => setForm({ ...form, assetType: event.target.value as AssetType })}
+              disabled={isDrawerReadOnly}
             >
               {ASSET_TYPES.map((assetType) => (
                 <option key={assetType} value={assetType}>
@@ -351,6 +376,7 @@ export function InstrumentsPage() {
             <select
               value={form.marketRegion}
               onChange={(event) => setForm({ ...form, marketRegion: event.target.value as MarketRegion })}
+              disabled={isDrawerReadOnly}
             >
               {MARKET_REGIONS.map((marketRegion) => (
                 <option key={marketRegion} value={marketRegion}>
@@ -366,6 +392,7 @@ export function InstrumentsPage() {
               value={form.exchange}
               onChange={(event) => setForm({ ...form, exchange: event.target.value })}
               placeholder="例如 NASDAQ、HKEX、CASH"
+              disabled={isDrawerReadOnly}
               required={form.assetType !== "other"}
             />
           </label>
@@ -375,6 +402,7 @@ export function InstrumentsPage() {
             <select
               value={form.currency}
               onChange={(event) => setForm({ ...form, currency: event.target.value as CurrencyCode })}
+              disabled={isDrawerReadOnly}
             >
               {CURRENCY_CODES.map((currency) => (
                 <option key={currency} value={currency}>
@@ -390,12 +418,13 @@ export function InstrumentsPage() {
               value={form.provider}
               onChange={(event) => setForm({ ...form, provider: event.target.value })}
               placeholder="例如 Vanguard、InvestNow"
+              disabled={isDrawerReadOnly}
             />
           </label>
 
           <label>
             ISIN
-            <input value={form.isin} onChange={(event) => setForm({ ...form, isin: event.target.value })} placeholder="可选" />
+            <input value={form.isin} onChange={(event) => setForm({ ...form, isin: event.target.value })} placeholder="可选" disabled={isDrawerReadOnly} />
           </label>
 
           <label>
@@ -403,6 +432,7 @@ export function InstrumentsPage() {
             <select
               value={form.priceSource}
               onChange={(event) => setForm({ ...form, priceSource: event.target.value as PriceSource })}
+              disabled={isDrawerReadOnly}
             >
               {PRICE_SOURCES.map((priceSource) => (
                 <option key={priceSource} value={priceSource} disabled={!supportedPriceSources.has(priceSource)}>
@@ -418,6 +448,7 @@ export function InstrumentsPage() {
               value={form.priceSourceSymbol}
               onChange={(event) => setForm({ ...form, priceSourceSymbol: event.target.value })}
               placeholder="例如 1810.HK"
+              disabled={isDrawerReadOnly}
             />
           </label>
 
@@ -427,6 +458,7 @@ export function InstrumentsPage() {
               value={form.priceSourceExchange}
               onChange={(event) => setForm({ ...form, priceSourceExchange: event.target.value })}
               placeholder="例如 HKEX"
+              disabled={isDrawerReadOnly}
             />
           </label>
 
@@ -438,6 +470,7 @@ export function InstrumentsPage() {
               step={1}
               value={form.priceUpdatePriority}
               onChange={(event) => setForm({ ...form, priceUpdatePriority: Number(event.target.value) })}
+              disabled={isDrawerReadOnly}
               required
             />
           </label>
@@ -448,6 +481,7 @@ export function InstrumentsPage() {
               type="checkbox"
               checked={form.priceUpdateEnabled}
               onChange={(event) => setForm({ ...form, priceUpdateEnabled: event.target.checked })}
+              disabled={isDrawerReadOnly}
             />
           </label>
 
@@ -457,6 +491,7 @@ export function InstrumentsPage() {
               type="datetime-local"
               value={form.sourceCheckedAt}
               onChange={(event) => setForm({ ...form, sourceCheckedAt: event.target.value })}
+              disabled={isDrawerReadOnly}
             />
           </label>
 
@@ -466,6 +501,7 @@ export function InstrumentsPage() {
               value={form.sourceUrl}
               onChange={(event) => setForm({ ...form, sourceUrl: event.target.value })}
               placeholder="可选，用于记录信息来源"
+              disabled={isDrawerReadOnly}
             />
           </label>
 
@@ -476,6 +512,7 @@ export function InstrumentsPage() {
               onChange={(event) => setForm({ ...form, description: event.target.value })}
               placeholder="可选，记录标的简介"
               rows={3}
+              disabled={isDrawerReadOnly}
             />
           </label>
 
@@ -486,6 +523,7 @@ export function InstrumentsPage() {
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
               placeholder="可选"
               rows={2}
+              disabled={isDrawerReadOnly}
             />
           </label>
         </form>

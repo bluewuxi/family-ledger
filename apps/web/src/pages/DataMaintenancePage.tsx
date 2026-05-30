@@ -17,6 +17,7 @@ import type {
 } from "@family-ledger/shared";
 import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-ledger/shared";
 import { PageTitle } from "../components/PageTitle";
+import { Drawer } from "../components/Drawer";
 import { ApiClientError, apiGet, apiPost } from "../lib/apiClient";
 import { formatDisplayPrice } from "../lib/numberFormat";
 import { formatLocalDateTime } from "../lib/timeFormat";
@@ -108,6 +109,7 @@ export function DataMaintenancePage() {
   const [backupRuns, setBackupRuns] = useState<DataMaintenanceBackupRun[]>([]);
   const [backupSummary, setBackupSummary] = useState<DataMaintenanceBackupSummary>(emptyBackupSummary);
   const [selectedJobRunId, setSelectedJobRunId] = useState<string | null>(null);
+  const [jobRunDetailOpen, setJobRunDetailOpen] = useState(false);
   const [fxPagination, setFxPagination] = useState<Pagination>(emptyPagination);
   const [pricePagination, setPricePagination] = useState<Pagination>(emptyPagination);
   const [logPagination, setLogPagination] = useState<Pagination>(emptyPagination);
@@ -117,10 +119,6 @@ export function DataMaintenancePage() {
   const [logFilters, setLogFilters] = useState<LogFilters>({ jobName: "", status: "", triggerSource: "" });
   const [loading, setLoading] = useState(false);
   const [triggeringKind, setTriggeringKind] = useState<DataMaintenanceRetrievalKind | null>(null);
-  const [manualRetrievalSelection, setManualRetrievalSelection] = useState<Record<DataKindOption, boolean>>({
-    exchange_rates: true,
-    instrument_prices: true
-  });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -233,9 +231,10 @@ export function DataMaintenancePage() {
       setJobRuns(data.jobRuns);
       setLogPagination(data.pagination);
 
-      const nextSelectedJobRunId = selectedJobRunId ?? data.jobRuns[0]?.id ?? null;
+      const nextSelectedJobRunId =
+        selectedJobRunId && data.jobRuns.some((jobRun) => jobRun.id === selectedJobRunId) ? selectedJobRunId : null;
       setSelectedJobRunId(nextSelectedJobRunId);
-      if (nextSelectedJobRunId) {
+      if (nextSelectedJobRunId && jobRunDetailOpen) {
         await loadProviderRuns(nextSelectedJobRunId);
       } else {
         setProviderRuns([]);
@@ -280,6 +279,7 @@ export function DataMaintenancePage() {
 
   async function handleSelectJobRun(jobRunId: string) {
     setSelectedJobRunId(jobRunId);
+    setJobRunDetailOpen(true);
     setError(null);
     await loadProviderRuns(jobRunId);
   }
@@ -298,18 +298,6 @@ export function DataMaintenancePage() {
     } finally {
       setTriggeringKind(null);
     }
-  }
-
-  function triggerSelectedRetrieval() {
-    const selectedKinds = dataKindOptions.filter((option) => manualRetrievalSelection[option.kind]);
-    if (selectedKinds.length === 0) {
-      setError("请至少选择一种要手动更新的数据。");
-      setNotice(null);
-      return;
-    }
-
-    const kind = selectedKinds.length === dataKindOptions.length ? "all" : selectedKinds[0].kind;
-    void triggerRetrieval(kind);
   }
 
   return (
@@ -351,21 +339,27 @@ export function DataMaintenancePage() {
       {activeTab === "logs" ? renderLogsTab() : null}
       {activeTab === "backups" ? renderBackupsTab() : null}
       {activeTab === "restore" ? renderRestoreTab() : null}
+      {renderJobRunDrawer()}
     </section>
   );
 
   function renderFxTab() {
     return (
       <section className="data-maintenance-panel">
-        <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
+        <Toolbar
+          isAdmin={isAdmin}
+          triggeringKind={triggeringKind}
+          title="汇率更新"
+          description="提交后台任务，更新外币估值汇率。完成情况请查看任务日志。"
+        >
           <ManualUpdateButton
-            label={triggeringKind === "exchange_rates" ? "提交中..." : "手动更新"}
+            label={triggeringKind === "exchange_rates" ? "提交中..." : "提交汇率更新"}
             onClick={() => void triggerRetrieval("exchange_rates")}
             disabled={triggeringKind !== null}
           />
         </Toolbar>
 
-        <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); void loadFxRates(0); }}>
+        <form className="filter-bar data-maintenance-filter-bar fx-filter-bar" onSubmit={(event) => { event.preventDefault(); void loadFxRates(0); }}>
           <label>
             开始日期
             <input type="date" value={fxFilters.from} onChange={(event) => setFxFilters({ ...fxFilters, from: event.target.value })} />
@@ -454,15 +448,20 @@ export function DataMaintenancePage() {
   function renderPricesTab() {
     return (
       <section className="data-maintenance-panel">
-        <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
+        <Toolbar
+          isAdmin={isAdmin}
+          triggeringKind={triggeringKind}
+          title="价格更新"
+          description="提交后台任务，抓取投资标的收盘价。完成情况请查看任务日志。"
+        >
           <ManualUpdateButton
-            label={triggeringKind === "instrument_prices" ? "提交中..." : "手动更新"}
+            label={triggeringKind === "instrument_prices" ? "提交中..." : "提交收盘价更新"}
             onClick={() => void triggerRetrieval("instrument_prices")}
             disabled={triggeringKind !== null}
           />
         </Toolbar>
 
-        <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); void loadPrices(0); }}>
+        <form className="filter-bar data-maintenance-filter-bar price-filter-bar" onSubmit={(event) => { event.preventDefault(); void loadPrices(0); }}>
           <label>
             开始日期
             <input type="date" value={priceFilters.from} onChange={(event) => setPriceFilters({ ...priceFilters, from: event.target.value })} />
@@ -537,28 +536,7 @@ export function DataMaintenancePage() {
   function renderLogsTab() {
     return (
       <section className="data-maintenance-panel">
-        <Toolbar isAdmin={isAdmin} triggeringKind={triggeringKind}>
-          <div className="data-maintenance-manual-options" aria-label="手动更新范围">
-            {dataKindOptions.map((option) => (
-              <label key={option.kind}>
-                <input
-                  type="checkbox"
-                  checked={manualRetrievalSelection[option.kind]}
-                  onChange={(event) =>
-                    setManualRetrievalSelection((current) => ({
-                      ...current,
-                      [option.kind]: event.target.checked
-                    }))
-                  }
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-          <ManualUpdateButton label={triggeringKind ? "提交中..." : "手动更新"} onClick={triggerSelectedRetrieval} disabled={triggeringKind !== null} />
-        </Toolbar>
-
-        <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); void loadJobRuns(0); }}>
+        <form className="filter-bar data-maintenance-filter-bar log-filter-bar" onSubmit={(event) => { event.preventDefault(); void loadJobRuns(0); }}>
           <label>
             任务
             <input value={logFilters.jobName} onChange={(event) => setLogFilters({ ...logFilters, jobName: event.target.value })} />
@@ -636,44 +614,108 @@ export function DataMaintenancePage() {
           </table>
         </DataMaintenanceTable>
         <PaginationControls pagination={logPagination} loading={loading} onPageChange={(offset) => void loadJobRuns(offset)} />
-
-        {selectedJobRun ? (
-          <DataMaintenanceTable title={`提供方日志：${selectedJobRun.jobName}`}>
-            <table>
-              <thead>
-                <tr>
-                  <th>提供方</th>
-                  <th>数据类型</th>
-                  <th>状态</th>
-                  <th>开始时间</th>
-                  <th>完成时间</th>
-                  <th className="numeric-cell">新增 / 跳过</th>
-                  <th>错误</th>
-                </tr>
-              </thead>
-              <tbody>
-                {providerRuns.length === 0 ? (
-                  <EmptyRow colSpan={7} label="暂无提供方日志。" />
-                ) : (
-                  providerRuns.map((run) => (
-                    <tr key={run.id}>
-                      <td>{run.provider}</td>
-                      <td>{run.dataKind === "exchange_rates" ? "汇率" : "价格"}</td>
-                      <td>{formatStatus(run.status)}</td>
-                      <td>{formatDateTime(run.providerStartedAt)}</td>
-                      <td>{formatDateTime(run.providerFinishedAt)}</td>
-                      <td className="numeric-cell">
-                        {run.recordsInserted} / {run.recordsSkipped}
-                      </td>
-                      <td>{run.errorMessage ?? "-"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </DataMaintenanceTable>
-        ) : null}
       </section>
+    );
+  }
+
+  function renderJobRunDrawer() {
+    if (!selectedJobRun) {
+      return null;
+    }
+
+    return (
+      <Drawer
+        open={jobRunDetailOpen}
+        title="任务详情"
+        subtitle={selectedJobRun.jobName}
+        onClose={() => setJobRunDetailOpen(false)}
+        footer={
+          <button className="secondary-button" type="button" onClick={() => setJobRunDetailOpen(false)}>
+            关闭
+          </button>
+        }
+      >
+        <div className="detail-drawer-content">
+          <section className="detail-section">
+            <h3>任务信息</h3>
+            <dl className="detail-grid">
+              <div>
+                <dt>状态</dt>
+                <dd>{formatStatus(selectedJobRun.status)}</dd>
+              </div>
+              <div>
+                <dt>触发方式</dt>
+                <dd>{formatTriggerSource(selectedJobRun.triggerSource)}</dd>
+              </div>
+              <div>
+                <dt>开始时间</dt>
+                <dd>{formatDateTime(selectedJobRun.jobStartedAt)}</dd>
+              </div>
+              <div>
+                <dt>完成时间</dt>
+                <dd>{formatDateTime(selectedJobRun.jobFinishedAt)}</dd>
+              </div>
+              <div>
+                <dt>新增 / 跳过</dt>
+                <dd>
+                  {selectedJobRun.recordsInserted} / {selectedJobRun.recordsSkipped}
+                </dd>
+              </div>
+              <div>
+                <dt>请求编号</dt>
+                <dd>{selectedJobRun.triggerRequestId ?? "-"}</dd>
+              </div>
+              <div>
+                <dt>触发用户</dt>
+                <dd>{selectedJobRun.triggeredByUserId ?? "-"}</dd>
+              </div>
+              <div>
+                <dt>记录更新时间</dt>
+                <dd>{formatDateTime(selectedJobRun.updatedAt)}</dd>
+              </div>
+            </dl>
+            {selectedJobRun.errorMessage ? <p className="form-error">{selectedJobRun.errorMessage}</p> : null}
+          </section>
+
+          <section className="detail-section">
+            <h3>提供方日志</h3>
+            <div className="table-wrap">
+              <table className="data-maintenance-provider-table">
+                <thead>
+                  <tr>
+                    <th>提供方</th>
+                    <th>数据类型</th>
+                    <th>状态</th>
+                    <th>开始时间</th>
+                    <th>完成时间</th>
+                    <th className="numeric-cell">新增 / 跳过</th>
+                    <th>错误</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {providerRuns.length === 0 ? (
+                    <EmptyRow colSpan={7} label="暂无提供方日志。" />
+                  ) : (
+                    providerRuns.map((run) => (
+                      <tr key={run.id}>
+                        <td>{run.provider}</td>
+                        <td>{run.dataKind === "exchange_rates" ? "汇率" : "价格"}</td>
+                        <td>{formatStatus(run.status)}</td>
+                        <td>{formatDateTime(run.providerStartedAt)}</td>
+                        <td>{formatDateTime(run.providerFinishedAt)}</td>
+                        <td className="numeric-cell">
+                          {run.recordsInserted} / {run.recordsSkipped}
+                        </td>
+                        <td>{run.errorMessage ?? "-"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </Drawer>
     );
   }
 
@@ -788,17 +830,21 @@ export function DataMaintenancePage() {
 function Toolbar({
   isAdmin,
   triggeringKind,
+  title,
+  description,
   children
 }: {
   isAdmin: boolean;
   triggeringKind: DataMaintenanceRetrievalKind | null;
+  title: string;
+  description: string;
   children: ReactNode;
 }) {
   return (
     <div className="settings-section-header">
       <div>
-        <h2>维护控制</h2>
-        <p>手动更新会提交后台任务：汇率更新外币估值汇率，价格更新投资标的收盘价。完成情况请查看任务日志。</p>
+        <h2>{title}</h2>
+        <p>{description}</p>
       </div>
       {isAdmin ? (
         <div className="data-maintenance-actions">{children}</div>
@@ -879,13 +925,6 @@ function PaginationControls({
     </div>
   );
 }
-
-type DataKindOption = "exchange_rates" | "instrument_prices";
-
-const dataKindOptions: Array<{ kind: DataKindOption; label: string }> = [
-  { kind: "exchange_rates", label: "汇率" },
-  { kind: "instrument_prices", label: "价格" }
-];
 
 function toQuery(input: Record<string, string | number | undefined>): string {
   const params = new URLSearchParams();
