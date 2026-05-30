@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
+import { formatHoursMinutes } from "../apps/web/src/lib/timeFormat";
 import { buildTrendChartData } from "../apps/web/src/lib/trendChartData";
 
 void main();
@@ -31,8 +32,16 @@ async function main(): Promise<void> {
 
   const dashboard = readFileSync("apps/web/src/pages/DashboardPage.tsx", "utf8");
   assert.match(dashboard, /最新变动/u);
-  assert.match(dashboard, /本交易日/u);
+  assert.doesNotMatch(dashboard, /本交易日/u);
   assert.doesNotMatch(dashboard, /今日变动/u);
+  assert.equal(formatHoursMinutes(201), "03小时 21分");
+
+  const timeFormat = readFileSync("apps/web/src/lib/timeFormat.ts", "utf8");
+  assert.match(timeFormat, /交易日/u);
+
+  const layout = readFileSync("apps/web/src/components/Layout.tsx", "utf8");
+  assert.doesNotMatch(layout, /<time/u);
+  assert.doesNotMatch(layout, /setInterval\(.*60_000/u);
 
   const aShareOpenTime = "2026-05-29T02:18:00.000Z";
   const sameDayLiveChart = buildTrendChartData(

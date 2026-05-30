@@ -74,3 +74,4 @@
 - Holdings reporting currency selector and filters (implemented: account, asset type/cash, and currency filters with valued totals)
 - Dashboard asset trend chart (implemented: uses portfolio snapshots)
 - Dashboard account allocation chart (implemented: uses latest available portfolio snapshot)
+- Dashboard daily trade count, holdings allocation chart, and business-day countdown (implemented)

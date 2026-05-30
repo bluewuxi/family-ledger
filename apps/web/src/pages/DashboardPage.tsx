@@ -13,7 +13,6 @@ import {
   YAxis
 } from "recharts";
 import {
-  getAppBusinessDayEndInstant,
   getAppBusinessDate,
   getLocalDateString,
   SNAPSHOT_DISPLAY_CURRENCIES,
@@ -35,7 +34,7 @@ import {
   formatSignedDisplayPercent
 } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
-import { formatLocalDateTimeNote } from "../lib/timeFormat";
+import { formatAppBusinessDayCountdown, formatLocalDateTimeNote } from "../lib/timeFormat";
 import { buildTrendChartData, isSyntheticTrendDate, type TrendChartPoint, type TrendPoint } from "../lib/trendChartData";
 
 interface DashboardResponse {
@@ -98,6 +97,12 @@ export function DashboardPage() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [snapshotsError, setSnapshotsError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [businessDayNow, setBusinessDayNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setBusinessDayNow(new Date()), 60_000);
+    return () => window.clearInterval(timerId);
+  }, []);
 
   useEffect(() => {
     if (!preferencesLoading && !currencyManuallySelected) {
@@ -222,7 +227,7 @@ export function DashboardPage() {
 
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
   const cashValue = dashboard?.allocations.find((allocation) => allocation.allocationType === "cash")?.marketValue;
-  const businessDayNote = useMemo(() => formatBusinessDayNote(new Date()), []);
+  const businessDayNote = useMemo(() => formatAppBusinessDayCountdown(businessDayNow), [businessDayNow]);
   const accountNames = useMemo(
     () => new Map((dashboard?.accounts ?? []).map((account) => [account.accountId, account.accountName])),
     [dashboard?.accounts]
@@ -243,6 +248,7 @@ export function DashboardPage() {
       toneClass: signedToneClass(dashboard?.unrealizedGain, preferences.gainColorScheme, 3)
     },
     { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency },
+    { label: "当日交易", value: dashboardLoading ? <LoadingState label="加载中" /> : String(dashboard?.dailyTradeCount ?? 0), compact: true },
     { label: "账户数量", value: dashboardLoading ? <LoadingState label="加载中" /> : String(dashboard?.accountCount ?? 0), compact: true }
   ];
 
@@ -284,6 +290,18 @@ export function DashboardPage() {
     },
     [dashboard]
   );
+  const holdingAllocationData = useMemo<AllocationPoint[]>(
+    () =>
+      (dashboard?.holdingAllocations ?? [])
+        .filter((allocation) => allocation.marketValue !== null && allocation.percentageOfTotal !== null)
+        .map((allocation) => ({
+          name: allocation.name,
+          value: Number(allocation.marketValue),
+          percentage: Number(allocation.percentageOfTotal)
+        }))
+        .filter((point) => Number.isFinite(point.value) && point.value > 0 && Number.isFinite(point.percentage)),
+    [dashboard?.holdingAllocations]
+  );
   const trendLoading = snapshotsLoading || !currencyInitialized;
   const allocationLoading = dashboardLoading || !currencyInitialized;
   const allocationDate = dashboard?.quoteDate ?? (dashboard?.quoteFetchedAt ? getLocalDateString(dashboard.quoteFetchedAt) : "暂无日期");
@@ -292,8 +310,11 @@ export function DashboardPage() {
     <section>
       <header className="page-header account-header dashboard-header">
         <div>
-          <PageTitle route="/dashboard">财富足迹</PageTitle>
-          <p>基于当前行情、汇率和每日快照，展示投资组合概览。</p>
+          <PageTitle route="/dashboard">
+            财富足迹
+            <span className="dashboard-title-tagline">资金永无眠</span>
+          </PageTitle>
+          <p>基于当前行情、汇率，展示投资组合概览。</p>
         </div>
         <div className="dashboard-controls">
           <CurrencySelect
@@ -323,7 +344,7 @@ export function DashboardPage() {
 
       <p className="business-day-note">{businessDayNote}</p>
 
-      <div className="metric-grid">
+      <div className="metric-grid dashboard-metric-grid">
         {metrics.map((metric) => (
           <article className={metric.compact ? "metric-card metric-card-compact" : "metric-card"} key={metric.label}>
             <span>{metric.label}</span>
@@ -340,35 +361,33 @@ export function DashboardPage() {
 
       {!dashboardLoading && dashboard ? <p className="quote-update-note">{formatQuoteUpdateNote(dashboard)}</p> : null}
 
-      <section className="dashboard-chart-section" aria-label="资产趋势和账户分布">
-        <div className="chart-section-header">
-          <div>
-            <h2>资产趋势</h2>
-            <p>来自已生成的组合快照，按当前报告币种显示。</p>
-          </div>
-          <div className="chart-header-controls">
-            <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
-              <CurrencyFlagIcon currency={activeCurrency} />
-              {activeCurrency}
-            </span>
-            <div className="range-toggle" aria-label="快照范围">
-              {snapshotRanges.map((days) => (
-                <button
-                  className={snapshotRangeDays === days ? "active" : undefined}
-                  key={days}
-                  type="button"
-                  onClick={() => setSnapshotRangeDays(days)}
-                >
-                  {days}天
-                </button>
-              ))}
+      <section className="dashboard-card-flow dashboard-chart-flow" aria-label="资产趋势、持仓分布、账户分布、最新成交和净值变动">
+        <article className="flow-card chart-panel trend-chart-panel">
+          <div className="chart-section-header">
+            <div>
+              <h2>资产趋势</h2>
+              <p>来自已生成的组合快照，按当前报告币种显示。</p>
+            </div>
+            <div className="chart-header-controls">
+              <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
+                <CurrencyFlagIcon currency={activeCurrency} />
+                {activeCurrency}
+              </span>
+              <div className="range-toggle" aria-label="快照范围">
+                {snapshotRanges.map((days) => (
+                  <button
+                    className={snapshotRangeDays === days ? "active" : undefined}
+                    key={days}
+                    type="button"
+                    onClick={() => setSnapshotRangeDays(days)}
+                  >
+                    {days}天
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-
-        {snapshotsError ? <p className="form-error">{snapshotsError}</p> : null}
-
-        <article className="chart-panel trend-chart-panel">
+          {snapshotsError ? <p className="form-error">{snapshotsError}</p> : null}
           {trendLoading ? (
             <LoadingBlock label="正在加载资产趋势" />
           ) : trendData.length === 0 ? (
@@ -429,9 +448,58 @@ export function DashboardPage() {
             </>
           )}
         </article>
-      </section>
 
-      <section className="dashboard-card-flow" aria-label="账户分布、最新成交和净值变动">
+        <article className="flow-card allocation-panel holding-allocation-panel">
+          <div className="allocation-heading">
+            <h2>持仓分布</h2>
+            <span>{allocationDate}</span>
+          </div>
+          {allocationLoading ? (
+            <LoadingBlock label="正在加载持仓分布" />
+          ) : holdingAllocationData.length === 0 ? (
+            <div className="empty-chart-state">暂无持仓估值数据</div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={holdingAllocationData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={54}
+                    outerRadius={86}
+                    paddingAngle={2}
+                  >
+                    {holdingAllocationData.map((entry, index) => (
+                      <Cell key={entry.name} fill={allocationColors[index % allocationColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={chartTooltipContentStyle}
+                    formatter={(value, _name, item) => [formatTooltipMoney(value), (item.payload as AllocationPoint).name]}
+                    itemStyle={chartTooltipItemStyle}
+                    labelStyle={chartTooltipLabelStyle}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="allocation-list">
+                {holdingAllocationData.map((entry, index) => (
+                  <div className="allocation-row" key={entry.name}>
+                    <span>
+                      <i style={{ background: allocationColors[index % allocationColors.length] }} />
+                      {entry.name}
+                    </span>
+                    <strong>
+                      {formatChartMoney(entry.value)}
+                      <small>{formatPercentage(entry.percentage)}</small>
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </article>
+
         <article className="flow-card allocation-panel">
           <div className="allocation-heading">
             <h2>账户分布</h2>
@@ -593,10 +661,12 @@ function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boo
   }
 
   return (
-    <>
-      {formatMetricWholeNumber(dashboard.todayChange, { signed: true })}
-      {dashboard.todayChangePct === null ? null : ` (${formatSignedDisplayPercent(dashboard.todayChangePct)}%)`}
-    </>
+    <span className="metric-inline-pair">
+      <span>{formatMetricWholeNumber(dashboard.todayChange, { signed: true })}</span>
+      {dashboard.todayChangePct === null ? null : (
+        <span className="metric-inline-secondary">{formatSignedDisplayPercent(dashboard.todayChangePct)}%</span>
+      )}
+    </span>
   );
 }
 
@@ -645,12 +715,6 @@ function formatWarning(warning: DashboardWarning): string {
     case "COST_BASIS_UNAVAILABLE":
       return `${instrument} 成本不可用，无法计算动态盈亏`;
   }
-}
-
-function formatBusinessDayNote(now: Date): string {
-  const businessDate = getAppBusinessDate(now);
-  const endInstant = getAppBusinessDayEndInstant(now);
-  return `本交易日 ${formatSlashDate(businessDate)}，将于 ${formatLocalMinute(endInstant)}（本地时间）结束`;
 }
 
 function buildTrendSummary(points: TrendPoint[], chartPoints: TrendChartPoint[]): {
@@ -746,21 +810,6 @@ function formatNullableSignedPercent(value: string | null): string {
   return value === null ? "--" : `${formatSignedDisplayPercent(value)}%`;
 }
 
-function formatSlashDate(value: string): string {
-  return value.replaceAll("-", "/");
-}
-
-function formatLocalMinute(value: string): string {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).format(new Date(value));
-}
-
 function getSnapshotDateRange(days: SnapshotRangeDays): { from: string; to: string } {
   const to = getAppBusinessDate();
   const toDate = new Date(`${to}T00:00:00.000Z`);
@@ -806,7 +855,7 @@ function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
 }
 
 function formatChartMoney(value: number): string {
-  return formatDisplayAmount(value);
+  return Math.round(value).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
 }
 
 function formatTooltipMoney(value: unknown): string {
@@ -815,7 +864,8 @@ function formatTooltipMoney(value: unknown): string {
 }
 
 function formatPercentage(value: number): string {
-  return `${formatDisplayPercent(value)}%`;
+  const formatted = formatDisplayPercent(value);
+  return Math.abs(value) < 10 ? ` ${formatted}%` : `${formatted}%`;
 }
 
 function formatCompactMoney(value: number): string {

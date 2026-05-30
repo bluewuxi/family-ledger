@@ -3,6 +3,7 @@ import type {
   CurrencyCode,
   DashboardAccountSummary,
   DashboardAllocationSummary,
+  DashboardHoldingAllocationSummary,
   DashboardQuoteRecord,
   DashboardSummary,
   DashboardWarning,
@@ -37,7 +38,8 @@ export function calculateDashboardSummary(
   prices: PriceRecord[],
   fxRates: ExchangeRateRecord[],
   reportingCurrency: SnapshotDisplayCurrency = "NZD",
-  dashboardQuotes: DashboardQuoteRecord[] = []
+  dashboardQuotes: DashboardQuoteRecord[] = [],
+  dailyTradeCount = 0
 ): DashboardSummary {
   const valuation = calculateValuedHoldings(holdings, prices, fxRates, reportingCurrency, dashboardQuotes);
   const quoteMetadata = getQuoteMetadata(dashboardQuotes);
@@ -49,9 +51,11 @@ export function calculateDashboardSummary(
     todayChange: valuation.todayChange,
     todayChangePct: valuation.todayChangePct,
     unrealizedGain: valuation.totalUnrealizedGain,
+    dailyTradeCount,
     accountCount: accounts.length,
     accounts: dashboardAccounts,
     allocations: buildDashboardAllocations(valuation.holdings, accounts),
+    holdingAllocations: buildDashboardHoldingAllocations(valuation.holdings, valuation.totalMarketValue),
     quoteFetchedAt: quoteMetadata.fetchedAt,
     quoteDate: quoteMetadata.quoteDate,
     warnings: valuation.warnings
@@ -397,6 +401,92 @@ function buildDashboardAllocations(
       allocationType: "cash"
     }
   ];
+}
+
+function buildDashboardHoldingAllocations(
+  holdings: ValuedHoldingSummary[],
+  totalAssets: string | null
+): DashboardHoldingAllocationSummary[] {
+  const aggregates = new Map<string, DashboardHoldingAllocationAccumulator>();
+
+  for (const holding of holdings) {
+    const key = holding.assetType === "cash" ? "cash" : holding.instrumentId;
+    const existing = aggregates.get(key) ?? {
+      id: key,
+      name: holding.assetType === "cash" ? "现金" : holding.instrumentShortName,
+      assetType: holding.assetType,
+      allocationType: holding.assetType === "cash" ? "cash" : "instrument",
+      marketValue: new Decimal(0),
+      marketValueAvailable: true
+    };
+
+    if (holding.marketValue === null) {
+      existing.marketValueAvailable = false;
+    } else if (existing.marketValueAvailable) {
+      existing.marketValue = existing.marketValue.plus(holding.marketValue);
+    }
+
+    aggregates.set(key, existing);
+  }
+
+  const total = totalAssets === null ? null : new Decimal(totalAssets);
+  const canCalculatePercentage = total !== null && total.gt(0);
+
+  return [...aggregates.values()]
+    .map((aggregate) => {
+      const marketValue = aggregate.marketValueAvailable ? formatMoney(aggregate.marketValue) : null;
+
+      return {
+        id: aggregate.id,
+        name: aggregate.name,
+        assetType: aggregate.assetType,
+        marketValue,
+        percentageOfTotal:
+          marketValue !== null && canCalculatePercentage
+            ? formatPercentage(new Decimal(marketValue).dividedBy(total).times(100))
+            : null,
+        allocationType: aggregate.allocationType
+      };
+    })
+    .sort(compareHoldingAllocations);
+}
+
+interface DashboardHoldingAllocationAccumulator {
+  id: string;
+  name: string;
+  assetType: DashboardHoldingAllocationSummary["assetType"];
+  allocationType: DashboardHoldingAllocationSummary["allocationType"];
+  marketValue: Decimal;
+  marketValueAvailable: boolean;
+}
+
+function compareHoldingAllocations(
+  left: DashboardHoldingAllocationSummary,
+  right: DashboardHoldingAllocationSummary
+): number {
+  const leftRank = holdingAllocationRank(left);
+  const rightRank = holdingAllocationRank(right);
+
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank;
+  }
+
+  const leftValue = left.marketValue === null ? null : new Decimal(left.marketValue);
+  const rightValue = right.marketValue === null ? null : new Decimal(right.marketValue);
+
+  if (leftValue !== null && rightValue !== null && !leftValue.equals(rightValue)) {
+    return rightValue.comparedTo(leftValue);
+  }
+
+  return left.name.localeCompare(right.name, "zh-CN") || left.id.localeCompare(right.id);
+}
+
+function holdingAllocationRank(allocation: DashboardHoldingAllocationSummary): number {
+  if (allocation.marketValue === null) {
+    return allocation.allocationType === "cash" ? 3 : 2;
+  }
+
+  return allocation.allocationType === "cash" ? 1 : 0;
 }
 
 function formatMoney(amount: Decimal): string {

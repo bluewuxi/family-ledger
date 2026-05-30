@@ -209,7 +209,40 @@ It returns values in the selected reporting currency:
     "todayChange": "48.25",
     "todayChangePct": "0.32",
     "unrealizedGain": "1243.10",
+    "dailyTradeCount": 2,
     "accountCount": 3,
+    "allocations": [
+      {
+        "id": "account-id",
+        "name": "IBKR",
+        "marketValue": "7400.67",
+        "allocationType": "account"
+      },
+      {
+        "id": "cash",
+        "name": "现金",
+        "marketValue": "1840.00",
+        "allocationType": "cash"
+      }
+    ],
+    "holdingAllocations": [
+      {
+        "id": "instrument-id",
+        "name": "VOO",
+        "assetType": "etf",
+        "marketValue": "6000.00",
+        "percentageOfTotal": "64.93",
+        "allocationType": "instrument"
+      },
+      {
+        "id": "cash",
+        "name": "现金",
+        "assetType": "cash",
+        "marketValue": "1840.00",
+        "percentageOfTotal": "19.91",
+        "allocationType": "cash"
+      }
+    ],
     "quoteFetchedAt": "2026-05-25T03:15:00.000Z",
     "quoteDate": "2026-05-24",
     "warnings": []
@@ -225,7 +258,10 @@ The dashboard derives holdings through the existing holdings calculation and may
 - `todayChange` is retained as the wire field name, but the UI labels it `最新变动`. It compares the dashboard quote with the latest stored security close before the quote date. If no earlier close exists, it uses the latest stored close as a display baseline. Cash has zero latest price movement.
 - Latest FX is applied to current value, preceding value, and carrying cost, so latest change reflects price movement rather than FX movement.
 - `unrealizedGain` applies only to non-cash holdings with available remaining carrying cost.
+- `dailyTradeCount` counts buy/sell transactions on the current app business date, excluding generated cash legs and cash instruments.
 - `accountCount` includes accounts with no non-zero holdings.
+- `allocations` drives the `账户分布` chart and contains account rows plus one combined cash row.
+- `holdingAllocations` drives the `持仓分布` chart. It aggregates each non-cash instrument across accounts and combines all cash holdings into one `现金` row. If any row in an aggregate has unavailable `marketValue`, the aggregate `marketValue` and `percentageOfTotal` are `null`. Percentages are `null` when `totalAssets` is `null` or zero.
 - `quoteFetchedAt` and `quoteDate` describe the newest dashboard quote cache row used in the response, or `null` when no dashboard quotes are available.
 
 Aggregate totals are not reported as partial values. A missing latest price or required FX rate returns `null` for all affected monetary metrics. A missing preceding close returns `null` only for daily-change fields. Unavailable cost basis returns `null` only for unrealized gain. The `warnings` array identifies the affected instrument and one of `MISSING_LATEST_PRICE`, `MISSING_PREVIOUS_PRICE`, `MISSING_FX_RATE`, or `COST_BASIS_UNAVAILABLE`. Expected NZ PIE/FundRock publication lag is not itself a warning when an older published unit price exists with `price_date <=` the valuation date.

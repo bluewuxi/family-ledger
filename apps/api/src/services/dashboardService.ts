@@ -5,8 +5,10 @@ import type {
   HoldingSummary,
   DashboardSummary,
   Instrument,
+  InvestmentTransaction,
   PriceSource
 } from "@family-ledger/shared";
+import { getAppBusinessDate } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
 import {
   listDashboardQuotes,
@@ -37,6 +39,7 @@ interface DashboardQuoteRepository {
 }
 
 export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<DashboardSummary> {
+  const now = new Date();
   const reportingCurrency = await resolveReportingCurrency(input);
   const [transactions, accounts, instruments] = await Promise.all([
     listTransactions(),
@@ -65,10 +68,26 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
   const dashboardQuotes = await refreshDashboardQuotes({
     holdings,
     instruments,
-    now: new Date()
+    now
   });
+  const dailyTradeCount = countDailyTrades(transactions, instruments, getAppBusinessDate(now));
 
-  return calculateDashboardSummary(holdings, accounts, prices, fxRates, reportingCurrency, dashboardQuotes);
+  return calculateDashboardSummary(holdings, accounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
+}
+
+export function countDailyTrades(transactions: InvestmentTransaction[], instruments: Instrument[], businessDate: string): number {
+  const instrumentsById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
+
+  return transactions.filter((transaction) => {
+    const instrumentAssetType = transaction.instrumentAssetType ?? instrumentsById.get(transaction.instrumentId)?.assetType ?? null;
+
+    return (
+      transaction.tradeDate === businessDate &&
+      (transaction.transactionType === "buy" || transaction.transactionType === "sell") &&
+      transaction.transactionSource !== "generated_cash_leg" &&
+      instrumentAssetType !== "cash"
+    );
+  }).length;
 }
 
 

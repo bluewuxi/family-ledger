@@ -710,15 +710,8 @@ textarea {
     drop-shadow(0 0 24px rgb(245 181 46 / 30%));
 }
 
-.app-footer p,
-.app-footer time {
+.app-footer p {
   margin: 0;
-}
-
-.app-footer time {
-  margin-left: auto;
-  color: var(--color-subtle);
-  font-variant-numeric: tabular-nums;
 }
 
 .page-header {
@@ -742,6 +735,16 @@ textarea {
   flex: 0 0 auto;
   color: var(--color-brand-navy);
   stroke-width: 2.2;
+}
+
+.dashboard-title-tagline {
+  display: inline-block;
+  margin-left: 14px;
+  color: var(--color-brand-leaf);
+  font-size: 0.48em;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .page-header p {
@@ -1391,8 +1394,16 @@ textarea {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(132px, 0.48fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr)) repeat(2, minmax(132px, 0.48fr));
   gap: 16px;
+}
+
+.metric-grid.dashboard-metric-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.dashboard-metric-grid .metric-card {
+  min-width: 0;
 }
 
 .holdings-metrics {
@@ -1411,11 +1422,12 @@ textarea {
     var(--shadow-soft);
 }
 
-.metric-card span {
+.metric-card > span {
   display: block;
-  padding-right: 82px;
   color: var(--color-muted);
   font-size: 14px;
+  padding-right: 66px;
+  text-align: left;
 }
 
 .metric-card strong {
@@ -1423,9 +1435,10 @@ textarea {
   margin-top: 12px;
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: clamp(20px, 1.8vw, 24px);
+  font-size: clamp(20px, 1.55vw, 24px);
   line-height: 1.18;
-  white-space: nowrap;
+  text-align: center;
+  white-space: normal;
 }
 
 .metric-card strong .loading-state {
@@ -1448,19 +1461,60 @@ textarea {
   font-size: 24px;
 }
 
-.metric-card-compact span {
+.metric-card-compact > span {
   padding-right: 0;
   white-space: nowrap;
+}
+
+.metric-inline-pair {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  column-gap: 3ch;
+  row-gap: 3px;
+  max-width: 100%;
+}
+
+.metric-inline-pair > span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.metric-inline-secondary {
+  font-size: 0.88em;
 }
 
 .metric-currency {
   position: absolute;
   top: 17px;
   right: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--color-subtle);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1;
   white-space: nowrap;
+}
+
+.metric-currency .currency-flag {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1180px) {
+  .metric-grid.dashboard-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .metric-grid.dashboard-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .metric-red,
@@ -1557,26 +1611,34 @@ textarea {
 }
 
 .currency-select-button {
+  position: relative;
   display: flex;
   min-height: 38px;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   border: 1px solid var(--color-border-strong);
   border-radius: 6px;
   background: var(--color-surface);
   color: var(--color-text);
-  padding: 8px 10px;
+  padding: 8px 34px;
   cursor: pointer;
+}
+
+.currency-select-button .currency-flag {
+  flex: 0 0 auto;
 }
 
 .currency-select-button::after {
   content: "";
+  position: absolute;
+  top: 50%;
+  right: 12px;
   width: 7px;
   height: 7px;
-  margin-left: auto;
   border-right: 1.5px solid currentcolor;
   border-bottom: 1.5px solid currentcolor;
-  transform: rotate(45deg) translateY(-2px);
+  transform: translateY(-65%) rotate(45deg);
 }
 
 .currency-select-menu {
@@ -1720,8 +1782,7 @@ textarea {
 }
 
 .trend-chart-panel {
-  width: min(100%, 1312px);
-  max-width: 1312px;
+  flex-basis: min(100%, 720px);
 }
 
 .trend-summary {
@@ -1793,6 +1854,8 @@ textarea {
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
 }
 
 .dashboard-activity-grid {
@@ -1808,6 +1871,10 @@ textarea {
   align-items: flex-start;
   gap: 16px;
   margin-top: 20px;
+}
+
+.dashboard-chart-flow {
+  margin-top: 26px;
 }
 
 .flow-card {
@@ -3134,9 +3201,9 @@ tr.editing-row td {
     left: 0;
     z-index: 30;
     display: grid;
-    grid-template-columns: 44px minmax(96px, auto) minmax(136px, 1fr);
+    grid-template-columns: 44px minmax(0, 1fr);
     align-items: center;
-    gap: 9px;
+    gap: 12px;
     min-height: 68px;
     border-bottom: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
     background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
@@ -3160,21 +3227,12 @@ tr.editing-row td {
       drop-shadow(0 10px 18px rgb(0 0 0 / 34%));
   }
 
-  .mobile-app-name {
-    color: var(--color-brand-navy-ink);
-    font-size: 24px;
-    font-weight: 800;
-    line-height: 1;
-    white-space: nowrap;
-  }
-
-  .mobile-app-subtitle {
-    color: var(--color-brand-leaf);
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 17px;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
+  .mobile-app-brand-copy {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .main-content {
@@ -3190,10 +3248,6 @@ tr.editing-row td {
     margin-inline: 18px;
     gap: 10px;
     font-size: 14px;
-  }
-
-  .app-footer time {
-    margin-left: 0;
   }
 
   .page-header {
@@ -3229,7 +3283,7 @@ tr.editing-row td {
     padding: 16px;
   }
 
-  .metric-card span {
+  .metric-card > span {
     font-size: 15px;
   }
 
@@ -3518,7 +3572,7 @@ tr.editing-row td {
 
 @media (max-width: 520px) {
   .mobile-app-header {
-    grid-template-columns: 38px minmax(82px, auto) minmax(98px, 1fr);
+    grid-template-columns: 38px minmax(0, 1fr);
     gap: 7px;
     padding-right: 8px;
     padding-left: 66px;
@@ -3529,12 +3583,20 @@ tr.editing-row td {
     height: 38px;
   }
 
-  .mobile-app-name {
+  .mobile-app-brand-copy {
+    gap: 8px;
+  }
+
+  .mobile-app-brand-copy .brand-name {
     font-size: 22px;
   }
 
-  .mobile-app-subtitle {
-    font-size: 16px;
+  .mobile-app-brand-copy .brand-name-emphasis {
+    font-size: 31px;
+  }
+
+  .mobile-app-brand-copy .brand-subtitle {
+    font-size: 13px;
   }
 
   .login-page {

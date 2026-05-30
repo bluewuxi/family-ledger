@@ -729,15 +729,26 @@ export interface DashboardAllocationSummary {
   allocationType: "account" | "cash";
 }
 
+export interface DashboardHoldingAllocationSummary {
+  id: string;
+  name: string;
+  assetType: AssetType;
+  marketValue: string | null;
+  percentageOfTotal: string | null;
+  allocationType: "instrument" | "cash";
+}
+
 export interface DashboardSummary {
   reportingCurrency: SnapshotDisplayCurrency;
   totalAssets: string | null;
   todayChange: string | null;
   todayChangePct: string | null;
   unrealizedGain: string | null;
+  dailyTradeCount: number;
   accountCount: number;
   accounts: DashboardAccountSummary[];
   allocations: DashboardAllocationSummary[];
+  holdingAllocations: DashboardHoldingAllocationSummary[];
   quoteFetchedAt: string | null;
   quoteDate: string | null;
   warnings: DashboardWarning[];

@@ -225,8 +225,18 @@ function MobileAppHeader() {
   return (
     <header className="mobile-app-header" aria-label="小家大财 Family Ledger">
       <img className="mobile-app-logo" src="/icon-64x64.png" alt="" aria-hidden="true" />
-      <strong className="mobile-app-name">小家大财</strong>
-      <span className="mobile-app-subtitle">Family Ledger</span>
+      <div className="brand-copy mobile-app-brand-copy">
+        <strong className="brand-name" aria-label="小家大财">
+          <span>小</span>
+          <span>家</span>
+          <span className="brand-name-emphasis">大</span>
+          <span className="brand-name-gold">财</span>
+        </strong>
+        <span className="brand-subtitle" aria-label="Family Ledger">
+          <span>Family</span>
+          <span>Ledger</span>
+        </span>
+      </div>
     </header>
   );
 }
@@ -246,24 +256,6 @@ function CollapsedContentBrand() {
 }
 
 function AppFooter() {
-  const [now, setNow] = useState(() => new Date());
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "系统时区";
-
-  useEffect(() => {
-    const timerId = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timerId);
-  }, []);
-
-  const timeLabel = new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone
-  }).format(now);
-
   return (
     <footer className="app-footer">
       <div className="footer-brand">
@@ -284,9 +276,6 @@ function AppFooter() {
         </div>
       </div>
       <p>家庭投资记录，仅作辅助参考。所有者 / 作者：Ricky Yu</p>
-      <time dateTime={now.toISOString()}>
-        {timeLabel} · {timeZone}
-      </time>
       <Banknote className="footer-status-icon" size={18} aria-hidden="true" />
     </footer>
   );

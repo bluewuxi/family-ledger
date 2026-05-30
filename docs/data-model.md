@@ -135,6 +135,9 @@ The current read-only dashboard summary values current non-zero holdings without
 - Stored FX rates are USD-centered in `exchange_rates`. The dashboard converts each holding currency to USD, then converts aggregate monetary values to the requested reporting currency using the latest valuation FX rates.
 - The same latest FX rate converts current values, preceding-close values, and remaining carrying costs, so daily movement represents price movement only.
 - Unrealized gain is market value less remaining carrying cost for securities only.
+- Dashboard `allocations` are account-plus-cash rows for `账户分布`; `holdingAllocations` are instrument-plus-cash rows for `持仓分布`.
+- `holdingAllocations` aggregate the same non-cash instrument across all accounts and combine all cash currencies into one `现金` row. Unavailable row market values make the aggregate value and percentage unavailable. Percentages are omitted when total assets are unavailable or zero.
+- `dailyTradeCount` uses the current app business date and counts only buy/sell security transactions, excluding generated cash legs.
 
 The summary and valued holdings response return unavailable (`null`) monetary fields rather than incomplete totals when required quote/price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage.
 

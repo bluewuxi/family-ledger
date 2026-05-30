@@ -5,9 +5,10 @@ import type {
   HoldingSummary,
   Instrument,
   InvestmentAccount,
+  InvestmentTransaction,
   PriceRecord
 } from "@family-ledger/shared";
-import { calculateDashboardSummary, refreshDashboardQuotes } from "../apps/api/src/services/dashboardService";
+import { calculateDashboardSummary, countDailyTrades, refreshDashboardQuotes } from "../apps/api/src/services/dashboardService";
 import type {
   FetchLatestInstrumentQuotesInput,
   InstrumentQuoteProviderResult,
@@ -35,6 +36,7 @@ assert.deepEqual(complete, {
   todayChange: "18.00",
   todayChangePct: "5.50",
   unrealizedGain: "90.00",
+  dailyTradeCount: 0,
   accountCount: 3,
   accounts: [
     { accountId: "account-a", accountName: "account-a", marketValue: "345.00" },
@@ -46,6 +48,11 @@ assert.deepEqual(complete, {
     { id: "account-b", name: "account-b", marketValue: "0.00", allocationType: "account" },
     { id: "empty-account", name: "empty-account", marketValue: "0.00", allocationType: "account" },
     { id: "cash", name: "现金", marketValue: "15.00", allocationType: "cash" }
+  ],
+  holdingAllocations: [
+    { id: "usd-security", name: "US ETF", assetType: "etf", marketValue: "210.00", percentageOfTotal: "60.87", allocationType: "instrument" },
+    { id: "nzd-security", name: "NZ Fund", assetType: "pie_fund", marketValue: "120.00", percentageOfTotal: "34.78", allocationType: "instrument" },
+    { id: "cash", name: "现金", assetType: "cash", marketValue: "15.00", percentageOfTotal: "4.35", allocationType: "cash" }
   ],
   quoteFetchedAt: null,
   quoteDate: null,
@@ -70,6 +77,7 @@ assert.deepEqual(completeUsd, {
   todayChange: "12.00",
   todayChangePct: "5.50",
   unrealizedGain: "60.00",
+  dailyTradeCount: 0,
   accountCount: 3,
   accounts: [
     { accountId: "account-a", accountName: "account-a", marketValue: "230.00" },
@@ -81,6 +89,11 @@ assert.deepEqual(completeUsd, {
     { id: "account-b", name: "account-b", marketValue: "0.00", allocationType: "account" },
     { id: "empty-account", name: "empty-account", marketValue: "0.00", allocationType: "account" },
     { id: "cash", name: "现金", marketValue: "10.00", allocationType: "cash" }
+  ],
+  holdingAllocations: [
+    { id: "usd-security", name: "US ETF", assetType: "etf", marketValue: "140.00", percentageOfTotal: "60.87", allocationType: "instrument" },
+    { id: "nzd-security", name: "NZ Fund", assetType: "pie_fund", marketValue: "80.00", percentageOfTotal: "34.78", allocationType: "instrument" },
+    { id: "cash", name: "现金", assetType: "cash", marketValue: "10.00", percentageOfTotal: "4.35", allocationType: "cash" }
   ],
   quoteFetchedAt: null,
   quoteDate: null,
@@ -94,6 +107,7 @@ assert.deepEqual(completeCny, {
   todayChange: "85.71",
   todayChangePct: "5.50",
   unrealizedGain: "428.57",
+  dailyTradeCount: 0,
   accountCount: 3,
   accounts: [
     { accountId: "account-a", accountName: "account-a", marketValue: "1642.86" },
@@ -105,6 +119,11 @@ assert.deepEqual(completeCny, {
     { id: "account-b", name: "account-b", marketValue: "0.00", allocationType: "account" },
     { id: "empty-account", name: "empty-account", marketValue: "0.00", allocationType: "account" },
     { id: "cash", name: "现金", marketValue: "71.43", allocationType: "cash" }
+  ],
+  holdingAllocations: [
+    { id: "usd-security", name: "US ETF", assetType: "etf", marketValue: "1000.00", percentageOfTotal: "60.87", allocationType: "instrument" },
+    { id: "nzd-security", name: "NZ Fund", assetType: "pie_fund", marketValue: "571.43", percentageOfTotal: "34.78", allocationType: "instrument" },
+    { id: "cash", name: "现金", assetType: "cash", marketValue: "71.43", percentageOfTotal: "4.35", allocationType: "cash" }
   ],
   quoteFetchedAt: null,
   quoteDate: null,
@@ -221,6 +240,58 @@ const rounded = calculateDashboardSummary(
   fxRates
 );
 assert.equal(rounded.totalAssets, "1.01");
+
+const duplicateUsdSecurity = { ...usdSecurity, accountId: "account-b", quantity: "1", costAmount: "50" };
+const aggregatedHoldingAllocations = calculateDashboardSummary(
+  [nzdSecurity, usdCash, duplicateUsdSecurity, usdSecurity],
+  accounts,
+  prices,
+  fxRates
+);
+assert.deepEqual(aggregatedHoldingAllocations.holdingAllocations, [
+  { id: "usd-security", name: "US ETF", assetType: "etf", marketValue: "315.00", percentageOfTotal: "70.00", allocationType: "instrument" },
+  { id: "nzd-security", name: "NZ Fund", assetType: "pie_fund", marketValue: "120.00", percentageOfTotal: "26.67", allocationType: "instrument" },
+  { id: "cash", name: "现金", assetType: "cash", marketValue: "15.00", percentageOfTotal: "3.33", allocationType: "cash" }
+]);
+
+const unavailableHoldingAllocations = calculateDashboardSummary(
+  [usdSecurity, nzdSecurity, usdCash],
+  accounts,
+  prices.filter((record) => record.instrumentId !== nzdSecurity.instrumentId),
+  fxRates
+);
+assert.deepEqual(unavailableHoldingAllocations.holdingAllocations, [
+  { id: "usd-security", name: "US ETF", assetType: "etf", marketValue: "210.00", percentageOfTotal: null, allocationType: "instrument" },
+  { id: "cash", name: "现金", assetType: "cash", marketValue: "15.00", percentageOfTotal: null, allocationType: "cash" },
+  { id: "nzd-security", name: "NZ Fund", assetType: "pie_fund", marketValue: null, percentageOfTotal: null, allocationType: "instrument" }
+]);
+
+const zeroTotalHoldingAllocations = calculateDashboardSummary(
+  [holding("zero-position", "Zero Position", "stock", "NZD", "0", "0")],
+  accounts,
+  [price("zero-latest", "zero-position", "2026-05-22", "10", "NZD")],
+  fxRates
+);
+assert.deepEqual(zeroTotalHoldingAllocations.holdingAllocations, [
+  { id: "zero-position", name: "Zero Position", assetType: "stock", marketValue: "0.00", percentageOfTotal: null, allocationType: "instrument" }
+]);
+
+const cashInstrument = instrument("cash-instrument", "manual", "CASH_NZD", "NZD", "cash");
+const securityInstrument = instrument(usdSecurity.instrumentId, "yahoo_finance", "US_TEST", "USD", "etf");
+assert.equal(
+  countDailyTrades(
+    [
+      transaction("trade-a", usdSecurity.instrumentId, "buy", "2026-05-23", "manual", "etf"),
+      transaction("trade-b", usdSecurity.instrumentId, "sell", "2026-05-23", "manual", "etf"),
+      transaction("trade-c", usdSecurity.instrumentId, "buy", "2026-05-22", "manual", "etf"),
+      transaction("trade-d", usdSecurity.instrumentId, "buy", "2026-05-23", "generated_cash_leg", "etf"),
+      transaction("trade-e", cashInstrument.id, "buy", "2026-05-23", "manual", "cash")
+    ],
+    [securityInstrument, cashInstrument],
+    "2026-05-23"
+  ),
+  2
+);
 
 const quoteInstrument = instrument(usdSecurity.instrumentId, "yahoo_finance", "US_TEST", "USD");
 let fetchCount = 0;
@@ -353,6 +424,44 @@ function holding(
   };
 }
 
+function transaction(
+  id: string,
+  instrumentId: string,
+  transactionType: InvestmentTransaction["transactionType"],
+  tradeDate: string,
+  transactionSource: InvestmentTransaction["transactionSource"],
+  instrumentAssetType: InvestmentTransaction["instrumentAssetType"]
+): InvestmentTransaction {
+  return {
+    id,
+    accountId: "account-a",
+    instrumentId,
+    instrumentSymbol: null,
+    instrumentName: null,
+    instrumentShortName: null,
+    instrumentAssetType,
+    transactionType,
+    tradeDate,
+    settlementDate: null,
+    quantity: transactionType === "buy" || transactionType === "sell" ? "1" : null,
+    price: transactionType === "buy" || transactionType === "sell" ? "1" : null,
+    grossAmount: transactionType === "buy" || transactionType === "sell" ? "1" : null,
+    fee: "0",
+    tax: "0",
+    currency: "USD",
+    adjustmentDirection: null,
+    transactionSource,
+    linkedTransactionId: null,
+    settlementCurrency: null,
+    settlementAmount: null,
+    notes: null,
+    createdByUserId: null,
+    updatedByUserId: null,
+    createdAt: `${tradeDate}T00:00:00.000Z`,
+    updatedAt: `${tradeDate}T00:00:00.000Z`
+  };
+}
+
 function price(
   id: string,
   instrumentId: string,
@@ -378,7 +487,8 @@ function instrument(
   id: string,
   priceSource: Instrument["priceSource"],
   priceSourceSymbol: string,
-  currency: Instrument["currency"]
+  currency: Instrument["currency"],
+  assetType: Instrument["assetType"] = "etf"
 ): Instrument {
   return {
     id,
@@ -389,7 +499,7 @@ function instrument(
     marketRegion: "US",
     exchange: "NASDAQ",
     currency,
-    assetType: "etf",
+    assetType,
     isin: null,
     provider: null,
     priceSource,
