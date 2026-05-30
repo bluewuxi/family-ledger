@@ -1,8 +1,9 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Fragment, type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPES,
+  ASSET_TYPE_LABELS,
   CURRENCY_CODES,
   MARKET_REGION_LABELS,
   MARKET_REGIONS,
@@ -19,13 +20,22 @@ import {
   type InvestmentTransaction,
   type MarketRegion,
   type PortfolioSnapshotSummary,
-  type SnapshotDisplayCurrency
+  type SnapshotDisplayCurrency,
+  type HoldingsValuationSummary,
+  type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
-import { formatDisplayAmount } from "../lib/numberFormat";
-import { usePreferences } from "../lib/preferencesContext";
+import {
+  formatHoldingInstrument,
+  formatHoldingLatestPrice,
+  formatHoldingQuantity,
+  formatHoldingWarnings
+} from "../lib/holdingDisplay";
+import { formatDisplayAmount, formatDisplayPrice, formatSignedDisplayAmount } from "../lib/numberFormat";
+import { signedToneClass, usePreferences } from "../lib/preferencesContext";
+import { isInteractiveRowTarget } from "../lib/tableInteraction";
 
 interface AccountsResponse {
   user: AuthenticatedUser;
@@ -43,6 +53,8 @@ interface TransactionsResponse {
 interface PortfolioSnapshotsResponse {
   snapshots: PortfolioSnapshotSummary[];
 }
+
+interface HoldingsResponse extends HoldingsValuationSummary {}
 
 interface AccountResponse {
   account: InvestmentAccount;
@@ -107,6 +119,8 @@ export function AccountsPage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
   const [accountTotals, setAccountTotals] = useState<Map<string, AccountTotalDisplay>>(new Map());
+  const [accountHoldings, setAccountHoldings] = useState<ValuedHoldingSummary[]>([]);
+  const [holdingsReportingCurrency, setHoldingsReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,6 +138,7 @@ export function AccountsPage() {
   const [newTradingPassword, setNewTradingPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
   const fallbackSnapshotCurrency = toSnapshotDisplayCurrency(preferences.preferredCurrency);
@@ -136,6 +151,7 @@ export function AccountsPage() {
   const editingAccountHasHistory = editingAccountId
     ? transactions.some((transaction) => transaction.accountId === editingAccountId)
     : false;
+  const holdingsByAccount = useMemo(() => groupHoldingsByAccount(accountHoldings), [accountHoldings]);
 
   useEffect(() => {
     if (!preferencesLoading) {
@@ -148,15 +164,21 @@ export function AccountsPage() {
     setError(null);
 
     try {
-      const [accountData, instrumentData, transactionData] = await Promise.all([
+      const [accountData, instrumentData, transactionData, holdingsData] = await Promise.all([
         apiGet<AccountsResponse>("/accounts"),
         apiGet<InstrumentsResponse>("/instruments"),
-        apiGet<TransactionsResponse>("/transactions")
+        apiGet<TransactionsResponse>("/transactions"),
+        apiGet<HoldingsResponse>(`/holdings?currency=${fallbackSnapshotCurrency}`)
       ]);
       setUser(accountData.user);
       setAccounts(accountData.accounts);
       setInstruments(instrumentData.instruments);
       setTransactions(transactionData.transactions);
+      setAccountHoldings(holdingsData.holdings);
+      setHoldingsReportingCurrency(holdingsData.reportingCurrency);
+      setExpandedAccountId((current) =>
+        current && accountData.accounts.some((account) => account.id === current) ? current : null
+      );
       setAccountTotals(await loadAccountTotals(accountData.accounts, fallbackSnapshotCurrency));
     } catch (requestError) {
       setError(toErrorMessage(requestError));
@@ -284,6 +306,16 @@ export function AccountsPage() {
     setDrawerOpen(true);
   }
 
+  function handleAccountRowClick(event: MouseEvent<HTMLTableRowElement>, account: InvestmentAccount) {
+    if (!isInteractiveRowTarget(event.target)) {
+      startDetail(account);
+    }
+  }
+
+  function toggleAccountHoldings(accountId: string) {
+    setExpandedAccountId((current) => (current === accountId ? null : accountId));
+  }
+
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingAccountId(null);
@@ -373,6 +405,7 @@ export function AccountsPage() {
         <table className="account-table">
           <thead>
             <tr>
+              <th className="account-expand-column"></th>
               <th>账户名称</th>
               <th>券商/平台</th>
               <th>账户类型</th>
@@ -385,49 +418,81 @@ export function AccountsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7}>正在加载账户...</td>
+                <td colSpan={8}>正在加载账户...</td>
               </tr>
             ) : accounts.length === 0 ? (
               <tr>
-                <td colSpan={7}>暂无投资账户。</td>
+                <td colSpan={8}>暂无投资账户。</td>
               </tr>
             ) : (
-              accounts.map((account) => (
-                <tr className={editingAccountId === account.id ? "editing-row" : undefined} key={account.id}>
-                  <td>{account.name}</td>
-                  <td>{account.broker ?? "-"}</td>
-                  <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
-                  <td>{account.baseCurrency}</td>
-                  <td className="numeric-cell">{formatAccountTotal(accountTotals.get(account.id))}</td>
-                  <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
-                  <td>
-                    <div className="table-actions">
-                      <button
-                        aria-label={`${isAdmin ? "编辑" : "查看"}账户 ${account.name}`}
-                        className="icon-button"
-                        title={isAdmin ? "查看/编辑" : "查看"}
-                        type="button"
-                        onClick={() => startDetail(account)}
-                        disabled={saving}
-                      >
-                        <Eye size={17} aria-hidden="true" />
-                      </button>
-                      {isAdmin ? (
+              accounts.map((account) => {
+                const accountHoldingsForRow = holdingsByAccount.get(account.id) ?? [];
+                const isExpanded = expandedAccountId === account.id;
+
+                return (
+                  <Fragment key={account.id}>
+                    <tr
+                      className={[
+                        editingAccountId === account.id ? "editing-row" : "",
+                        "clickable-detail-row"
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      onClick={(event) => handleAccountRowClick(event, account)}
+                    >
+                      <td className="account-expand-column">
                         <button
-                          aria-label={`删除账户 ${account.name}`}
-                          className="icon-button danger-icon-button"
-                          title="删除"
+                          aria-label={isExpanded ? `收起账户 ${account.name} 的当前持仓` : `展开账户 ${account.name} 的当前持仓`}
+                          className="transaction-expand-button"
+                          title={isExpanded ? "收起当前持仓" : "展开当前持仓"}
                           type="button"
-                          onClick={() => void handleDelete(account)}
+                          onClick={() => toggleAccountHoldings(account.id)}
                           disabled={saving}
                         >
-                          <Trash2 size={17} aria-hidden="true" />
+                          {isExpanded ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
                         </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                      </td>
+                      <td>{account.name}</td>
+                      <td>{account.broker ?? "-"}</td>
+                      <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
+                      <td>{account.baseCurrency}</td>
+                      <td className="numeric-cell">{formatAccountTotal(accountTotals.get(account.id))}</td>
+                      <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
+                      <td>
+                        <div className="table-actions">
+                          <button
+                            aria-label={`${isAdmin ? "编辑" : "查看"}账户 ${account.name}`}
+                            className="icon-button"
+                            title={isAdmin ? "查看/编辑" : "查看"}
+                            type="button"
+                            onClick={() => startDetail(account)}
+                            disabled={saving}
+                          >
+                            <Eye size={17} aria-hidden="true" />
+                          </button>
+                          {isAdmin ? (
+                            <button
+                              aria-label={`删除账户 ${account.name}`}
+                              className="icon-button danger-icon-button"
+                              title="删除"
+                              type="button"
+                              onClick={() => void handleDelete(account)}
+                              disabled={saving}
+                            >
+                              <Trash2 size={17} aria-hidden="true" />
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded ? (
+                      <tr className="account-holdings-row">
+                        <td colSpan={8}>{renderAccountHoldings(accountHoldingsForRow, holdingsReportingCurrency, preferences.gainColorScheme)}</td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -814,6 +879,67 @@ function formatAccountTotal(total: AccountTotalDisplay | undefined): string {
   }
 
   return `${total.currency} ${formatDisplayAmount(total.marketValue)}`;
+}
+
+function renderAccountHoldings(
+  holdings: ValuedHoldingSummary[],
+  reportingCurrency: SnapshotDisplayCurrency,
+  gainColorScheme: Parameters<typeof signedToneClass>[1]
+) {
+  if (holdings.length === 0) {
+    return <div className="account-holdings-empty">暂无当前持仓或现金余额。</div>;
+  }
+
+  return (
+    <div className="account-holdings-panel">
+      <table className="account-holdings-table">
+        <thead>
+          <tr>
+            <th>标的</th>
+            <th>类型</th>
+            <th>币种</th>
+            <th className="numeric-cell">数量/现金余额</th>
+            <th className="numeric-cell">平均成本</th>
+            <th className="numeric-cell">剩余成本</th>
+            <th className="numeric-cell">最新价格</th>
+            <th className="numeric-cell">市值 ({reportingCurrency})</th>
+            <th className="numeric-cell">动态盈亏 ({reportingCurrency})</th>
+            <th>数据提示</th>
+          </tr>
+        </thead>
+        <tbody>
+          {holdings.map((holding) => (
+            <tr key={`${holding.accountId}:${holding.instrumentId}`}>
+              <td>{formatHoldingInstrument(holding)}</td>
+              <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
+              <td>{holding.currency}</td>
+              <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
+              <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
+              <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
+              <td className="numeric-cell">{formatHoldingLatestPrice(holding)}</td>
+              <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue) : "--"}</td>
+              <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, gainColorScheme, 3)}`}>
+                {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain) : "--"}
+              </td>
+              <td>{formatHoldingWarnings(holding)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function groupHoldingsByAccount(holdings: ValuedHoldingSummary[]): Map<string, ValuedHoldingSummary[]> {
+  const grouped = new Map<string, ValuedHoldingSummary[]>();
+
+  for (const holding of holdings) {
+    const accountHoldings = grouped.get(holding.accountId) ?? [];
+    accountHoldings.push(holding);
+    grouped.set(holding.accountId, accountHoldings);
+  }
+
+  return grouped;
 }
 
 function toSnapshotDisplayCurrency(currency: string): SnapshotDisplayCurrency {

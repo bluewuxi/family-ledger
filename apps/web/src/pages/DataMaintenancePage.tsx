@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CloudDownload, Eye, Filter, RefreshCw } from "lucide-react";
 import type {
   AuthenticatedUser,
@@ -20,6 +20,7 @@ import { PageTitle } from "../components/PageTitle";
 import { Drawer } from "../components/Drawer";
 import { ApiClientError, apiGet, apiPost } from "../lib/apiClient";
 import { formatDisplayPrice } from "../lib/numberFormat";
+import { isInteractiveRowTarget } from "../lib/tableInteraction";
 import { formatLocalDateTime } from "../lib/timeFormat";
 
 type DataMaintenanceTab = "fx" | "prices" | "logs" | "backups" | "restore";
@@ -592,7 +593,13 @@ export function DataMaintenancePage() {
                 <EmptyRow colSpan={7} label="暂无任务日志。" />
               ) : (
                 jobRuns.map((jobRun) => (
-                  <tr className={selectedJobRunId === jobRun.id ? "selected-row" : undefined} key={jobRun.id}>
+                  <tr
+                    className={[selectedJobRunId === jobRun.id ? "selected-row" : "", "clickable-detail-row"]
+                      .filter(Boolean)
+                      .join(" ")}
+                    key={jobRun.id}
+                    onClick={(event) => handleJobRunRowClick(event, jobRun.id)}
+                  >
                     <td>{jobRun.jobName}</td>
                     <td>{formatStatus(jobRun.status)}</td>
                     <td>{formatTriggerSource(jobRun.triggerSource)}</td>
@@ -616,6 +623,12 @@ export function DataMaintenancePage() {
         <PaginationControls pagination={logPagination} loading={loading} onPageChange={(offset) => void loadJobRuns(offset)} />
       </section>
     );
+  }
+
+  function handleJobRunRowClick(event: MouseEvent<HTMLTableRowElement>, jobRunId: string) {
+    if (!isInteractiveRowTarget(event.target)) {
+      void handleSelectJobRun(jobRunId);
+    }
   }
 
   function renderJobRunDrawer() {

@@ -7,8 +7,6 @@ import {
   SNAPSHOT_DISPLAY_CURRENCIES,
   type AssetType,
   type CurrencyCode,
-  type DashboardWarning,
-  type HoldingWarning,
   type HoldingsValuationSummary,
   type SnapshotDisplayCurrency,
   type ValuedHoldingSummary
@@ -17,6 +15,12 @@ import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiGet } from "../lib/apiClient";
+import {
+  formatHoldingInstrument,
+  formatHoldingLatestPrice,
+  formatHoldingQuantity,
+  formatHoldingWarnings
+} from "../lib/holdingDisplay";
 import { formatDisplayAmount, formatDisplayPrice, formatSignedDisplayAmount } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
@@ -24,11 +28,6 @@ interface HoldingsResponse extends HoldingsValuationSummary {}
 
 type AssetTypeFilter = "all" | AssetType;
 const holdingsCurrencyStorageKey = "family-ledger.holdings.reportingCurrency";
-
-const HOLDING_WARNING_LABELS: Record<HoldingWarning, string> = {
-  NEGATIVE_POSITION: "负数余额/持仓，请核对交易记录",
-  COST_BASIS_UNAVAILABLE: "成本不可用"
-};
 
 export function HoldingsPage() {
   const { preferences, loading: preferencesLoading } = usePreferences();
@@ -127,6 +126,42 @@ export function HoldingsPage() {
 
       {error ? <p className="form-error">{error}</p> : null}
 
+      <div className="holding-filters">
+        <label>
+          账户
+          <select value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
+            <option value="all">全部账户</option>
+            {accounts.map(([accountId, accountName]) => (
+              <option key={accountId} value={accountId}>
+                {accountName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          类型
+          <select value={assetTypeFilter} onChange={(event) => setAssetTypeFilter(event.target.value as AssetTypeFilter)}>
+            <option value="all">全部类型</option>
+            {ASSET_TYPES.map((assetType) => (
+              <option key={assetType} value={assetType}>
+                {ASSET_TYPE_LABELS[assetType]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          币种
+          <select value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value as "all" | CurrencyCode)}>
+            <option value="all">全部币种</option>
+            {CURRENCY_CODES.map((currency) => (
+              <option key={currency} value={currency}>
+                {currency}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <div className="metric-grid holdings-metrics">
         <article className="metric-card">
           <span>总市值</span>
@@ -164,42 +199,6 @@ export function HoldingsPage() {
         </article>
       </div>
 
-      <div className="holding-filters">
-        <label>
-          账户
-          <select value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
-            <option value="all">全部账户</option>
-            {accounts.map(([accountId, accountName]) => (
-              <option key={accountId} value={accountId}>
-                {accountName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          类型
-          <select value={assetTypeFilter} onChange={(event) => setAssetTypeFilter(event.target.value as AssetTypeFilter)}>
-            <option value="all">全部类型</option>
-            {ASSET_TYPES.map((assetType) => (
-              <option key={assetType} value={assetType}>
-                {ASSET_TYPE_LABELS[assetType]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          币种
-          <select value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value as "all" | CurrencyCode)}>
-            <option value="all">全部币种</option>
-            {CURRENCY_CODES.map((currency) => (
-              <option key={currency} value={currency}>
-                {currency}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
       <div className="table-wrap">
         <table className="holding-table">
           <thead>
@@ -232,18 +231,18 @@ export function HoldingsPage() {
               visibleHoldings.map((holding) => (
                 <tr key={`${holding.accountId}:${holding.instrumentId}`}>
                   <td>{holding.accountName}</td>
-                  <td>{formatInstrument(holding)}</td>
+                  <td>{formatHoldingInstrument(holding)}</td>
                   <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
                   <td>{holding.currency}</td>
                   <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
                   <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
                   <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
-                  <td className="numeric-cell">{formatLatestPrice(holding)}</td>
+                  <td className="numeric-cell">{formatHoldingLatestPrice(holding)}</td>
                   <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue) : "--"}</td>
                   <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme, 3)}`}>
                     {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain) : "--"}
                   </td>
-                  <td>{formatWarnings(holding)}</td>
+                  <td>{formatHoldingWarnings(holding)}</td>
                 </tr>
               ))
             )}
@@ -300,101 +299,6 @@ function formatSignedMetric(value: string | null, loading: boolean): ReactNode {
   }
 
   return value === null ? "--" : formatSignedDisplayAmount(value);
-}
-
-function formatWarnings(holding: ValuedHoldingSummary): ReactNode {
-  const labels = unique([
-    ...holding.warnings.map((warning) => HOLDING_WARNING_LABELS[warning]),
-    ...holding.valuationWarnings.map(formatValuationWarning)
-  ]);
-
-  if (labels.length === 0) {
-    return "-";
-  }
-
-  return (
-    <div className="holding-warnings">
-      {labels.map((label) => (
-        <span className="warning-pill" key={label}>
-          {label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function formatLatestPrice(holding: ValuedHoldingSummary): ReactNode {
-  if (!holding.latestPrice) {
-    return "-";
-  }
-
-  return (
-    <>
-      <span>{formatDisplayPrice(holding.latestPrice)}</span>
-      {holding.latestPriceDate ? (
-        <>
-          <br />
-          <span className="price-date-label">{formatShortPriceDate(holding.latestPriceDate)}</span>
-        </>
-      ) : null}
-    </>
-  );
-}
-
-function formatHoldingQuantity(holding: ValuedHoldingSummary): string {
-  if (holding.assetType === "cash") {
-    return formatDisplayAmount(holding.quantity);
-  }
-
-  return formatCompactDecimal(holding.quantity, 6);
-}
-
-function formatCompactDecimal(value: string | number | null | undefined, maximumFractionDigits: number): string {
-  if (value === null || value === undefined) {
-    return "--";
-  }
-
-  const normalized = String(value).trim();
-  if (!normalized) {
-    return "--";
-  }
-
-  const numericValue = Number(normalized);
-  if (!Number.isFinite(numericValue)) {
-    return normalized;
-  }
-
-  return numericValue.toLocaleString("zh-CN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits
-  });
-}
-
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
-}
-
-function formatValuationWarning(warning: DashboardWarning): string {
-  const instrument = `${warning.instrumentShortName} (${warning.currency})`;
-
-  switch (warning.code) {
-    case "MISSING_LATEST_PRICE":
-      return `${instrument} 缺少最新价格`;
-    case "MISSING_PREVIOUS_PRICE":
-      return `${instrument} 缺少前一收盘价`;
-    case "MISSING_FX_RATE":
-      return `${instrument} 缺少估值汇率`;
-    case "COST_BASIS_UNAVAILABLE":
-      return `${instrument} 成本不可用`;
-  }
-}
-
-function formatInstrument(holding: ValuedHoldingSummary): string {
-  return holding.instrumentSymbol ? `${holding.instrumentSymbol} - ${holding.instrumentShortName}` : holding.instrumentShortName;
-}
-
-function formatShortPriceDate(value: string): string {
-  return value.length >= 10 ? value.slice(5) : value;
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {

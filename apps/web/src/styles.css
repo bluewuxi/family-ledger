@@ -1471,7 +1471,7 @@ textarea {
   align-items: baseline;
   justify-content: center;
   flex-wrap: wrap;
-  column-gap: 3ch;
+  column-gap: 1ch;
   row-gap: 3px;
   max-width: 100%;
 }
@@ -1540,6 +1540,10 @@ textarea {
   font-size: 13px;
 }
 
+.quote-date-nowrap {
+  white-space: nowrap;
+}
+
 .business-day-note {
   margin: -8px 0 18px;
   border: 1px solid var(--color-border);
@@ -1549,6 +1553,14 @@ textarea {
   padding: 10px 12px;
   font-size: 14px;
   font-weight: 600;
+}
+
+.business-day-note span {
+  color: var(--color-brand-leaf);
+}
+
+.dashboard-business-day-note-mobile {
+  display: none;
 }
 
 .dashboard-warning-panel {
@@ -1797,6 +1809,23 @@ textarea {
 .trend-summary span {
   margin-inline: 4px;
   font-weight: 700;
+}
+
+.trend-summary-change {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.trend-summary .trend-summary-change {
+  margin-inline: 0;
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.trend-summary .trend-summary-change span {
+  margin-inline: 0;
 }
 
 .allocation-panel {
@@ -2107,7 +2136,13 @@ table {
 }
 
 .account-table {
-  min-width: 980px;
+  min-width: 1028px;
+}
+
+.account-expand-column {
+  width: 48px;
+  min-width: 48px;
+  text-align: center;
 }
 
 .instrument-table {
@@ -2217,8 +2252,12 @@ td {
     color 180ms ease;
 }
 
-tbody tr:not(.editing-row):hover td {
+tbody tr.clickable-detail-row:not(.editing-row):hover td {
   background: var(--color-hover);
+}
+
+tbody tr.clickable-detail-row {
+  cursor: pointer;
 }
 
 tbody tr.selected-row td {
@@ -2248,6 +2287,32 @@ tbody tr.selected-row:hover td {
 tr.editing-row td {
   background: var(--color-warning-bg);
   color: var(--color-text);
+}
+
+.account-holdings-row td {
+  background: var(--color-table-soft);
+  padding: 0;
+}
+
+.account-holdings-panel {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 12px;
+}
+
+.account-holdings-table {
+  min-width: 1060px;
+  background: var(--color-surface);
+}
+
+.account-holdings-table th,
+.account-holdings-table td {
+  padding: 10px 12px;
+}
+
+.account-holdings-empty {
+  color: var(--color-muted);
+  padding: 14px 16px;
 }
 
 .price-date-label {
@@ -3296,6 +3361,19 @@ tr.editing-row td {
     display: grid;
   }
 
+  .dashboard-header {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .dashboard-header > div {
+    min-width: 0;
+  }
+
+  .dashboard-header > div:first-child {
+    order: 1;
+  }
+
   .header-actions,
   .drawer-footer,
   .filter-actions {
@@ -3325,6 +3403,43 @@ tr.editing-row td {
   .dashboard-controls select,
   .header-account-select select {
     width: 100%;
+  }
+
+  .dashboard-header-controls {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    justify-self: stretch;
+    order: 3;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .dashboard-business-day-note-mobile {
+    display: block;
+    grid-column: 1 / -1;
+    order: 2;
+    margin: 0 0 14px;
+  }
+
+  .dashboard-business-day-note-desktop {
+    display: none;
+  }
+
+  .dashboard-header-controls > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-header-controls .currency-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-header-controls .secondary-button {
+    width: 100%;
+    white-space: nowrap;
   }
 
   .currency-select-menu {

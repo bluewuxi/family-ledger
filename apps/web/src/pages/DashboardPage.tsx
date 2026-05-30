@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import {
   getAppBusinessDate,
+  getAppBusinessDayEndInstant,
   getLocalDateString,
   SNAPSHOT_DISPLAY_CURRENCIES,
   type DashboardSummary,
@@ -34,7 +35,7 @@ import {
   formatSignedDisplayPercent
 } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
-import { formatAppBusinessDayCountdown, formatLocalDateTimeNote } from "../lib/timeFormat";
+import { formatHoursMinutes } from "../lib/timeFormat";
 import { buildTrendChartData, isSyntheticTrendDate, type TrendChartPoint, type TrendPoint } from "../lib/trendChartData";
 
 interface DashboardResponse {
@@ -53,15 +54,15 @@ interface InstrumentsResponse {
   instruments: Instrument[];
 }
 
-type SnapshotRangeDays = 30 | 90 | 365;
-
 interface AllocationPoint {
   name: string;
   value: number;
   percentage: number;
 }
 
-const snapshotRanges: SnapshotRangeDays[] = [30, 90, 365];
+type SnapshotRangeDays = 7 | 30 | 90 | 365;
+
+const snapshotRanges: SnapshotRangeDays[] = [7, 30, 90, 365];
 const dashboardAutoRefreshIntervalMs = 60 * 1000;
 const allocationColors = ["#08264A", "#F5B52E", "#3D8F67", "#D9534F", "#4D83B8", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
@@ -227,7 +228,7 @@ export function DashboardPage() {
 
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
   const cashValue = dashboard?.allocations.find((allocation) => allocation.allocationType === "cash")?.marketValue;
-  const businessDayNote = useMemo(() => formatAppBusinessDayCountdown(businessDayNow), [businessDayNow]);
+  const businessDayNote = useMemo(() => buildBusinessDayCountdownParts(businessDayNow), [businessDayNow]);
   const accountNames = useMemo(
     () => new Map((dashboard?.accounts ?? []).map((account) => [account.accountId, account.accountName])),
     [dashboard?.accounts]
@@ -316,7 +317,10 @@ export function DashboardPage() {
           </PageTitle>
           <p>基于当前行情、汇率，展示投资组合概览。</p>
         </div>
-        <div className="dashboard-controls">
+        <p className="business-day-note dashboard-business-day-note-mobile">
+          交易日 <span>{businessDayNote.businessDate}</span> 将于 <span>{businessDayNote.remainingTime}</span> 结束
+        </p>
+        <div className="dashboard-controls dashboard-header-controls">
           <CurrencySelect
             label="报告币种"
             options={SNAPSHOT_DISPLAY_CURRENCIES}
@@ -342,7 +346,9 @@ export function DashboardPage() {
 
       {dashboardError ? <p className="form-error">{dashboardError}</p> : null}
 
-      <p className="business-day-note">{businessDayNote}</p>
+      <p className="business-day-note dashboard-business-day-note-desktop">
+        交易日 <span>{businessDayNote.businessDate}</span> 将于 <span>{businessDayNote.remainingTime}</span> 结束
+      </p>
 
       <div className="metric-grid dashboard-metric-grid">
         {metrics.map((metric) => (
@@ -359,7 +365,7 @@ export function DashboardPage() {
         ))}
       </div>
 
-      {!dashboardLoading && dashboard ? <p className="quote-update-note">{formatQuoteUpdateNote(dashboard)}</p> : null}
+      {!dashboardLoading && dashboard ? <p className="quote-update-note">{renderQuoteUpdateNote(dashboard)}</p> : null}
 
       <section className="dashboard-card-flow dashboard-chart-flow" aria-label="资产趋势、持仓分布、账户分布、最新成交和净值变动">
         <article className="flow-card chart-panel trend-chart-panel">
@@ -434,15 +440,18 @@ export function DashboardPage() {
               </ResponsiveContainer>
               {trendSummary ? (
                 <p className="trend-summary">
-                  {trendSummary.rangeLabel}，初始值 {trendSummary.initialValue}，总资产变动
-                  <span className={signedToneClass(trendSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
-                    {trendSummary.changeAmount}
+                  {trendSummary.rangeLabel}，初始值 {trendSummary.initialValue}，
+                  <span className="trend-summary-change">
+                    总资产变动
+                    <span className={signedToneClass(trendSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
+                      {trendSummary.changeAmount}
+                    </span>
+                    （
+                    <span className={signedToneClass(trendSummary.changePctRaw, preferences.gainColorScheme, 1)}>
+                      {trendSummary.changePct}
+                    </span>
+                    ）
                   </span>
-                  （
-                  <span className={signedToneClass(trendSummary.changePctRaw, preferences.gainColorScheme, 1)}>
-                    {trendSummary.changePct}
-                  </span>
-                  ）
                 </p>
               ) : null}
             </>
@@ -691,15 +700,51 @@ function formatMetricWholeNumber(value: string | number, options: { signed?: boo
   return formatted;
 }
 
-function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
+function renderQuoteUpdateNote(dashboard: DashboardSummary): ReactNode {
   if (!dashboard.quoteFetchedAt) {
     return "行情延迟：暂无本次财富足迹报价更新时间。";
   }
 
-  const formattedTime = formatLocalDateTimeNote(dashboard.quoteFetchedAt, dashboard.quoteFetchedAt);
-  const quoteDate = dashboard.quoteDate ? `，报价日期 ${dashboard.quoteDate}` : "";
+  const formattedTime = formatQuoteUpdateDateTime(dashboard.quoteFetchedAt);
 
-  return `行情延迟：更新时间 ${formattedTime}${quoteDate}`;
+  return (
+    <>
+      行情延迟：更新于 {formattedTime}
+      {dashboard.quoteDate ? <span className="quote-date-nowrap"> 报价日期 {dashboard.quoteDate}</span> : null}
+    </>
+  );
+}
+
+function buildBusinessDayCountdownParts(now: Date): { businessDate: string; remainingTime: string } {
+  const businessDate = getAppBusinessDate(now);
+  const endInstant = new Date(getAppBusinessDayEndInstant(now));
+  const remainingMinutes = Math.max(0, Math.ceil((endInstant.getTime() - now.getTime()) / 60_000));
+
+  return {
+    businessDate,
+    remainingTime: formatHoursMinutes(remainingMinutes)
+  };
+}
+
+function formatQuoteUpdateDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const partMap = new Map(parts.map((part) => [part.type, part.value]));
+
+  return `${partMap.get("year")}-${partMap.get("month")}-${partMap.get("day")} ${partMap.get("hour")}:${partMap.get("minute")}`;
 }
 
 function formatWarning(warning: DashboardWarning): string {

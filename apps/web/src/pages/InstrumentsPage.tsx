@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { Eye, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ASSET_TYPE_LABELS,
@@ -20,6 +20,7 @@ import {
 import { Drawer } from "../components/Drawer";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
+import { isInteractiveRowTarget } from "../lib/tableInteraction";
 
 interface InstrumentsResponse {
   user: AuthenticatedUser;
@@ -206,6 +207,12 @@ export function InstrumentsPage() {
     setDrawerOpen(true);
   }
 
+  function handleInstrumentRowClick(event: MouseEvent<HTMLTableRowElement>, instrument: Instrument) {
+    if (!isInteractiveRowTarget(event.target)) {
+      startDetail(instrument);
+    }
+  }
+
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingInstrumentId(null);
@@ -267,7 +274,13 @@ export function InstrumentsPage() {
               </tr>
             ) : (
               instruments.map((instrument) => (
-                <tr className={editingInstrumentId === instrument.id ? "editing-row" : undefined} key={instrument.id}>
+                <tr
+                  className={[editingInstrumentId === instrument.id ? "editing-row" : "", "clickable-detail-row"]
+                    .filter(Boolean)
+                    .join(" ")}
+                  key={instrument.id}
+                  onClick={(event) => handleInstrumentRowClick(event, instrument)}
+                >
                   <td>{instrument.symbol ?? "-"}</td>
                   <td>{instrument.shortName}</td>
                   <td>{instrument.name}</td>

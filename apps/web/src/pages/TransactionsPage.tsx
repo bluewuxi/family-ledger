@@ -1,4 +1,4 @@
-import { Fragment, type FormEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Eraser, Eye, Filter, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ADJUSTMENT_DIRECTIONS,
@@ -18,6 +18,7 @@ import { Drawer } from "../components/Drawer";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 import { formatDisplayAmount } from "../lib/numberFormat";
+import { isInteractiveRowTarget } from "../lib/tableInteraction";
 
 interface TransactionsResponse {
   user: AuthenticatedUser;
@@ -751,11 +752,13 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
     <tr
       className={[
         editingTransactionId === transaction.id ? "editing-row" : "",
-        isChildRow ? "transaction-child-row" : ""
+        isChildRow ? "transaction-child-row" : "",
+        !isChildRow ? "clickable-detail-row" : ""
       ]
         .filter(Boolean)
         .join(" ")}
       key={isChildRow ? `cash-${transaction.id}` : transaction.id}
+      onClick={isChildRow ? undefined : (event) => handleTransactionRowClick(event, transaction, onDetail)}
     >
       <td className="transaction-expand-column">
         {canExpand ? (
@@ -815,6 +818,16 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
       </td>
     </tr>
   );
+}
+
+function handleTransactionRowClick(
+  event: MouseEvent<HTMLTableRowElement>,
+  transaction: InvestmentTransaction,
+  onDetail: (transaction: InvestmentTransaction) => void
+) {
+  if (!isInteractiveRowTarget(event.target)) {
+    onDetail(transaction);
+  }
 }
 
 function transactionMatchesFilters(transaction: InvestmentTransaction, filters: TransactionFilters): boolean {
