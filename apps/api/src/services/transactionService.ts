@@ -55,12 +55,17 @@ export async function getTransactions(
   validateDateRange(from, to);
 
   const pagination = parsePagination(query);
+  const transactionType = optionalTransactionType(query.transactionType);
+  const transactionTypes = optionalTransactionTypes(query.transactionTypes);
+  validateTransactionTypeFilters(transactionType, transactionTypes);
+
   const rows = await listTransactions({
     from,
     to,
     accountId: optionalUuid("accountId", query.accountId),
     instrumentId: optionalUuid("instrumentId", query.instrumentId),
-    transactionType: optionalTransactionType(query.transactionType),
+    transactionType,
+    transactionTypes,
     limit: pagination.limit,
     offset: pagination.offset
   });
@@ -362,7 +367,7 @@ function minDate(left: string, right: string): string {
 }
 
 function hasTransactionListQuery(query: Record<string, string | undefined>): boolean {
-  return ["from", "to", "accountId", "instrumentId", "transactionType", "limit", "offset"].some((key) => Boolean(query[key]));
+  return ["from", "to", "accountId", "instrumentId", "transactionType", "transactionTypes", "limit", "offset"].some((key) => Boolean(query[key]));
 }
 
 function optionalQueryDate(name: string, value: string | undefined): string | undefined {
@@ -402,6 +407,42 @@ function optionalTransactionType(value: string | undefined): TransactionType | u
   }
 
   return value as TransactionType;
+}
+
+function optionalTransactionTypes(value: string | undefined): TransactionType[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const transactionTypes = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (transactionTypes.length === 0) {
+    return undefined;
+  }
+
+  for (const transactionType of transactionTypes) {
+    if (!TRANSACTION_TYPES.includes(transactionType as TransactionType)) {
+      throw new ApiRequestError("VALIDATION_ERROR", "transactionTypes contains an invalid transaction type.", 400);
+    }
+  }
+
+  return [...new Set(transactionTypes)] as TransactionType[];
+}
+
+function validateTransactionTypeFilters(
+  transactionType: TransactionType | undefined,
+  transactionTypes: TransactionType[] | undefined
+): void {
+  if (transactionType && transactionTypes && !transactionTypes.includes(transactionType)) {
+    throw new ApiRequestError(
+      "VALIDATION_ERROR",
+      "transactionType must be included in transactionTypes when both filters are supplied.",
+      400
+    );
+  }
 }
 
 function parsePagination(query: Record<string, string | undefined>): { limit: number; offset: number } {

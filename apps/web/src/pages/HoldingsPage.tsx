@@ -17,7 +17,7 @@ import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiGet } from "../lib/apiClient";
-import { formatDisplayAmount, formatDisplayPrice } from "../lib/numberFormat";
+import { formatDisplayAmount, formatDisplayPrice, formatSignedDisplayAmount } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
 interface HoldingsResponse extends HoldingsValuationSummary {}
@@ -99,7 +99,7 @@ export function HoldingsPage() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/holdings">持仓总览</PageTitle>
-          <p>按账户、类型和币种查看当前持仓，使用已存储价格和估值汇率显示市值与未实现收益。</p>
+          <p>按账户、类型和币种查看当前持仓，使用已存储价格和估值汇率显示市值与动态盈亏。</p>
         </div>
         <div className="dashboard-controls">
           <CurrencySelect
@@ -137,13 +137,13 @@ export function HoldingsPage() {
           <strong>{formatMetric(visibleTotals.totalMarketValue, pageLoading)}</strong>
         </article>
         <article className="metric-card">
-          <span>未实现收益/亏损</span>
+          <span>动态盈亏</span>
           <small className="metric-currency">
             <CurrencyFlagIcon currency={activeCurrency} />
             {activeCurrency}
           </small>
-          <strong className={signedToneClass(visibleTotals.totalUnrealizedGain, preferences.gainColorScheme)}>
-            {formatMetric(visibleTotals.totalUnrealizedGain, pageLoading)}
+          <strong className={signedToneClass(visibleTotals.totalUnrealizedGain, preferences.gainColorScheme, 3)}>
+            {formatSignedMetric(visibleTotals.totalUnrealizedGain, pageLoading)}
           </strong>
         </article>
         <article className="metric-card">
@@ -213,7 +213,7 @@ export function HoldingsPage() {
               <th className="numeric-cell">剩余成本</th>
               <th className="numeric-cell">最新价格</th>
               <th className="numeric-cell">市值 ({activeCurrency})</th>
-              <th className="numeric-cell">未实现收益/亏损 ({activeCurrency})</th>
+              <th className="numeric-cell">动态盈亏 ({activeCurrency})</th>
               <th>数据提示</th>
             </tr>
           </thead>
@@ -240,8 +240,8 @@ export function HoldingsPage() {
                   <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
                   <td className="numeric-cell">{formatLatestPrice(holding)}</td>
                   <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue) : "--"}</td>
-                  <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme)}`}>
-                    {holding.unrealizedGain ? formatDisplayAmount(holding.unrealizedGain) : "--"}
+                  <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme, 3)}`}>
+                    {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain) : "--"}
                   </td>
                   <td>{formatWarnings(holding)}</td>
                 </tr>
@@ -292,6 +292,14 @@ function formatMetric(value: string | null, loading: boolean): ReactNode {
   }
 
   return value === null ? "--" : formatDisplayAmount(value);
+}
+
+function formatSignedMetric(value: string | null, loading: boolean): ReactNode {
+  if (loading) {
+    return <LoadingState label="加载中" />;
+  }
+
+  return value === null ? "--" : formatSignedDisplayAmount(value);
 }
 
 function formatWarnings(holding: ValuedHoldingSummary): ReactNode {
@@ -367,7 +375,7 @@ function unique<T>(values: T[]): T[] {
 }
 
 function formatValuationWarning(warning: DashboardWarning): string {
-  const instrument = `${warning.instrumentName} (${warning.currency})`;
+  const instrument = `${warning.instrumentShortName} (${warning.currency})`;
 
   switch (warning.code) {
     case "MISSING_LATEST_PRICE":
@@ -382,7 +390,7 @@ function formatValuationWarning(warning: DashboardWarning): string {
 }
 
 function formatInstrument(holding: ValuedHoldingSummary): string {
-  return holding.instrumentSymbol ? `${holding.instrumentSymbol} - ${holding.instrumentName}` : holding.instrumentName;
+  return holding.instrumentSymbol ? `${holding.instrumentSymbol} - ${holding.instrumentShortName}` : holding.instrumentShortName;
 }
 
 function formatShortPriceDate(value: string): string {

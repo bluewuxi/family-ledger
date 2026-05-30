@@ -115,6 +115,8 @@ const routes: Record<string, RouteHandler> = {
         from: event.queryStringParameters?.from,
         to: event.queryStringParameters?.to,
         currency: event.queryStringParameters?.currency,
+        limit: event.queryStringParameters?.limit,
+        order: event.queryStringParameters?.order,
         user
       })
     });

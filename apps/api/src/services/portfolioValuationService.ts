@@ -316,6 +316,7 @@ function addWarning(
     code,
     instrumentId: holding.instrumentId,
     instrumentName: holding.instrumentName,
+    instrumentShortName: holding.instrumentShortName,
     currency: holding.currency
   });
 }

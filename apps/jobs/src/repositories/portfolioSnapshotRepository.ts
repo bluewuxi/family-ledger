@@ -27,6 +27,7 @@ interface InstrumentRow {
   id: string;
   symbol: string | null;
   name: string;
+  short_name: string;
   description: string | null;
   market_region: Instrument["marketRegion"];
   exchange: string | null;
@@ -251,6 +252,7 @@ const instrumentSelect = [
   "id",
   "symbol",
   "name",
+  "short_name",
   "description",
   "market_region",
   "exchange",
@@ -361,6 +363,7 @@ function mapInstrumentRow(row: InstrumentRow): Instrument {
     id: row.id,
     symbol: row.symbol,
     name: row.name,
+    shortName: row.short_name,
     description: row.description,
     marketRegion: row.market_region,
     exchange: row.exchange,

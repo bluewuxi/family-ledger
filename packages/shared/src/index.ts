@@ -17,6 +17,18 @@ export function getAppBusinessDate(input: DateInput = new Date()): string {
   return toIsoDate(previousDate.getUTCFullYear(), previousDate.getUTCMonth() + 1, previousDate.getUTCDate());
 }
 
+export function getAppBusinessDayEndInstant(input: DateInput = new Date()): string {
+  const date = toValidDate(input);
+  const parts = getTimeZoneParts(date, APP_BUSINESS_TIME_ZONE);
+  const endDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, APP_BUSINESS_DAY_CUTOFF_HOUR));
+
+  if (parts.hour >= APP_BUSINESS_DAY_CUTOFF_HOUR) {
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+  }
+
+  return fromTimeZoneWallClock(endDate, APP_BUSINESS_TIME_ZONE).toISOString();
+}
+
 export function getLocalDateString(input: DateInput = new Date()): string {
   const date = toValidDate(input);
   return toIsoDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
@@ -53,6 +65,28 @@ function toValidDate(input: DateInput): Date {
   }
 
   return date;
+}
+
+function fromTimeZoneWallClock(date: Date, timeZone: string): Date {
+  const utcGuess = new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    date.getUTCHours(),
+    date.getUTCMinutes(),
+    date.getUTCSeconds(),
+    date.getUTCMilliseconds()
+  ));
+  const parts = getTimeZoneParts(utcGuess, timeZone);
+  const actualWallClock = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour);
+  const targetWallClock = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    date.getUTCHours()
+  );
+
+  return new Date(utcGuess.getTime() + targetWallClock - actualWallClock);
 }
 
 function getTimeZoneParts(date: Date, timeZone: string): { year: number; month: number; day: number; hour: number } {
@@ -145,6 +179,7 @@ export const PRICE_SOURCES = [
   "custom"
 ] as const;
 export type PriceSource = (typeof PRICE_SOURCES)[number];
+export const INSTRUMENT_SHORT_NAME_MAX_LENGTH = 32;
 
 export const PRICE_SOURCE_LABELS: Record<PriceSource, string> = {
   manual: "\u624b\u52a8",
@@ -325,6 +360,7 @@ export interface Instrument {
   id: string;
   symbol: string | null;
   name: string;
+  shortName: string;
   description: string | null;
   marketRegion: MarketRegion;
   exchange: string | null;
@@ -349,6 +385,7 @@ export interface Instrument {
 export interface CreateInstrumentInput {
   symbol?: string | null;
   name: string;
+  shortName?: string | null;
   description?: string | null;
   marketRegion: MarketRegion;
   exchange?: string | null;
@@ -369,6 +406,7 @@ export interface CreateInstrumentInput {
 export interface UpdateInstrumentInput {
   symbol?: string | null;
   name?: string;
+  shortName?: string | null;
   description?: string | null;
   marketRegion?: MarketRegion;
   exchange?: string | null;
@@ -460,6 +498,7 @@ export interface HoldingSummary {
   instrumentId: string;
   instrumentSymbol: string | null;
   instrumentName: string;
+  instrumentShortName: string;
   assetType: AssetType;
   currency: CurrencyCode;
   quantity: string;
@@ -615,6 +654,7 @@ function toHoldingSummary(state: HoldingState): HoldingSummary {
     instrumentId: state.instrument.id,
     instrumentSymbol: state.instrument.symbol,
     instrumentName: state.instrument.name,
+    instrumentShortName: state.instrument.shortName,
     assetType: state.instrument.assetType,
     currency: state.instrument.currency,
     quantity: state.quantity.toString(),
@@ -668,6 +708,7 @@ export interface DashboardWarning {
   code: DashboardWarningCode;
   instrumentId: string;
   instrumentName: string;
+  instrumentShortName: string;
   currency: CurrencyCode;
 }
 
@@ -897,6 +938,7 @@ export interface SnapshotWarning {
   accountName: string;
   instrumentId: string;
   instrumentName: string;
+  instrumentShortName: string;
   currency: CurrencyCode;
 }
 
@@ -1264,6 +1306,7 @@ function addSnapshotWarning(
     accountName: holding.accountName,
     instrumentId: holding.instrumentId,
     instrumentName: holding.instrumentName,
+    instrumentShortName: holding.instrumentShortName,
     currency: holding.currency
   });
 }

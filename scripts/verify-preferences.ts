@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { AuthenticatedUser, UserPreferences } from "@family-ledger/shared";
 import { resolveReportingCurrency } from "../apps/api/src/services/reportingCurrencyService";
+import { signedToneClass } from "../apps/web/src/lib/preferencesContext";
 
 const user: AuthenticatedUser = {
   id: "user-a",
@@ -45,4 +46,10 @@ async function verifyPreferences(): Promise<void> {
     () => resolveReportingCurrency({ currency: "AUD", user }, loadPreferences),
     /currency must be NZD, USD, or CNY/
   );
+
+  assert.equal(signedToneClass("0.0004", "red_positive", 3), "metric-neutral");
+  assert.equal(signedToneClass("-0.0004", "red_positive", 3), "metric-neutral");
+  assert.equal(signedToneClass("0.04", "red_positive", 1), "metric-neutral");
+  assert.equal(signedToneClass("0.05", "red_positive", 1), "metric-red");
+  assert.equal(signedToneClass("-0.05", "green_positive", 1), "metric-red");
 }

@@ -123,7 +123,7 @@ async function main(): Promise<void> {
   const requiredColumnSelects: Record<string, string> = {
     investment_accounts: "created_by_user_id,updated_by_user_id",
     instruments:
-      "description,market_region,exchange,price_source,price_source_symbol,price_source_exchange,price_update_enabled,price_update_priority,source_url,source_checked_at",
+      "short_name,description,market_region,exchange,price_source,price_source_symbol,price_source_exchange,price_update_enabled,price_update_priority,source_url,source_checked_at",
     transactions: "created_by_user_id,updated_by_user_id",
     currencies: "name,minor_unit,is_active",
     instrument_prices: "provider,source_symbol,is_adjusted,fetched_at",

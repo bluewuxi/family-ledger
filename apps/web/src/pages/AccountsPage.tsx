@@ -752,7 +752,7 @@ function decimalString(value: string | number | null | undefined, fallback = "")
 }
 
 function formatInstrument(instrument: Instrument): string {
-  return instrument.symbol ? `${instrument.symbol} - ${instrument.name}` : instrument.name;
+  return instrument.symbol ? `${instrument.symbol} - ${instrument.shortName}` : instrument.shortName;
 }
 
 async function loadAccountTotals(

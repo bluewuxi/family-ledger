@@ -13,6 +13,7 @@ export interface TransactionListFilters {
   accountId?: string;
   instrumentId?: string;
   transactionType?: TransactionType;
+  transactionTypes?: TransactionType[];
   limit?: number;
   offset?: number;
 }
@@ -82,6 +83,9 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
   }
   if (input.transactionType) {
     query = query.eq("transaction_type", input.transactionType);
+  }
+  if (input.transactionTypes && input.transactionTypes.length > 0) {
+    query = query.in("transaction_type", input.transactionTypes);
   }
   if (input.limit !== undefined && input.offset !== undefined) {
     query = query.range(input.offset, input.offset + input.limit);

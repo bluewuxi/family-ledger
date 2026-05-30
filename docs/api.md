@@ -66,7 +66,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
-`GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending. It supports `from`, `to`, `accountId`, `instrumentId`, `transactionType`, `limit`, and `offset` query parameters. When pagination parameters are supplied, the response includes `pagination` metadata with `limit`, `offset`, and `hasMore`.
+`GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending. It supports `from`, `to`, `accountId`, `instrumentId`, `transactionType`, comma-separated `transactionTypes`, `limit`, and `offset` query parameters. `transactionTypes=buy,sell` is a first-class filter and works with or without pagination. If both `transactionType` and `transactionTypes` are supplied, the single `transactionType` must be included in the list and narrows the result set. When pagination parameters are supplied, the response includes `pagination` metadata with `limit`, `offset`, and `hasMore`.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
@@ -253,6 +253,7 @@ It returns aggregate valued totals plus one non-zero row for each account and in
       "instrumentId": "uuid",
       "instrumentSymbol": "VGT",
       "instrumentName": "Vanguard Information Technology ETF",
+      "instrumentShortName": "VGT",
       "assetType": "etf",
       "currency": "USD",
       "quantity": "15",
@@ -280,13 +281,15 @@ Holding quantity, average cost, and remaining cost continue to use the instrumen
 
 ### Portfolio Snapshots Read API
 
-`GET /portfolio-snapshots?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
+`GET /portfolio-snapshots?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users. It also supports validated `limit` and `order=asc|desc`. When `limit` is supplied without `from`, the API bypasses the default single-business-date range and searches from the beginning of stored history through `to`, so dashboard activity can request the latest persisted snapshots with `limit=16&order=desc`. Rows are returned in the requested order; chart callers that need chronological data should keep using explicit `from`/`to` range reads with the default ascending order.
 
 Defaults:
 
 - `currency`: current user's `preferredCurrency`; new profiles default to `CNY`
 - `to`: current app business date using the `06:00 Asia/Shanghai` cutoff
-- `from`: same as `to`
+- `from`: same as `to`, unless `limit` is supplied
+- `order`: `asc`
+- `limit`: optional integer from `1` to `200`; when supplied without `from`, latest-mode history search is enabled
 
 Response data:
 
@@ -311,7 +314,7 @@ Response data:
 }
 ```
 
-Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals.
+Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals. For dashboard recent-snapshot activity, compare adjacent returned rows' `marketValue` values client-side. Do not reuse `dailyChange` or `dailyChangePct` for `较上一快照`; those fields are stored valuation movement versus prior available prices inside that snapshot.
 
 ## Account Write APIs
 
@@ -444,6 +447,7 @@ Create request:
 {
   "symbol": "VGT",
   "name": "Vanguard Information Technology ETF",
+  "shortName": "VGT",
   "description": "Technology sector ETF",
   "marketRegion": "US",
   "exchange": "NYSE_ARCA",
@@ -464,7 +468,7 @@ Create request:
 
 Update request accepts one or more of the same fields.
 
-For all asset types except `other`, `symbol` and `exchange` are required. When supplied, they must be supplied together. The stable identity `marketRegion + exchange + symbol` must be unique.
+For all asset types except `other`, `symbol` and `exchange` are required. When supplied, they must be supplied together. The stable identity `marketRegion + exchange + symbol` must be unique. `shortName` is required for updates when present, optional on create for backward compatibility, and must be nonblank with at most 32 characters; create falls back to `symbol` or a trimmed `name` when omitted.
 
 Create/update response data:
 
@@ -474,6 +478,7 @@ Create/update response data:
     "id": "uuid",
     "symbol": "VGT",
     "name": "Vanguard Information Technology ETF",
+    "shortName": "VGT",
     "marketRegion": "US",
     "exchange": "NYSE_ARCA",
     "currency": "USD",

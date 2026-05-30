@@ -13,11 +13,14 @@ import {
   YAxis
 } from "recharts";
 import {
+  getAppBusinessDayEndInstant,
   getAppBusinessDate,
   getLocalDateString,
   SNAPSHOT_DISPLAY_CURRENCIES,
   type DashboardSummary,
   type DashboardWarning,
+  type Instrument,
+  type InvestmentTransaction,
   type PortfolioSnapshotSummary,
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
@@ -25,7 +28,12 @@ import { ApiClientError, apiGet } from "../lib/apiClient";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingBlock, LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
-import { formatDisplayAmount, formatDisplayPercent } from "../lib/numberFormat";
+import {
+  formatDisplayAmount,
+  formatDisplayPercent,
+  formatSignedDisplayAmount,
+  formatSignedDisplayPercent
+} from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 import { formatLocalDateTimeNote } from "../lib/timeFormat";
 import { buildTrendChartData, isSyntheticTrendDate, type TrendChartPoint, type TrendPoint } from "../lib/trendChartData";
@@ -36,6 +44,14 @@ interface DashboardResponse {
 
 interface PortfolioSnapshotsResponse {
   snapshots: PortfolioSnapshotSummary[];
+}
+
+interface TransactionsResponse {
+  transactions: InvestmentTransaction[];
+}
+
+interface InstrumentsResponse {
+  instruments: Instrument[];
 }
 
 type SnapshotRangeDays = 30 | 90 | 365;
@@ -73,10 +89,15 @@ export function DashboardPage() {
   const [snapshotRangeDays, setSnapshotRangeDays] = useState<SnapshotRangeDays>(90);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<InvestmentTransaction[]>([]);
+  const [recentSnapshots, setRecentSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [snapshotsLoading, setSnapshotsLoading] = useState(true);
+  const [activityLoading, setActivityLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [snapshotsError, setSnapshotsError] = useState<string | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!preferencesLoading && !currencyManuallySelected) {
@@ -122,6 +143,12 @@ export function DashboardPage() {
     }
   }, [currencyInitialized, reportingCurrency, snapshotRangeDays]);
 
+  useEffect(() => {
+    if (currencyInitialized) {
+      void loadActivity(reportingCurrency);
+    }
+  }, [currencyInitialized, reportingCurrency]);
+
   async function loadDashboard(currency: SnapshotDisplayCurrency, options: { showLoading?: boolean } = {}) {
     const showLoading = options.showLoading ?? true;
 
@@ -159,26 +186,59 @@ export function DashboardPage() {
     }
   }
 
+  async function loadActivity(currency: SnapshotDisplayCurrency, options: { showLoading?: boolean } = {}) {
+    const showLoading = options.showLoading ?? true;
+
+    if (showLoading) {
+      setActivityLoading(true);
+    }
+    setActivityError(null);
+
+    try {
+      const [transactionData, snapshotData, instrumentData] = await Promise.all([
+        apiGet<TransactionsResponse>("/transactions?transactionTypes=buy,sell&limit=15&offset=0"),
+        apiGet<PortfolioSnapshotsResponse>(`/portfolio-snapshots?currency=${currency}&limit=16&order=desc`),
+        apiGet<InstrumentsResponse>("/instruments")
+      ]);
+      setRecentTransactions(transactionData.transactions);
+      setRecentSnapshots(snapshotData.snapshots);
+      setInstruments(instrumentData.instruments);
+    } catch (requestError) {
+      setActivityError(toErrorMessage(requestError, "最新动态请求失败，请稍后重试。"));
+    } finally {
+      if (showLoading) {
+        setActivityLoading(false);
+      }
+    }
+  }
+
   function refreshDashboard() {
     void loadDashboard(reportingCurrency);
     void loadSnapshots(reportingCurrency, snapshotRangeDays);
+    void loadActivity(reportingCurrency);
   }
 
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
   const cashValue = dashboard?.allocations.find((allocation) => allocation.allocationType === "cash")?.marketValue;
+  const businessDayNote = useMemo(() => formatBusinessDayNote(new Date()), []);
+  const accountNames = useMemo(
+    () => new Map((dashboard?.accounts ?? []).map((account) => [account.accountId, account.accountName])),
+    [dashboard?.accounts]
+  );
+  const instrumentsById = useMemo(() => new Map(instruments.map((instrument) => [instrument.id, instrument])), [instruments]);
   const metrics = [
     { label: "总资产", value: formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading), currency: activeCurrency },
     {
       label: "最新变动",
       value: formatPlainTodayChange(dashboard, dashboardLoading),
       currency: activeCurrency,
-      toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme)
+      toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3)
     },
     {
-      label: "未实现收益",
-      value: formatPlainMoneyMetric(dashboard?.unrealizedGain, dashboardLoading),
+      label: "动态盈亏",
+      value: formatSignedMoneyMetric(dashboard?.unrealizedGain, dashboardLoading),
       currency: activeCurrency,
-      toneClass: signedToneClass(dashboard?.unrealizedGain, preferences.gainColorScheme)
+      toneClass: signedToneClass(dashboard?.unrealizedGain, preferences.gainColorScheme, 3)
     },
     { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency },
     { label: "账户数量", value: dashboardLoading ? <LoadingState label="加载中" /> : String(dashboard?.accountCount ?? 0), compact: true }
@@ -198,6 +258,10 @@ export function DashboardPage() {
   const trendChartData = useMemo(
     () => buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.quoteDate),
     [dashboard?.quoteDate, dashboard?.totalAssets, trendData]
+  );
+  const trendSummary = useMemo(
+    () => buildTrendSummary(trendData, trendChartData, activeCurrency),
+    [activeCurrency, trendChartData, trendData]
   );
   const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
   const allocationData = useMemo<AllocationPoint[]>(
@@ -255,6 +319,8 @@ export function DashboardPage() {
 
       {dashboardError ? <p className="form-error">{dashboardError}</p> : null}
 
+      <p className="business-day-note">{businessDayNote}</p>
+
       <div className="metric-grid">
         {metrics.map((metric) => (
           <article className={metric.compact ? "metric-card metric-card-compact" : "metric-card"} key={metric.label}>
@@ -307,8 +373,9 @@ export function DashboardPage() {
             ) : trendData.length === 0 ? (
               <div className="empty-chart-state">暂无快照数据</div>
             ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={trendChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
+              <>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={trendChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
                   <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
                   <YAxis
@@ -343,8 +410,22 @@ export function DashboardPage() {
                     activeDot={{ r: 5 }}
                     connectNulls={false}
                   />
-                </LineChart>
-              </ResponsiveContainer>
+                  </LineChart>
+                </ResponsiveContainer>
+                {trendSummary ? (
+                  <p className="trend-summary">
+                    {trendSummary.rangeLabel}，初始值 {trendSummary.initialValue} {activeCurrency}，总资产
+                    <span className={signedToneClass(trendSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
+                      {trendSummary.changeAmount}
+                    </span>
+                    （
+                    <span className={signedToneClass(trendSummary.changePctRaw, preferences.gainColorScheme, 1)}>
+                      {trendSummary.changePct}
+                    </span>
+                    ）
+                  </p>
+                ) : null}
+              </>
             )}
           </article>
 
@@ -394,6 +475,68 @@ export function DashboardPage() {
         </div>
       </section>
 
+      <section className="dashboard-activity-grid" aria-label="最新交易和快照">
+        <article className="activity-panel">
+          <div className="activity-panel-header">
+            <h2>最新买卖</h2>
+            <span>15 条</span>
+          </div>
+          {activityError ? <p className="form-error">{activityError}</p> : null}
+          {activityLoading ? (
+            <LoadingBlock label="正在加载最新买卖" />
+          ) : recentTransactions.length === 0 ? (
+            <div className="empty-chart-state">暂无买卖交易</div>
+          ) : (
+            <div className="activity-list">
+              {recentTransactions.map((transaction) => (
+                <div className="activity-row" key={transaction.id}>
+                  <div>
+                    <strong>{formatTransactionInstrument(transaction, instrumentsById)}</strong>
+                    <span>{accountNames.get(transaction.accountId) ?? "-"}</span>
+                  </div>
+                  <div className="activity-row-meta">
+                    <span>{transaction.tradeDate}</span>
+                    <span>{formatTransactionValue(transaction)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="activity-panel">
+          <div className="activity-panel-header">
+            <h2>近期快照</h2>
+            <span>{activeCurrency}</span>
+          </div>
+          {activityLoading ? (
+            <LoadingBlock label="正在加载近期快照" />
+          ) : recentSnapshots.length === 0 ? (
+            <div className="empty-chart-state">暂无快照记录</div>
+          ) : (
+            <div className="activity-list snapshot-activity-list">
+              {buildSnapshotComparisonRows(recentSnapshots).map((row) => (
+                <div className="activity-row" key={row.snapshot.id}>
+                  <div>
+                    <strong>{row.snapshot.snapshotDate}</strong>
+                    <span>总资产 {formatNullableAmount(row.snapshot.marketValue)} {activeCurrency}</span>
+                  </div>
+                  <div className="activity-row-meta">
+                    <span>较上一快照</span>
+                    <span className={signedToneClass(row.changeAmount, preferences.gainColorScheme, 3)}>
+                      {formatNullableSignedAmount(row.changeAmount)}
+                    </span>
+                    <span className={signedToneClass(row.changePct, preferences.gainColorScheme, 1)}>
+                      {formatNullableSignedPercent(row.changePct)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+      </section>
+
       {!dashboardLoading && dashboard?.warnings.length ? (
         <section className="dashboard-warning-panel" aria-label="数据提示">
           <h2>数据提示</h2>
@@ -419,6 +562,14 @@ function formatPlainMoneyMetric(value: string | null | undefined, loading: boole
   return value === null || value === undefined ? "--" : formatDisplayAmount(value);
 }
 
+function formatSignedMoneyMetric(value: string | null | undefined, loading: boolean): ReactNode {
+  if (loading) {
+    return <LoadingState label="加载中" />;
+  }
+
+  return value === null || value === undefined ? "--" : formatSignedDisplayAmount(value);
+}
+
 function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boolean): ReactNode {
   if (loading) {
     return <LoadingState label="加载中" />;
@@ -428,8 +579,8 @@ function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boo
     return "--";
   }
 
-  const percentage = dashboard.todayChangePct === null ? "" : ` (${formatDisplayPercent(dashboard.todayChangePct)}%)`;
-  return `${formatDisplayAmount(dashboard.todayChange)}${percentage}`;
+  const percentage = dashboard.todayChangePct === null ? "" : ` (${formatSignedDisplayPercent(dashboard.todayChangePct)}%)`;
+  return `${formatSignedDisplayAmount(dashboard.todayChange)}${percentage}`;
 }
 
 function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
@@ -444,7 +595,7 @@ function formatQuoteUpdateNote(dashboard: DashboardSummary): string {
 }
 
 function formatWarning(warning: DashboardWarning): string {
-  const instrument = `${warning.instrumentName} (${warning.currency})`;
+  const instrument = `${warning.instrumentShortName} (${warning.currency})`;
 
   switch (warning.code) {
     case "MISSING_LATEST_PRICE":
@@ -454,8 +605,123 @@ function formatWarning(warning: DashboardWarning): string {
     case "MISSING_FX_RATE":
       return `${instrument} 缺少估值汇率`;
     case "COST_BASIS_UNAVAILABLE":
-      return `${instrument} 成本不可用，无法计算未实现收益`;
+      return `${instrument} 成本不可用，无法计算动态盈亏`;
   }
+}
+
+function formatBusinessDayNote(now: Date): string {
+  const businessDate = getAppBusinessDate(now);
+  const endInstant = getAppBusinessDayEndInstant(now);
+  return `本交易日 ${formatSlashDate(businessDate)}，将于 ${formatLocalMinute(endInstant)}（本地时间）结束`;
+}
+
+function buildTrendSummary(
+  points: TrendPoint[],
+  chartPoints: TrendChartPoint[],
+  currency: SnapshotDisplayCurrency
+): {
+  rangeLabel: string;
+  initialValue: string;
+  changeAmount: string;
+  changeAmountRaw: string;
+  changePct: string;
+  changePctRaw: string;
+} | null {
+  const firstPoint = points[0];
+  const lastPoint = chartPoints.at(-1);
+
+  if (!firstPoint || !lastPoint || !Number.isFinite(firstPoint.value) || !Number.isFinite(lastPoint.value)) {
+    return null;
+  }
+
+  const changeAmount = lastPoint.value - firstPoint.value;
+  const changePct = firstPoint.value === 0 ? null : (changeAmount / firstPoint.value) * 100;
+  const endDate = isSyntheticTrendDate(lastPoint.date) ? getAppBusinessDate() : lastPoint.date;
+
+  return {
+    rangeLabel: `${firstPoint.date} 至 ${endDate}`,
+    initialValue: formatDisplayAmount(firstPoint.value),
+    changeAmount: `${formatSignedDisplayAmount(changeAmount)} ${currency}`,
+    changeAmountRaw: String(changeAmount),
+    changePct: changePct === null ? "--" : `${formatSignedDisplayPercent(changePct)}%`,
+    changePctRaw: changePct === null ? "0" : String(changePct)
+  };
+}
+
+function formatTransactionInstrument(
+  transaction: InvestmentTransaction,
+  instrumentsById: Map<string, Instrument>
+): string {
+  const instrument = instrumentsById.get(transaction.instrumentId);
+  const name = instrument?.shortName ?? transaction.instrumentId;
+  return `${name} ${transaction.transactionType === "buy" ? "买入" : "卖出"}`;
+}
+
+function formatTransactionValue(transaction: InvestmentTransaction): string {
+  const amount = transaction.grossAmount === null ? "--" : formatDisplayAmount(transaction.grossAmount);
+  const price = transaction.price === null ? "" : ` @ ${formatDisplayAmount(transaction.price)}`;
+  const quantity = transaction.quantity === null ? "" : `${formatDisplayAmount(transaction.quantity)} 股`;
+  const separator = quantity && price ? " " : "";
+  return `${quantity}${separator}${price} · ${amount} ${transaction.currency}`;
+}
+
+function buildSnapshotComparisonRows(snapshots: PortfolioSnapshotSummary[]): Array<{
+  snapshot: PortfolioSnapshotSummary;
+  changeAmount: string | null;
+  changePct: string | null;
+}> {
+  // Activity compares persisted snapshot totals, not each snapshot's latest-price dailyChange fields.
+  return snapshots.slice(0, 15).map((snapshot, index) => {
+    const previous = snapshots[index + 1];
+    const currentValue = parseNullableNumber(snapshot.marketValue);
+    const previousValue = parseNullableNumber(previous?.marketValue);
+    const changeAmount = currentValue === null || previousValue === null ? null : currentValue - previousValue;
+    const changePct = changeAmount === null || previousValue === null || previousValue === 0
+      ? null
+      : (changeAmount / previousValue) * 100;
+
+    return {
+      snapshot,
+      changeAmount: changeAmount === null ? null : String(changeAmount),
+      changePct: changePct === null ? null : String(changePct)
+    };
+  });
+}
+
+function parseNullableNumber(value: string | null | undefined): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function formatNullableAmount(value: string | null | undefined): string {
+  return value === null || value === undefined ? "--" : formatDisplayAmount(value);
+}
+
+function formatNullableSignedAmount(value: string | null): string {
+  return value === null ? "--" : formatSignedDisplayAmount(value);
+}
+
+function formatNullableSignedPercent(value: string | null): string {
+  return value === null ? "--" : `${formatSignedDisplayPercent(value)}%`;
+}
+
+function formatSlashDate(value: string): string {
+  return value.replaceAll("-", "/");
+}
+
+function formatLocalMinute(value: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(new Date(value));
 }
 
 function getSnapshotDateRange(days: SnapshotRangeDays): { from: string; to: string } {

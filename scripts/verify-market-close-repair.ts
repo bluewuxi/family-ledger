@@ -103,6 +103,7 @@ function instrument(
     id,
     symbol: id,
     name,
+    shortName: id,
     description: null,
     marketRegion: currency === "CNY" ? "CN" : "NZ",
     exchange,

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { formatDateTimeInTimeZone, getAppBusinessDate } from "@family-ledger/shared";
+import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
 import { buildTrendChartData } from "../apps/web/src/lib/trendChartData";
 
@@ -10,6 +10,8 @@ async function main(): Promise<void> {
   assert.equal(getAppBusinessDate("2026-05-27T21:59:59.000Z"), "2026-05-27");
   assert.equal(getAppBusinessDate("2026-05-27T22:00:00.000Z"), "2026-05-28");
   assert.equal(getAppBusinessDate("2026-05-28T01:30:00.000Z"), "2026-05-28");
+  assert.equal(getAppBusinessDayEndInstant("2026-05-27T21:59:59.000Z"), "2026-05-27T22:00:00.000Z");
+  assert.equal(getAppBusinessDayEndInstant("2026-05-27T22:00:00.000Z"), "2026-05-28T22:00:00.000Z");
 
   const timestamp = "2026-05-28T00:30:00.000Z";
   const shanghaiTime = formatDateTimeInTimeZone(timestamp, "Asia/Shanghai");
@@ -29,6 +31,7 @@ async function main(): Promise<void> {
 
   const dashboard = readFileSync("apps/web/src/pages/DashboardPage.tsx", "utf8");
   assert.match(dashboard, /最新变动/u);
+  assert.match(dashboard, /本交易日/u);
   assert.doesNotMatch(dashboard, /今日变动/u);
 
   const aShareOpenTime = "2026-05-29T02:18:00.000Z";

@@ -1,6 +1,7 @@
 import {
   ASSET_TYPES,
   CURRENCY_CODES,
+  INSTRUMENT_SHORT_NAME_MAX_LENGTH,
   MARKET_REGIONS,
   PRICE_SOURCES,
   type AssetType,
@@ -111,6 +112,7 @@ function parseCreateInstrumentInput(body: unknown): CreateInstrumentInput {
   const input: CreateInstrumentInput = {
     symbol: optionalString(record.symbol, "symbol"),
     name: requiredString(record.name, "name"),
+    shortName: optionalShortName(record.shortName),
     description: optionalString(record.description, "description"),
     marketRegion: requiredEnum(record.marketRegion, MARKET_REGIONS, "marketRegion"),
     exchange: optionalString(record.exchange, "exchange"),
@@ -142,6 +144,10 @@ function parseUpdateInstrumentInput(body: unknown): UpdateInstrumentInput {
 
   if ("name" in record) {
     input.name = requiredString(record.name, "name");
+  }
+
+  if ("shortName" in record) {
+    input.shortName = requiredShortName(record.shortName);
   }
 
   if ("description" in record) {
@@ -246,6 +252,20 @@ function requiredString(value: unknown, field: string): string {
   return trimmed;
 }
 
+function requiredShortName(value: unknown): string {
+  const shortName = requiredString(value, "shortName");
+
+  if (shortName.length > INSTRUMENT_SHORT_NAME_MAX_LENGTH) {
+    throw new ApiRequestError(
+      "VALIDATION_ERROR",
+      `shortName must be ${INSTRUMENT_SHORT_NAME_MAX_LENGTH} characters or fewer.`,
+      400
+    );
+  }
+
+  return shortName;
+}
+
 function optionalString(value: unknown, field: string): string | null {
   if (value === undefined || value === null) {
     return null;
@@ -257,6 +277,20 @@ function optionalString(value: unknown, field: string): string | null {
 
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function optionalShortName(value: unknown): string | null {
+  const shortName = optionalString(value, "shortName");
+
+  if (shortName !== null && shortName.length > INSTRUMENT_SHORT_NAME_MAX_LENGTH) {
+    throw new ApiRequestError(
+      "VALIDATION_ERROR",
+      `shortName must be ${INSTRUMENT_SHORT_NAME_MAX_LENGTH} characters or fewer.`,
+      400
+    );
+  }
+
+  return shortName;
 }
 
 function optionalTimestamp(value: unknown, field: string): string | null {

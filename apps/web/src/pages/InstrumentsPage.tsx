@@ -4,6 +4,7 @@ import {
   ASSET_TYPE_LABELS,
   ASSET_TYPES,
   CURRENCY_CODES,
+  INSTRUMENT_SHORT_NAME_MAX_LENGTH,
   MARKET_REGION_LABELS,
   MARKET_REGIONS,
   PRICE_SOURCE_LABELS,
@@ -36,6 +37,7 @@ interface DeleteInstrumentResponse {
 interface InstrumentFormState {
   symbol: string;
   name: string;
+  shortName: string;
   description: string;
   marketRegion: MarketRegion;
   exchange: string;
@@ -58,6 +60,7 @@ type DrawerMode = "create" | "view" | "modify";
 const emptyForm: InstrumentFormState = {
   symbol: "",
   name: "",
+  shortName: "",
   description: "",
   marketRegion: "US",
   exchange: "",
@@ -183,6 +186,7 @@ export function InstrumentsPage() {
     setForm({
       symbol: instrument.symbol ?? "",
       name: instrument.name,
+      shortName: instrument.shortName,
       description: instrument.description ?? "",
       marketRegion: instrument.marketRegion,
       exchange: instrument.exchange ?? "",
@@ -241,6 +245,7 @@ export function InstrumentsPage() {
           <thead>
             <tr>
               <th>代码</th>
+              <th>简称</th>
               <th>名称</th>
               <th>市场</th>
               <th>交易所/平台</th>
@@ -254,16 +259,17 @@ export function InstrumentsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9}>正在加载投资标的...</td>
+                <td colSpan={10}>正在加载投资标的...</td>
               </tr>
             ) : instruments.length === 0 ? (
               <tr>
-                <td colSpan={9}>暂无投资标的。</td>
+                <td colSpan={10}>暂无投资标的。</td>
               </tr>
             ) : (
               instruments.map((instrument) => (
                 <tr className={editingInstrumentId === instrument.id ? "editing-row" : undefined} key={instrument.id}>
                   <td>{instrument.symbol ?? "-"}</td>
+                  <td>{instrument.shortName}</td>
                   <td>{instrument.name}</td>
                   <td>{MARKET_REGION_LABELS[instrument.marketRegion]}</td>
                   <td>{instrument.exchange ?? "-"}</td>
@@ -352,6 +358,18 @@ export function InstrumentsPage() {
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               placeholder="例如 Advanced Micro Devices"
               disabled={isDrawerReadOnly}
+              required
+            />
+          </label>
+
+          <label>
+            简称
+            <input
+              value={form.shortName}
+              onChange={(event) => setForm({ ...form, shortName: event.target.value })}
+              placeholder="例如 AMD、腾讯或 FS 纳指100"
+              disabled={isDrawerReadOnly}
+              maxLength={INSTRUMENT_SHORT_NAME_MAX_LENGTH}
               required
             />
           </label>
@@ -536,6 +554,7 @@ function toInstrumentInput(form: InstrumentFormState): CreateInstrumentInput {
   return {
     symbol: form.symbol,
     name: form.name,
+    shortName: form.shortName,
     description: form.description,
     marketRegion: form.marketRegion,
     exchange: form.exchange,
@@ -566,8 +585,8 @@ function toLocalDateTimeValue(timestamp: string | null): string {
 
 function sortInstruments(instruments: Instrument[]): Instrument[] {
   return [...instruments].sort((left, right) => {
-    const leftLabel = [left.marketRegion, left.exchange ?? "", left.symbol ?? "", left.name].join("|");
-    const rightLabel = [right.marketRegion, right.exchange ?? "", right.symbol ?? "", right.name].join("|");
+    const leftLabel = [left.marketRegion, left.exchange ?? "", left.symbol ?? "", left.shortName].join("|");
+    const rightLabel = [right.marketRegion, right.exchange ?? "", right.symbol ?? "", right.shortName].join("|");
     return leftLabel.localeCompare(rightLabel, "zh-CN");
   });
 }

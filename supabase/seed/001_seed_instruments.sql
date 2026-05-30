@@ -1,5 +1,6 @@
 insert into public.instruments (
   symbol,
+  short_name,
   name,
   description,
   market_region,
@@ -20,6 +21,7 @@ insert into public.instruments (
 values
   (
     'AMD',
+    'AMD',
     'Advanced Micro Devices, Inc.',
     'AMD is a semiconductor company focused on high-performance and adaptive computing products, including CPUs, GPUs, data center, gaming, embedded, and AI-related solutions.',
     'US',
@@ -38,6 +40,7 @@ values
     null
   ),
   (
+    'QQQM',
     'QQQM',
     'Invesco NASDAQ 100 ETF',
     'The Invesco NASDAQ 100 ETF is designed to track the Nasdaq-100 Index and provide exposure to large and mega-cap non-financial companies listed on Nasdaq.',
@@ -58,6 +61,7 @@ values
   ),
   (
     'VOO',
+    'VOO',
     'Vanguard S&P 500 ETF',
     'Vanguard S&P 500 ETF seeks to track the performance of the S&P 500 Index and provides large-cap US equity exposure.',
     'US',
@@ -76,6 +80,7 @@ values
     null
   ),
   (
+    'VGT',
     'VGT',
     'Vanguard Information Technology ETF',
     'Vanguard Information Technology ETF seeks to track a benchmark index measuring the investment return of information technology stocks.',
@@ -96,6 +101,7 @@ values
   ),
   (
     'SMH',
+    'SMH',
     'VanEck Semiconductor ETF',
     'VanEck Semiconductor ETF seeks exposure to US-listed companies involved in semiconductor production and semiconductor equipment.',
     'US',
@@ -115,6 +121,7 @@ values
   ),
   (
     '01810',
+    '小米',
     'Xiaomi Corporation',
     'Xiaomi is a consumer electronics and smart manufacturing company with smartphones and smart hardware connected by an IoT platform at its core, with related internet services.',
     'HK',
@@ -134,6 +141,7 @@ values
   ),
   (
     '00700',
+    '腾讯',
     'Tencent Holdings Limited',
     'Tencent provides value-added services, marketing services, fintech, and business services, with consumer internet and enterprise services across Mainland China and internationally.',
     'HK',
@@ -153,6 +161,7 @@ values
   ),
   (
     '161128',
+    '标普信息科技',
     '易方达标普信息科技指数证券投资基金（LOF）A（人民币份额）',
     '易方达标普信息科技指数（QDII-LOF）A（人民币份额）是由易方达基金管理有限公司管理、在深圳证券交易所上市交易的 QDII-LOF 人民币份额。',
     'CN',
@@ -172,6 +181,7 @@ values
   ),
   (
     '159501',
+    '纳指100',
     '嘉实纳斯达克100ETF（QDII）',
     '嘉实纳斯达克100ETF（QDII）是嘉实基金管理有限公司管理、在深圳证券交易所上市交易的跨市场 QDII ETF，目标指数代码为 NDX。',
     'CN',
@@ -191,6 +201,7 @@ values
   ),
   (
     '513500',
+    '标普500',
     '博时标普500ETF（QDII）',
     '博时标普500ETF（QDII）是博时基金管理的中国上市 QDII ETF，寻求跟踪或提供标普500指数相关投资表现。',
     'CN',
@@ -210,6 +221,7 @@ values
   ),
   (
     'FS_NASDAQ_100',
+    'FS 纳指100',
     'Foundation Series Nasdaq-100 Fund',
     'Foundation Series Nasdaq-100 Fund is a PIE-compliant New Zealand fund that invests into the Invesco NASDAQ 100 ETF and provides exposure to the largest non-financial companies listed on Nasdaq.',
     'NZ',
@@ -229,6 +241,7 @@ values
   ),
   (
     'FS_TOTAL_WORLD',
+    'FS 全球',
     'Foundation Series Total World Fund',
     'Foundation Series Total World Fund provides global share exposure through an underlying ETF investing in large, mid-sized, and small companies listed on international stock markets.',
     'NZ',
@@ -248,6 +261,7 @@ values
   ),
   (
     'FS_US_500',
+    'FS 标普500',
     'Foundation Series US 500 Fund',
     'Foundation Series US 500 Fund invests into the Vanguard S&P 500 ETF (VOO), providing exposure to 500 of the largest companies in the United States.',
     'NZ',
@@ -267,6 +281,7 @@ values
   ),
   (
     'CASH_CNY',
+    'CNY现金',
     'CNY Cash',
     'Chinese yuan cash position used for shared family ledger cash balances and cash transactions.',
     'OTHER',
@@ -286,6 +301,7 @@ values
   ),
   (
     'CASH_USD',
+    'USD现金',
     'USD Cash',
     'US dollar cash position used for shared family ledger cash balances and cash transactions.',
     'OTHER',
@@ -305,6 +321,7 @@ values
   ),
   (
     'CASH_NZD',
+    'NZD现金',
     'NZD Cash',
     'New Zealand dollar cash position used for shared family ledger cash balances and cash transactions.',
     'OTHER',
@@ -324,6 +341,7 @@ values
   ),
   (
     'CASH_AUD',
+    'AUD现金',
     'AUD Cash',
     'Australian dollar cash position used for shared family ledger cash balances and cash transactions.',
     'OTHER',
@@ -343,6 +361,7 @@ values
   ),
   (
     'CASH_HKD',
+    'HKD现金',
     'HKD Cash',
     'Hong Kong dollar cash position used for shared family ledger cash balances and cash transactions.',
     'OTHER',
@@ -363,6 +382,7 @@ values
 on conflict (market_region, exchange, symbol)
 do update set
   name = excluded.name,
+  short_name = excluded.short_name,
   description = excluded.description,
   currency = excluded.currency,
   asset_type = excluded.asset_type,

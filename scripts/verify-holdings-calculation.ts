@@ -45,6 +45,7 @@ const holdings = calculateHoldings(
 
 const mainSecurity = requiredHolding(accountA.id, stock.id);
 assert.equal(mainSecurity.quantity, "15");
+assert.equal(mainSecurity.instrumentShortName, "VGT");
 assert.equal(mainSecurity.averageUnitCost, "15.15");
 assert.equal(mainSecurity.costAmount, "227.25");
 assert.deepEqual(mainSecurity.warnings, []);
@@ -121,6 +122,7 @@ function instrument(
     id,
     symbol,
     name,
+    shortName: symbol,
     description: null,
     marketRegion: currency === "NZD" ? "NZ" : "US",
     exchange: "TEST",

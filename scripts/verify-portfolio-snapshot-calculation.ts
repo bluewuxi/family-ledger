@@ -71,6 +71,7 @@ assert.equal(convertSnapshotAmount(complete.marketValueUsd, "CNY", complete), "1
 assert.equal(complete.accounts.length, 2);
 assert.equal(complete.accounts.find((row) => row.accountId === "account-a")?.marketValueUsd, "150.000000");
 assert.equal(complete.accounts.find((row) => row.accountId === "account-b")?.marketValueUsd, "86.000000");
+assert.equal(holdings.find((holding) => holding.instrumentId === "usd-security")?.instrumentShortName, "usd-security");
 assert.deepEqual(complete.warnings, []);
 
 const missingLatest = calculatePortfolioSnapshotValuation({
@@ -213,6 +214,7 @@ function instrument(
     id,
     symbol: id,
     name,
+    shortName: id,
     description: null,
     marketRegion: "US" satisfies MarketRegion,
     exchange: "TEST",

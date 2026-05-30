@@ -93,7 +93,8 @@ export function usePreferences(): PreferencesContextValue {
 
 export function signedToneClass(
   value: string | null | undefined,
-  gainColorScheme: GainColorScheme
+  gainColorScheme: GainColorScheme,
+  neutralAtFractionDigits?: number
 ): "metric-neutral" | "metric-red" | "metric-green" {
   if (value === null || value === undefined) {
     return "metric-neutral";
@@ -101,12 +102,21 @@ export function signedToneClass(
 
   const numericValue = Number(value);
 
-  if (!Number.isFinite(numericValue) || numericValue === 0) {
+  if (
+    !Number.isFinite(numericValue) ||
+    numericValue === 0 ||
+    (neutralAtFractionDigits !== undefined && isRoundedDisplayZero(numericValue, neutralAtFractionDigits))
+  ) {
     return "metric-neutral";
   }
 
   const positiveIsRed = gainColorScheme === "red_positive";
   return numericValue > 0 === positiveIsRed ? "metric-red" : "metric-green";
+}
+
+function isRoundedDisplayZero(value: number, fractionDigits: number): boolean {
+  const threshold = 0.5 * 10 ** -fractionDigits;
+  return Math.abs(value) < threshold;
 }
 
 function normalizePreferences(preferences: UserPreferences): UserPreferences {

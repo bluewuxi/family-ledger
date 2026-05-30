@@ -52,15 +52,22 @@ export async function listPortfolioSnapshots(input: {
   from: string;
   to: string;
   currency: SnapshotDisplayCurrency;
+  order?: "asc" | "desc";
+  limit?: number;
 }): Promise<PortfolioSnapshotSummary[]> {
   const supabase = await getSupabaseAdmin();
-  const { data: snapshots, error: snapshotError } = await supabase
+  let snapshotQuery = supabase
     .from("portfolio_snapshots")
     .select(snapshotSelect)
     .gte("snapshot_date", input.from)
     .lte("snapshot_date", input.to)
-    .order("snapshot_date", { ascending: true })
-    .returns<PortfolioSnapshotRow[]>();
+    .order("snapshot_date", { ascending: input.order !== "desc" });
+
+  if (input.limit !== undefined) {
+    snapshotQuery = snapshotQuery.limit(input.limit);
+  }
+
+  const { data: snapshots, error: snapshotError } = await snapshotQuery.returns<PortfolioSnapshotRow[]>();
 
   if (snapshotError) {
     console.error("Failed to list portfolio snapshots", { error: snapshotError });

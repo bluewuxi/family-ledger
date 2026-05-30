@@ -933,7 +933,7 @@ function toTransactionInput(form: TransactionFormState, instrument: Instrument):
 }
 
 function formatInstrument(instrument: Instrument): string {
-  return instrument.symbol ? `${instrument.symbol} - ${instrument.name}` : instrument.name;
+  return instrument.symbol ? `${instrument.symbol} - ${instrument.shortName}` : instrument.shortName;
 }
 
 function toFormDecimal(value: string | number | null | undefined): string {

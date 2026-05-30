@@ -1,10 +1,11 @@
-import type { CreateInstrumentInput, Instrument, UpdateInstrumentInput } from "@family-ledger/shared";
+import { INSTRUMENT_SHORT_NAME_MAX_LENGTH, type CreateInstrumentInput, type Instrument, type UpdateInstrumentInput } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 interface InstrumentRow {
   id: string;
   symbol: string | null;
   name: string;
+  short_name: string;
   description: string | null;
   market_region: Instrument["marketRegion"];
   exchange: string | null;
@@ -169,6 +170,7 @@ const instrumentSelect = [
   "id",
   "symbol",
   "name",
+  "short_name",
   "description",
   "market_region",
   "exchange",
@@ -195,6 +197,7 @@ function mapInstrumentRow(row: InstrumentRow): Instrument {
     id: row.id,
     symbol: row.symbol,
     name: row.name,
+    shortName: row.short_name,
     description: row.description,
     marketRegion: row.market_region,
     exchange: row.exchange,
@@ -221,6 +224,7 @@ function toInstrumentRow(input: CreateInstrumentInput) {
   return {
     symbol: input.symbol ?? null,
     name: input.name,
+    short_name: input.shortName ?? fallbackShortName(input.symbol, input.name),
     description: input.description ?? null,
     market_region: input.marketRegion,
     exchange: input.exchange ?? null,
@@ -243,6 +247,7 @@ function toInstrumentUpdateRow(input: UpdateInstrumentInput) {
   return {
     ...(input.symbol !== undefined ? { symbol: input.symbol } : {}),
     ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.shortName !== undefined ? { short_name: input.shortName } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.marketRegion !== undefined ? { market_region: input.marketRegion } : {}),
     ...(input.exchange !== undefined ? { exchange: input.exchange } : {}),
@@ -259,4 +264,8 @@ function toInstrumentUpdateRow(input: UpdateInstrumentInput) {
     ...(input.sourceCheckedAt !== undefined ? { source_checked_at: input.sourceCheckedAt } : {}),
     ...(input.notes !== undefined ? { notes: input.notes } : {})
   };
+}
+
+function fallbackShortName(symbol: string | null | undefined, name: string): string {
+  return (symbol ?? name).trim().slice(0, INSTRUMENT_SHORT_NAME_MAX_LENGTH);
 }

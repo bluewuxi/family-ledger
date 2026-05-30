@@ -55,6 +55,7 @@ assert.deepEqual(complete, {
 const valuedHoldings = calculateHoldingsValuation(holdings, prices, fxRates, "NZD");
 assert.equal(valuedHoldings.totalMarketValue, "345.00");
 assert.equal(valuedHoldings.totalUnrealizedGain, "90.00");
+assert.equal(valuedHoldings.holdings.find((holding) => holding.instrumentId === usdSecurity.instrumentId)?.instrumentShortName, "US ETF");
 assert.equal(valuedHoldings.holdings.find((holding) => holding.instrumentId === usdSecurity.instrumentId)?.marketValue, "210.00");
 assert.equal(
   valuedHoldings.holdings.find((holding) => holding.instrumentId === usdSecurity.instrumentId)?.unrealizedGain,
@@ -342,6 +343,7 @@ function holding(
     instrumentId,
     instrumentSymbol: null,
     instrumentName,
+    instrumentShortName: instrumentName,
     assetType,
     currency,
     quantity,
@@ -382,6 +384,7 @@ function instrument(
     id,
     symbol: priceSourceSymbol,
     name: priceSourceSymbol,
+    shortName: priceSourceSymbol,
     description: null,
     marketRegion: "US",
     exchange: "NASDAQ",

@@ -937,7 +937,7 @@ function toQuery(input: Record<string, string | number | undefined>): string {
 }
 
 function formatInstrument(instrument: Instrument): string {
-  return instrument.symbol ? `${instrument.symbol} - ${instrument.name}` : instrument.name;
+  return instrument.symbol ? `${instrument.symbol} - ${instrument.shortName}` : instrument.shortName;
 }
 
 function formatInstrumentLabel(price: InstrumentPriceListRecord): string {
