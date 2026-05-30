@@ -66,6 +66,8 @@ export async function getTransactions(
     instrumentId: optionalUuid("instrumentId", query.instrumentId),
     transactionType,
     transactionTypes,
+    excludeGeneratedCashLegs: optionalBoolean("excludeGeneratedCashLegs", query.excludeGeneratedCashLegs),
+    excludeCashInstruments: optionalBoolean("excludeCashInstruments", query.excludeCashInstruments),
     limit: pagination.limit,
     offset: pagination.offset
   });
@@ -367,7 +369,18 @@ function minDate(left: string, right: string): string {
 }
 
 function hasTransactionListQuery(query: Record<string, string | undefined>): boolean {
-  return ["from", "to", "accountId", "instrumentId", "transactionType", "transactionTypes", "limit", "offset"].some((key) => Boolean(query[key]));
+  return [
+    "from",
+    "to",
+    "accountId",
+    "instrumentId",
+    "transactionType",
+    "transactionTypes",
+    "excludeGeneratedCashLegs",
+    "excludeCashInstruments",
+    "limit",
+    "offset"
+  ].some((key) => Boolean(query[key]));
 }
 
 function optionalQueryDate(name: string, value: string | undefined): string | undefined {
@@ -443,6 +456,18 @@ function validateTransactionTypeFilters(
       400
     );
   }
+}
+
+function optionalBoolean(name: string, value: string | undefined): boolean | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (value !== "true" && value !== "false") {
+    throw new ApiRequestError("VALIDATION_ERROR", `${name} must be true or false.`, 400);
+  }
+
+  return value === "true";
 }
 
 function parsePagination(query: Record<string, string | undefined>): { limit: number; offset: number } {

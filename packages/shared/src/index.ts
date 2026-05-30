@@ -428,6 +428,10 @@ export interface InvestmentTransaction {
   id: string;
   accountId: string;
   instrumentId: string;
+  instrumentSymbol?: string | null;
+  instrumentName?: string | null;
+  instrumentShortName?: string | null;
+  instrumentAssetType?: AssetType | null;
   transactionType: TransactionType;
   tradeDate: string;
   settlementDate: string | null;

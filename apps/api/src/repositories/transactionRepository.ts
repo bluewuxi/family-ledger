@@ -14,6 +14,8 @@ export interface TransactionListFilters {
   instrumentId?: string;
   transactionType?: TransactionType;
   transactionTypes?: TransactionType[];
+  excludeGeneratedCashLegs?: boolean;
+  excludeCashInstruments?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -22,6 +24,12 @@ interface InvestmentTransactionRow {
   id: string;
   account_id: string;
   instrument_id: string;
+  instruments?: {
+    symbol: string | null;
+    name: string;
+    short_name: string;
+    asset_type: InvestmentTransaction["instrumentAssetType"];
+  } | null;
   transaction_type: InvestmentTransaction["transactionType"];
   trade_date: string;
   settlement_date: string | null;
@@ -65,7 +73,7 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("transactions")
-    .select(transactionSelect)
+    .select(input.excludeCashInstruments ? transactionSelectWithInnerInstrument : transactionSelect)
     .order("trade_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -86,6 +94,12 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
   }
   if (input.transactionTypes && input.transactionTypes.length > 0) {
     query = query.in("transaction_type", input.transactionTypes);
+  }
+  if (input.excludeGeneratedCashLegs) {
+    query = query.neq("transaction_source", "generated_cash_leg");
+  }
+  if (input.excludeCashInstruments) {
+    query = query.neq("instruments.asset_type", "cash");
   }
   if (input.limit !== undefined && input.offset !== undefined) {
     query = query.range(input.offset, input.offset + input.limit);
@@ -248,6 +262,7 @@ const transactionSelect = [
   "id",
   "account_id",
   "instrument_id",
+  "instruments(symbol, name, short_name, asset_type)",
   "transaction_type",
   "trade_date",
   "settlement_date",
@@ -269,11 +284,20 @@ const transactionSelect = [
   "updated_at"
 ].join(", ");
 
+const transactionSelectWithInnerInstrument = transactionSelect.replace(
+  "instruments(symbol, name, short_name, asset_type)",
+  "instruments!inner(symbol, name, short_name, asset_type)"
+);
+
 function mapTransactionRow(row: InvestmentTransactionRow): InvestmentTransaction {
   return {
     id: row.id,
     accountId: row.account_id,
     instrumentId: row.instrument_id,
+    instrumentSymbol: row.instruments?.symbol ?? null,
+    instrumentName: row.instruments?.name ?? null,
+    instrumentShortName: row.instruments?.short_name ?? null,
+    instrumentAssetType: row.instruments?.asset_type ?? null,
     transactionType: row.transaction_type,
     tradeDate: row.trade_date,
     settlementDate: row.settlement_date,
