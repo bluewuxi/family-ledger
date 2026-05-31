@@ -25,6 +25,10 @@ interface PriceRow {
   updated_at: string;
 }
 
+interface PriceForDateRow extends PriceRow {
+  as_of_date: string;
+}
+
 export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): Promise<PriceRecord[]> {
   if (instruments.length === 0) {
     return [];
@@ -53,19 +57,31 @@ export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): P
 }
 
 export async function listPricesUntil(priceDate: string): Promise<PriceRecord[]> {
+  return listLatestPricesForDates([priceDate]);
+}
+
+export async function listLatestPricesForDates(
+  asOfDates: string[],
+  instrumentIds: string[] = []
+): Promise<PriceRecord[]> {
+  const uniqueDates = uniqueValues(asOfDates);
+
+  if (uniqueDates.length === 0) {
+    return [];
+  }
+
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("instrument_prices")
-    .select(priceSelect)
-    .lte("price_date", priceDate)
-    .order("price_date", { ascending: false })
-    .returns<PriceRow[]>();
+  const uniqueInstrumentIds = uniqueValues(instrumentIds);
+  const { data, error } = await supabase.rpc("latest_instrument_prices_for_dates", {
+    as_of_dates: uniqueDates,
+    instrument_ids: uniqueInstrumentIds.length > 0 ? uniqueInstrumentIds : null
+  });
 
   if (error) {
     throw new Error("Failed to list snapshot prices.");
   }
 
-  return data.map(mapPriceRow);
+  return ((data ?? []) as unknown as PriceForDateRow[]).map(mapPriceRow);
 }
 
 export async function insertInstrumentPriceIfNotExists(
@@ -158,4 +174,8 @@ function toInstrumentPriceInsertRow(input: CreateInstrumentPriceInput) {
     is_adjusted: input.isAdjusted ?? false,
     fetched_at: input.fetchedAt ?? null
   };
+}
+
+function uniqueValues<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }

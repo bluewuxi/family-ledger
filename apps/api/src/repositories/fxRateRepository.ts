@@ -22,6 +22,10 @@ interface FxRateRow {
   updated_at: string;
 }
 
+interface FxRateForDateRow extends FxRateRow {
+  as_of_date: string;
+}
+
 export async function listLatestFxRates(fromCurrencies: CurrencyCode[]): Promise<FxRateRecord[]> {
   if (fromCurrencies.length === 0) {
     return [];
@@ -101,21 +105,31 @@ export async function findValuationRateToUsdOnDate(
 }
 
 export async function listValuationRatesToUsdUntil(snapshotDate: string): Promise<ExchangeRateRecord[]> {
+  return listValuationRatesToUsdForDates([snapshotDate]);
+}
+
+export async function listValuationRatesToUsdForDates(
+  asOfDates: string[],
+  fromCurrencies: CurrencyCode[] = []
+): Promise<ExchangeRateRecord[]> {
+  const uniqueDates = uniqueValues(asOfDates);
+
+  if (uniqueDates.length === 0) {
+    return [];
+  }
+
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("exchange_rates")
-    .select(fxRateSelect)
-    .lte("rate_date", snapshotDate)
-    .eq("rate_type", "valuation")
-    .eq("to_currency", "USD")
-    .order("rate_date", { ascending: false })
-    .returns<FxRateRow[]>();
+  const uniqueCurrencies = uniqueValues(fromCurrencies).filter((currency) => currency !== "USD");
+  const { data, error } = await supabase.rpc("latest_valuation_rates_to_usd_for_dates", {
+    as_of_dates: uniqueDates,
+    from_currencies: uniqueCurrencies.length > 0 ? uniqueCurrencies : null
+  });
 
   if (error) {
     throw new Error("Failed to list snapshot FX rates.");
   }
 
-  return data.map(mapExchangeRateRow);
+  return ((data ?? []) as unknown as FxRateForDateRow[]).map(mapExchangeRateRow);
 }
 
 export async function insertExchangeRateIfNotExists(
@@ -257,4 +271,8 @@ function toExchangeRateInsertRow(input: CreateExchangeRateInput) {
     provider_rate_date: input.providerRateDate ?? null,
     fetched_at: input.fetchedAt ?? null
   };
+}
+
+function uniqueValues<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }

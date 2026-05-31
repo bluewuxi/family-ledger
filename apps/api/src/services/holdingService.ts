@@ -9,12 +9,12 @@ import type {
   InvestmentTransaction
 } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
-import { listValuationRatesToUsdUntil } from "../repositories/fxRateRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listTransactions } from "../repositories/transactionRepository";
 import { calculateHoldingsValuation } from "./portfolioValuationService";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
+import { listValuationRatesForHoldings } from "./valuationMarketDataService";
 
 export async function getHoldings(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<HoldingsValuationSummary> {
   const reportingCurrency = await resolveReportingCurrency(input);
@@ -32,7 +32,12 @@ export async function getHoldings(input: { currency?: string; user?: Authenticat
   );
   const [prices, fxRates] = await Promise.all([
     listLatestPrices(securityInstruments),
-    listValuationRatesToUsdUntil(getAppBusinessDate())
+    listValuationRatesForHoldings({
+      valuationDate: getAppBusinessDate(),
+      transactions,
+      holdings: preliminaryHoldings,
+      reportingCurrency
+    })
   ]);
   const holdings = calculateHoldings(transactions, accounts, instruments, fxRates);
 

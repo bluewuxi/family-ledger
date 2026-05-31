@@ -88,6 +88,10 @@ interface PriceRow {
   updated_at: string;
 }
 
+interface PriceForDateRow extends PriceRow {
+  as_of_date: string;
+}
+
 interface ExchangeRateRow {
   id: string;
   rate_date: string;
@@ -100,6 +104,10 @@ interface ExchangeRateRow {
   fetched_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface ExchangeRateForDateRow extends ExchangeRateRow {
+  as_of_date: string;
 }
 
 interface SnapshotIdRow {
@@ -157,38 +165,39 @@ export async function listSnapshotTransactions(snapshotDate: string): Promise<In
   return data.map(mapTransactionRow);
 }
 
-export async function listSnapshotPrices(snapshotDate: string): Promise<PriceRecord[]> {
+export async function listSnapshotPrices(snapshotDate: string, instrumentIds: string[] = []): Promise<PriceRecord[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("instrument_prices")
-    .select(priceSelect)
-    .lte("price_date", snapshotDate)
-    .order("price_date", { ascending: false })
-    .returns<PriceRow[]>();
+  const uniqueInstrumentIds = uniqueValues(instrumentIds);
+  const { data, error } = await supabase.rpc("latest_instrument_prices_for_dates", {
+    as_of_dates: [snapshotDate],
+    instrument_ids: uniqueInstrumentIds.length > 0 ? uniqueInstrumentIds : null
+  });
 
   if (error) {
     throw new Error("Failed to list snapshot prices.");
   }
 
-  return data.map(mapPriceRow);
+  return ((data ?? []) as unknown as PriceForDateRow[]).map(mapPriceRow);
 }
 
-export async function listSnapshotExchangeRates(snapshotDate: string): Promise<ExchangeRateRecord[]> {
+export async function listSnapshotExchangeRates(
+  snapshotDate: string,
+  transactionDates: string[] = [],
+  fromCurrencies: ExchangeRateRecord["fromCurrency"][] = []
+): Promise<ExchangeRateRecord[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("exchange_rates")
-    .select(exchangeRateSelect)
-    .lte("rate_date", snapshotDate)
-    .eq("rate_type", "valuation")
-    .eq("to_currency", "USD")
-    .order("rate_date", { ascending: false })
-    .returns<ExchangeRateRow[]>();
+  const asOfDates = uniqueValues([snapshotDate, ...transactionDates]);
+  const currencies = uniqueValues(fromCurrencies).filter((currency) => currency !== "USD");
+  const { data, error } = await supabase.rpc("latest_valuation_rates_to_usd_for_dates", {
+    as_of_dates: asOfDates,
+    from_currencies: currencies.length > 0 ? currencies : null
+  });
 
   if (error) {
     throw new Error("Failed to list snapshot exchange rates.");
   }
 
-  return data.map(mapExchangeRateRow);
+  return ((data ?? []) as unknown as ExchangeRateForDateRow[]).map(mapExchangeRateRow);
 }
 
 export async function upsertPortfolioSnapshot(
@@ -442,4 +451,8 @@ function mapPriceRow(row: PriceRow): PriceRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function uniqueValues<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }

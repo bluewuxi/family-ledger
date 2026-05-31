@@ -15,7 +15,6 @@ import {
   upsertDashboardQuote,
   type UpsertDashboardQuoteInput
 } from "../repositories/dashboardQuoteRepository";
-import { listValuationRatesToUsdUntil } from "../repositories/fxRateRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listTransactions } from "../repositories/transactionRepository";
@@ -28,6 +27,7 @@ import { YahooFinanceInstrumentQuoteProvider } from "../providers/YahooFinanceIn
 import { calculateHoldings } from "./holdingService";
 import { calculateDashboardSummary } from "./portfolioValuationService";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
+import { listValuationRatesForHoldings } from "./valuationMarketDataService";
 
 export { calculateDashboardSummary } from "./portfolioValuationService";
 
@@ -56,7 +56,12 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
   );
   const [prices, fxRates] = await Promise.all([
     listLatestPrices(securityInstruments),
-    listValuationRatesToUsdUntil(businessDate)
+    listValuationRatesForHoldings({
+      valuationDate: businessDate,
+      transactions,
+      holdings: preliminaryHoldings,
+      reportingCurrency
+    })
   ]);
   const holdings = calculateHoldings(transactions, accounts, instruments, fxRates);
   const dashboardQuotes = await refreshDashboardQuotes({

@@ -31,8 +31,12 @@ interface SnapshotRepository {
   listSnapshotAccounts(): Promise<InvestmentAccount[]>;
   listSnapshotInstruments(): Promise<Instrument[]>;
   listSnapshotTransactions(snapshotDate: string): Promise<InvestmentTransaction[]>;
-  listSnapshotPrices(snapshotDate: string): Promise<PriceRecord[]>;
-  listSnapshotExchangeRates(snapshotDate: string): Promise<ExchangeRateRecord[]>;
+  listSnapshotPrices(snapshotDate: string, instrumentIds?: string[]): Promise<PriceRecord[]>;
+  listSnapshotExchangeRates(
+    snapshotDate: string,
+    transactionDates?: string[],
+    fromCurrencies?: ExchangeRateRecord["fromCurrency"][]
+  ): Promise<ExchangeRateRecord[]>;
   upsertPortfolioSnapshot(valuation: PortfolioSnapshotValuation): Promise<UpsertPortfolioSnapshotResult>;
 }
 
@@ -84,12 +88,19 @@ export async function generatePortfolioSnapshot(
   });
 
   try {
-    const [accounts, instruments, transactions, prices, fxRates] = await Promise.all([
+    const [accounts, instruments, transactions] = await Promise.all([
       snapshotRepository.listSnapshotAccounts(),
       snapshotRepository.listSnapshotInstruments(),
-      snapshotRepository.listSnapshotTransactions(options.snapshotDate),
-      snapshotRepository.listSnapshotPrices(options.snapshotDate),
-      snapshotRepository.listSnapshotExchangeRates(options.snapshotDate)
+      snapshotRepository.listSnapshotTransactions(options.snapshotDate)
+    ]);
+    const preliminaryHoldings = calculateHoldings(transactions, accounts, instruments);
+    const [prices, fxRates] = await Promise.all([
+      snapshotRepository.listSnapshotPrices(options.snapshotDate, getHeldInstrumentIds(preliminaryHoldings)),
+      snapshotRepository.listSnapshotExchangeRates(
+        options.snapshotDate,
+        getSnapshotFxDates(transactions),
+        getSnapshotFxCurrencies(transactions, preliminaryHoldings)
+      )
     ]);
     const holdings = calculateHoldings(transactions, accounts, instruments, { fxRates });
     const valuation = calculatePortfolioSnapshotValuation({
@@ -135,6 +146,58 @@ function validateSnapshotDate(snapshotDate: string): void {
   if (!datePattern.test(snapshotDate)) {
     throw new Error("Snapshot date must use YYYY-MM-DD format.");
   }
+}
+
+function getHeldInstrumentIds(holdings: ReturnType<typeof calculateHoldings>): string[] {
+  return uniqueValues(
+    holdings.filter((holding) => holding.assetType !== "cash").map((holding) => holding.instrumentId)
+  );
+}
+
+function getSnapshotFxDates(transactions: InvestmentTransaction[]): string[] {
+  return uniqueValues(
+    transactions
+      .filter(requiresHistoricalCostBasisRate)
+      .map((transaction) => transaction.tradeDate)
+  );
+}
+
+function getSnapshotFxCurrencies(
+  transactions: InvestmentTransaction[],
+  holdings: ReturnType<typeof calculateHoldings>
+): ExchangeRateRecord["fromCurrency"][] {
+  const currencies = new Set<ExchangeRateRecord["fromCurrency"]>(["NZD", "CNY"]);
+
+  for (const holding of holdings) {
+    currencies.add(holding.currency);
+  }
+
+  for (const transaction of transactions) {
+    if (!requiresHistoricalCostBasisRate(transaction)) {
+      continue;
+    }
+
+    if (transaction.currency !== "USD") {
+      currencies.add(transaction.currency);
+    }
+
+    if (transaction.settlementCurrency && transaction.settlementCurrency !== "USD") {
+      currencies.add(transaction.settlementCurrency);
+    }
+  }
+
+  return [...currencies];
+}
+
+function requiresHistoricalCostBasisRate(transaction: InvestmentTransaction): boolean {
+  return (
+    (transaction.transactionType === "buy" || transaction.transactionType === "opening_position") &&
+    (transaction.currency !== "USD" || (transaction.settlementCurrency !== null && transaction.settlementCurrency !== "USD"))
+  );
+}
+
+function uniqueValues<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }
 
 function sanitizeErrorMessage(error: unknown): string {
