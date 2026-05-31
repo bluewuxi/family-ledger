@@ -275,7 +275,7 @@ function AppFooter() {
           </span>
         </div>
       </div>
-      <p>家庭投资记录，仅作辅助参考。所有者 / 作者：Ricky Yu</p>
+      <p>聚沙成塔 - 资金永无眠  © 2026 Ricky Yu</p>
       <Banknote className="footer-status-icon" size={18} aria-hidden="true" />
     </footer>
   );

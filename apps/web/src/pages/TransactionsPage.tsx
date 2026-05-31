@@ -1,4 +1,4 @@
-import { Fragment, type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Eraser, Eye, Filter, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ADJUSTMENT_DIRECTIONS,
@@ -18,7 +18,7 @@ import { Drawer } from "../components/Drawer";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 import { formatDisplayAmount } from "../lib/numberFormat";
-import { isInteractiveRowTarget } from "../lib/tableInteraction";
+import { isInteractiveRowTarget, isRowActivationKey } from "../lib/tableInteraction";
 
 interface TransactionsResponse {
   user: AuthenticatedUser;
@@ -758,7 +758,11 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
         .filter(Boolean)
         .join(" ")}
       key={isChildRow ? `cash-${transaction.id}` : transaction.id}
+      role={isChildRow ? undefined : "button"}
+      tabIndex={isChildRow ? undefined : 0}
+      aria-label={isChildRow ? undefined : `查看交易记录 ${transaction.tradeDate}`}
       onClick={isChildRow ? undefined : (event) => handleTransactionRowClick(event, transaction, onDetail)}
+      onKeyDown={isChildRow ? undefined : (event) => handleTransactionRowKeyDown(event, transaction, onDetail)}
     >
       <td className="transaction-expand-column">
         {canExpand ? (
@@ -825,9 +829,22 @@ function handleTransactionRowClick(
   transaction: InvestmentTransaction,
   onDetail: (transaction: InvestmentTransaction) => void
 ) {
-  if (!isInteractiveRowTarget(event.target)) {
+  if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
     onDetail(transaction);
   }
+}
+
+function handleTransactionRowKeyDown(
+  event: KeyboardEvent<HTMLTableRowElement>,
+  transaction: InvestmentTransaction,
+  onDetail: (transaction: InvestmentTransaction) => void
+) {
+  if (!isRowActivationKey(event.key) || isInteractiveRowTarget(event.target, event.currentTarget)) {
+    return;
+  }
+
+  event.preventDefault();
+  onDetail(transaction);
 }
 
 function transactionMatchesFilters(transaction: InvestmentTransaction, filters: TransactionFilters): boolean {

@@ -35,7 +35,7 @@ import {
   formatSignedDisplayPercent
 } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
-import { formatHoursMinutes } from "../lib/timeFormat";
+import { formatHoursMinutes, formatLocalDateTimeNote } from "../lib/timeFormat";
 import { buildTrendChartData, isSyntheticTrendDate, type TrendChartPoint, type TrendPoint } from "../lib/trendChartData";
 
 interface DashboardResponse {
@@ -705,7 +705,7 @@ function renderQuoteUpdateNote(dashboard: DashboardSummary): ReactNode {
     return "行情延迟：暂无本次财富足迹报价更新时间。";
   }
 
-  const formattedTime = formatQuoteUpdateDateTime(dashboard.quoteFetchedAt);
+  const formattedTime = formatLocalDateTimeNote(dashboard.quoteFetchedAt, dashboard.quoteFetchedAt);
 
   return (
     <>
@@ -724,27 +724,6 @@ function buildBusinessDayCountdownParts(now: Date): { businessDate: string; rema
     businessDate,
     remainingTime: formatHoursMinutes(remainingMinutes)
   };
-}
-
-function formatQuoteUpdateDateTime(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  const parts = new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).formatToParts(date);
-  const partMap = new Map(parts.map((part) => [part.type, part.value]));
-
-  return `${partMap.get("year")}-${partMap.get("month")}-${partMap.get("day")} ${partMap.get("hour")}:${partMap.get("minute")}`;
 }
 
 function formatWarning(warning: DashboardWarning): string {

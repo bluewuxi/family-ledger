@@ -1,4 +1,4 @@
-import { Fragment, type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
@@ -8,7 +8,6 @@ import {
   MARKET_REGION_LABELS,
   MARKET_REGIONS,
   SNAPSHOT_DISPLAY_CURRENCIES,
-  getAppBusinessDate,
   getLocalDateString,
   type AccountType,
   type AuthenticatedUser,
@@ -35,7 +34,7 @@ import {
 } from "../lib/holdingDisplay";
 import { formatDisplayAmount, formatDisplayPrice, formatSignedDisplayAmount } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
-import { isInteractiveRowTarget } from "../lib/tableInteraction";
+import { isInteractiveRowTarget, isRowActivationKey } from "../lib/tableInteraction";
 
 interface AccountsResponse {
   user: AuthenticatedUser;
@@ -97,7 +96,6 @@ interface OpeningEntryFormRow {
 type DrawerMode = "create" | "view" | "modify";
 
 const today = getLocalDateString();
-const snapshotStartDate = "2000-01-01";
 
 const emptyForm: AccountFormState = {
   name: "",
@@ -307,9 +305,18 @@ export function AccountsPage() {
   }
 
   function handleAccountRowClick(event: MouseEvent<HTMLTableRowElement>, account: InvestmentAccount) {
-    if (!isInteractiveRowTarget(event.target)) {
+    if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
       startDetail(account);
     }
+  }
+
+  function handleAccountRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, account: InvestmentAccount) {
+    if (!isRowActivationKey(event.key) || isInteractiveRowTarget(event.target, event.currentTarget)) {
+      return;
+    }
+
+    event.preventDefault();
+    startDetail(account);
   }
 
   function toggleAccountHoldings(accountId: string) {
@@ -438,7 +445,11 @@ export function AccountsPage() {
                       ]
                         .filter(Boolean)
                         .join(" ")}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`查看账户 ${account.name}`}
                       onClick={(event) => handleAccountRowClick(event, account)}
+                      onKeyDown={(event) => handleAccountRowKeyDown(event, account)}
                     >
                       <td className="account-expand-column">
                         <button
@@ -837,14 +848,13 @@ async function loadAccountTotals(
       )
   ]);
   const snapshotsByCurrency = new Map<SnapshotDisplayCurrency, PortfolioSnapshotSummary>();
-  const to = getAppBusinessDate();
 
   await Promise.all(
     displayCurrencies.map(async (currency) => {
       const data = await apiGet<PortfolioSnapshotsResponse>(
-        `/portfolio-snapshots?from=${snapshotStartDate}&to=${to}&currency=${currency}`
+        `/portfolio-snapshots?currency=${currency}&limit=1&order=desc`
       );
-      const latestSnapshot = data.snapshots.at(-1);
+      const latestSnapshot = data.snapshots[0];
 
       if (latestSnapshot) {
         snapshotsByCurrency.set(currency, latestSnapshot);

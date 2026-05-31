@@ -2256,6 +2256,15 @@ tbody tr.clickable-detail-row:not(.editing-row):hover td {
   background: var(--color-hover);
 }
 
+tbody tr.clickable-detail-row:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+tbody tr.clickable-detail-row:not(.editing-row):focus-visible td {
+  background: var(--color-hover);
+}
+
 tbody tr.clickable-detail-row {
   cursor: pointer;
 }
@@ -3107,6 +3116,11 @@ tr.editing-row td {
 @media (max-width: 820px) {
   body {
     font-size: 16px;
+  }
+
+  #root::before {
+    background-position: right clamp(-260px, -38vw, -150px) bottom clamp(-190px, -24vw, -96px);
+    background-size: min(150vw, 720px) auto;
   }
 
   body.mobile-sidebar-open {
