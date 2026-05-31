@@ -33,16 +33,22 @@ export function LoginPage() {
     <main className="login-page">
       <section className="login-panel" aria-labelledby="login-title">
         <div className="login-brand-lockup">
-          <img className="login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
+          <img className="brand-mark login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
           <div>
-            <h1 id="login-title">小家大财</h1>
-            <p className="login-brand-subtitle">
-              <span>Family</span> Ledger
+            <h1 className="brand-name login-brand-name" id="login-title" aria-label="小家大财">
+              <span>小</span>
+              <span>家</span>
+              <span className="brand-name-emphasis">大</span>
+              <span className="brand-name-gold">财</span>
+            </h1>
+            <p className="brand-subtitle login-brand-subtitle" aria-label="Family Ledger">
+              <span>Family</span>
+              <span>Ledger</span>
             </p>
           </div>
         </div>
 
-        <p className="login-note">透明记录家庭资产，共同理解每一次财富变化。</p>
+        <p className="login-note">透明记录, 共同理解家庭财富变化</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
@@ -73,9 +79,12 @@ export function LoginPage() {
           <button type="submit" disabled={loading}>
             {loading ? "登录中..." : "登录"}
           </button>
-          <Link className="login-secondary-link" to="/forgot-password">
-            忘记密码？
-          </Link>
+          <div className="login-form-footer">
+            <p className="login-motto">聚沙成塔 - 资金永无眠</p>
+            <Link className="login-secondary-link" to="/forgot-password">
+              忘记密码？
+            </Link>
+          </div>
         </form>
       </section>
     </main>

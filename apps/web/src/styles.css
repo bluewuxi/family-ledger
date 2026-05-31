@@ -2488,31 +2488,50 @@ tr.editing-row td {
   object-fit: contain;
 }
 
-.login-panel h1 {
+:root[data-theme="dark"] .login-brand-mark {
+  filter:
+    drop-shadow(0 0 10px rgb(255 226 160 / 52%))
+    drop-shadow(0 0 22px rgb(245 181 46 / 26%))
+    drop-shadow(0 12px 22px rgb(0 0 0 / 34%))
+    brightness(1.18)
+    contrast(1.18);
+}
+
+.login-brand-name {
   margin: 0;
-  color: var(--color-text);
   font-size: 34px;
-  line-height: 1.15;
-  letter-spacing: 0;
-  white-space: nowrap;
+}
+
+.login-brand-name .brand-name-emphasis {
+  font-size: 42px;
 }
 
 .login-brand-subtitle {
   margin: 6px 0 0;
-  color: var(--color-brand-leaf);
-  font-family: Georgia, "Times New Roman", serif;
   font-size: 24px;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.login-brand-subtitle span {
-  color: var(--color-brand-navy);
 }
 
 .login-note {
   margin: 0 0 24px;
   color: var(--color-muted);
+}
+
+.login-form-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+}
+
+.login-motto {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-brand-leaf);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: left;
 }
 
 .login-form {
@@ -2555,10 +2574,12 @@ tr.editing-row td {
 }
 
 .login-secondary-link {
-  justify-self: center;
+  justify-self: end;
   color: var(--color-brand-navy);
   font-size: 14px;
+  line-height: 1.4;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .login-secondary-link:hover {
@@ -3759,8 +3780,12 @@ tr.editing-row td {
     flex-basis: 76px;
   }
 
-  .login-panel h1 {
+  .login-brand-name {
     font-size: 28px;
+  }
+
+  .login-brand-name .brand-name-emphasis {
+    font-size: 35px;
   }
 
   .login-brand-subtitle {
@@ -3770,6 +3795,11 @@ tr.editing-row td {
   .login-note {
     font-size: 16px;
     line-height: 1.6;
+  }
+
+  .login-motto,
+  .login-secondary-link {
+    font-size: 14px;
   }
 
   .filter-actions,
