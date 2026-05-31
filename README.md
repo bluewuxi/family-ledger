@@ -1,8 +1,8 @@
 # family-ledger
 
-`family-ledger`（家庭投资账务）是一个中文家庭投资账务 Web 应用，用于少数家庭成员跟踪美股/ETF、港股、A 股 ETF/基金、新西兰 PIE 基金和现金账户。
+`family-ledger`（小家大财 / Family Ledger）是一个中文家庭投资账务 Web 应用，用于少数家庭成员跟踪美股/ETF、港股、A 股 ETF/基金、新西兰 PIE 基金和现金账户。
 
-当前状态：已完成基础 monorepo、Supabase schema、Supabase Auth 登录、viewer/admin 角色查询、Lambda API、账户/标的/交易 CRUD、持仓计算、仪表盘摘要、价格/汇率维护任务和投资组合快照。税务辅助、报表导出、生产部署和备份/监控仍未实现。
+当前状态：已完成基础 monorepo、Supabase schema、Supabase Auth 登录、viewer/admin 角色查询、Lambda API、账户/标的/交易 CRUD、持仓计算、仪表盘摘要、价格/汇率维护任务、投资组合快照、数据备份状态监控和操作员备份/恢复校验脚本。税务辅助、用户导出报表、生产环境正式运行和告警体系仍未实现。
 
 ## Stack
 
@@ -74,12 +74,12 @@ Run the Stage 1 test smoke check:
 corepack pnpm smoke:stage1:test
 ```
 
-## Supabase Migration
+## Supabase Migrations
 
-Migration file:
+Migration files live under:
 
 ```text
-supabase/migrations/20260522053000_stage1_initial_schema.sql
+supabase/migrations/
 ```
 
 Option A: Supabase CLI
@@ -91,7 +91,7 @@ supabase db push
 
 Option B: SQL Editor
 
-Copy the migration SQL and run it in the Supabase SQL Editor for the test project.
+Copy and run all migration SQL files in timestamp order for the target project.
 
 Do not commit project refs or secrets. For direct migration tooling, use the session pooler metadata from `.env.test` and resolve the DB password from SSM.
 

@@ -30,9 +30,9 @@
 ## Stage 3: Holdings and Dashboard
 
 - Holdings calculation (implemented: native-currency quantity, cash balance, average-cost carrying value, opening entries, and valued holding rows)
-- Portfolio summary (implemented: four NZD dashboard cards from stored prices and FX rates)
-- Account summary (pending)
-- Market and currency allocation (pending)
+- Portfolio summary (implemented: reporting-currency dashboard cards using stored prices, FX rates, and dashboard quote cache where available)
+- Dashboard account allocation and holding allocation (implemented)
+- Detailed account analytics and dedicated currency allocation (pending)
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
@@ -42,8 +42,8 @@
 - Stock/ETF price providers (implemented: seeded US/HK instruments use Yahoo Finance best-effort chart data; seeded China-listed ETFs/funds use Eastmoney best-effort quote data)
 - Scheduled execution policy (implemented: EventBridge Scheduler runs FX, price, and snapshot jobs after the `06:00 Asia/Shanghai` business-day cutoff with retry attempts `2` and maximum event age `1 hour`; US/global close cadence has priority over NZ PIE publication timing)
 - Historical close policy (implemented: stock/ETF price ingestion skips same-day provider rows fetched before exchange close-confirmation cutoffs; FundRock/NZ PIE snapshots use the latest published lagged unit price without treating normal provider lag as stale)
-- Retry/job logging hardening (implemented for FX ingestion with durable job/provider run status and best-effort failure finalization)
-- Additional price maintenance and automated instrument price updates
+- Retry/job logging hardening (implemented with durable job/provider run status and best-effort failure finalization)
+- Additional price maintenance and automated instrument price updates (implemented for configured seeded providers; provider expansion deferred)
 - Price-source adapters for `yahoo_finance` and `eastmoney` (implemented for seeded instruments)
 - EventBridge jobs for prices and snapshots (implemented for price updates, FX updates, and portfolio snapshots)
 - Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
@@ -61,12 +61,12 @@
 
 ## Stage 6: Deployment Hardening and Backup/Export
 
-- S3 deployment
-- API Gateway/Lambda deployment
-- Secrets handling
+- S3 deployment (implemented in SAM/CloudFormation templates and deploy scripts)
+- API Gateway/Lambda deployment (implemented in SAM/CloudFormation templates and deploy scripts)
+- Secrets handling (implemented through SSM parameter references for API/jobs runtime)
 - Ledger backup (implemented: scheduled public-ledger Postgres RPC snapshot export to encrypted private S3 with 30-day lifecycle retention, running-batch-job guard, and restore dry-run validation)
 - User-facing CSV export
-- Monitoring/logging
+- Monitoring/logging (implemented for job audit tables and structured CloudWatch logs; alarms/DLQ hardening pending)
 
 ## Stage 7: Reporting Currency Selector and Charts
 

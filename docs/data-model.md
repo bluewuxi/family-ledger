@@ -39,7 +39,7 @@ Trading account passwords are not stored in Postgres. Each account has one SSM S
 
 `exchange` distinguishes venues or platform-specific sources such as `NASDAQ`, `NYSE_ARCA`, `HKEX`, `SSE`, `SZSE`, `INVESTNOW`, and `CASH`.
 
-Price source fields are configuration for future scheduled price jobs:
+Price source fields configure scheduled price ingestion, dashboard quote lookup, and display metadata:
 
 - `short_name`
 - `description`
@@ -140,7 +140,7 @@ The current read-only dashboard summary values current non-zero holdings without
 - `holdingAllocations` aggregate the same non-cash instrument across all accounts and combine all cash currencies into one `现金` row. Unavailable row market values make the aggregate value and percentage unavailable. Percentages are omitted when total assets are unavailable or zero.
 - `dailyTradeCount` uses the current app business date and counts only buy/sell security transactions, excluding generated cash legs.
 
-The summary and valued holdings response return unavailable (`null`) monetary fields rather than incomplete totals when required quote/price, FX, or cost-basis information is absent. Price and FX records may be loaded outside the app in this stage.
+The summary and valued holdings response return unavailable (`null`) monetary fields rather than incomplete totals when required quote/price, FX, or cost-basis information is absent. Price and FX records are normally maintained by scheduled jobs or admin-triggered data maintenance retrievals; trusted operators may still load or repair records outside the app when needed.
 
 ## Portfolio Valuation Snapshots
 

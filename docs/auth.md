@@ -29,7 +29,7 @@ The expected number of users is no more than 3 family members. Complex RBAC, org
 Lambda API enforces permissions. Frontend role checks are UI hints only.
 
 - GET endpoints: `viewer` and `admin`
-- POST/PUT/PATCH/DELETE endpoints: `admin` only, except `POST /accounts/:id/trading-password/reveal`, which is available to `viewer` and `admin` after the extra password check
+- POST/PUT/PATCH/DELETE endpoints: `admin` only, except `PATCH /settings/preferences`, which lets each authenticated `viewer` or `admin` update their own display preferences, and `POST /accounts/:id/trading-password/reveal`, which is available to `viewer` and `admin` after the extra password check
 - maintenance/job endpoints: `admin` only
 
 No active `user_roles` row means access denied. Admin users can pause/resume existing Supabase Auth users and maintain their `viewer` / `admin` role from the Settings page.
