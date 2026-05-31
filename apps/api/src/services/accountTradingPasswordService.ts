@@ -1,18 +1,24 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import {
   deleteSecureParameter,
-  getParameter,
   getSecureParameter,
   isSsmParameterNotFound,
-  putSecureParameter,
-  putStringParameter
+  putSecureParameter
 } from "../config/ssm";
 import { findAccountById } from "../repositories/accountRepository";
 import { ApiRequestError } from "../utils/apiError";
 
-export const TRADING_PASSWORD_PLACEHOLDER = "尚未设置交易密码";
+export const TRADING_PASSWORD_PLACEHOLDER = "\u5c1a\u672a\u8bbe\u7f6e\u4ea4\u6613\u5bc6\u7801";
 export const TRADING_PASSWORD_GATE_EMPTY_VALUE = "empty";
 
+const SCRYPT_GATE_PREFIX = "scrypt:v1";
+const SCRYPT_KEY_LENGTH = 64;
+const SCRYPT_OPTIONS = {
+  N: 16_384,
+  r: 8,
+  p: 1,
+  maxmem: 64 * 1024 * 1024
+};
 export async function createTradingPasswordPlaceholder(accountId: string): Promise<void> {
   await putSecureParameter(getTradingPasswordParameterName(accountId), TRADING_PASSWORD_PLACEHOLDER, false);
 }
@@ -77,10 +83,10 @@ export async function updateTradingPasswordGate(body: unknown): Promise<{ isInit
       throw new ApiRequestError("VALIDATION_ERROR", "currentExtraPassword is required.", 400);
     }
 
-    assertMd5PasswordMatches(currentExtraPassword, gateValue);
+    await assertPasswordMatches(currentExtraPassword, gateValue);
   }
 
-  await putStringParameter(getTradingPasswordGateParameterName(), createGateSignature(newExtraPassword), true);
+  await putSecureParameter(getTradingPasswordGateParameterName(), await createGateSignature(newExtraPassword), true);
   return { isInitialized: true };
 }
 
@@ -98,36 +104,85 @@ export async function assertExtraPasswordMatches(extraPassword: string): Promise
   const expectedSignature = await getOrCreateTradingPasswordGateValue();
 
   if (expectedSignature === TRADING_PASSWORD_GATE_EMPTY_VALUE) {
-    return;
+    throw new ApiRequestError("FORBIDDEN", "Extra password gate is not initialized.", 403);
   }
 
-  assertMd5PasswordMatches(extraPassword, expectedSignature);
+  await assertPasswordMatches(extraPassword, expectedSignature);
 }
 
-export function createGateSignature(extraPassword: string): string {
-  return createHash("md5").update(extraPassword, "utf8").digest("hex");
+export async function createGateSignature(extraPassword: string): Promise<string> {
+  const salt = randomBytes(16).toString("base64url");
+  const derivedKey = await deriveScryptKey(extraPassword, salt);
+  return `${SCRYPT_GATE_PREFIX}:${salt}:${derivedKey.toString("base64url")}`;
+}
+
+export async function verifyGateSignature(extraPassword: string, expectedSignature: string): Promise<boolean> {
+  const normalizedExpectedSignature = normalizeGateValue(expectedSignature);
+  return isLegacyMd5Signature(normalizedExpectedSignature)
+    ? secureEqual(normalizedExpectedSignature, createLegacyMd5Signature(extraPassword))
+    : verifyScryptSignature(extraPassword, normalizedExpectedSignature);
 }
 
 async function getOrCreateTradingPasswordGateValue(): Promise<string> {
   try {
-    return normalizeGateValue(await getParameter(getTradingPasswordGateParameterName()));
+    return normalizeGateValue(await getSecureParameter(getTradingPasswordGateParameterName()));
   } catch (error) {
     if (!isSsmParameterNotFound(error)) {
       throw error;
     }
 
-    await putStringParameter(getTradingPasswordGateParameterName(), TRADING_PASSWORD_GATE_EMPTY_VALUE, false);
+    await putSecureParameter(getTradingPasswordGateParameterName(), TRADING_PASSWORD_GATE_EMPTY_VALUE, false);
     return TRADING_PASSWORD_GATE_EMPTY_VALUE;
   }
 }
 
-function assertMd5PasswordMatches(extraPassword: string, expectedSignature: string): void {
+async function assertPasswordMatches(extraPassword: string, expectedSignature: string): Promise<void> {
   const normalizedExpectedSignature = normalizeGateValue(expectedSignature);
-  const actualSignature = createGateSignature(extraPassword);
+  const isMatch = await verifyGateSignature(extraPassword, normalizedExpectedSignature);
 
-  if (!secureEqual(normalizedExpectedSignature, actualSignature)) {
+  if (!isMatch) {
     throw new ApiRequestError("FORBIDDEN", "Extra password is incorrect.", 403);
   }
+
+  if (isLegacyMd5Signature(normalizedExpectedSignature)) {
+    await putSecureParameter(getTradingPasswordGateParameterName(), await createGateSignature(extraPassword), true);
+  }
+}
+
+function createLegacyMd5Signature(extraPassword: string): string {
+  return createHash("md5").update(extraPassword, "utf8").digest("hex");
+}
+
+async function verifyScryptSignature(extraPassword: string, expectedSignature: string): Promise<boolean> {
+  const parts = expectedSignature.split(":");
+  const salt = parts[2];
+  const expectedKey = parts[3];
+
+  if (!salt || !expectedKey) {
+    throw new Error("Trading password gate signature SSM parameter is invalid.");
+  }
+
+  const actualKey = await deriveScryptKey(extraPassword, salt);
+  const expectedKeyBuffer = Buffer.from(expectedKey, "base64url");
+
+  if (actualKey.length !== expectedKeyBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(actualKey, expectedKeyBuffer);
+}
+
+async function deriveScryptKey(extraPassword: string, salt: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(extraPassword, Buffer.from(salt, "base64url"), SCRYPT_KEY_LENGTH, SCRYPT_OPTIONS, (error, derivedKey) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(derivedKey);
+    });
+  });
 }
 
 function getTradingPasswordGateParameterName(): string {
@@ -202,17 +257,41 @@ function optionalString(value: unknown, field: string): string | null {
 }
 
 function normalizeGateValue(value: string): string {
-  const normalized = value.trim().toLowerCase();
+  const normalized = value.trim();
 
   if (normalized === TRADING_PASSWORD_GATE_EMPTY_VALUE) {
     return normalized;
   }
 
-  if (!/^[a-f0-9]{32}$/u.test(normalized)) {
-    throw new Error("Trading password gate signature SSM parameter is invalid.");
+  const legacySignature = normalized.toLowerCase();
+  if (isLegacyMd5Signature(legacySignature)) {
+    return legacySignature;
   }
 
-  return normalized;
+  if (isScryptGateSignature(normalized)) {
+    return normalized;
+  }
+
+  throw new Error("Trading password gate signature SSM parameter is invalid.");
+}
+
+function isLegacyMd5Signature(value: string): boolean {
+  return /^[a-f0-9]{32}$/u.test(value);
+}
+
+function isScryptGateSignature(value: string): boolean {
+  const parts = value.split(":");
+  if (parts.length !== 4 || `${parts[0]}:${parts[1]}` !== SCRYPT_GATE_PREFIX) {
+    return false;
+  }
+
+  try {
+    const salt = Buffer.from(parts[2] ?? "", "base64url");
+    const derivedKey = Buffer.from(parts[3] ?? "", "base64url");
+    return salt.length >= 16 && derivedKey.length === SCRYPT_KEY_LENGTH;
+  } catch {
+    return false;
+  }
 }
 
 function secureEqual(left: string, right: string): boolean {

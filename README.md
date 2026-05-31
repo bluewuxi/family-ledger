@@ -14,7 +14,7 @@
 
 ## Environment Files
 
-Use checked-in `.env.test` for test deployment, checked-in `.env.prod` for production deployment, and ignored `.env.local` for local debugging.
+Use ignored `.env.test` for test deployment, ignored `.env.prod` for production deployment, and ignored `.env.local` for local debugging. Committed `.env.test.example` and `.env.prod.example` files document the required keys with placeholders.
 
 Public frontend values may be stored directly:
 

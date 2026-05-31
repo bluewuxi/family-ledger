@@ -13,21 +13,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <title>小家大财 · Family Ledger</title>
-    <script>
-      (() => {
-        try {
-          const theme = window.localStorage.getItem("family-ledger.uiTheme");
-          if (theme === "dark" || theme === "light") {
-            document.documentElement.dataset.theme = theme;
-            document
-              .querySelector('meta[name="theme-color"]')
-              ?.setAttribute("content", theme === "dark" ? "#07111F" : "#08264A");
-          }
-        } catch {
-          document.documentElement.dataset.theme = "light";
-        }
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

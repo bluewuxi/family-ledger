@@ -422,7 +422,7 @@ Each account has one deterministic SSM SecureString parameter for its trading pa
 }
 ```
 
-When the submitted password's MD5 hex digest matches the SSM gate value, or when the gate value is still `empty`, the response returns the decrypted trading password:
+When the extra-password gate has been initialized and the submitted password matches the SSM gate verifier, the response returns the decrypted trading password:
 
 ```json
 {
@@ -439,7 +439,7 @@ When the submitted password's MD5 hex digest matches the SSM gate value, or when
 }
 ```
 
-Wrong extra passwords return `FORBIDDEN`. Missing accounts return `NOT_FOUND`. Invalid bodies return `VALIDATION_ERROR`.
+Wrong extra passwords and uninitialized gates return `FORBIDDEN`. Missing accounts return `NOT_FOUND`. Invalid bodies return `VALIDATION_ERROR`.
 
 ### Trading Password Gate Settings API
 
@@ -448,7 +448,7 @@ These endpoints are admin-only:
 - `GET /settings/trading-password-gate`
 - `PATCH /settings/trading-password-gate`
 
-The gate SSM parameter is a normal String value. It is created as `empty` when first read if missing. After setup, the API stores the MD5 hex digest of the extra password.
+The gate SSM parameter is a SecureString. It is created as `empty` when first read if missing. After setup, the API stores a salted scrypt verifier for the extra password. Legacy MD5 gate values are accepted only to verify the current password and are upgraded to scrypt after a successful check.
 
 `GET /settings/trading-password-gate` returns whether the gate has been initialized:
 

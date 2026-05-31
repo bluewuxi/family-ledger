@@ -196,6 +196,34 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
+  WebSecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub family-ledger-${EnvironmentName}-web-security-headers
+        Comment: !Sub Security headers for the family-ledger ${EnvironmentName} web app.
+        SecurityHeadersConfig:
+          ContentSecurityPolicy:
+            Override: true
+            ContentSecurityPolicy: !Sub "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://${ApiDomainName} https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            Override: true
+            FrameOption: DENY
+          ReferrerPolicy:
+            Override: true
+            ReferrerPolicy: strict-origin-when-cross-origin
+          StrictTransportSecurity:
+            Override: true
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Preload: true
+          XSSProtection:
+            Override: true
+            Protection: true
+            ModeBlock: true
+
   WebDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -230,6 +258,7 @@ Resources:
             - HEAD
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref WebSecurityHeadersPolicy
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200

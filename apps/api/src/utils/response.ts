@@ -2,7 +2,10 @@ import type { APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 import type { ApiError, ApiResponse } from "@family-ledger/shared";
 
 const jsonHeaders = {
-  "content-type": "application/json; charset=utf-8"
+  "cache-control": "no-store",
+  "content-type": "application/json; charset=utf-8",
+  expires: "0",
+  pragma: "no-cache"
 };
 
 const allowedOrigin = process.env.ALLOWED_ORIGIN;

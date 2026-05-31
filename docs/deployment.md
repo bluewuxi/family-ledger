@@ -173,7 +173,7 @@ Do not log decrypted SSM parameter values, Supabase service keys, JWT secrets, d
 
 Use AWS Secrets Manager or SSM Parameter Store for production secrets such as Supabase secret keys, JWT configuration, and database passwords. Do not hard-code account IDs, ARNs, credentials, or secret values.
 
-Use checked-in `.env.test` for test deployment and checked-in `.env.prod` for production deployment. Use ignored `.env.local` for local debugging.
+Use ignored `.env.test` for test deployment, ignored `.env.prod` for production deployment, and ignored `.env.local` for local debugging. Keep committed `.env.test.example` and `.env.prod.example` as templates only.
 
 The deployed web app reads public browser configuration from `/config.json` before creating the Supabase Auth client or calling the Lambda API. `scripts/deploy-aws.ts` creates that file after the Vite build from:
 
@@ -196,12 +196,10 @@ TRADING_PASSWORD_SSM_PREFIX=/family-ledger/test_trading_account_password_
 
 Production uses the same names with the `prod_` prefix. Test resource names use the `test_` prefix. The Lambda infrastructure sets `TRADING_PASSWORD_GATE_SSM_PARAM` and `TRADING_PASSWORD_SSM_PREFIX`; local API debugging should provide matching values.
 
-The extra-password gate parameter is an SSM String. It starts as `empty`; after an admin sets the extra password from Settings, the API stores the MD5 hex digest of that password. To initialize it manually instead of through the UI:
+The extra-password gate parameter is an SSM SecureString. It starts as `empty`; after an admin sets the extra password from Settings, the API stores a salted scrypt verifier for that password. Prefer initializing it through the Settings UI. If it must be initialized manually, generate an equivalent verifier with the API code or a one-off trusted script and store it as SecureString:
 
 ```powershell
-$md5 = [System.Security.Cryptography.MD5]::Create()
-$hash = ($md5.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("<extra-password>")) | ForEach-Object { $_.ToString("x2") }) -join ""
-aws ssm put-parameter --name /family-ledger/test_trading_password_gate --type String --value $hash --overwrite
+aws ssm put-parameter --name /family-ledger/test_trading_password_gate --type SecureString --value "<scrypt-verifier>" --overwrite
 ```
 
 Do not store the extra password itself in SSM, env files, source files, issue comments, or logs. Existing accounts can receive placeholder trading-password parameters with:
@@ -213,8 +211,8 @@ corepack pnpm backfill:account-trading-passwords -- --apply
 Frontend API endpoint mirrors:
 
 ```text
-.env.test: VITE_API_BASE_URL=https://test-fund-api.kidrawer.com
-.env.prod: VITE_API_BASE_URL=https://fund-api.kidrawer.com
+.env.test.example: VITE_API_BASE_URL=https://test-fund-api.kidrawer.com
+.env.prod.example: VITE_API_BASE_URL=https://fund-api.kidrawer.com
 .env.local: VITE_API_BASE_URL=http://localhost:3000
 ```
 

@@ -81,7 +81,7 @@ corepack pnpm backup:ledger:test
 
 ## SSM Parameters
 
-`.env.test` and `.env.prod` should store SSM parameter paths rather than decrypted values.
+Ignored `.env.test` and `.env.prod` files should store SSM parameter paths rather than decrypted values. Committed `.env.test.example` and `.env.prod.example` files must use placeholders for environment-specific resource names such as bucket names.
 
 Current naming convention:
 

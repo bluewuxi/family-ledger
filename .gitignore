@@ -6,8 +6,8 @@ build/
 .env
 .env.*
 !.env.example
-!.env.test
-!.env.prod
+!.env.test.example
+!.env.prod.example
 coverage/
 *.log
 *.tsbuildinfo

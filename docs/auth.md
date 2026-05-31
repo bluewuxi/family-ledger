@@ -34,9 +34,9 @@ Lambda API enforces permissions. Frontend role checks are UI hints only.
 
 No active `user_roles` row means access denied. Admin users can pause/resume existing Supabase Auth users and maintain their `viewer` / `admin` role from the Settings page.
 
-The server-side Supabase key is stored in AWS SSM Parameter Store and must never be exposed to `apps/web`.
+The server-side Supabase key is stored in AWS SSM Parameter Store and must never be exposed to `apps/web`. Browser Supabase sessions use `sessionStorage` so tokens do not persist after the browser session ends.
 
-Trading account passwords are protected by a second shared password gate. The gate is an SSM String parameter whose value is either `empty` before first setup or the MD5 hex digest of the extra password. Admins maintain the extra password from Settings. A viewer can reveal a trading password only if they know this extra password after it has been initialized; updating the stored trading password remains admin-only.
+Trading account passwords are protected by a second shared password gate. The gate is an SSM SecureString parameter whose value is either `empty` before first setup or a salted scrypt verifier of the extra password. Admins maintain the extra password from Settings. A viewer can reveal a trading password only if they know this extra password after it has been initialized; updating the stored trading password remains admin-only. There is no paid WAF-based lockout in the default stack; keep the extra password strong.
 
 ## User Management
 

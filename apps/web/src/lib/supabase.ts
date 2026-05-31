@@ -11,9 +11,11 @@ export function initializeSupabaseClient(config: RuntimeConfig): SupabaseClient 
   supabaseClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
       autoRefreshToken: false,
+      storage: window.sessionStorage,
       storageKey: supabaseStorageKey
     }
   });
+  clearLegacyLocalSupabaseSession();
   return supabaseClient;
 }
 
@@ -45,9 +47,11 @@ export function clearPersistedSupabaseSession(): void {
     return;
   }
 
-  window.localStorage.removeItem(supabaseStorageKey);
-  window.localStorage.removeItem(`${supabaseStorageKey}-code-verifier`);
-  window.localStorage.removeItem(`${supabaseStorageKey}-user`);
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    storage.removeItem(supabaseStorageKey);
+    storage.removeItem(`${supabaseStorageKey}-code-verifier`);
+    storage.removeItem(`${supabaseStorageKey}-user`);
+  }
 }
 
 export function notifyAuthSessionExpired(): void {
@@ -72,6 +76,16 @@ async function clearStaleSupabaseSession(): Promise<void> {
 function getSupabaseStorageKey(supabaseUrl: string): string {
   const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
   return `sb-${projectRef}-auth-token`;
+}
+
+function clearLegacyLocalSupabaseSession(): void {
+  if (!supabaseStorageKey || typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(supabaseStorageKey);
+  window.localStorage.removeItem(`${supabaseStorageKey}-code-verifier`);
+  window.localStorage.removeItem(`${supabaseStorageKey}-user`);
 }
 
 function isStaleRefreshTokenError(error: unknown): boolean {
