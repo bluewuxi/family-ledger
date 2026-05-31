@@ -14,7 +14,7 @@
 
 ## Environment Files
 
-Use ignored `.env.test` for test deployment, ignored `.env.prod` for production deployment, and ignored `.env.local` for local debugging. Committed `.env.test.example` and `.env.prod.example` files document the required keys with placeholders.
+Use checked-in `.env.test` for test deployment, checked-in `.env.prod` for production deployment, and ignored `.env.local` for local debugging.
 
 Public frontend values may be stored directly:
 
@@ -39,7 +39,6 @@ Server-side DB metadata is non-secret:
 - `SUPABASE_DB_TRANSACTION_PORT`
 - `SUPABASE_DB_SESSION_PORT`
 - `AWS_REGION`
-- `WEB_S3_BUCKET`
 
 Never print or commit resolved secret values.
 

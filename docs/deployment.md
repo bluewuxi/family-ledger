@@ -173,7 +173,7 @@ Do not log decrypted SSM parameter values, Supabase service keys, JWT secrets, d
 
 Use AWS Secrets Manager or SSM Parameter Store for production secrets such as Supabase secret keys, JWT configuration, and database passwords. Do not hard-code account IDs, ARNs, credentials, or secret values.
 
-Use ignored `.env.test` for test deployment, ignored `.env.prod` for production deployment, and ignored `.env.local` for local debugging. Keep committed `.env.test.example` and `.env.prod.example` as templates only.
+Use checked-in `.env.test` for test deployment, checked-in `.env.prod` for production deployment, and ignored `.env.local` for local debugging.
 
 The deployed web app reads public browser configuration from `/config.json` before creating the Supabase Auth client or calling the Lambda API. `scripts/deploy-aws.ts` creates that file after the Vite build from:
 
@@ -211,8 +211,8 @@ corepack pnpm backfill:account-trading-passwords -- --apply
 Frontend API endpoint mirrors:
 
 ```text
-.env.test.example: VITE_API_BASE_URL=https://test-fund-api.kidrawer.com
-.env.prod.example: VITE_API_BASE_URL=https://fund-api.kidrawer.com
+.env.test: VITE_API_BASE_URL=https://test-fund-api.kidrawer.com
+.env.prod: VITE_API_BASE_URL=https://fund-api.kidrawer.com
 .env.local: VITE_API_BASE_URL=http://localhost:3000
 ```
 
