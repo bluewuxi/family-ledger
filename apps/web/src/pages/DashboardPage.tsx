@@ -20,7 +20,6 @@ import {
   SNAPSHOT_DISPLAY_CURRENCIES,
   type DashboardSummary,
   type DashboardWarning,
-  type Instrument,
   type InvestmentTransaction,
   type PortfolioSnapshotSummary,
   type PortfolioTrend,
@@ -39,7 +38,14 @@ import {
 } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 import { formatHoursMinutes, formatLocalDateTimeNote } from "../lib/timeFormat";
-import { buildTrendChartData, isSyntheticTrendDate, type TrendChartPoint, type TrendPoint } from "../lib/trendChartData";
+import {
+  buildProfitChartData,
+  buildTrendChartData,
+  isSyntheticTrendDate,
+  type ProfitChartPoint,
+  type TrendChartPoint,
+  type TrendPoint
+} from "../lib/trendChartData";
 
 interface DashboardResponse {
   dashboard: DashboardSummary;
@@ -52,10 +58,6 @@ interface PortfolioSnapshotsResponse {
 
 interface TransactionsResponse {
   transactions: InvestmentTransaction[];
-}
-
-interface InstrumentsResponse {
-  instruments: Instrument[];
 }
 
 interface AllocationPoint {
@@ -72,10 +74,11 @@ const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
   { value: "5y", label: "近5年" },
   { value: "inception", label: "投资以来" }
 ];
-const dashboardAutoRefreshIntervalMs = 60 * 1000;
+const dashboardAutoRefreshIntervalMs = 5 * 60 * 1000;
 const allocationColors = ["#08264A", "#F5B52E", "#3D8F67", "#D9534F", "#4D83B8", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 const trendPortfolioColor = "#7BBE43";
+const trendProfitColor = "#E0706C";
 const trendPrincipalColor = "#2563A8";
 const trendLiveColor = "#7A8FA8";
 const chartTooltipContentStyle = {
@@ -104,7 +107,6 @@ export function DashboardPage() {
   const [trend, setTrend] = useState<PortfolioTrend | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<InvestmentTransaction[]>([]);
   const [recentSnapshots, setRecentSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
-  const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [snapshotsLoading, setSnapshotsLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
@@ -215,14 +217,12 @@ export function DashboardPage() {
     setActivityError(null);
 
     try {
-      const [transactionData, snapshotData, instrumentData] = await Promise.all([
+      const [transactionData, snapshotData] = await Promise.all([
         apiGet<TransactionsResponse>(
           "/transactions?transactionTypes=buy,sell&excludeGeneratedCashLegs=true&excludeCashInstruments=true&limit=10&offset=0"
         ),
-        apiGet<PortfolioSnapshotsResponse>(`/portfolio-snapshots?currency=${currency}&limit=16&order=desc`),
-        apiGet<InstrumentsResponse>("/instruments")
+        apiGet<PortfolioSnapshotsResponse>(`/portfolio-snapshots?currency=${currency}&limit=16&order=desc`)
       ]);
-      setInstruments(instrumentData.instruments);
       setRecentTransactions(transactionData.transactions);
       setRecentSnapshots(snapshotData.snapshots);
     } catch (requestError) {
@@ -247,7 +247,6 @@ export function DashboardPage() {
     () => new Map((dashboard?.accounts ?? []).map((account) => [account.accountId, account.accountName])),
     [dashboard?.accounts]
   );
-  const instrumentsById = useMemo(() => new Map(instruments.map((instrument) => [instrument.id, instrument])), [instruments]);
   const metrics = [
     { label: "当前估值", value: formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading), currency: activeCurrency },
     {
@@ -295,17 +294,29 @@ export function DashboardPage() {
     [snapshots, trend?.points]
   );
   const trendChartData = useMemo(
-    () => buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.quoteDate),
-    [dashboard?.quoteDate, dashboard?.totalAssets, trendData]
+    () =>
+      buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.quoteDate, new Date(), {
+        showLiveConnector: trendRange === "1m"
+      }),
+    [dashboard?.quoteDate, dashboard?.totalAssets, trendData, trendRange]
   );
   const trendSummary = useMemo(
     () => buildTrendSummary(trendChartData),
     [trendChartData]
   );
+  const profitChartData = useMemo(
+    () => buildProfitChartData(trendChartData),
+    [trendChartData]
+  );
+  const profitSummary = useMemo(
+    () => buildProfitSummary(profitChartData),
+    [profitChartData]
+  );
   const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
+  const profitValueDomain = useMemo(() => getProfitValueDomain(profitChartData), [profitChartData]);
   const cumulativeMovement = useMemo(
-    () => calculateCumulativeMovement(dashboard?.totalAssets, trend?.summary.currentTotalInvestment),
-    [dashboard?.totalAssets, trend?.summary.currentTotalInvestment]
+    () => calculateTrendCumulativeMovement(trendChartData),
+    [trendChartData]
   );
   const hasPrincipalWarning = (trend?.summary.warnings.length ?? 0) > 0;
   const allocationData = useMemo<AllocationPoint[]>(
@@ -407,16 +418,15 @@ export function DashboardPage() {
           <div className="chart-section-header">
             <div>
               <h2>资产趋势</h2>
-              <p>来自已生成的组合快照，按当前报告币种显示。</p>
             </div>
             <div className="chart-header-controls">
               <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
                 <CurrencyFlagIcon currency={activeCurrency} />
                 {activeCurrency}
               </span>
-              <label className="chart-range-select">
-                <span>范围</span>
+              <div className="chart-range-select">
                 <select
+                  aria-label="范围"
                   value={trendRange}
                   onChange={(event) => setTrendRange(event.target.value as PortfolioTrendRange)}
                   disabled={trendLoading}
@@ -427,7 +437,7 @@ export function DashboardPage() {
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
             </div>
           </div>
           {snapshotsError ? <p className="form-error">{snapshotsError}</p> : null}
@@ -443,7 +453,7 @@ export function DashboardPage() {
               <div className="trend-panel-metrics">
                 <div className="trend-movement">
                   <strong className={signedToneClass(cumulativeMovement, preferences.gainColorScheme, 3)}>
-                    {formatNullableSignedAmount(cumulativeMovement)}
+                    {formatNullableSignedWholeAmount(cumulativeMovement)}
                   </strong>
                   <span>{activeCurrency}</span>
                   <small>累计收益</small>
@@ -526,6 +536,105 @@ export function DashboardPage() {
                     （
                     <span className={signedToneClass(trendSummary.changePctRaw, preferences.gainColorScheme, 1)}>
                       {trendSummary.changePct}
+                    </span>
+                    ）
+                  </span>
+                </p>
+              ) : null}
+            </>
+          )}
+        </article>
+
+        <article className="flow-card chart-panel trend-chart-panel">
+          <div className="chart-section-header">
+            <div>
+              <h2>收益趋势</h2>
+            </div>
+            <div className="chart-header-controls">
+              <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
+                <CurrencyFlagIcon currency={activeCurrency} />
+                {activeCurrency}
+              </span>
+              <div className="chart-range-select">
+                <select
+                  aria-label="收益趋势范围"
+                  value={trendRange}
+                  onChange={(event) => setTrendRange(event.target.value as PortfolioTrendRange)}
+                  disabled={trendLoading}
+                >
+                  {trendRanges.map((range) => (
+                    <option key={range.value} value={range.value}>
+                      {range.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          {hasPrincipalWarning ? (
+            <p className="form-error">总投入缺少交易日汇率，请补齐汇率数据后查看收益趋势。</p>
+          ) : null}
+          {trendLoading ? (
+            <LoadingBlock label="正在加载收益趋势" />
+          ) : profitChartData.length === 0 ? (
+            <div className="empty-chart-state">暂无收益趋势数据</div>
+          ) : (
+            <>
+              <div className="trend-panel-metrics profit-panel-metrics">
+                <div className="trend-legend" aria-label="图例">
+                  <span>
+                    <i className="trend-legend-profit" />
+                    累计收益
+                  </span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={profitChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
+                  <defs>
+                    <linearGradient id="portfolioProfitFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="8%" stopColor={trendProfitColor} stopOpacity={0.34} />
+                      <stop offset="95%" stopColor={trendProfitColor} stopOpacity={0.04} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
+                  <YAxis
+                    domain={profitValueDomain}
+                    tickFormatter={(value: number) => formatCompactMoney(value)}
+                    tickLine={false}
+                    width={72}
+                  />
+                  <Tooltip
+                    shared={false}
+                    contentStyle={chartTooltipContentStyle}
+                    formatter={(value) => [formatSignedTooltipMoney(value), "累计收益"]}
+                    labelFormatter={(label) => formatTrendTooltipLabel(String(label))}
+                    labelStyle={chartTooltipLabelStyle}
+                    itemStyle={chartTooltipItemStyle}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="profitValue"
+                    stroke={trendProfitColor}
+                    fill="url(#portfolioProfitFill)"
+                    strokeWidth={2.8}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                    connectNulls={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+              {profitSummary ? (
+                <p className="trend-summary">
+                  {profitSummary.rangeLabel}，初始收益 {profitSummary.initialValue}，
+                  <span className="trend-summary-change">
+                    收益变动
+                    <span className={signedToneClass(profitSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
+                      {profitSummary.changeAmount}
+                    </span>
+                    （
+                    <span className={signedToneClass(profitSummary.changePctRaw, preferences.gainColorScheme, 1)}>
+                      {profitSummary.changePct}
                     </span>
                     ）
                   </span>
@@ -653,7 +762,7 @@ export function DashboardPage() {
                       >
                         {formatTransactionType(transaction)}
                       </span>
-                      <strong>{formatTransactionInstrument(transaction, instrumentsById)}</strong>
+                      <strong>{formatTransactionInstrument(transaction)}</strong>
                     </span>
                     <span className="activity-quantity-currency">
                       <span>{formatTransactionQuantityPrice(transaction)}</span>
@@ -845,20 +954,51 @@ function buildTrendSummary(chartPoints: TrendChartPoint[]): {
 
   return {
     rangeLabel: `${firstPoint.date} 至 ${endDate}`,
-    initialValue: formatDisplayAmount(firstPoint.value),
-    changeAmount: formatSignedDisplayAmount(changeAmount),
+    initialValue: formatChartMoney(firstPoint.value),
+    changeAmount: formatMetricWholeNumber(changeAmount, { signed: true }),
     changeAmountRaw: String(changeAmount),
     changePct: changePct === null ? "--" : `${formatSignedDisplayPercent(changePct)}%`,
     changePctRaw: changePct === null ? "0" : String(changePct)
   };
 }
 
-function formatTransactionInstrument(
-  transaction: InvestmentTransaction,
-  instrumentsById: Map<string, Instrument>
-): string {
-  const instrument = instrumentsById.get(transaction.instrumentId);
-  return transaction.instrumentShortName ?? instrument?.shortName ?? transaction.instrumentName ?? instrument?.name ?? "未知标的";
+function buildProfitSummary(chartPoints: ProfitChartPoint[]): {
+  rangeLabel: string;
+  initialValue: string;
+  changeAmount: string;
+  changeAmountRaw: string;
+  changePct: string;
+  changePctRaw: string;
+} | null {
+  const profitPoints = chartPoints
+    .map((point) => ({
+      date: point.date,
+      value: point.profitValue
+    }))
+    .filter((point): point is { date: string; value: number } => point.value !== null && Number.isFinite(point.value));
+  const firstPoint = profitPoints[0];
+  const lastPoint = profitPoints.at(-1);
+
+  if (!firstPoint || !lastPoint) {
+    return null;
+  }
+
+  const changeAmount = lastPoint.value - firstPoint.value;
+  const changePct = firstPoint.value === 0 ? null : (changeAmount / Math.abs(firstPoint.value)) * 100;
+  const endDate = isSyntheticTrendDate(lastPoint.date) ? getAppBusinessDate() : lastPoint.date;
+
+  return {
+    rangeLabel: `${firstPoint.date} 至 ${endDate}`,
+    initialValue: formatMetricWholeNumber(firstPoint.value, { signed: true }),
+    changeAmount: formatMetricWholeNumber(changeAmount, { signed: true }),
+    changeAmountRaw: String(changeAmount),
+    changePct: changePct === null ? "--" : `${formatSignedDisplayPercent(changePct)}%`,
+    changePctRaw: changePct === null ? "0" : String(changePct)
+  };
+}
+
+function formatTransactionInstrument(transaction: InvestmentTransaction): string {
+  return transaction.instrumentShortName ?? transaction.instrumentName ?? transaction.instrumentSymbol ?? "未知标的";
 }
 
 function formatTransactionType(transaction: InvestmentTransaction): string {
@@ -913,6 +1053,10 @@ function formatNullableSignedAmount(value: string | null): string {
   return value === null ? "--" : formatSignedDisplayAmount(value);
 }
 
+function formatNullableSignedWholeAmount(value: string | null): string {
+  return value === null ? "--" : formatMetricWholeNumber(value, { signed: true });
+}
+
 function formatNullableSignedPercent(value: string | null): string {
   return value === null ? "--" : `${formatSignedDisplayPercent(value)}%`;
 }
@@ -964,18 +1108,38 @@ function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
   return [Math.max(0, minValue - padding), maxValue + padding];
 }
 
-function calculateCumulativeMovement(
-  totalAssets: string | null | undefined,
-  currentTotalInvestment: string | null | undefined
-): string | null {
-  const totalAssetsValue = parseNullableNumber(totalAssets);
-  const totalInvestmentValue = parseNullableNumber(currentTotalInvestment);
+function getProfitValueDomain(points: ProfitChartPoint[]): [number, number] {
+  const values = points
+    .map((point) => point.profitValue)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
 
-  if (totalAssetsValue === null || totalInvestmentValue === null) {
+  if (values.length === 0) {
+    return [0, 1];
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const valueRange = maxValue - minValue;
+
+  if (valueRange === 0) {
+    const padding = Math.max(Math.abs(maxValue) * 0.05, 1);
+    return [minValue - padding, maxValue + padding];
+  }
+
+  const padding = valueRange * 0.2;
+  return [minValue - padding, maxValue + padding];
+}
+
+function calculateTrendCumulativeMovement(chartPoints: TrendChartPoint[]): string | null {
+  const sortedPoints = [...chartPoints].sort((left, right) => left.date.localeCompare(right.date));
+  const latestPortfolioPoint = [...sortedPoints].reverse().find((point) => Number.isFinite(point.value));
+  const latestPrincipalPoint = [...sortedPoints].reverse().find((point) => point.totalInvestment !== null);
+
+  if (!latestPortfolioPoint || !latestPrincipalPoint || latestPrincipalPoint.totalInvestment === null) {
     return null;
   }
 
-  return String(totalAssetsValue - totalInvestmentValue);
+  return String(latestPortfolioPoint.value - latestPrincipalPoint.totalInvestment);
 }
 
 function formatChartMoney(value: number): string {
@@ -985,6 +1149,11 @@ function formatChartMoney(value: number): string {
 function formatTooltipMoney(value: unknown): string {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? formatChartMoney(numericValue) : "--";
+}
+
+function formatSignedTooltipMoney(value: unknown): string {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numericValue) ? formatMetricWholeNumber(numericValue, { signed: true }) : "--";
 }
 
 function formatPercentage(value: number): string {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
 import { formatHoursMinutes } from "../apps/web/src/lib/timeFormat";
-import { buildTrendChartData } from "../apps/web/src/lib/trendChartData";
+import { buildProfitChartData, buildTrendChartData } from "../apps/web/src/lib/trendChartData";
 
 void main();
 
@@ -65,6 +65,63 @@ async function main(): Promise<void> {
   );
   assert.equal(previousDayLiveChart.at(-1)?.date, "2026-05-29");
   assert.equal(previousDayLiveChart.at(-1)?.liveValue, 110);
+
+  const sampledRangeLiveChart = buildTrendChartData(
+    [{ date: "2026-05-28", portfolioValue: 100, totalInvestment: null }],
+    "110",
+    "2026-05-29",
+    aShareOpenTime,
+    { showLiveConnector: false }
+  );
+  assert.deepEqual(sampledRangeLiveChart, [
+    {
+      date: "2026-05-28",
+      value: 100,
+      snapshotValue: 100,
+      liveValue: null,
+      totalInvestment: null,
+      snapshotDate: null
+    },
+    {
+      date: "2026-05-29",
+      value: 110,
+      snapshotValue: 110,
+      liveValue: null,
+      totalInvestment: null
+    }
+  ]);
+
+  const profitChart = buildProfitChartData([
+    {
+      date: "2026-05-28",
+      value: 100,
+      snapshotValue: 100,
+      liveValue: null,
+      totalInvestment: 80,
+      snapshotDate: "2026-05-28"
+    },
+    {
+      date: "2026-05-29",
+      value: 110,
+      snapshotValue: 110,
+      liveValue: null,
+      totalInvestment: null,
+      snapshotDate: "2026-05-29"
+    },
+    {
+      date: "2026-05-30",
+      value: 140,
+      snapshotValue: 140,
+      liveValue: null,
+      totalInvestment: 120,
+      snapshotDate: "2026-05-30"
+    }
+  ]);
+  assert.deepEqual(profitChart.map((point) => [point.date, point.profitValue]), [
+    ["2026-05-28", 20],
+    ["2026-05-29", 30],
+    ["2026-05-30", 20]
+  ]);
 
   const staleQuoteChart = buildTrendChartData(
     [{ date: "2026-05-28", portfolioValue: 100, totalInvestment: null }],

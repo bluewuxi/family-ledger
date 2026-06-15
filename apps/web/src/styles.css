@@ -1779,11 +1779,7 @@ textarea {
 }
 
 .chart-range-select {
-  display: grid;
-  gap: 4px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 700;
+  display: block;
 }
 
 .chart-range-select select {
@@ -1878,9 +1874,17 @@ textarea {
   border-color: #7bbe43;
 }
 
+.trend-legend-profit {
+  border-color: #e0706c;
+}
+
 .trend-legend-principal {
   border-color: #2563a8;
   border-top-style: dashed !important;
+}
+
+.profit-panel-metrics {
+  justify-content: flex-end;
 }
 
 .trend-summary {

@@ -17,11 +17,20 @@ export interface TrendChartPoint {
   isSynthetic?: boolean;
 }
 
+export interface ProfitChartPoint {
+  date: string;
+  value: number;
+  profitValue: number | null;
+  snapshotDate?: string | null;
+  isSynthetic?: boolean;
+}
+
 export function buildTrendChartData(
   points: TrendPoint[],
   liveTotalAssets: string | null | undefined,
   liveQuoteDate: string | null | undefined,
-  now: Date | string = new Date()
+  now: Date | string = new Date(),
+  options: { showLiveConnector?: boolean } = {}
 ): TrendChartPoint[] {
   const sortedPoints = [...points].sort((left, right) => left.date.localeCompare(right.date));
   const chartPoints: TrendChartPoint[] = sortedPoints.map((point) => ({
@@ -48,8 +57,8 @@ export function buildTrendChartData(
           {
             date: today,
             value: liveValue,
-            snapshotValue: null,
-            liveValue,
+            snapshotValue: liveValue,
+            liveValue: options.showLiveConnector === false ? null : liveValue,
             totalInvestment: null
           }
         ]
@@ -58,6 +67,31 @@ export function buildTrendChartData(
 
   if (lastPoint.date > today || !isCurrentBusinessDateQuote(liveQuoteDate, today)) {
     return chartPoints;
+  }
+
+  if (options.showLiveConnector === false) {
+    if (lastPoint.date === today) {
+      return [
+        ...chartPoints.slice(0, -1),
+        {
+          ...lastPoint,
+          value: liveValue,
+          snapshotValue: liveValue,
+          liveValue: null
+        }
+      ];
+    }
+
+    return [
+      ...chartPoints,
+      {
+        date: today,
+        value: liveValue,
+        snapshotValue: liveValue,
+        liveValue: null,
+        totalInvestment: null
+      }
+    ];
   }
 
   const liveEndpointDate = lastPoint.date === today ? `__live_endpoint__${today}` : today;
@@ -87,6 +121,32 @@ export function buildTrendChartData(
       isSynthetic: isSyntheticTrendDate(liveEndpointDate)
     }
   ];
+}
+
+export function buildProfitChartData(chartPoints: TrendChartPoint[]): ProfitChartPoint[] {
+  let carriedTotalInvestment: number | null = null;
+
+  return chartPoints
+    .map((point) => {
+      if (point.totalInvestment !== null && Number.isFinite(point.totalInvestment)) {
+        carriedTotalInvestment = point.totalInvestment;
+      }
+
+      const portfolioValue = point.snapshotValue ?? point.liveValue;
+      const profitValue =
+        portfolioValue !== null && carriedTotalInvestment !== null
+          ? portfolioValue - carriedTotalInvestment
+          : null;
+
+      return {
+        date: point.date,
+        value: profitValue ?? 0,
+        profitValue,
+        snapshotDate: point.snapshotDate ?? null,
+        isSynthetic: point.isSynthetic
+      };
+    })
+    .filter((point) => point.profitValue !== null);
 }
 
 export function isSyntheticTrendDate(value: string): boolean {

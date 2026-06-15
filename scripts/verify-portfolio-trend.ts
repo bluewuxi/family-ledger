@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import Decimal from "decimal.js";
-import type { ExchangeRateRecord, PortfolioSnapshotSummary } from "@family-ledger/shared";
+import type { ExchangeRateRecord, InvestmentTransaction, PortfolioSnapshotSummary } from "@family-ledger/shared";
 import {
   buildPortfolioTrend,
   buildSampledPortfolioPoints,
@@ -70,33 +70,44 @@ async function main(): Promise<void> {
   assert.equal(getTrendRangeStart("inception", "2026-06-15", "2026-01-15"), "2026-01-15");
   assert.equal(getTrendRangeStart("3m", "2026-06-15", "2026-01-15"), "2026-03-15");
 
-  const monthly = buildSampledPortfolioPoints({
+  const oneYearDaily = buildSampledPortfolioPoints({
     snapshots,
     range: "1y",
     rangeStart: "2026-03-15",
     rangeEnd: "2026-06-15"
   });
 
-  assert.deepEqual(monthly.map((point) => [point.date, point.portfolioValue, point.snapshotDate]), [
+  assert.deepEqual(oneYearDaily.map((point) => [point.date, point.portfolioValue, point.snapshotDate]), [
     ["2026-03-15", "110", "2026-03-15"],
-    ["2026-04-15", "120", "2026-04-14"],
+    ["2026-04-14", "120", "2026-04-14"],
     ["2026-05-15", "130", "2026-05-15"],
+    ["2026-06-13", "140", "2026-06-13"],
     ["2026-06-15", "140", "2026-06-13"]
   ]);
 
-  const weekly = buildSampledPortfolioPoints({
+  const shortRangeDaily = buildSampledPortfolioPoints({
     snapshots,
     range: "3m",
-    rangeStart: "2026-05-25",
+    rangeStart: "2026-05-22",
     rangeEnd: "2026-06-15"
   });
 
-  assert.deepEqual(weekly.map((point) => [point.date, point.portfolioValue, point.snapshotDate]), [
-    ["2026-05-25", "130", "2026-05-15"],
-    ["2026-06-01", "130", "2026-05-15"],
-    ["2026-06-08", "130", "2026-05-15"],
+  assert.deepEqual(shortRangeDaily.map((point) => [point.date, point.portfolioValue, point.snapshotDate]), [
+    ["2026-05-22", "130", "2026-05-15"],
+    ["2026-06-13", "140", "2026-06-13"],
     ["2026-06-15", "140", "2026-06-13"]
   ]);
+
+  const longRangeWeekly = buildSampledPortfolioPoints({
+    snapshots,
+    range: "3y",
+    rangeStart: "2024-06-15",
+    rangeEnd: "2026-06-15"
+  });
+  const longRangeDates = longRangeWeekly.map((point) => point.date);
+  assert.equal(longRangeDates.includes("2026-06-08"), true);
+  assert.equal(longRangeDates.includes("2026-06-15"), true);
+  assert.equal(longRangeDates.includes("2026-06-13"), false);
 
   const historicalTrend = await buildPortfolioTrend({
     currency: "NZD",
@@ -110,6 +121,32 @@ async function main(): Promise<void> {
   assert.equal(historicalTrend.summary.rangeEnd, "2026-03-15");
   assert.equal(historicalTrend.points.at(-1)?.date, "2026-03-15");
   assert.equal(historicalTrend.points.some((point) => point.date > "2026-03-15"), false);
+
+  const clampedTrend = await buildPortfolioTrend({
+    currency: "NZD",
+    range: "3m",
+    today: "2026-06-15",
+    snapshots,
+    principalTransactions: [
+      transaction("2026-05-22", "opening_balance", "NZD", "1000"),
+      transaction("2026-05-27", "deposit", "NZD", "100")
+    ],
+    exactFxRates: []
+  });
+
+  assert.equal(clampedTrend.summary.rangeStart, "2026-05-22");
+  assert.equal(clampedTrend.points[0]?.date, "2026-05-22");
+  assert.equal(clampedTrend.points.some((point) => point.date < "2026-05-22"), false);
+  assert.deepEqual(
+    clampedTrend.points.find((point) => point.date === "2026-05-27"),
+    {
+      date: "2026-05-27",
+      portfolioValue: "130",
+      snapshotDate: "2026-05-15",
+      liveValue: null,
+      totalInvestment: "1100.000000"
+    }
+  );
 
   console.log("Portfolio trend verification: success");
 }
@@ -150,5 +187,41 @@ function snapshot(snapshotDate: string, marketValue: string): PortfolioSnapshotS
     accounts: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+}
+
+function transaction(
+  tradeDate: string,
+  transactionType: "opening_balance" | "deposit",
+  currency: "NZD",
+  grossAmount: string
+): InvestmentTransaction {
+  return {
+    id: `transaction-${tradeDate}`,
+    accountId: "account",
+    instrumentId: "cash",
+    instrumentSymbol: "CASH_NZD",
+    instrumentName: "NZD Cash",
+    instrumentShortName: "NZD现金",
+    instrumentAssetType: "cash",
+    transactionType,
+    tradeDate,
+    settlementDate: null,
+    quantity: null,
+    price: null,
+    grossAmount,
+    fee: "0",
+    tax: "0",
+    currency,
+    adjustmentDirection: null,
+    transactionSource: "manual",
+    linkedTransactionId: null,
+    settlementCurrency: null,
+    settlementAmount: null,
+    notes: null,
+    createdByUserId: null,
+    updatedByUserId: null,
+    createdAt: `${tradeDate}T00:00:00.000Z`,
+    updatedAt: `${tradeDate}T00:00:00.000Z`
   };
 }

@@ -109,7 +109,8 @@ export async function buildPortfolioTrend(input: {
     input.principalTransactions ?? await listManualPrincipalTransactionsUntil(rangeEnd);
   const principalEvents = principalTransactions.map(toPrincipalEvent);
   const inceptionDate = principalEvents[0]?.date ?? null;
-  const rangeStart = getTrendRangeStart(input.range, rangeEnd, inceptionDate);
+  const requestedRangeStart = getTrendRangeStart(input.range, rangeEnd, inceptionDate);
+  const rangeStart = inceptionDate && requestedRangeStart < inceptionDate ? inceptionDate : requestedRangeStart;
   const allSnapshots =
     input.snapshots ?? await listPortfolioSnapshotTrendRows({ from: earliestDate, to: rangeEnd, currency: input.currency, order: "asc" });
   const exactFxRates =
@@ -337,21 +338,30 @@ function getPortfolioTargetDates(input: {
   rangeStart: string;
   rangeEnd: string;
 }): string[] {
-  if (input.range === "1m") {
+  const snapshotDates = input.snapshots
+    .map((snapshot) => snapshot.snapshotDate)
+    .filter((date) => date >= input.rangeStart && date <= input.rangeEnd);
+  const firstSnapshotDate = input.snapshots.find((snapshot) =>
+    snapshot.snapshotDate >= input.rangeStart && snapshot.snapshotDate <= input.rangeEnd && snapshot.marketValue !== null
+  )?.snapshotDate;
+
+  if (!shouldSamplePortfolioSnapshots(input.range, input.rangeStart, input.rangeEnd)) {
     return uniqueValues([
       input.rangeStart,
-      ...input.snapshots
-        .map((snapshot) => snapshot.snapshotDate)
-        .filter((date) => date >= input.rangeStart && date <= input.rangeEnd),
+      ...snapshotDates,
       input.rangeEnd
     ]).sort();
   }
 
-  if (input.range === "3m") {
-    return uniqueValues([input.rangeStart, ...weeklyTargets(input.rangeStart, input.rangeEnd)]).sort();
-  }
+  return uniqueValues([
+    input.rangeStart,
+    ...(firstSnapshotDate ? [firstSnapshotDate] : []),
+    ...weeklyTargets(input.rangeStart, input.rangeEnd)
+  ]).sort();
+}
 
-  return uniqueValues([input.rangeStart, ...monthlyTargets(input.rangeStart, input.rangeEnd)]).sort();
+function shouldSamplePortfolioSnapshots(range: PortfolioTrendRange, rangeStart: string, rangeEnd: string): boolean {
+  return (range === "3y" || range === "5y" || range === "inception") && monthsBetween(rangeStart, rangeEnd) >= 24;
 }
 
 function weeklyTargets(rangeStart: string, rangeEnd: string): string[] {
@@ -361,25 +371,6 @@ function weeklyTargets(rangeStart: string, rangeEnd: string): string[] {
   while (formatIsoDate(cursor) >= rangeStart) {
     targets.push(formatIsoDate(cursor));
     cursor = addUtcDays(cursor, -7);
-  }
-
-  return targets;
-}
-
-function monthlyTargets(rangeStart: string, rangeEnd: string): string[] {
-  const end = parseIsoDate(rangeEnd);
-  const anchorDay = end.getUTCDate();
-  const targets: string[] = [];
-
-  for (let offset = 0; ; offset += 1) {
-    const target = monthTarget(end.getUTCFullYear(), end.getUTCMonth() - offset, anchorDay);
-    const formatted = formatIsoDate(target);
-
-    if (formatted < rangeStart) {
-      break;
-    }
-
-    targets.push(formatted);
   }
 
   return targets;
@@ -406,11 +397,12 @@ function mergeTrendPoints(
   principalPoints: PortfolioPrincipalPoint[]
 ): PortfolioTrendPoint[] {
   const portfolioByDate = new Map(portfolioPoints.map((point) => [point.date, point]));
+  const sortedPortfolioPoints = [...portfolioPoints].sort((left, right) => left.date.localeCompare(right.date));
   const principalByDate = new Map(principalPoints.map((point) => [point.date, point.totalInvestment]));
   const dates = uniqueValues([...portfolioByDate.keys(), ...principalByDate.keys()]).sort();
 
   return dates.map((date) => {
-    const portfolioPoint = portfolioByDate.get(date);
+    const portfolioPoint = portfolioByDate.get(date) ?? findPortfolioPointAsOf(sortedPortfolioPoints, date);
 
     return {
       date,
@@ -420,6 +412,24 @@ function mergeTrendPoints(
       totalInvestment: principalByDate.get(date) ?? null
     };
   });
+}
+
+function findPortfolioPointAsOf(
+  points: Array<Omit<PortfolioTrendPoint, "totalInvestment">>,
+  targetDate: string
+): Omit<PortfolioTrendPoint, "totalInvestment"> | null {
+  let selected: Omit<PortfolioTrendPoint, "totalInvestment"> | null = null;
+
+  for (const point of points) {
+    if (point.date > targetDate) {
+      break;
+    }
+    if (point.portfolioValue !== null) {
+      selected = point;
+    }
+  }
+
+  return selected;
 }
 
 async function resolveSnapshotQuery(input: {
@@ -511,6 +521,17 @@ function optionalBoolean(name: string, value: string | undefined): boolean {
 function subtractMonths(value: string, months: number): string {
   const date = parseIsoDate(value);
   return formatIsoDate(monthTarget(date.getUTCFullYear(), date.getUTCMonth() - months, date.getUTCDate()));
+}
+
+function monthsBetween(start: string, end: string): number {
+  const startDate = parseIsoDate(start);
+  const endDate = parseIsoDate(end);
+  const monthCount =
+    (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
+    endDate.getUTCMonth() -
+    startDate.getUTCMonth();
+
+  return endDate.getUTCDate() >= startDate.getUTCDate() ? monthCount : monthCount - 1;
 }
 
 function monthTarget(year: number, monthIndex: number, day: number): Date {
