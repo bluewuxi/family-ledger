@@ -152,11 +152,13 @@ Snapshot audit is dry-run by default and is intended for the test Supabase proje
 corepack pnpm verify:snapshot-audit
 ```
 
-Only after reviewing the dry-run output, rewrite mismatched snapshot valuations with:
+Only after reviewing the dry-run output, rewrite all missing or mismatched derived snapshot valuations with:
 
 ```powershell
 corepack pnpm fix:snapshot-audit
 ```
+
+Snapshot repair recalculates from transactions, stored `instrument_prices`, and stored valuation FX only; it does not use dashboard quote cache rows. It does not write an affected-row backup because snapshots are rebuildable derived records.
 
 Historical market-close repair is dry-run by default:
 
@@ -171,4 +173,4 @@ corepack pnpm repair:market-close-history -- --env test --apply
 corepack pnpm verify:snapshot-audit
 ```
 
-The apply path writes a local JSON backup under `tmp/market-close-repair/`, deletes suspect rows, then recalculates snapshots. If recalculation is interrupted, rerun `corepack pnpm verify:snapshot-audit` and `corepack pnpm fix:snapshot-audit`.
+The market-close repair apply path writes a local JSON backup under `tmp/market-close-repair/`, deletes suspect rows, then recalculates snapshots. If recalculation is interrupted, rerun `corepack pnpm verify:snapshot-audit` and `corepack pnpm fix:snapshot-audit`.

@@ -411,6 +411,43 @@ async function verifyDashboardQuoteCache(): Promise<void> {
   });
   assert.equal(fetchCount, 1);
   assert.equal(staleQuotes[0]?.quotePrice, "80");
+
+  const staleOnlyRepository = {
+    async listDashboardQuotes(): Promise<DashboardQuoteRecord[]> {
+      return [
+        dashboardQuote(
+          "stale-dashboard-quote",
+          usdSecurity.instrumentId,
+          "2026-05-20",
+          "70",
+          "USD",
+          "2026-05-23T10:00:00.000Z",
+          "Yahoo Finance"
+        )
+      ];
+    },
+    async upsertDashboardQuote(): Promise<DashboardQuoteRecord> {
+      throw new Error("Unexpected dashboard quote upsert.");
+    }
+  };
+  const missingRefreshProvider: IInstrumentQuoteProvider = {
+    name: "Yahoo Finance",
+    async fetchLatestQuotes(input: FetchLatestInstrumentQuotesInput): Promise<InstrumentQuoteProviderResult> {
+      return {
+        provider: this.name,
+        fetchedAt: input.fetchedAt,
+        quotes: []
+      };
+    }
+  };
+  const missingRefreshQuotes = await refreshDashboardQuotes({
+    holdings: [usdSecurity],
+    instruments: [quoteInstrument],
+    now: new Date("2026-05-23T10:06:00.000Z"),
+    providers: { yahoo_finance: missingRefreshProvider },
+    dashboardQuoteRepository: staleOnlyRepository
+  });
+  assert.deepEqual(missingRefreshQuotes, []);
 }
 
 function account(id: string): InvestmentAccount {

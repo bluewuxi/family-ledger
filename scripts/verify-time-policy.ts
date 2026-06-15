@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   assert.doesNotMatch(template, /Type: AWS::Events::Rule/u);
 
   const dashboard = readFileSync("apps/web/src/pages/DashboardPage.tsx", "utf8");
-  assert.match(dashboard, /最新变动/u);
+  assert.match(dashboard, /行情变动/u);
   assert.doesNotMatch(dashboard, /本交易日/u);
   assert.doesNotMatch(dashboard, /今日变动/u);
   assert.equal(formatHoursMinutes(201), "03小时 21分");

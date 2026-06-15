@@ -252,10 +252,10 @@ It returns values in the selected reporting currency:
 
 The dashboard derives holdings through the existing holdings calculation and may refresh delayed quote cache rows during the request:
 
-- Securities use a dashboard-only delayed quote cache for current valuation when available; cash uses its calculated cash balance.
-- Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`.
+- Securities use a dashboard-only delayed quote cache for current-estimate valuation when available; cash uses its calculated cash balance.
+- Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`. If a stale cache row cannot be refreshed, the dashboard ignores it and falls back to stored closes.
 - Holdings are valued internally in USD using USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
-- `todayChange` is retained as the wire field name, but the UI labels it `最新变动`. It compares current quantity at the dashboard quote/latest stored price with the same current quantity at the preceding stored security close. It is latest-price movement on current holdings, not cash-flow-adjusted portfolio daily P&L.
+- `todayChange` is retained as the wire field name, but the UI labels it `行情变动`. It compares current quantity at the dashboard quote/latest stored price with the same current quantity at the preceding stored security close. It is latest-price movement on current holdings, not cash-flow-adjusted portfolio daily P&L and not a persisted snapshot change.
 - Current market value and latest-price movement use latest valuation FX. Unrealized gain uses transaction-date USD cost basis when historical FX is available, so reported cost does not move with later FX rates.
 - `unrealizedGain` applies only to non-cash holdings with available remaining cost basis.
 - `dailyTradeCount` counts buy/sell transactions on the current app business date, excluding generated cash legs and cash instruments.

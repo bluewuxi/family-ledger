@@ -235,9 +235,9 @@ export function DashboardPage() {
   );
   const instrumentsById = useMemo(() => new Map(instruments.map((instrument) => [instrument.id, instrument])), [instruments]);
   const metrics = [
-    { label: "总资产", value: formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading), currency: activeCurrency },
+    { label: "当前估值", value: formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading), currency: activeCurrency },
     {
-      label: "最新变动",
+      label: "行情变动",
       value: formatPlainTodayChange(dashboard, dashboardLoading),
       currency: activeCurrency,
       toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3)
@@ -315,7 +315,7 @@ export function DashboardPage() {
             财富足迹
             <span className="dashboard-title-tagline">资金永无眠</span>
           </PageTitle>
-          <p>基于当前行情、汇率，展示投资组合概览。</p>
+          <p>基于当前或延迟行情、汇率，展示投资组合概览。</p>
         </div>
         <p className="business-day-note dashboard-business-day-note-mobile">
           交易日 <span>{businessDayNote.businessDate}</span> 将于 <span>{businessDayNote.remainingTime}</span> 结束
@@ -367,7 +367,7 @@ export function DashboardPage() {
 
       {!dashboardLoading && dashboard ? <p className="quote-update-note">{renderQuoteUpdateNote(dashboard)}</p> : null}
 
-      <section className="dashboard-card-flow dashboard-chart-flow" aria-label="资产趋势、持仓分布、账户分布、最新成交和净值变动">
+      <section className="dashboard-card-flow dashboard-chart-flow" aria-label="资产趋势、持仓分布、账户分布、最新成交和快照净值变动">
         <article className="flow-card chart-panel trend-chart-panel">
           <div className="chart-section-header">
             <div>
@@ -412,7 +412,7 @@ export function DashboardPage() {
                   />
                   <Tooltip
                     contentStyle={chartTooltipContentStyle}
-                    formatter={(value, name) => [formatTooltipMoney(value), name === "liveValue" ? "今日估值" : "总资产"]}
+                    formatter={(value, name) => [formatTooltipMoney(value), name === "liveValue" ? "当前估值" : "快照总资产"]}
                     labelFormatter={(label) => formatTrendTooltipLabel(String(label))}
                     labelStyle={chartTooltipLabelStyle}
                     itemStyle={chartTooltipItemStyle}
@@ -595,7 +595,7 @@ export function DashboardPage() {
         <article className="flow-card activity-panel snapshot-activity-panel">
           <div className="activity-panel-header">
             <div className="activity-title-with-currency">
-              <h2>净值变动</h2>
+              <h2>快照净值变动</h2>
               <span className="chart-currency-indicator">
                 <CurrencyFlagIcon currency={activeCurrency} />
                 {activeCurrency}
@@ -603,7 +603,7 @@ export function DashboardPage() {
             </div>
           </div>
           {activityLoading ? (
-            <LoadingBlock label="正在加载净值变动" />
+            <LoadingBlock label="正在加载快照净值变动" />
           ) : recentSnapshots.length === 0 ? (
             <div className="empty-chart-state">暂无快照记录</div>
           ) : (
@@ -709,7 +709,7 @@ function renderQuoteUpdateNote(dashboard: DashboardSummary): ReactNode {
 
   return (
     <>
-      行情延迟：更新于 {formattedTime}
+      行情估值：更新于 {formattedTime}
       {dashboard.quoteDate ? <span className="quote-date-nowrap"> 报价日期 {dashboard.quoteDate}</span> : null}
     </>
   );
@@ -733,7 +733,7 @@ function formatWarning(warning: DashboardWarning): string {
     case "MISSING_LATEST_PRICE":
       return `${instrument} 缺少最新价格`;
     case "MISSING_PREVIOUS_PRICE":
-      return `${instrument} 缺少前一收盘价，无法计算最新变动`;
+      return `${instrument} 缺少前一收盘价，无法计算行情变动`;
     case "MISSING_FX_RATE":
       return `${instrument} 缺少估值汇率`;
     case "COST_BASIS_UNAVAILABLE":
@@ -855,7 +855,7 @@ function formatTrendTickDate(value: string): string {
 }
 
 function formatTrendTooltipLabel(value: string): string {
-  return isSyntheticTrendDate(value) ? "今日估值连接线" : `日期：${value}`;
+  return isSyntheticTrendDate(value) ? "当前估值连接线" : `日期：${value}`;
 }
 
 function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {

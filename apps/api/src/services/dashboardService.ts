@@ -123,7 +123,14 @@ export async function refreshDashboardQuotes(input: {
   return quoteInstruments
     .map((instrument) => {
       const key = dashboardQuoteKey(instrument.id, providerNameForPriceSource(instrument.priceSource));
-      return refreshedByInstrument.get(key) ?? existingQuotesByInstrument.get(key) ?? null;
+      const refreshedQuote = refreshedByInstrument.get(key);
+      const existingQuote = existingQuotesByInstrument.get(key);
+
+      if (refreshedQuote) {
+        return refreshedQuote;
+      }
+
+      return existingQuote && !isQuoteStale(existingQuote, input.now) ? existingQuote : null;
     })
     .filter((quote): quote is DashboardQuoteRecord => quote !== null);
 }
