@@ -131,6 +131,25 @@ export async function listTransactionsUntil(tradeDate: string): Promise<Investme
   return data.map(mapTransactionRow);
 }
 
+export async function listManualPrincipalTransactionsUntil(tradeDate: string): Promise<InvestmentTransaction[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(transactionSelect)
+    .in("transaction_type", ["opening_position", "opening_balance", "deposit", "withdrawal"])
+    .eq("transaction_source", "manual")
+    .lte("trade_date", tradeDate)
+    .order("trade_date", { ascending: true })
+    .order("created_at", { ascending: true })
+    .returns<InvestmentTransactionRow[]>();
+
+  if (error) {
+    throw new Error("Failed to list principal transactions.");
+  }
+
+  return data.map(mapTransactionRow);
+}
+
 export async function findTransactionById(id: string): Promise<InvestmentTransaction | null> {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase

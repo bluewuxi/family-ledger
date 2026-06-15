@@ -1107,6 +1107,48 @@ export interface PortfolioSnapshot {
 export const SNAPSHOT_DISPLAY_CURRENCIES = ["NZD", "USD", "CNY"] as const;
 export type SnapshotDisplayCurrency = (typeof SNAPSHOT_DISPLAY_CURRENCIES)[number];
 
+export const PORTFOLIO_TREND_RANGES = ["1m", "3m", "1y", "3y", "5y", "inception"] as const;
+export type PortfolioTrendRange = (typeof PORTFOLIO_TREND_RANGES)[number];
+
+export const PORTFOLIO_TREND_WARNING_CODES = ["MISSING_PRINCIPAL_FX_RATE"] as const;
+export type PortfolioTrendWarningCode = (typeof PORTFOLIO_TREND_WARNING_CODES)[number];
+
+export interface PortfolioTrendWarning {
+  code: PortfolioTrendWarningCode;
+  transactionDate: string;
+  currency: CurrencyCode;
+}
+
+export interface PortfolioTrendPoint {
+  date: string;
+  portfolioValue: string | null;
+  snapshotDate: string | null;
+  liveValue?: string | null;
+  totalInvestment: string | null;
+}
+
+export interface PortfolioPrincipalPoint {
+  date: string;
+  totalInvestment: string | null;
+}
+
+export interface PortfolioTrendSummary {
+  range: PortfolioTrendRange;
+  rangeStart: string;
+  rangeEnd: string;
+  currency: SnapshotDisplayCurrency;
+  inceptionDate: string | null;
+  currentTotalInvestment: string | null;
+  cumulativeMovement: string | null;
+  warnings: PortfolioTrendWarning[];
+}
+
+export interface PortfolioTrend {
+  points: PortfolioTrendPoint[];
+  principalPoints: PortfolioPrincipalPoint[];
+  summary: PortfolioTrendSummary;
+}
+
 export const SNAPSHOT_WARNING_CODES = [
   "MISSING_LATEST_PRICE",
   "MISSING_PREVIOUS_PRICE",

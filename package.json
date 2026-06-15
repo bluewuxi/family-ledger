@@ -25,6 +25,7 @@
     "verify:api-health": "tsx scripts/verify-api-health.ts",
     "verify:holdings": "tsx scripts/verify-holdings-calculation.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
+    "verify:portfolio-trend": "tsx scripts/verify-portfolio-trend.ts",
     "verify:preferences": "tsx scripts/verify-preferences.ts",
     "verify:account-secrets": "tsx scripts/verify-account-trading-passwords.ts",
     "verify:market-data": "tsx scripts/verify-market-data-foundation.ts",

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import {
+  Area,
+  AreaChart,
   Cell,
   CartesianGrid,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -22,6 +23,8 @@ import {
   type Instrument,
   type InvestmentTransaction,
   type PortfolioSnapshotSummary,
+  type PortfolioTrend,
+  type PortfolioTrendRange,
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { ApiClientError, apiGet } from "../lib/apiClient";
@@ -44,6 +47,7 @@ interface DashboardResponse {
 
 interface PortfolioSnapshotsResponse {
   snapshots: PortfolioSnapshotSummary[];
+  trend?: PortfolioTrend;
 }
 
 interface TransactionsResponse {
@@ -60,12 +64,20 @@ interface AllocationPoint {
   percentage: number;
 }
 
-type SnapshotRangeDays = 7 | 30 | 90 | 365;
-
-const snapshotRanges: SnapshotRangeDays[] = [7, 30, 90, 365];
+const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
+  { value: "1m", label: "近1月" },
+  { value: "3m", label: "近3月" },
+  { value: "1y", label: "近1年" },
+  { value: "3y", label: "近3年" },
+  { value: "5y", label: "近5年" },
+  { value: "inception", label: "投资以来" }
+];
 const dashboardAutoRefreshIntervalMs = 60 * 1000;
 const allocationColors = ["#08264A", "#F5B52E", "#3D8F67", "#D9534F", "#4D83B8", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
+const trendPortfolioColor = "#7BBE43";
+const trendPrincipalColor = "#2563A8";
+const trendLiveColor = "#7A8FA8";
 const chartTooltipContentStyle = {
   border: "1px solid var(--color-border)",
   background: "var(--color-surface)",
@@ -86,9 +98,10 @@ export function DashboardPage() {
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
-  const [snapshotRangeDays, setSnapshotRangeDays] = useState<SnapshotRangeDays>(90);
+  const [trendRange, setTrendRange] = useState<PortfolioTrendRange>("3m");
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
+  const [trend, setTrend] = useState<PortfolioTrend | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<InvestmentTransaction[]>([]);
   const [recentSnapshots, setRecentSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
@@ -145,9 +158,9 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (currencyInitialized) {
-      void loadSnapshots(reportingCurrency, snapshotRangeDays);
+      void loadSnapshots(reportingCurrency, trendRange);
     }
-  }, [currencyInitialized, reportingCurrency, snapshotRangeDays]);
+  }, [currencyInitialized, reportingCurrency, trendRange]);
 
   useEffect(() => {
     if (currencyInitialized) {
@@ -175,18 +188,19 @@ export function DashboardPage() {
     }
   }
 
-  async function loadSnapshots(currency: SnapshotDisplayCurrency, days: SnapshotRangeDays) {
+  async function loadSnapshots(currency: SnapshotDisplayCurrency, range: PortfolioTrendRange) {
     setSnapshotsLoading(true);
     setSnapshotsError(null);
 
     try {
-      const { from, to } = getSnapshotDateRange(days);
       const data = await apiGet<PortfolioSnapshotsResponse>(
-        `/portfolio-snapshots?from=${from}&to=${to}&currency=${currency}`
+        `/portfolio-snapshots?currency=${currency}&includeTrend=true&trendRange=${range}`
       );
       setSnapshots(data.snapshots);
+      setTrend(data.trend ?? null);
     } catch (requestError) {
       setSnapshotsError(toErrorMessage(requestError, "资产趋势请求失败，请稍后重试。"));
+      setTrend(null);
     } finally {
       setSnapshotsLoading(false);
     }
@@ -222,7 +236,7 @@ export function DashboardPage() {
 
   function refreshDashboard() {
     void loadDashboard(reportingCurrency);
-    void loadSnapshots(reportingCurrency, snapshotRangeDays);
+    void loadSnapshots(reportingCurrency, trendRange);
     void loadActivity(reportingCurrency);
   }
 
@@ -254,25 +268,46 @@ export function DashboardPage() {
   ];
 
   const trendData = useMemo<TrendPoint[]>(
-    () =>
-      snapshots
+    () => {
+      const trendPoints = trend?.points;
+
+      if (trendPoints && trendPoints.length > 0) {
+        return trendPoints
+          .map((point) => ({
+            date: point.date,
+            portfolioValue: parseNullableNumber(point.portfolioValue),
+            totalInvestment: parseNullableNumber(point.totalInvestment),
+            snapshotDate: point.snapshotDate
+          }))
+          .filter((point) => point.portfolioValue !== null || point.totalInvestment !== null);
+      }
+
+      return snapshots
         .filter((snapshot) => snapshot.marketValue !== null)
         .map((snapshot) => ({
           date: snapshot.snapshotDate,
-          value: Number(snapshot.marketValue)
+          portfolioValue: parseNullableNumber(snapshot.marketValue),
+          totalInvestment: null,
+          snapshotDate: snapshot.snapshotDate
         }))
-        .filter((point) => Number.isFinite(point.value)),
-    [snapshots]
+        .filter((point) => point.portfolioValue !== null);
+    },
+    [snapshots, trend?.points]
   );
   const trendChartData = useMemo(
     () => buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.quoteDate),
     [dashboard?.quoteDate, dashboard?.totalAssets, trendData]
   );
   const trendSummary = useMemo(
-    () => buildTrendSummary(trendData, trendChartData),
-    [trendChartData, trendData]
+    () => buildTrendSummary(trendChartData),
+    [trendChartData]
   );
   const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
+  const cumulativeMovement = useMemo(
+    () => calculateCumulativeMovement(dashboard?.totalAssets, trend?.summary.currentTotalInvestment),
+    [dashboard?.totalAssets, trend?.summary.currentTotalInvestment]
+  );
+  const hasPrincipalWarning = (trend?.summary.warnings.length ?? 0) > 0;
   const allocationData = useMemo<AllocationPoint[]>(
     () => {
       const values = (dashboard?.allocations ?? [])
@@ -379,29 +414,59 @@ export function DashboardPage() {
                 <CurrencyFlagIcon currency={activeCurrency} />
                 {activeCurrency}
               </span>
-              <div className="range-toggle" aria-label="快照范围">
-                {snapshotRanges.map((days) => (
-                  <button
-                    className={snapshotRangeDays === days ? "active" : undefined}
-                    key={days}
-                    type="button"
-                    onClick={() => setSnapshotRangeDays(days)}
-                  >
-                    {days}天
-                  </button>
-                ))}
-              </div>
+              <label className="chart-range-select">
+                <span>范围</span>
+                <select
+                  value={trendRange}
+                  onChange={(event) => setTrendRange(event.target.value as PortfolioTrendRange)}
+                  disabled={trendLoading}
+                >
+                  {trendRanges.map((range) => (
+                    <option key={range.value} value={range.value}>
+                      {range.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
           {snapshotsError ? <p className="form-error">{snapshotsError}</p> : null}
+          {hasPrincipalWarning ? (
+            <p className="form-error">总投入缺少交易日汇率，请补齐汇率数据后查看累计收益。</p>
+          ) : null}
           {trendLoading ? (
             <LoadingBlock label="正在加载资产趋势" />
           ) : trendData.length === 0 ? (
             <div className="empty-chart-state">暂无快照数据</div>
           ) : (
             <>
+              <div className="trend-panel-metrics">
+                <div className="trend-movement">
+                  <strong className={signedToneClass(cumulativeMovement, preferences.gainColorScheme, 3)}>
+                    {formatNullableSignedAmount(cumulativeMovement)}
+                  </strong>
+                  <span>{activeCurrency}</span>
+                  <small>累计收益</small>
+                </div>
+                <div className="trend-legend" aria-label="图例">
+                  <span>
+                    <i className="trend-legend-portfolio" />
+                    资产净值
+                  </span>
+                  <span>
+                    <i className="trend-legend-principal" />
+                    总投入
+                  </span>
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={trendChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
+                <AreaChart data={trendChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
+                  <defs>
+                    <linearGradient id="portfolioTrendFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="8%" stopColor={trendPortfolioColor} stopOpacity={0.34} />
+                      <stop offset="95%" stopColor={trendPortfolioColor} stopOpacity={0.04} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
                   <YAxis
@@ -411,32 +476,44 @@ export function DashboardPage() {
                     width={72}
                   />
                   <Tooltip
+                    shared={false}
                     contentStyle={chartTooltipContentStyle}
-                    formatter={(value, name) => [formatTooltipMoney(value), name === "liveValue" ? "当前估值" : "快照总资产"]}
+                    formatter={(value, name) => [formatTooltipMoney(value), formatTrendTooltipName(String(name))]}
                     labelFormatter={(label) => formatTrendTooltipLabel(String(label))}
                     labelStyle={chartTooltipLabelStyle}
                     itemStyle={chartTooltipItemStyle}
                   />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="snapshotValue"
-                    stroke="var(--color-chart-line)"
-                    strokeWidth={2.5}
+                    stroke={trendPortfolioColor}
+                    fill="url(#portfolioTrendFill)"
+                    strokeWidth={2.8}
                     dot={false}
                     activeDot={{ r: 5 }}
                     connectNulls={false}
+                  />
+                  <Line
+                    type="stepAfter"
+                    dataKey="totalInvestment"
+                    stroke={trendPrincipalColor}
+                    strokeDasharray="6 5"
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                    connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="liveValue"
-                    stroke="var(--color-chart-line)"
-                    strokeDasharray="5 5"
-                    strokeWidth={2.5}
+                    stroke={trendLiveColor}
+                    strokeDasharray="3 5"
+                    strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 5 }}
                     connectNulls={false}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
               {trendSummary ? (
                 <p className="trend-summary">
@@ -741,7 +818,7 @@ function formatWarning(warning: DashboardWarning): string {
   }
 }
 
-function buildTrendSummary(points: TrendPoint[], chartPoints: TrendChartPoint[]): {
+function buildTrendSummary(chartPoints: TrendChartPoint[]): {
   rangeLabel: string;
   initialValue: string;
   changeAmount: string;
@@ -749,10 +826,16 @@ function buildTrendSummary(points: TrendPoint[], chartPoints: TrendChartPoint[])
   changePct: string;
   changePctRaw: string;
 } | null {
-  const firstPoint = points[0];
-  const lastPoint = chartPoints.at(-1);
+  const portfolioPoints = chartPoints
+    .map((point) => ({
+      date: point.date,
+      value: point.liveValue ?? point.snapshotValue
+    }))
+    .filter((point): point is { date: string; value: number } => point.value !== null && Number.isFinite(point.value));
+  const firstPoint = portfolioPoints[0];
+  const lastPoint = portfolioPoints.at(-1);
 
-  if (!firstPoint || !lastPoint || !Number.isFinite(firstPoint.value) || !Number.isFinite(lastPoint.value)) {
+  if (!firstPoint || !lastPoint) {
     return null;
   }
 
@@ -834,18 +917,6 @@ function formatNullableSignedPercent(value: string | null): string {
   return value === null ? "--" : `${formatSignedDisplayPercent(value)}%`;
 }
 
-function getSnapshotDateRange(days: SnapshotRangeDays): { from: string; to: string } {
-  const to = getAppBusinessDate();
-  const toDate = new Date(`${to}T00:00:00.000Z`);
-  const fromDate = new Date(toDate);
-  fromDate.setUTCDate(fromDate.getUTCDate() - days + 1);
-
-  return {
-    from: fromDate.toISOString().slice(0, 10),
-    to
-  };
-}
-
 function formatShortDate(value: string): string {
   return value.slice(5);
 }
@@ -858,8 +929,23 @@ function formatTrendTooltipLabel(value: string): string {
   return isSyntheticTrendDate(value) ? "当前估值连接线" : `日期：${value}`;
 }
 
+function formatTrendTooltipName(value: string): string {
+  switch (value) {
+    case "snapshotValue":
+      return "资产净值";
+    case "totalInvestment":
+      return "总投入";
+    case "liveValue":
+      return "当前估值";
+    default:
+      return value;
+  }
+}
+
 function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
-  const values = points.map((point) => point.value).filter(Number.isFinite);
+  const values = points
+    .flatMap((point) => [point.snapshotValue, point.liveValue, point.totalInvestment])
+    .filter((value): value is number => value !== null && Number.isFinite(value));
 
   if (values.length === 0) {
     return [0, 1];
@@ -876,6 +962,20 @@ function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
 
   const padding = valueRange * 0.2;
   return [Math.max(0, minValue - padding), maxValue + padding];
+}
+
+function calculateCumulativeMovement(
+  totalAssets: string | null | undefined,
+  currentTotalInvestment: string | null | undefined
+): string | null {
+  const totalAssetsValue = parseNullableNumber(totalAssets);
+  const totalInvestmentValue = parseNullableNumber(currentTotalInvestment);
+
+  if (totalAssetsValue === null || totalInvestmentValue === null) {
+    return null;
+  }
+
+  return String(totalAssetsValue - totalInvestmentValue);
 }
 
 function formatChartMoney(value: number): string {

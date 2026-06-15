@@ -56,6 +56,48 @@ export async function listPortfolioSnapshots(input: {
   limit?: number;
 }): Promise<PortfolioSnapshotSummary[]> {
   const supabase = await getSupabaseAdmin();
+  const snapshots = await listPortfolioSnapshotRows(input);
+
+  if (snapshots.length === 0) {
+    return [];
+  }
+
+  const snapshotIds = snapshots.map((snapshot) => snapshot.id);
+  const { data: accounts, error: accountError } = await supabase
+    .from("portfolio_account_snapshots")
+    .select(accountSnapshotSelect)
+    .in("portfolio_snapshot_id", snapshotIds)
+    .order("account_name", { ascending: true })
+    .returns<PortfolioAccountSnapshotRow[]>();
+
+  if (accountError) {
+    console.error("Failed to list portfolio account snapshots", { error: accountError });
+    throw new Error("Failed to list portfolio account snapshots.");
+  }
+
+  const accountsBySnapshotId = groupAccountsBySnapshotId(accounts);
+  return snapshots.map((snapshot) => mapSnapshotRow(snapshot, accountsBySnapshotId.get(snapshot.id) ?? [], input.currency));
+}
+
+export async function listPortfolioSnapshotTrendRows(input: {
+  from: string;
+  to: string;
+  currency: SnapshotDisplayCurrency;
+  order?: "asc" | "desc";
+  limit?: number;
+}): Promise<PortfolioSnapshotSummary[]> {
+  const snapshots = await listPortfolioSnapshotRows(input);
+  return snapshots.map((snapshot) => mapSnapshotRow(snapshot, [], input.currency));
+}
+
+async function listPortfolioSnapshotRows(input: {
+  from: string;
+  to: string;
+  currency: SnapshotDisplayCurrency;
+  order?: "asc" | "desc";
+  limit?: number;
+}): Promise<PortfolioSnapshotRow[]> {
+  const supabase = await getSupabaseAdmin();
   let snapshotQuery = supabase
     .from("portfolio_snapshots")
     .select(snapshotSelect)
@@ -78,21 +120,7 @@ export async function listPortfolioSnapshots(input: {
     return [];
   }
 
-  const snapshotIds = snapshots.map((snapshot) => snapshot.id);
-  const { data: accounts, error: accountError } = await supabase
-    .from("portfolio_account_snapshots")
-    .select(accountSnapshotSelect)
-    .in("portfolio_snapshot_id", snapshotIds)
-    .order("account_name", { ascending: true })
-    .returns<PortfolioAccountSnapshotRow[]>();
-
-  if (accountError) {
-    console.error("Failed to list portfolio account snapshots", { error: accountError });
-    throw new Error("Failed to list portfolio account snapshots.");
-  }
-
-  const accountsBySnapshotId = groupAccountsBySnapshotId(accounts);
-  return snapshots.map((snapshot) => mapSnapshotRow(snapshot, accountsBySnapshotId.get(snapshot.id) ?? [], input.currency));
+  return snapshots;
 }
 
 export async function listSnapshotDatesFrom(fromDate: string): Promise<string[]> {
