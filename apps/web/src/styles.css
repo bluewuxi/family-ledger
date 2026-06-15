@@ -1778,6 +1778,26 @@ textarea {
   color: var(--color-brand-navy-ink);
 }
 
+.chart-range-select {
+  display: grid;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chart-range-select select {
+  min-width: 128px;
+  min-height: 42px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 8px 34px 8px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
 .dashboard-chart-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
@@ -1795,6 +1815,72 @@ textarea {
 
 .trend-chart-panel {
   flex-basis: min(100%, 720px);
+}
+
+.trend-panel-metrics {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 0 8px;
+}
+
+.trend-movement {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  column-gap: 6px;
+}
+
+.trend-movement strong {
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1;
+}
+
+.trend-movement span {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trend-movement small {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px 14px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+}
+
+.trend-legend i {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  border-top: 3px solid;
+}
+
+.trend-legend-portfolio {
+  border-color: #7bbe43;
+}
+
+.trend-legend-principal {
+  border-color: #2563a8;
+  border-top-style: dashed !important;
 }
 
 .trend-summary {
@@ -3488,6 +3574,21 @@ tr.editing-row td {
   }
 
   .chart-header-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .chart-range-select,
+  .chart-range-select select {
+    width: 100%;
+  }
+
+  .trend-panel-metrics {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .trend-legend {
     justify-content: flex-start;
   }
 

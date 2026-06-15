@@ -319,6 +319,8 @@ Holding quantity, average cost, and remaining cost continue to use the instrumen
 
 `GET /portfolio-snapshots?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users. It also supports validated `limit` and `order=asc|desc`. When `limit` is supplied without `from`, the API bypasses the default single-business-date range and searches from the beginning of stored history through `to`, so dashboard activity can request the latest persisted snapshots with `limit=16&order=desc`. Rows are returned in the requested order; chart callers that need chronological data should keep using explicit `from`/`to` range reads with the default ascending order.
 
+Dashboard trend callers may add `includeTrend=true&trendRange=1m|3m|1y|3y|5y|inception`. This keeps the existing `snapshots` array in the response and adds a `trend` object for the asset trend chart.
+
 Defaults:
 
 - `currency`: current user's `preferredCurrency`; new profiles default to `CNY`
@@ -326,6 +328,7 @@ Defaults:
 - `from`: same as `to`, unless `limit` is supplied
 - `order`: `asc`
 - `limit`: optional integer from `1` to `200`; when supplied without `from`, latest-mode history search is enabled
+- `trendRange`: `3m` when `includeTrend=true`
 
 Response data:
 
@@ -346,11 +349,40 @@ Response data:
       "warnings": [],
       "accounts": []
     }
-  ]
+  ],
+  "trend": {
+    "points": [
+      {
+        "date": "2026-06-15",
+        "portfolioValue": "236000.000000",
+        "snapshotDate": "2026-06-13",
+        "liveValue": null,
+        "totalInvestment": "202000.000000"
+      }
+    ],
+    "principalPoints": [
+      {
+        "date": "2026-06-15",
+        "totalInvestment": "202000.000000"
+      }
+    ],
+    "summary": {
+      "range": "3m",
+      "rangeStart": "2026-03-15",
+      "rangeEnd": "2026-06-15",
+      "currency": "NZD",
+      "inceptionDate": "2026-05-22",
+      "currentTotalInvestment": "202000.000000",
+      "cumulativeMovement": null,
+      "warnings": []
+    }
+  }
 }
 ```
 
 Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals. For dashboard recent-snapshot activity, compare adjacent returned rows' `marketValue` values client-side. Do not reuse `dailyChange` or `dailyChangePct` for `较上一快照`; those fields are latest-price movement on current snapshot holdings, not cash-flow-adjusted portfolio daily P&L.
+
+Trend `portfolioValue` points are sampled for chart display: daily for `1m`, weekly for `3m`, and monthly for `1y`, `3y`, `5y`, and `inception`. Weekly/monthly target dates align to the current app business date's weekday/day-of-month; if a target date has no snapshot, the API uses the latest previous snapshot and still labels the point with the target date. `totalInvestment` is calculated from manual opening positions, opening balances, deposits, and withdrawals only; generated trade cash legs and income/fee/tax/adjustment transactions are excluded. Principal events use exact trade-date valuation FX. If required FX is missing, `totalInvestment` and `currentTotalInvestment` are returned as `null` and `summary.warnings` includes `MISSING_PRINCIPAL_FX_RATE`; this should be fixed as a data issue rather than hidden with fallback FX.
 
 ## Account Write APIs
 

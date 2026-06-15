@@ -34,7 +34,7 @@ import {
   getTransactions,
   updateInvestmentTransaction
 } from "../services/transactionService";
-import { getPortfolioSnapshots } from "../services/portfolioSnapshotService";
+import { getPortfolioSnapshotsResponse } from "../services/portfolioSnapshotService";
 import { getProfilePreferences, updateProfilePreferences } from "../services/profileService";
 import { ApiAuthError, requireRole } from "../auth/auth";
 import { ApiRequestError } from "../utils/apiError";
@@ -111,12 +111,14 @@ const routes: Record<string, RouteHandler> = {
     const user = await requireRole(event, "viewer");
     return success({
       user,
-      snapshots: await getPortfolioSnapshots({
+      ...await getPortfolioSnapshotsResponse({
         from: event.queryStringParameters?.from,
         to: event.queryStringParameters?.to,
         currency: event.queryStringParameters?.currency,
         limit: event.queryStringParameters?.limit,
         order: event.queryStringParameters?.order,
+        includeTrend: event.queryStringParameters?.includeTrend,
+        trendRange: event.queryStringParameters?.trendRange,
         user
       })
     });

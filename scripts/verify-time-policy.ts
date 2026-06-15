@@ -45,7 +45,7 @@ async function main(): Promise<void> {
 
   const aShareOpenTime = "2026-05-29T02:18:00.000Z";
   const sameDayLiveChart = buildTrendChartData(
-    [{ date: "2026-05-29", value: 100 }],
+    [{ date: "2026-05-29", portfolioValue: 100, totalInvestment: null }],
     "110",
     "2026-05-29",
     aShareOpenTime
@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   assert.equal(sameDayLiveChart[2]?.liveValue, 110);
 
   const previousDayLiveChart = buildTrendChartData(
-    [{ date: "2026-05-28", value: 100 }],
+    [{ date: "2026-05-28", portfolioValue: 100, totalInvestment: null }],
     "110",
     "2026-05-29",
     aShareOpenTime
@@ -67,12 +67,21 @@ async function main(): Promise<void> {
   assert.equal(previousDayLiveChart.at(-1)?.liveValue, 110);
 
   const staleQuoteChart = buildTrendChartData(
-    [{ date: "2026-05-28", value: 100 }],
+    [{ date: "2026-05-28", portfolioValue: 100, totalInvestment: null }],
     "110",
     "2026-05-28",
     aShareOpenTime
   );
-  assert.deepEqual(staleQuoteChart, [{ date: "2026-05-28", value: 100, snapshotValue: 100, liveValue: null }]);
+  assert.deepEqual(staleQuoteChart, [
+    {
+      date: "2026-05-28",
+      value: 100,
+      snapshotValue: 100,
+      liveValue: null,
+      totalInvestment: null,
+      snapshotDate: null
+    }
+  ]);
 
   let generatedSnapshotDate: string | null = null;
   const handler = createGeneratePortfolioSnapshotsHandler({

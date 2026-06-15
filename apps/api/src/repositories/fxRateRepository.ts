@@ -132,6 +132,43 @@ export async function listValuationRatesToUsdForDates(
   return ((data ?? []) as unknown as FxRateForDateRow[]).map(mapExchangeRateRow);
 }
 
+export async function listExactValuationRatesToUsdForDates(
+  rateDates: string[],
+  fromCurrencies: CurrencyCode[] = []
+): Promise<ExchangeRateRecord[]> {
+  const uniqueDates = uniqueValues(rateDates);
+  const uniqueCurrencies = uniqueValues(fromCurrencies).filter((currency) => currency !== "USD");
+
+  if (uniqueDates.length === 0 || uniqueCurrencies.length === 0) {
+    return [];
+  }
+
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("exchange_rates")
+    .select(fxRateSelect)
+    .in("rate_date", uniqueDates)
+    .in("from_currency", uniqueCurrencies)
+    .eq("to_currency", "USD")
+    .eq("rate_type", "valuation")
+    .returns<FxRateRow[]>();
+
+  if (error) {
+    throw new Error("Failed to list exact valuation FX rates.");
+  }
+
+  const grouped = new Map<string, ExchangeRateRecord[]>();
+
+  for (const rate of data.map(mapExchangeRateRow)) {
+    const key = exactRateKey(rate.fromCurrency, rate.rateDate);
+    const rates = grouped.get(key) ?? [];
+    rates.push(rate);
+    grouped.set(key, rates);
+  }
+
+  return [...grouped.values()].map(selectPreferredExchangeRateRecord);
+}
+
 export async function insertExchangeRateIfNotExists(
   input: CreateExchangeRateInput
 ): Promise<ExchangeRateRecord> {
@@ -275,4 +312,8 @@ function toExchangeRateInsertRow(input: CreateExchangeRateInput) {
 
 function uniqueValues<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+function exactRateKey(currency: CurrencyCode, rateDate: string): string {
+  return `${currency}:${rateDate}`;
 }
