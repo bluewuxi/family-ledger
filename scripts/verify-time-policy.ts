@@ -185,10 +185,13 @@ async function main(): Promise<void> {
   assert.equal(generatedSnapshotDate, "2026-05-20");
 
   await withMutedConsole(() => handler({ id: "derived-date", time: "2026-05-27T21:59:59.000Z" }));
-  assert.equal(generatedSnapshotDate, "2026-05-27");
+  assert.equal(generatedSnapshotDate, "2026-05-26");
 
   await withMutedConsole(() => handler({ id: "derived-new-date", time: "2026-05-27T22:00:00.000Z" }));
-  assert.equal(generatedSnapshotDate, "2026-05-28");
+  assert.equal(generatedSnapshotDate, "2026-05-27");
+
+  await withMutedConsole(() => handler({ id: "scheduled-after-cutoff", time: "2026-06-15T22:30:00.000Z" }));
+  assert.equal(generatedSnapshotDate, "2026-06-15");
 
   console.log("Time policy verification: success");
 }

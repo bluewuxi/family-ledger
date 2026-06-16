@@ -98,7 +98,7 @@ These defaults run shortly after the app's `06:00 Asia/Shanghai` business-day cu
 
 This cadence intentionally prioritizes US/global market data over NZ PIE publication timing. Foundation Series/FundRock unit prices have been observed publishing the prior provider date around `19:00 Pacific/Auckland`, which can be after the main batch. That expected lag is not a reason to move the entire FX/price/snapshot/backup chain later. If NZ PIE freshness becomes important, add a separate FundRock-only refresh after the NZ publication window rather than delaying the main batch.
 
-Each Scheduler target must pass the Scheduler context payload into Lambda, including `<aws.scheduler.scheduled-time>` as `time` and `<aws.scheduler.execution-id>` as `id`. The snapshot job derives the business date from the scheduled time so retries and delayed starts do not drift across the cutoff.
+Each Scheduler target must pass the Scheduler context payload into Lambda, including `<aws.scheduler.scheduled-time>` as `time` and `<aws.scheduler.execution-id>` as `id`. The snapshot job derives the completed snapshot date from the scheduled time so retries and delayed starts do not drift across the cutoff. For the default `06:30 Asia/Shanghai` run on Tuesday-Saturday, this writes the just-finished business date, for example the `2026-06-16 06:30 Asia/Shanghai` run writes snapshot date `2026-06-15`.
 
 Recommended Scheduler target settings:
 
@@ -114,7 +114,7 @@ The web Data Maintenance page can manually trigger the FX and price jobs. CloudF
 
 Because only the test environment exists and production has not started, the data maintenance API surface was renamed directly without a production compatibility window. Deploy API and web together in the same test rollout so the test frontend does not temporarily call removed legacy endpoints.
 
-The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the snapshot date from the `06:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
+The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the most recently completed snapshot date from the `06:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
 
 The ledger backup handler writes a gzipped JSON object to the private backup S3 bucket under:
 

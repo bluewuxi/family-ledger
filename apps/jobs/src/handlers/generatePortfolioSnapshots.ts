@@ -23,7 +23,7 @@ export function createGeneratePortfolioSnapshotsHandler(
 ): (event?: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>>) => Promise<void> {
   return async (event: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>> = {}): Promise<void> => {
     const eventTime = event.time ?? new Date().toISOString();
-    const snapshotDate = event.detail?.snapshotDate ?? getAppBusinessDate(eventTime);
+    const snapshotDate = event.detail?.snapshotDate ?? getCompletedSnapshotDate(eventTime);
 
     logScheduledJob({
       jobName: GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,
@@ -60,3 +60,13 @@ export function createGeneratePortfolioSnapshotsHandler(
 }
 
 export const handler = createGeneratePortfolioSnapshotsHandler();
+
+function getCompletedSnapshotDate(eventTime: string): string {
+  const scheduledInstant = new Date(eventTime);
+
+  if (Number.isNaN(scheduledInstant.getTime())) {
+    throw new Error("Scheduled event time must be a valid ISO timestamp.");
+  }
+
+  return getAppBusinessDate(new Date(scheduledInstant.getTime() - 24 * 60 * 60 * 1000));
+}
