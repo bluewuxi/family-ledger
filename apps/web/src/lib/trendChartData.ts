@@ -21,6 +21,7 @@ export interface ProfitChartPoint {
   date: string;
   value: number;
   profitValue: number | null;
+  periodStartValue: number | null;
   snapshotDate?: string | null;
   isSynthetic?: boolean;
 }
@@ -125,6 +126,8 @@ export function buildTrendChartData(
 
 export function buildProfitChartData(chartPoints: TrendChartPoint[]): ProfitChartPoint[] {
   let carriedTotalInvestment: number | null = null;
+  let periodStartProfit: number | null = null;
+  let periodStartValue: number | null = null;
 
   return chartPoints
     .map((point) => {
@@ -133,15 +136,22 @@ export function buildProfitChartData(chartPoints: TrendChartPoint[]): ProfitChar
       }
 
       const portfolioValue = point.snapshotValue ?? point.liveValue;
-      const profitValue =
+      const cumulativeProfit =
         portfolioValue !== null && carriedTotalInvestment !== null
           ? portfolioValue - carriedTotalInvestment
           : null;
+      if (cumulativeProfit !== null && periodStartProfit === null) {
+        periodStartProfit = cumulativeProfit;
+        periodStartValue = portfolioValue;
+      }
+      const periodProfit =
+        cumulativeProfit !== null && periodStartProfit !== null ? cumulativeProfit - periodStartProfit : null;
 
       return {
         date: point.date,
-        value: profitValue ?? 0,
-        profitValue,
+        value: periodProfit ?? 0,
+        profitValue: periodProfit,
+        periodStartValue,
         snapshotDate: point.snapshotDate ?? null,
         isSynthetic: point.isSynthetic
       };

@@ -204,6 +204,7 @@ Treat mobile layout as a first-class requirement for every web UI change.
 - Keep data-heavy pages as horizontally scrollable tables unless a task explicitly asks for a mobile card/list redesign.
 - Drawers, dialogs, filters, pagination, tabs, and footer content must fit common phone widths without clipping important actions.
 - For meaningful frontend changes, verify mobile behavior at `320x740`, `393x852`, `430x932`, `768x1024`, and a desktop width before considering the task complete.
+- The app requires login before authenticated pages such as the dashboard can be viewed. Do not repeatedly try to bypass or directly open those pages during browser verification. If visual verification of an authenticated page is needed, ask the user whether they want to verify it. If they say yes, provide the local app URL, wait for the user to log in and confirm the target page is ready, then continue browser checks from that state.
 
 ---
 

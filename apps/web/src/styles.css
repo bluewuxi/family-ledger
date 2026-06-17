@@ -29,6 +29,8 @@
   --color-table-soft: #faf8f2;
   --color-chart-grid: #ded6c6;
   --color-chart-line: #08264a;
+  --color-chart-positive: var(--color-brand-red);
+  --color-chart-negative: var(--color-positive);
   --color-focus: #f5b52e;
   --shadow-soft: 0 18px 44px rgb(8 38 74 / 10%);
   color: var(--color-text);
@@ -68,6 +70,8 @@
   --color-table-soft: #101f33;
   --color-chart-grid: #263a55;
   --color-chart-line: #f5b52e;
+  --color-chart-positive: var(--color-brand-red);
+  --color-chart-negative: var(--color-positive);
   --color-focus: #f5b52e;
   --shadow-soft: 0 20px 54px rgb(0 0 0 / 28%);
   color-scheme: dark;
@@ -1783,7 +1787,7 @@ textarea {
 }
 
 .chart-range-select select {
-  min-width: 128px;
+  min-width: 108px;
   min-height: 42px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -1871,11 +1875,15 @@ textarea {
 }
 
 .trend-legend-portfolio {
-  border-color: #7bbe43;
+  height: 3px !important;
+  border-top: 0 !important;
+  background: linear-gradient(90deg, var(--color-chart-negative), var(--color-chart-positive));
 }
 
 .trend-legend-profit {
-  border-color: #e0706c;
+  height: 3px !important;
+  border-top: 0 !important;
+  background: linear-gradient(90deg, var(--color-chart-negative), var(--color-chart-positive));
 }
 
 .trend-legend-principal {
@@ -3585,6 +3593,40 @@ tr.editing-row td {
   .chart-range-select,
   .chart-range-select select {
     width: 100%;
+  }
+
+  .trend-chart-panel .chart-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .trend-chart-panel .chart-section-header h2 {
+    margin-bottom: 0;
+  }
+
+  .trend-chart-panel .chart-header-controls {
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .trend-chart-panel .chart-currency-indicator {
+    min-height: 40px;
+    padding-inline: 8px;
+  }
+
+  .trend-chart-panel .chart-range-select,
+  .trend-chart-panel .chart-range-select select {
+    width: auto;
+  }
+
+  .trend-chart-panel .chart-range-select select {
+    min-width: 94px;
+    min-height: 40px;
+    padding-right: 28px;
   }
 
   .trend-panel-metrics {
