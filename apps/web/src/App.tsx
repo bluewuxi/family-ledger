@@ -12,6 +12,7 @@ import { HoldingsPage } from "./pages/HoldingsPage";
 import { InstrumentsPage } from "./pages/InstrumentsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DataMaintenancePage } from "./pages/DataMaintenancePage";
+import { MonthlySummaryPage } from "./pages/MonthlySummaryPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
@@ -26,6 +27,7 @@ function AppRoutes() {
       <Route path="/transactions" element={<TransactionsPage />} />
       <Route path="/holdings" element={<HoldingsPage />} />
       <Route path="/holdings/:accountId/:instrumentId" element={<HoldingDetailPage />} />
+      <Route path="/reports/monthly-summary" element={<MonthlySummaryPage />} />
       <Route path="/data-maintenance" element={<DataMaintenancePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/about" element={<AboutPage />} />

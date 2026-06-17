@@ -22,6 +22,7 @@ import {
   triggerDataMaintenanceRetrieval
 } from "../services/dataMaintenanceService";
 import { getManagedUsers, updateManagedUser } from "../services/managedUserService";
+import { getMonthlySummary } from "../services/monthlySummaryService";
 import {
   createInvestmentInstrument,
   deleteInvestmentInstrument,
@@ -131,6 +132,17 @@ const routes: Record<string, RouteHandler> = {
         order: event.queryStringParameters?.order,
         includeTrend: event.queryStringParameters?.includeTrend,
         trendRange: event.queryStringParameters?.trendRange,
+        user
+      })
+    });
+  },
+  "GET /reports/monthly-summary": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({
+      user,
+      monthlySummary: await getMonthlySummary({
+        month: event.queryStringParameters?.month,
+        currency: event.queryStringParameters?.currency,
         user
       })
     });

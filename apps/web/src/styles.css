@@ -1603,6 +1603,7 @@ textarea {
   font-size: 14px;
 }
 
+.dashboard-controls input,
 .dashboard-controls select {
   min-width: 126px;
   min-height: 38px;
@@ -2013,6 +2014,62 @@ textarea {
   background: var(--color-surface);
   padding: 16px;
   box-shadow: var(--shadow-soft);
+}
+
+.monthly-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.monthly-panel {
+  min-width: 0;
+}
+
+.monthly-warning-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.monthly-warning-list .form-warning {
+  margin: 0;
+}
+
+.monthly-dividend-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.monthly-mini-metric {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--color-background-soft);
+}
+
+.monthly-mini-metric span {
+  display: block;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.monthly-mini-metric strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.compact-table-wrap {
+  margin-top: 12px;
+}
+
+.compact-table-wrap table {
+  min-width: 620px;
 }
 
 .activity-panel {
@@ -3614,6 +3671,7 @@ tr.editing-row td {
   }
 
   .currency-select,
+  .dashboard-controls input,
   .dashboard-controls select,
   .header-account-select select {
     width: 100%;
@@ -3733,6 +3791,7 @@ tr.editing-row td {
   .danger-button,
   .icon-button,
   .currency-select-button,
+  .dashboard-controls input,
   .dashboard-controls select,
   .header-account-select select,
   .filter-bar input,
@@ -3779,6 +3838,14 @@ tr.editing-row td {
 
   .dashboard-activity-grid {
     grid-template-columns: 1fr;
+  }
+
+  .monthly-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-dividend-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .activity-row {

@@ -1182,6 +1182,85 @@ export interface PortfolioTrend {
   summary: PortfolioTrendSummary;
 }
 
+export const MONTHLY_SUMMARY_WARNING_CODES = [
+  "MISSING_START_SNAPSHOT",
+  "MISSING_END_SNAPSHOT",
+  "START_VALUE_UNAVAILABLE",
+  "END_VALUE_UNAVAILABLE",
+  "MISSING_PRINCIPAL_FX_RATE",
+  "MISSING_ADJUSTMENT_FX_RATE",
+  "MISSING_DIVIDEND_FX_RATE"
+] as const;
+export type MonthlySummaryWarningCode = (typeof MONTHLY_SUMMARY_WARNING_CODES)[number];
+
+export interface MonthlySummaryWarning {
+  code: MonthlySummaryWarningCode;
+  date: string | null;
+  currency: CurrencyCode | SnapshotDisplayCurrency | null;
+  message: string;
+}
+
+export type MonthlyBridgeLineKey =
+  | "start_value"
+  | "end_value"
+  | "asset_change"
+  | "net_principal_flow"
+  | "cash_adjustment"
+  | "valuation_movement";
+
+export interface MonthlyBridgeLine {
+  key: MonthlyBridgeLineKey;
+  label: string;
+  amount: string | null;
+}
+
+export interface MonthlyDividendInstrumentSummary {
+  instrumentId: string;
+  instrumentSymbol: string | null;
+  instrumentName: string | null;
+  instrumentShortName: string | null;
+  currency: CurrencyCode;
+  grossAmount: string;
+  taxAmount: string;
+  netAmount: string;
+  transactionCount: number;
+}
+
+export interface MonthlyDividendSummary {
+  grossAmount: string | null;
+  taxAmount: string | null;
+  netAmount: string | null;
+  transactionCount: number;
+  latestDividendDate: string | null;
+  instruments: MonthlyDividendInstrumentSummary[];
+}
+
+export interface MonthlyCashAdjustmentSummary {
+  transaction: InvestmentTransaction;
+  signedAmount: string | null;
+}
+
+export interface MonthlySummary {
+  month: string;
+  currency: SnapshotDisplayCurrency;
+  monthStart: string;
+  monthEnd: string;
+  startSnapshotDate: string | null;
+  endSnapshotDate: string | null;
+  startValue: string | null;
+  endValue: string | null;
+  assetChange: string | null;
+  netPrincipalFlow: string | null;
+  cashAdjustmentImpact: string | null;
+  valuationMovement: string | null;
+  bridgeLines: MonthlyBridgeLine[];
+  dividendSummary: MonthlyDividendSummary;
+  dividendTransactions: InvestmentTransaction[];
+  cashAdjustments: MonthlyCashAdjustmentSummary[];
+  principalTransactions: InvestmentTransaction[];
+  warnings: MonthlySummaryWarning[];
+}
+
 export const SNAPSHOT_WARNING_CODES = [
   "MISSING_LATEST_PRICE",
   "MISSING_PREVIOUS_PRICE",

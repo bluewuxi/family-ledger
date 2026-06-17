@@ -48,6 +48,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /instruments`
 - `GET /transactions`
 - `GET /portfolio-snapshots`
+- `GET /reports/monthly-summary`
 - `GET /data-maintenance/fx-rates`
 - `GET /data-maintenance/instrument-prices`
 - `GET /data-maintenance/job-runs`
@@ -72,6 +73,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 `GET /holdings/detail` returns one account/instrument holding detail, related transactions, dividend summary, linked buy/sell cash-leg context, and latest/previous price context.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
+`GET /reports/monthly-summary` returns a monthly value bridge plus dividend and cash-calibration context.
 Market data read endpoints return stored provider FX rates, instrument prices, and ingestion audit logs. They do not call external providers.
 
 Response data:
@@ -326,6 +328,56 @@ It returns the current valued holding row, account and instrument metadata, rela
 If the current holding quantity is zero but historical transactions exist for the selected account and instrument, the endpoint still returns a detail response with `hasCurrentPosition = false`, `quantity = "0"`, zero current valuation, and no current valuation warnings. If the account/instrument pair has neither a current holding nor historical transactions, it returns `NOT_FOUND`.
 
 Dividend transactions are displayed as investment income context. They do not change holding quantity; reinvested dividends should be recorded as a separate buy transaction.
+
+### Monthly Summary Read API
+
+`GET /reports/monthly-summary?month=YYYY-MM&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
+
+It returns a monthly value bridge using stored portfolio snapshots and manual ledger cash-flow records:
+
+```text
+资产变化 = 净投入 + 现金校准 + 估值变动
+```
+
+`月初资产` uses the latest portfolio snapshot before the selected month. `月末资产` uses the latest portfolio snapshot on or before the selected month's last day. `净投入` uses manual opening, deposit, and withdrawal transactions in the month; generated buy/sell cash legs are excluded. `现金校准` uses manual cash `adjustment` transactions in the month, direction-aware. `估值变动` is the residual after subtracting net principal flow and cash calibration from asset change; it covers price movement, FX movement, and other valuation effects.
+
+Dividend transactions are returned as separate investment-income context. They do not participate in the value bridge because current dividend records do not automatically increase cash holdings. If dividend cash is reconciled through month-end cash adjustments, it is reflected in `现金校准`.
+
+Missing start/end snapshots, unavailable snapshot market values, or missing exact transaction-date valuation FX rates return warnings and set affected bridge lines to `null` rather than using fallback rates.
+
+Response data:
+
+```json
+{
+  "monthlySummary": {
+    "month": "2026-06",
+    "currency": "CNY",
+    "monthStart": "2026-06-01",
+    "monthEnd": "2026-06-30",
+    "startSnapshotDate": "2026-05-31",
+    "endSnapshotDate": "2026-06-30",
+    "startValue": "100000.000000",
+    "endValue": "108000.000000",
+    "assetChange": "8000.000000",
+    "netPrincipalFlow": "5000.000000",
+    "cashAdjustmentImpact": "-20.000000",
+    "valuationMovement": "3020.000000",
+    "bridgeLines": [],
+    "dividendSummary": {
+      "grossAmount": "300.000000",
+      "taxAmount": "45.000000",
+      "netAmount": "255.000000",
+      "transactionCount": 2,
+      "latestDividendDate": "2026-06-20",
+      "instruments": []
+    },
+    "dividendTransactions": [],
+    "cashAdjustments": [],
+    "principalTransactions": [],
+    "warnings": []
+  }
+}
+```
 
 ### Portfolio Snapshots Read API
 
