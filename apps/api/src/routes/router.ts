@@ -12,7 +12,7 @@ import {
   updateTradingPasswordGate
 } from "../services/accountTradingPasswordService";
 import { getDashboard } from "../services/dashboardService";
-import { getHoldings } from "../services/holdingService";
+import { getHoldingDetail, getHoldings } from "../services/holdingService";
 import {
   getDataMaintenanceBackupRuns,
   getDataMaintenanceFxRates,
@@ -102,6 +102,18 @@ const routes: Record<string, RouteHandler> = {
     const user = await requireRole(event, "viewer");
     const holdings = await getHoldings({ currency: event.queryStringParameters?.currency, user });
     return success({ user, ...holdings });
+  },
+  "GET /holdings/detail": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({
+      user,
+      holdingDetail: await getHoldingDetail({
+        accountId: event.queryStringParameters?.accountId,
+        instrumentId: event.queryStringParameters?.instrumentId,
+        currency: event.queryStringParameters?.currency,
+        user
+      })
+    });
   },
   "GET /dashboard": async (event) => {
     const user = await requireRole(event, "viewer");

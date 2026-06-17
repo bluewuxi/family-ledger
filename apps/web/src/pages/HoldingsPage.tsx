@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import {
   ASSET_TYPE_LABELS,
@@ -23,6 +24,7 @@ import {
 } from "../lib/holdingDisplay";
 import { formatDisplayAmount, formatDisplayPrice, formatSignedDisplayAmount } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
+import { isInteractiveRowTarget, isRowActivationKey } from "../lib/tableInteraction";
 
 interface HoldingsResponse extends HoldingsValuationSummary {}
 
@@ -30,6 +32,7 @@ type AssetTypeFilter = "all" | AssetType;
 const holdingsCurrencyStorageKey = "family-ledger.holdings.reportingCurrency";
 
 export function HoldingsPage() {
+  const navigate = useNavigate();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
@@ -68,6 +71,25 @@ export function HoldingsPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function openHoldingDetail(holding: ValuedHoldingSummary) {
+    navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`);
+  }
+
+  function handleHoldingRowClick(event: MouseEvent<HTMLTableRowElement>, holding: ValuedHoldingSummary) {
+    if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
+      openHoldingDetail(holding);
+    }
+  }
+
+  function handleHoldingRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, holding: ValuedHoldingSummary) {
+    if (!isRowActivationKey(event.key) || isInteractiveRowTarget(event.target, event.currentTarget)) {
+      return;
+    }
+
+    event.preventDefault();
+    openHoldingDetail(holding);
   }
 
   const holdings = summary?.holdings ?? [];
@@ -229,7 +251,15 @@ export function HoldingsPage() {
               </tr>
             ) : (
               visibleHoldings.map((holding) => (
-                <tr key={`${holding.accountId}:${holding.instrumentId}`}>
+                <tr
+                  className="clickable-detail-row"
+                  key={`${holding.accountId}:${holding.instrumentId}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`查看持仓详情 ${holding.accountName} ${formatHoldingInstrument(holding)}`}
+                  onClick={(event) => handleHoldingRowClick(event, holding)}
+                  onKeyDown={(event) => handleHoldingRowKeyDown(event, holding)}
+                >
                   <td>{holding.accountName}</td>
                   <td>{formatHoldingInstrument(holding)}</td>
                   <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>

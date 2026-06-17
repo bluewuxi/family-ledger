@@ -2422,6 +2422,87 @@ tr.editing-row td {
   padding: 14px 16px;
 }
 
+.holding-detail-back {
+  margin-bottom: 8px;
+}
+
+.holding-detail-metrics {
+  margin-top: 18px;
+}
+
+.holding-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.holding-detail-panel {
+  margin-top: 20px;
+  width: 100%;
+}
+
+.holding-detail-grid .holding-detail-panel {
+  margin-top: 0;
+}
+
+.holding-detail-panel h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 12px 18px;
+  margin: 0;
+}
+
+.detail-list dt {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detail-list dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.holding-detail-note {
+  margin: 16px 0 0;
+  border-left: 3px solid var(--color-brand-leaf);
+  background: var(--color-panel-soft);
+  color: var(--color-text);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.holding-detail-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.holding-detail-section-header h2 {
+  margin: 0;
+}
+
+.holding-detail-section-header span {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.holding-detail-table {
+  min-width: 900px;
+}
+
 .price-date-label {
   display: inline-block;
   margin-top: 5px;
@@ -3821,6 +3902,15 @@ tr.editing-row td {
   .secret-dialog {
     max-height: calc(100svh - 24px);
     padding: 18px;
+  }
+
+  .holding-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .holding-detail-section-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .table-wrap {

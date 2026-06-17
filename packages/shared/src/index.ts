@@ -890,6 +890,39 @@ export interface HoldingsValuationSummary {
   holdings: ValuedHoldingSummary[];
 }
 
+export interface HoldingDetailDividendSummary {
+  currency: CurrencyCode;
+  totalGrossAmount: string;
+  totalTaxAmount: string;
+  latestDividendDate: string | null;
+}
+
+export interface HoldingDetailPriceContext {
+  latestPrice: PriceRecord | null;
+  previousPrice: PriceRecord | null;
+  movementAmount: string | null;
+  movementPct: string | null;
+  provider: string | null;
+}
+
+export interface HoldingDetailLinkedCashLeg {
+  parentTransactionId: string;
+  transaction: InvestmentTransaction;
+}
+
+export interface HoldingDetailSummary {
+  reportingCurrency: SnapshotDisplayCurrency;
+  hasCurrentPosition: boolean;
+  holding: ValuedHoldingSummary;
+  account: InvestmentAccount;
+  instrument: Instrument;
+  transactions: InvestmentTransaction[];
+  linkedCashLegs: HoldingDetailLinkedCashLeg[];
+  dividendTransactions: InvestmentTransaction[];
+  dividendSummary: HoldingDetailDividendSummary;
+  priceContext: HoldingDetailPriceContext;
+}
+
 export interface PriceRecord {
   id: string;
   instrumentId: string;

@@ -1,4 +1,5 @@
 import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
@@ -113,6 +114,7 @@ interface AccountTotalDisplay {
 }
 
 export function AccountsPage() {
+  const navigate = useNavigate();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
@@ -323,6 +325,10 @@ export function AccountsPage() {
     setExpandedAccountId((current) => (current === accountId ? null : accountId));
   }
 
+  function openHoldingDetail(holding: ValuedHoldingSummary) {
+    navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`);
+  }
+
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingAccountId(null);
@@ -498,7 +504,14 @@ export function AccountsPage() {
                     </tr>
                     {isExpanded ? (
                       <tr className="account-holdings-row">
-                        <td colSpan={8}>{renderAccountHoldings(accountHoldingsForRow, holdingsReportingCurrency, preferences.gainColorScheme)}</td>
+                        <td colSpan={8}>
+                          {renderAccountHoldings(
+                            accountHoldingsForRow,
+                            holdingsReportingCurrency,
+                            preferences.gainColorScheme,
+                            openHoldingDetail
+                          )}
+                        </td>
                       </tr>
                     ) : null}
                   </Fragment>
@@ -894,7 +907,8 @@ function formatAccountTotal(total: AccountTotalDisplay | undefined): string {
 function renderAccountHoldings(
   holdings: ValuedHoldingSummary[],
   reportingCurrency: SnapshotDisplayCurrency,
-  gainColorScheme: Parameters<typeof signedToneClass>[1]
+  gainColorScheme: Parameters<typeof signedToneClass>[1],
+  onOpenHoldingDetail: (holding: ValuedHoldingSummary) => void
 ) {
   if (holdings.length === 0) {
     return <div className="account-holdings-empty">暂无当前持仓或现金余额。</div>;
@@ -919,7 +933,26 @@ function renderAccountHoldings(
         </thead>
         <tbody>
           {holdings.map((holding) => (
-            <tr key={`${holding.accountId}:${holding.instrumentId}`}>
+            <tr
+              className="clickable-detail-row"
+              key={`${holding.accountId}:${holding.instrumentId}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`查看持仓详情 ${formatHoldingInstrument(holding)}`}
+              onClick={(event) => {
+                if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
+                  onOpenHoldingDetail(holding);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (!isRowActivationKey(event.key) || isInteractiveRowTarget(event.target, event.currentTarget)) {
+                  return;
+                }
+
+                event.preventDefault();
+                onOpenHoldingDetail(holding);
+              }}
+            >
               <td>{formatHoldingInstrument(holding)}</td>
               <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
               <td>{holding.currency}</td>

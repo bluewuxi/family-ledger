@@ -42,6 +42,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /me`
 - `GET /dashboard`
 - `GET /holdings`
+- `GET /holdings/detail`
 - `GET /accounts`
 - `POST /accounts/:id/trading-password/reveal`
 - `GET /instruments`
@@ -68,6 +69,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending. It supports `from`, `to`, `accountId`, `instrumentId`, `transactionType`, comma-separated `transactionTypes`, `excludeGeneratedCashLegs=true|false`, `excludeCashInstruments=true|false`, `limit`, and `offset` query parameters. `transactionTypes=buy,sell` is a first-class filter and works with or without pagination. If both `transactionType` and `transactionTypes` are supplied, the single `transactionType` must be included in the list and narrows the result set. When pagination parameters are supplied, the response includes `pagination` metadata with `limit`, `offset`, and `hasMore`.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
+`GET /holdings/detail` returns one account/instrument holding detail, related transactions, dividend summary, linked buy/sell cash-leg context, and latest/previous price context.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
 Market data read endpoints return stored provider FX rates, instrument prices, and ingestion audit logs. They do not call external providers.
@@ -314,6 +316,16 @@ Cash holdings are calculated only from transactions explicitly linked to cash in
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
 
 Holding quantity, average cost, and remaining cost continue to use the instrument currency. Valuation fields use the requested reporting currency. Missing latest price or required FX makes affected market-value totals unavailable (`null`). Missing historical cost basis makes unrealized-gain totals unavailable (`null`). The API does not return partial totals as complete values.
+
+### Holding Detail Read API
+
+`GET /holdings/detail?accountId=<uuid>&instrumentId=<uuid>&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
+
+It returns the current valued holding row, account and instrument metadata, related transactions, linked buy/sell generated cash-leg context, dividend transactions and summary, and latest/previous stored price context. For non-cash holdings, generated cash legs are shown only as linked settlement context. For cash holding details, generated cash legs are included in the main transaction list because they are real cash balance movement.
+
+If the current holding quantity is zero but historical transactions exist for the selected account and instrument, the endpoint still returns a detail response with `hasCurrentPosition = false`, `quantity = "0"`, zero current valuation, and no current valuation warnings. If the account/instrument pair has neither a current holding nor historical transactions, it returns `NOT_FOUND`.
+
+Dividend transactions are displayed as investment income context. They do not change holding quantity; reinvested dividends should be recorded as a separate buy transaction.
 
 ### Portfolio Snapshots Read API
 

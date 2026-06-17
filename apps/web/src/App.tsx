@@ -7,6 +7,7 @@ import { AccountsPage } from "./pages/AccountsPage";
 import { AboutPage } from "./pages/AboutPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { HoldingDetailPage } from "./pages/HoldingDetailPage";
 import { HoldingsPage } from "./pages/HoldingsPage";
 import { InstrumentsPage } from "./pages/InstrumentsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -24,6 +25,7 @@ function AppRoutes() {
       <Route path="/instruments" element={<InstrumentsPage />} />
       <Route path="/transactions" element={<TransactionsPage />} />
       <Route path="/holdings" element={<HoldingsPage />} />
+      <Route path="/holdings/:accountId/:instrumentId" element={<HoldingDetailPage />} />
       <Route path="/data-maintenance" element={<DataMaintenancePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/about" element={<AboutPage />} />
