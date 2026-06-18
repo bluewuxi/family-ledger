@@ -541,6 +541,18 @@ textarea {
   padding: 36px clamp(24px, 4vw, 48px);
 }
 
+.local-auth-banner {
+  width: calc(100% - clamp(24px, 4vw, 48px) * 2);
+  margin: 14px clamp(24px, 4vw, 48px) 0;
+  border: 1px solid var(--color-warning-border);
+  border-radius: 8px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 9px 12px;
+}
+
 .mobile-app-header {
   display: none;
 }
@@ -2503,6 +2515,34 @@ tr.editing-row td {
   margin-top: 0;
 }
 
+.account-detail-controls {
+  align-items: end;
+}
+
+.account-detail-range-select {
+  min-width: 148px;
+}
+
+.account-detail-metrics {
+  margin-top: 18px;
+}
+
+.account-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr);
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.account-detail-grid .holding-detail-panel,
+.account-detail-grid .chart-panel {
+  margin-top: 0;
+}
+
+.account-detail-trend-panel {
+  min-width: 0;
+}
+
 .holding-detail-panel h2 {
   margin: 0 0 14px;
   font-size: 18px;
@@ -3575,6 +3615,11 @@ tr.editing-row td {
     padding: 92px clamp(16px, 4vw, 24px) 28px;
   }
 
+  .local-auth-banner {
+    width: auto;
+    margin: 80px clamp(16px, 4vw, 24px) 0;
+  }
+
   .app-shell-collapsed .collapsed-content-brand {
     display: none;
   }
@@ -3971,7 +4016,8 @@ tr.editing-row td {
     padding: 18px;
   }
 
-  .holding-detail-grid {
+  .holding-detail-grid,
+  .account-detail-grid {
     grid-template-columns: 1fr;
   }
 

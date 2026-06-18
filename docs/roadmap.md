@@ -33,7 +33,8 @@
 - Portfolio summary (implemented: reporting-currency dashboard cards using stored prices, FX rates, and dashboard quote cache where available)
 - Dashboard account allocation and holding allocation (implemented)
 - Holding detail page (implemented: account/instrument drill-down with valuation, transactions, dividend summary, linked cash-leg context, and price context)
-- Detailed account analytics and dedicated currency allocation (pending)
+- Account detail page (implemented: account-level current value, snapshot trend, holdings, recent transactions, cash balance context, and warnings)
+- Dedicated currency allocation (pending)
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 

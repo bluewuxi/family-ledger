@@ -923,6 +923,61 @@ export interface HoldingDetailSummary {
   priceContext: HoldingDetailPriceContext;
 }
 
+export interface AccountDetailCurrentValue {
+  marketValue: string | null;
+  cashMarketValue: string | null;
+  nonCashMarketValue: string | null;
+  unrealizedGain: string | null;
+  holdingCount: number;
+  cashBalanceCount: number;
+  valuationBusinessDate: string;
+}
+
+export interface AccountDetailCashBalance {
+  instrumentId: string;
+  instrumentSymbol: string | null;
+  instrumentName: string;
+  instrumentShortName: string;
+  currency: CurrencyCode;
+  balance: string;
+  marketValue: string | null;
+  holdingWarnings: HoldingWarning[];
+  valuationWarnings: DashboardWarning[];
+}
+
+export interface AccountDetailRecentTransaction {
+  transaction: InvestmentTransaction;
+  linkedCashLeg: InvestmentTransaction | null;
+}
+
+export interface AccountDetailSnapshotPoint {
+  date: string;
+  snapshotDate: string | null;
+  marketValue: string | null;
+}
+
+export interface AccountDetailTrend {
+  range: PortfolioTrendRange;
+  rangeStart: string;
+  rangeEnd: string;
+  currency: SnapshotDisplayCurrency;
+  points: AccountDetailSnapshotPoint[];
+  warnings: SnapshotWarning[];
+}
+
+export interface AccountDetailSummary {
+  reportingCurrency: SnapshotDisplayCurrency;
+  account: InvestmentAccount;
+  currentValue: AccountDetailCurrentValue;
+  holdings: ValuedHoldingSummary[];
+  cashBalances: AccountDetailCashBalance[];
+  recentTransactions: AccountDetailRecentTransaction[];
+  trend: AccountDetailTrend;
+  latestSnapshot: AccountDetailSnapshotPoint | null;
+  valuationWarnings: DashboardWarning[];
+  snapshotWarnings: SnapshotWarning[];
+}
+
 export interface PriceRecord {
   id: string;
   instrumentId: string;

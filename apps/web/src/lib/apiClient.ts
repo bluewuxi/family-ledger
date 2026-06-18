@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@family-ledger/shared";
+import { isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_TOKEN } from "./localAuthBypass";
 import { getRuntimeConfig } from "./runtimeConfig";
 import { getCurrentSession, notifyAuthSessionExpired } from "./supabase";
 
@@ -18,14 +19,16 @@ interface ApiRequestOptions {
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { apiBaseUrl } = getRuntimeConfig();
+  const config = getRuntimeConfig();
+  const { apiBaseUrl } = config;
 
   if (!apiBaseUrl) {
     throw new ApiClientError("缺少 API 地址配置。", "MISSING_API_BASE_URL");
   }
 
-  const session = await getCurrentSession();
-  const token = session?.access_token;
+  const token = isLocalAuthBypassEnabled(config)
+    ? LOCAL_AUTH_BYPASS_TOKEN
+    : (await getCurrentSession())?.access_token;
 
   if (!token) {
     notifyAuthSessionExpired();

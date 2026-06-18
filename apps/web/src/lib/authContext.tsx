@@ -1,12 +1,15 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { createLocalAuthBypassSession, isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_EMAIL } from "./localAuthBypass";
+import { getRuntimeConfig } from "./runtimeConfig";
 import { getCurrentSession, getSupabaseClient, subscribeAuthSessionExpired } from "./supabase";
 
 interface AuthContextValue {
   session: Session | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  localAuthBypassEmail: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -21,6 +24,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     let mounted = true;
+    const localAuthBypassEnabled = isLocalAuthBypassEnabled(getRuntimeConfig());
+
+    if (localAuthBypassEnabled) {
+      setSession(createLocalAuthBypassSession());
+      setLoading(false);
+      return () => {
+        mounted = false;
+      };
+    }
+
     const supabase = getSupabaseClient();
 
     getCurrentSession()
@@ -63,8 +76,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       session,
       loading,
       signOut: async () => {
+        if (isLocalAuthBypassEnabled(getRuntimeConfig())) {
+          setSession(createLocalAuthBypassSession());
+          return;
+        }
+
         await getSupabaseClient().auth.signOut();
-      }
+      },
+      localAuthBypassEmail: isLocalAuthBypassEnabled(getRuntimeConfig()) ? LOCAL_AUTH_BYPASS_EMAIL : null
     }),
     [loading, session]
   );

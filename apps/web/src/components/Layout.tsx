@@ -19,7 +19,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { signOut } = useAuth();
+  const { localAuthBypassEmail, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
@@ -199,6 +199,9 @@ export function Layout({ children }: LayoutProps) {
         aria-hidden={isMobileViewport && mobileSidebarOpen ? true : undefined}
       >
         <MobileAppHeader />
+        {localAuthBypassEmail ? (
+          <div className="local-auth-banner">本地调试登录：{localAuthBypassEmail}</div>
+        ) : null}
         <main className="main-content">
           {sidebarCollapsed ? <CollapsedContentBrand /> : null}
           {children}

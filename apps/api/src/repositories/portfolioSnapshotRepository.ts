@@ -1,5 +1,6 @@
 import {
   convertSnapshotAmount,
+  type AccountDetailSnapshotPoint,
   type PortfolioSnapshotValuation,
   type PortfolioAccountSnapshotSummary,
   type PortfolioSnapshotSummary,
@@ -37,6 +38,19 @@ interface PortfolioAccountSnapshotRow {
   warnings: unknown;
   created_at: string;
   updated_at: string;
+}
+
+interface PortfolioAccountSnapshotTrendRow {
+  id: string;
+  snapshot_date: string;
+  account_id: string;
+  account_name: string;
+  market_value_usd: string | null;
+  warnings: unknown;
+  portfolio_snapshots: {
+    usd_to_nzd_rate: string;
+    usd_to_cny_rate: string;
+  } | null;
 }
 
 interface SnapshotIdRow {
@@ -88,6 +102,37 @@ export async function listPortfolioSnapshotTrendRows(input: {
 }): Promise<PortfolioSnapshotSummary[]> {
   const snapshots = await listPortfolioSnapshotRows(input);
   return snapshots.map((snapshot) => mapSnapshotRow(snapshot, [], input.currency));
+}
+
+export async function listAccountSnapshotTrendRows(input: {
+  accountId: string;
+  from: string;
+  to: string;
+  currency: SnapshotDisplayCurrency;
+  order?: "asc" | "desc";
+  limit?: number;
+}): Promise<Array<AccountDetailSnapshotPoint & { warnings: SnapshotWarning[] }>> {
+  const supabase = await getSupabaseAdmin();
+  let query = supabase
+    .from("portfolio_account_snapshots")
+    .select(accountSnapshotTrendSelect)
+    .eq("account_id", input.accountId)
+    .gte("snapshot_date", input.from)
+    .lte("snapshot_date", input.to)
+    .order("snapshot_date", { ascending: input.order !== "desc" });
+
+  if (input.limit !== undefined) {
+    query = query.limit(input.limit);
+  }
+
+  const { data, error } = await query.returns<PortfolioAccountSnapshotTrendRow[]>();
+
+  if (error) {
+    console.error("Failed to list account snapshot trend rows", { error });
+    throw new Error("Failed to list account snapshot trend rows.");
+  }
+
+  return data.map((row) => mapAccountSnapshotTrendRow(row, input.currency));
 }
 
 async function listPortfolioSnapshotRows(input: {
@@ -219,6 +264,16 @@ const accountSnapshotSelect = [
   "updated_at"
 ].join(", ");
 
+const accountSnapshotTrendSelect = [
+  "id",
+  "snapshot_date",
+  "account_id",
+  "account_name",
+  "market_value_usd",
+  "warnings",
+  "portfolio_snapshots!inner(usd_to_nzd_rate, usd_to_cny_rate)"
+].join(", ");
+
 function toSnapshotRow(valuation: PortfolioSnapshotValuation) {
   return {
     snapshot_date: valuation.snapshotDate,
@@ -272,6 +327,23 @@ function mapAccountSnapshotRow(
     unrealizedGain: convertSnapshotAmount(row.unrealized_gain_usd, currency, rates),
     dailyChange: convertSnapshotAmount(row.daily_change_usd, currency, rates),
     dailyChangePct: row.daily_change_pct,
+    warnings: parseWarnings(row.warnings)
+  };
+}
+
+function mapAccountSnapshotTrendRow(
+  row: PortfolioAccountSnapshotTrendRow,
+  currency: SnapshotDisplayCurrency
+): AccountDetailSnapshotPoint & { warnings: SnapshotWarning[] } {
+  const rates = {
+    usdToNzdRate: row.portfolio_snapshots?.usd_to_nzd_rate ?? "0",
+    usdToCnyRate: row.portfolio_snapshots?.usd_to_cny_rate ?? "0"
+  };
+
+  return {
+    date: row.snapshot_date,
+    snapshotDate: row.snapshot_date,
+    marketValue: convertSnapshotAmount(row.market_value_usd, currency, rates),
     warnings: parseWarnings(row.warnings)
   };
 }

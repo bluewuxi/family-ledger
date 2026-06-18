@@ -5,6 +5,7 @@ import {
   getAccounts,
   updateInvestmentAccount
 } from "../services/accountService";
+import { getAccountDetail } from "../services/accountDetailService";
 import {
   getTradingPasswordGateStatus,
   revealTradingPassword,
@@ -180,6 +181,23 @@ const dynamicRoutes: Array<{
   pattern: RegExp;
   handler: DynamicRouteHandler;
 }> = [
+  {
+    method: "GET",
+    pattern: /^\/accounts\/(?<id>[^/]+)\/detail$/,
+    handler: async (event, params) => {
+      const user = await requireRole(event, "viewer");
+      return success({
+        user,
+        accountDetail: await getAccountDetail({
+          accountId: params.id,
+          currency: event.queryStringParameters?.currency,
+          trendRange: event.queryStringParameters?.trendRange,
+          recentLimit: event.queryStringParameters?.recentLimit,
+          user
+        })
+      });
+    }
+  },
   {
     method: "POST",
     pattern: /^\/accounts\/(?<id>[^/]+)\/trading-password\/reveal$/,

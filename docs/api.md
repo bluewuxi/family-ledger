@@ -44,6 +44,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /holdings`
 - `GET /holdings/detail`
 - `GET /accounts`
+- `GET /accounts/:id/detail`
 - `POST /accounts/:id/trading-password/reveal`
 - `GET /instruments`
 - `GET /transactions`
@@ -71,6 +72,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending. It supports `from`, `to`, `accountId`, `instrumentId`, `transactionType`, comma-separated `transactionTypes`, `excludeGeneratedCashLegs=true|false`, `excludeCashInstruments=true|false`, `limit`, and `offset` query parameters. `transactionTypes=buy,sell` is a first-class filter and works with or without pagination. If both `transactionType` and `transactionTypes` are supplied, the single `transactionType` must be included in the list and narrows the result set. When pagination parameters are supplied, the response includes `pagination` metadata with `limit`, `offset`, and `hasMore`.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
 `GET /holdings/detail` returns one account/instrument holding detail, related transactions, dividend summary, linked buy/sell cash-leg context, and latest/previous price context.
+`GET /accounts/:id/detail` returns one account's current valued total, cash/non-cash subtotals, holdings, cash balance context, recent transactions with linked settlement cash legs, account snapshot trend, and account-scoped warnings.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
 `GET /reports/monthly-summary` returns a monthly value bridge plus dividend and cash-calibration context.
@@ -328,6 +330,65 @@ It returns the current valued holding row, account and instrument metadata, rela
 If the current holding quantity is zero but historical transactions exist for the selected account and instrument, the endpoint still returns a detail response with `hasCurrentPosition = false`, `quantity = "0"`, zero current valuation, and no current valuation warnings. If the account/instrument pair has neither a current holding nor historical transactions, it returns `NOT_FOUND`.
 
 Dividend transactions are displayed as investment income context. They do not change holding quantity; reinvested dividends should be recorded as a separate buy transaction.
+
+### Account Detail Read API
+
+`GET /accounts/:id/detail?currency=NZD|USD|CNY&trendRange=1m|3m|1y|3y|5y|inception&recentLimit=1..50` is available to authenticated `viewer` and `admin` users.
+
+It returns one account's current valuation, current holdings, cash balances, recent primary transactions, linked buy/sell settlement cash legs, account snapshot trend, latest account snapshot, and data-quality warnings.
+
+Current valuation is account-scoped: the API calculates holdings, filters to the selected account, fetches prices and valuation FX for those holdings only, then values only those account holdings. Missing price, FX, or cost basis from another account cannot make this account's totals unavailable.
+
+`valuationBusinessDate` is the app business date used as the valuation reference date. It does not mean every holding has same-day market data. Each holding still carries row-level `latestPriceDate`; lagged funds may use the latest published price available.
+
+The account trend uses persisted `portfolio_account_snapshots`. Account snapshot rows store USD values, so NZD/CNY display values are converted with the parent `portfolio_snapshots.usd_to_nzd_rate` and `usd_to_cny_rate` from the same snapshot. For long ranges of two years or more (`3y`, `5y`, or `inception`), account trend points use the same weekly thinning semantics as portfolio trend points.
+
+Recent transactions exclude `generated_cash_leg` rows as primary activity. When a buy/sell has an automatically generated cash leg, it is attached as `linkedCashLeg`.
+
+Response data:
+
+```json
+{
+  "accountDetail": {
+    "reportingCurrency": "CNY",
+    "account": {},
+    "currentValue": {
+      "marketValue": "100000.00",
+      "cashMarketValue": "12000.00",
+      "nonCashMarketValue": "88000.00",
+      "unrealizedGain": "8000.00",
+      "holdingCount": 5,
+      "cashBalanceCount": 2,
+      "valuationBusinessDate": "2026-06-18"
+    },
+    "holdings": [],
+    "cashBalances": [],
+    "recentTransactions": [
+      {
+        "transaction": {},
+        "linkedCashLeg": null
+      }
+    ],
+    "trend": {
+      "range": "3m",
+      "rangeStart": "2026-03-18",
+      "rangeEnd": "2026-06-18",
+      "currency": "CNY",
+      "points": [
+        {
+          "date": "2026-06-18",
+          "snapshotDate": "2026-06-17",
+          "marketValue": "100000.00"
+        }
+      ],
+      "warnings": []
+    },
+    "latestSnapshot": null,
+    "valuationWarnings": [],
+    "snapshotWarnings": []
+  }
+}
+```
 
 ### Monthly Summary Read API
 

@@ -4,6 +4,7 @@ import { LoadingState } from "./components/LoadingState";
 import { AuthProvider, useAuth } from "./lib/authContext";
 import { PreferencesProvider } from "./lib/preferencesContext";
 import { AccountsPage } from "./pages/AccountsPage";
+import { AccountDetailPage } from "./pages/AccountDetailPage";
 import { AboutPage } from "./pages/AboutPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
@@ -23,6 +24,7 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/accounts" element={<AccountsPage />} />
+      <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
       <Route path="/instruments" element={<InstrumentsPage />} />
       <Route path="/transactions" element={<TransactionsPage />} />
       <Route path="/holdings" element={<HoldingsPage />} />

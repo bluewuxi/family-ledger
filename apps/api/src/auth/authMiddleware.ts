@@ -1,6 +1,7 @@
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser, UserRole } from "@family-ledger/shared";
 import { getUserRole, UserRoleNotFoundError } from "../repositories/userRoleRepository";
+import { getLocalAuthBypassUser, LocalAuthBypassUserNotFoundError } from "./localAuthBypass";
 import { InvalidTokenError, verifySupabaseJwt } from "./verifySupabaseJwt";
 
 export class ApiAuthError extends Error {
@@ -31,6 +32,12 @@ export async function getCurrentUser(event: APIGatewayProxyEventV2): Promise<Aut
   }
 
   try {
+    const localBypassUser = await getLocalAuthBypassUser(event, token);
+
+    if (localBypassUser) {
+      return localBypassUser;
+    }
+
     const user = await verifySupabaseJwt(token);
     const role = await getUserRole(user.id);
 
@@ -45,6 +52,10 @@ export async function getCurrentUser(event: APIGatewayProxyEventV2): Promise<Aut
 
     if (error instanceof UserRoleNotFoundError) {
       throw new ApiAuthError("Active user role is required.", 403);
+    }
+
+    if (error instanceof LocalAuthBypassUserNotFoundError) {
+      throw new ApiAuthError("Local auth bypass user is not configured.", 403);
     }
 
     throw error;

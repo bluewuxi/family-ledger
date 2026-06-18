@@ -308,7 +308,7 @@ export function AccountsPage() {
 
   function handleAccountRowClick(event: MouseEvent<HTMLTableRowElement>, account: InvestmentAccount) {
     if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
-      startDetail(account);
+      navigate(`/accounts/${account.id}`);
     }
   }
 
@@ -318,7 +318,7 @@ export function AccountsPage() {
     }
 
     event.preventDefault();
-    startDetail(account);
+    navigate(`/accounts/${account.id}`);
   }
 
   function toggleAccountHoldings(accountId: string) {

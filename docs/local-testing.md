@@ -111,6 +111,39 @@ For account CRUD testing, use `admin`. For read-only verification, use `viewer`.
 
 Admin users can also manage existing Auth users from Settings. User creation remains in the Supabase console. If Supabase refuses to send reset emails in a hosted test project, configure custom SMTP or add the test recipients to the Supabase project's allowed/team email settings.
 
+## Optional Local Auth Bypass
+
+For local browser verification only, the app can bypass the login screen and call the local API as `ricky.yu@outlook.com` with `admin` role.
+
+Enable it only in `.env.local`:
+
+```text
+VITE_LOCAL_AUTH_BYPASS=true
+FAMILY_LEDGER_LOCAL_AUTH_BYPASS=true
+LOCAL_AUTH_BYPASS_EMAIL=ricky.yu@outlook.com
+```
+
+Then restart both:
+
+```powershell
+corepack pnpm dev:api
+corepack pnpm dev:web:local
+```
+
+The bypass works only when all local gates pass:
+
+- Vite is running in development mode.
+- The browser host is `localhost` or `127.0.0.1`.
+- `VITE_API_BASE_URL` points to `localhost` or `127.0.0.1`.
+- The API is reached through `scripts/local-api.ts`, whose Lambda event uses `requestContext.accountId = "local"`.
+- The API source IP and host are loopback/local.
+- The fixed local-only bearer token matches.
+- `ricky.yu@outlook.com` exists in Supabase Auth.
+
+Do not add these bypass variables to `.env.test`, `.env.prod`, deployment parameters, CloudFormation, or generated `config.json`. Remote test and production must continue to use real Supabase Auth.
+
+Disable it by removing or commenting both bypass flags and restarting the local API and web dev server.
+
 ## Common Failures
 
 ### Login request reports `ERR_NAME_NOT_RESOLVED`
