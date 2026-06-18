@@ -4,6 +4,7 @@ import type {
   CurrencyCode,
   ExchangeRateRecord,
   InvestmentTransaction,
+  MonthlyAccountChangeSummary,
   MonthlyBridgeLine,
   MonthlyCashAdjustmentSummary,
   MonthlyDividendInstrumentSummary,
@@ -11,7 +12,10 @@ import type {
   MonthlySummary,
   MonthlySummaryWarning,
   MonthlySummaryWarningCode,
+  MonthlyTradeActivitySummary,
+  PortfolioAccountSnapshotSummary,
   PortfolioSnapshotSummary,
+  SnapshotWarning,
   SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { listExactValuationRatesToUsdForDates } from "../repositories/fxRateRepository";
@@ -128,6 +132,9 @@ export async function getMonthlySummary(input: {
       ratesByCurrencyAndDate
     }),
     principalTransactions: principalTransactions.sort(compareTransactionsDesc),
+    accountChanges: buildAccountChanges(startSnapshot, endSnapshot),
+    tradeActivity: buildTradeActivity(transactions),
+    snapshotWarnings: collectSnapshotWarnings(startSnapshot, endSnapshot),
     warnings: [...warnings.values()]
   };
 }
@@ -388,6 +395,75 @@ function buildCashAdjustmentSummaries(input: {
     .map((item) => ({ transaction: item.transaction, signedAmount: item.amount === null ? null : formatDecimal(item.amount) }));
 }
 
+export function buildAccountChanges(
+  startSnapshot: PortfolioSnapshotSummary | null,
+  endSnapshot: PortfolioSnapshotSummary | null
+): MonthlyAccountChangeSummary[] {
+  if (!startSnapshot || !endSnapshot) {
+    return [];
+  }
+
+  const startAccounts = new Map(startSnapshot.accounts.map((account) => [account.accountId, account]));
+  const endAccounts = new Map(endSnapshot.accounts.map((account) => [account.accountId, account]));
+  const accountIds = uniqueValues([...startAccounts.keys(), ...endAccounts.keys()]);
+
+  return accountIds
+    .map((accountId) => {
+      const startAccount = startAccounts.get(accountId) ?? null;
+      const endAccount = endAccounts.get(accountId) ?? null;
+      const startValue = startAccount?.marketValue ?? "0.000000";
+      const endValue = endAccount?.marketValue ?? "0.000000";
+      const hasUnavailableValue = startAccount?.marketValue === null || endAccount?.marketValue === null;
+      const changeAmount = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
+      const startDecimal = new Decimal(startValue);
+      const changePct =
+        changeAmount === null || startDecimal.isZero()
+          ? null
+          : formatDecimal(new Decimal(changeAmount).dividedBy(startDecimal).times(100));
+
+      return {
+        accountId,
+        accountName: endAccount?.accountName ?? startAccount?.accountName ?? accountId,
+        currency: endAccount?.currency ?? startAccount?.currency ?? endSnapshot.currency,
+        startValue: hasUnavailableValue ? null : startValue,
+        endValue: hasUnavailableValue ? null : endValue,
+        changeAmount,
+        changePct,
+        warnings: uniqueSnapshotWarnings([...(startAccount?.warnings ?? []), ...(endAccount?.warnings ?? [])])
+      };
+    })
+    .sort(compareAccountChanges);
+}
+
+export function buildTradeActivity(transactions: InvestmentTransaction[]): MonthlyTradeActivitySummary[] {
+  const linkedCashLegs = new Map(
+    transactions
+      .filter((transaction) => transaction.transactionSource === "generated_cash_leg" && transaction.linkedTransactionId)
+      .map((transaction) => [transaction.linkedTransactionId as string, transaction])
+  );
+
+  return transactions
+    .filter((transaction) => transaction.transactionSource === "manual")
+    .filter((transaction) => transaction.transactionType === "buy" || transaction.transactionType === "sell")
+    .sort(compareTransactionsDesc)
+    .map((transaction) => ({
+      transaction,
+      linkedCashLeg: linkedCashLegs.get(transaction.id) ?? null
+    }));
+}
+
+export function collectSnapshotWarnings(
+  startSnapshot: PortfolioSnapshotSummary | null,
+  endSnapshot: PortfolioSnapshotSummary | null
+): SnapshotWarning[] {
+  return uniqueSnapshotWarnings([
+    ...(startSnapshot?.warnings ?? []),
+    ...(endSnapshot?.warnings ?? []),
+    ...collectAccountSnapshotWarnings(startSnapshot?.accounts ?? []),
+    ...collectAccountSnapshotWarnings(endSnapshot?.accounts ?? [])
+  ]);
+}
+
 function convertMoney(input: {
   amount: Decimal;
   fromCurrency: CurrencyCode;
@@ -515,6 +591,47 @@ function compareTransactionsDesc(left: InvestmentTransaction, right: InvestmentT
     right.createdAt.localeCompare(left.createdAt) ||
     right.id.localeCompare(left.id)
   );
+}
+
+function compareAccountChanges(left: MonthlyAccountChangeSummary, right: MonthlyAccountChangeSummary): number {
+  const leftAmount = left.changeAmount === null ? null : new Decimal(left.changeAmount).abs();
+  const rightAmount = right.changeAmount === null ? null : new Decimal(right.changeAmount).abs();
+
+  if (leftAmount !== null && rightAmount !== null && !leftAmount.equals(rightAmount)) {
+    return rightAmount.comparedTo(leftAmount);
+  }
+
+  if (leftAmount !== null && rightAmount === null) {
+    return -1;
+  }
+
+  if (leftAmount === null && rightAmount !== null) {
+    return 1;
+  }
+
+  return left.accountName.localeCompare(right.accountName, "zh-CN") || left.accountId.localeCompare(right.accountId);
+}
+
+function collectAccountSnapshotWarnings(accounts: PortfolioAccountSnapshotSummary[]): SnapshotWarning[] {
+  return accounts.flatMap((account) => account.warnings);
+}
+
+function uniqueSnapshotWarnings(warnings: SnapshotWarning[]): SnapshotWarning[] {
+  const uniqueWarnings = new Map<string, SnapshotWarning>();
+
+  for (const warning of warnings) {
+    uniqueWarnings.set(
+      [
+        warning.code,
+        warning.accountId,
+        warning.instrumentId,
+        warning.currency
+      ].join(":"),
+      warning
+    );
+  }
+
+  return [...uniqueWarnings.values()];
 }
 
 function fxRateKey(currency: CurrencyCode | SnapshotDisplayCurrency, date: string): string {

@@ -333,7 +333,9 @@ Dividend transactions are displayed as investment income context. They do not ch
 
 `GET /reports/monthly-summary?month=YYYY-MM&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
 
-It returns a monthly value bridge using stored portfolio snapshots and manual ledger cash-flow records:
+It returns a read-only monthly family review using stored portfolio snapshots, manual ledger cash-flow records, account-level snapshot rows, buy/sell activity, dividends, cash adjustments, and data-quality warnings.
+
+The value bridge remains:
 
 ```text
 资产变化 = 净投入 + 现金校准 + 估值变动
@@ -343,7 +345,11 @@ It returns a monthly value bridge using stored portfolio snapshots and manual le
 
 Dividend transactions are returned as separate investment-income context. They do not participate in the value bridge because current dividend records do not automatically increase cash holdings. If dividend cash is reconciled through month-end cash adjustments, it is reflected in `现金校准`.
 
-Missing start/end snapshots, unavailable snapshot market values, or missing exact transaction-date valuation FX rates return warnings and set affected bridge lines to `null` rather than using fallback rates.
+Account changes use the union of account rows from the selected start and end snapshots. A missing row on one side is treated as zero for display, so accounts opened or closed during the month can still be reviewed. If an account row exists with unavailable market value, the affected account change fields are returned as `null`.
+
+Manual buy/sell transactions are returned as monthly trade activity. Generated cash legs are not standalone trades; when present, they are attached to the parent buy/sell as settlement context in the cash-leg currency.
+
+Missing start/end snapshots, unavailable snapshot market values, missing exact transaction-date valuation FX rates, and snapshot valuation warnings are returned as warnings. The endpoint does not store report records or saved review notes.
 
 Response data:
 
@@ -374,6 +380,9 @@ Response data:
     "dividendTransactions": [],
     "cashAdjustments": [],
     "principalTransactions": [],
+    "accountChanges": [],
+    "tradeActivity": [],
+    "snapshotWarnings": [],
     "warnings": []
   }
 }

@@ -1240,6 +1240,22 @@ export interface MonthlyCashAdjustmentSummary {
   signedAmount: string | null;
 }
 
+export interface MonthlyAccountChangeSummary {
+  accountId: string;
+  accountName: string;
+  currency: SnapshotDisplayCurrency;
+  startValue: string | null;
+  endValue: string | null;
+  changeAmount: string | null;
+  changePct: string | null;
+  warnings: SnapshotWarning[];
+}
+
+export interface MonthlyTradeActivitySummary {
+  transaction: InvestmentTransaction;
+  linkedCashLeg: InvestmentTransaction | null;
+}
+
 export interface MonthlySummary {
   month: string;
   currency: SnapshotDisplayCurrency;
@@ -1258,6 +1274,9 @@ export interface MonthlySummary {
   dividendTransactions: InvestmentTransaction[];
   cashAdjustments: MonthlyCashAdjustmentSummary[];
   principalTransactions: InvestmentTransaction[];
+  accountChanges: MonthlyAccountChangeSummary[];
+  tradeActivity: MonthlyTradeActivitySummary[];
+  snapshotWarnings: SnapshotWarning[];
   warnings: MonthlySummaryWarning[];
 }
 

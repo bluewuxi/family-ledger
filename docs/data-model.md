@@ -171,6 +171,14 @@ Missing latest price or required FX makes affected aggregate market-value fields
 
 When a valuation-impacting transaction is created, updated, or deleted through the API, existing snapshots with `snapshot_date` on or after the affected trade date are recalculated and upserted. If a transaction update changes trade date, recalculation starts from the earlier old/new trade date.
 
+## Monthly Family Review
+
+The monthly family review is a derived, read-only API/UI view. It does not store monthly report rows, saved notes, generated files, or approval state in V1.
+
+The report reuses stored portfolio snapshots for month-start and month-end values, manual principal transactions for net invested cash, manual cash adjustments for month-end reconciliation, and dividend transactions as separate investment-income context. Buy/sell generated cash legs are shown only as linked settlement context under their parent trade.
+
+Account changes compare account snapshot rows from the selected start and end snapshots. A missing account row on one side is displayed as zero so accounts opened or closed during the month remain explainable. Rows with unavailable snapshot values remain unavailable and surface data-quality warnings rather than partial values.
+
 ## Seeded Instruments
 
 Initial seed data under `supabase/seed/001_seed_instruments.sql` populates the shared instrument master list only. It includes metadata such as short display name, market region, exchange, currency, asset type, price-source configuration, source URL, and source verification timestamp.
