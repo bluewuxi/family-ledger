@@ -3,10 +3,11 @@ import {
   convertSnapshotAmount,
   type AccountDetailSnapshotPoint,
   type HoldingSummary,
+  type InvestmentTransaction,
   type SnapshotWarning
 } from "@family-ledger/shared";
 import { calculateHoldingsValuation } from "../apps/api/src/services/portfolioValuationService";
-import { buildAccountTrend } from "../apps/api/src/services/accountDetailService";
+import { buildAccountTrend, buildRecentTransactions } from "../apps/api/src/services/accountDetailService";
 
 const accountAHoldings: HoldingSummary[] = [
   holding("account-a", "a-stock", "A Stock", "stock", "USD", "2", "100"),
@@ -40,6 +41,18 @@ async function main(): Promise<void> {
 
   assert.equal(convertSnapshotAmount("100", "NZD", { usdToNzdRate: "1.6000000000", usdToCnyRate: "7.2000000000" }), "160.00");
   assert.equal(convertSnapshotAmount("100", "CNY", { usdToNzdRate: "1.6000000000", usdToCnyRate: "7.2000000000" }), "720.00");
+
+  const dividend = transaction("dividend-a", "dividend", "manual", null, "a-stock", {
+    grossAmount: "12.5",
+    tax: "1.5"
+  });
+  const dividendCashLeg = transaction("dividend-cash-a", "deposit", "generated_cash_leg", dividend.id, "a-cash", {
+    grossAmount: "11"
+  });
+  const recentTransactions = buildRecentTransactions([dividendCashLeg, dividend], 10);
+  assert.equal(recentTransactions.length, 1);
+  assert.equal(recentTransactions[0]?.transaction.id, dividend.id);
+  assert.equal(recentTransactions[0]?.linkedCashLeg?.id, dividendCashLeg.id);
 
   const snapshotWarning: SnapshotWarning = {
     code: "MISSING_LATEST_PRICE",
@@ -168,6 +181,45 @@ function fxRate(fromCurrency: "USD", rate: string) {
     fetchedAt: "2026-06-15T00:00:00.000Z",
     createdAt: "2026-06-15T00:00:00.000Z",
     updatedAt: "2026-06-15T00:00:00.000Z"
+  };
+}
+
+function transaction(
+  id: string,
+  transactionType: InvestmentTransaction["transactionType"],
+  transactionSource: InvestmentTransaction["transactionSource"],
+  linkedTransactionId: string | null,
+  instrumentId: string,
+  input: Partial<InvestmentTransaction>
+): InvestmentTransaction {
+  return {
+    id,
+    accountId: "account-a",
+    instrumentId,
+    instrumentSymbol: null,
+    instrumentName: null,
+    instrumentShortName: null,
+    instrumentAssetType: instrumentId === "a-cash" ? "cash" : "stock",
+    transactionType,
+    tradeDate: "2026-06-15",
+    settlementDate: null,
+    quantity: null,
+    price: null,
+    grossAmount: null,
+    fee: "0",
+    tax: "0",
+    currency: "USD",
+    adjustmentDirection: null,
+    transactionSource,
+    linkedTransactionId,
+    settlementCurrency: null,
+    settlementAmount: null,
+    notes: null,
+    createdByUserId: null,
+    updatedByUserId: null,
+    createdAt: "2026-06-15T00:00:00.000Z",
+    updatedAt: "2026-06-15T00:00:00.000Z",
+    ...input
   };
 }
 

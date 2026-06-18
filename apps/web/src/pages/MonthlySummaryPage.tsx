@@ -362,11 +362,11 @@ export function MonthlySummaryPage() {
           <div className="chart-section-header">
             <div>
               <h2>股息记录</h2>
-              <p>股息用于解释收益来源；当前不会自动增加现金余额，也不进入资产变化桥。</p>
+              <p>股息用于解释收益来源；记录股息会生成入账现金，并随快照进入资产变化。</p>
             </div>
           </div>
           <p className="readonly-note">
-            股息不会改变持仓数量；如果股息再投资，请另行记录买入交易。若股息现金已入账，可通过现金校准体现。
+            股息不会改变持仓数量；如果股息再投资，请另行记录买入交易。净股息现金会通过生成的现金流水计入账户余额。
           </p>
           <div className="monthly-dividend-summary">
             <MetricBlock label="股息总额" value={formatMetric(summary?.dividendSummary.grossAmount, pageLoading, false)} />

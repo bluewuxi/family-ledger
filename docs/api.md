@@ -73,7 +73,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 `GET /instruments` returns real instrument master data from `instruments`.
 `GET /transactions` returns real ledger entries from `transactions`, ordered by trade date and creation time descending. It supports `from`, `to`, `accountId`, `instrumentId`, `transactionType`, comma-separated `transactionTypes`, `excludeGeneratedCashLegs=true|false`, `excludeCashInstruments=true|false`, `limit`, and `offset` query parameters. `transactionTypes=buy,sell` is a first-class filter and works with or without pagination. If both `transactionType` and `transactionTypes` are supplied, the single `transactionType` must be included in the list and narrows the result set. When pagination parameters are supplied, the response includes `pagination` metadata with `limit`, `offset`, and `hasMore`.
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
-`GET /holdings/detail` returns one account/instrument holding detail, related transactions, dividend summary, linked buy/sell cash-leg context, and latest/previous price context.
+`GET /holdings/detail` returns one account/instrument holding detail, related transactions, dividend summary, linked buy/sell/dividend cash-leg context, and latest/previous price context.
 `GET /accounts/:id/detail` returns one account's current valued total, cash/non-cash subtotals, holdings, cash balance context, recent transactions with linked settlement cash legs, account snapshot trend, and account-scoped warnings.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
@@ -318,7 +318,7 @@ It returns aggregate valued totals plus one non-zero row for each account and in
 
 Transactions are processed by trade date and creation time ascending. Security holdings use weighted average cost: buys add `grossAmount + fee + tax`, sells reduce remaining carrying cost using the prior average unit cost, and dividends do not alter holdings. When historical valuation FX is available, buy cost also carries a transaction-date USD basis from settlement cash or native trade cost. Security sell fees and taxes do not alter remaining carrying cost.
 
-Cash holdings are calculated only from transactions explicitly linked to cash instruments. Deposits, generated sell cash legs, and interest increase balances; withdrawals, generated buy cash legs, fees, and taxes decrease balances; adjustments apply their stated direction.
+Cash holdings are calculated only from transactions explicitly linked to cash instruments. Deposits, generated sell/dividend cash legs, and interest increase balances; withdrawals, generated buy cash legs, fees, and taxes decrease balances; adjustments apply their stated direction.
 
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
 
@@ -328,17 +328,17 @@ Holding quantity, average cost, and remaining cost continue to use the instrumen
 
 `GET /holdings/detail?accountId=<uuid>&instrumentId=<uuid>&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
 
-It returns the current valued holding row, account and instrument metadata, related transactions, linked buy/sell generated cash-leg context, dividend transactions and summary, and latest/previous stored price context. For non-cash holdings, generated cash legs are shown only as linked settlement context. For cash holding details, generated cash legs are included in the main transaction list because they are real cash balance movement.
+It returns the current valued holding row, account and instrument metadata, related transactions, linked buy/sell/dividend generated cash-leg context, dividend transactions and summary, and latest/previous stored price context. For non-cash holdings, generated cash legs are shown only as linked settlement context. For cash holding details, generated cash legs are included in the main transaction list because they are real cash balance movement.
 
 If the current holding quantity is zero but historical transactions exist for the selected account and instrument, the endpoint still returns a detail response with `hasCurrentPosition = false`, `quantity = "0"`, zero current valuation, and no current valuation warnings. If the account/instrument pair has neither a current holding nor historical transactions, it returns `NOT_FOUND`.
 
-Dividend transactions are displayed as investment income context. They do not change holding quantity; reinvested dividends should be recorded as a separate buy transaction.
+Dividend transactions are displayed as investment income context. They do not change holding quantity. A positive net dividend automatically creates a linked generated cash `deposit`; reinvested dividends should still be recorded as a separate buy transaction.
 
 ### Account Detail Read API
 
 `GET /accounts/:id/detail?currency=NZD|USD|CNY&trendRange=1m|3m|1y|3y|5y|inception&recentLimit=1..50` is available to authenticated `viewer` and `admin` users.
 
-It returns one account's current valuation, current holdings, cash balances, recent primary transactions, linked buy/sell settlement cash legs, account snapshot trend, latest account snapshot, and data-quality warnings.
+It returns one account's current valuation, current holdings, cash balances, recent primary transactions, linked buy/sell/dividend settlement cash legs, account snapshot trend, latest account snapshot, and data-quality warnings.
 
 Current valuation is account-scoped: the API calculates holdings, filters to the selected account, fetches prices and valuation FX for those holdings only, then values only those account holdings. Missing price, FX, or cost basis from another account cannot make this account's totals unavailable.
 
@@ -346,7 +346,7 @@ Current valuation is account-scoped: the API calculates holdings, filters to the
 
 The account trend uses persisted `portfolio_account_snapshots`. Account snapshot rows store USD values, so NZD/CNY display values are converted with the parent `portfolio_snapshots.usd_to_nzd_rate` and `usd_to_cny_rate` from the same snapshot. For long ranges of two years or more (`3y`, `5y`, or `inception`), account trend points use the same weekly thinning semantics as portfolio trend points.
 
-Recent transactions exclude `generated_cash_leg` rows as primary activity. When a buy/sell has an automatically generated cash leg, it is attached as `linkedCashLeg`.
+Recent transactions exclude `generated_cash_leg` rows as primary activity. When a buy/sell/dividend has an automatically generated cash leg, it is attached as `linkedCashLeg`.
 
 Response data:
 
@@ -405,13 +405,13 @@ The value bridge remains:
 资产变化 = 净投入 + 现金校准 + 估值变动
 ```
 
-`月初资产` uses the latest portfolio snapshot before the selected month. `月末资产` uses the latest portfolio snapshot on or before the selected month's last day. `净投入` uses manual opening, deposit, and withdrawal transactions in the month; generated buy/sell cash legs are excluded. `现金校准` uses manual cash `adjustment` transactions in the month, direction-aware. `估值变动` is the residual after subtracting net principal flow and cash calibration from asset change; it covers price movement, FX movement, and other valuation effects.
+`月初资产` uses the latest portfolio snapshot before the selected month. `月末资产` uses the latest portfolio snapshot on or before the selected month's last day. `净投入` uses manual opening, deposit, and withdrawal transactions in the month; generated buy/sell/dividend cash legs are excluded. `现金校准` uses manual cash `adjustment` transactions in the month, direction-aware. `估值变动` is the residual after subtracting net principal flow and cash calibration from asset change; it covers price movement, FX movement, and other valuation effects.
 
-Dividend transactions are returned as separate investment-income context. They do not participate in the value bridge because current dividend records do not automatically increase cash holdings. If dividend cash is reconciled through month-end cash adjustments, it is reflected in `现金校准`.
+Dividend transactions are returned as separate investment-income context. Their generated net-cash deposits are included in snapshots and therefore flow into the value bridge through `资产变化`; the dividend summary remains separate so income sources can be reviewed without treating dividends as new principal.
 
 Account changes use the union of account rows from the selected start and end snapshots. A missing row on one side is treated as zero for display, so accounts opened or closed during the month can still be reviewed. If an account row exists with unavailable market value, the affected account change fields are returned as `null`.
 
-Manual buy/sell transactions are returned as monthly trade activity. Generated cash legs are not standalone trades; when present, they are attached to the parent buy/sell as settlement context in the cash-leg currency.
+Manual buy/sell transactions are returned as monthly trade activity. Generated buy/sell cash legs are not standalone trades; when present, they are attached to the parent buy/sell as settlement context in the cash-leg currency. Dividend cash legs are reflected through snapshots and cash balances, while dividend rows remain in `dividendTransactions` without a linked cash-leg DTO in this endpoint.
 
 Missing start/end snapshots, unavailable snapshot market values, missing exact transaction-date valuation FX rates, and snapshot valuation warnings are returned as warnings. The endpoint does not store derived report records or generated files.
 
@@ -811,7 +811,8 @@ Transaction validation rules:
 - `buy` and `sell` require a non-cash instrument, positive `quantity` and `price`; optional `fee` and `tax` are allowed.
 - `buy` settlement amount is `grossAmount + fee + tax`, converted to account base currency when needed.
 - `sell` settlement amount is `grossAmount - fee - tax`, converted to account base currency when needed.
-- `dividend` requires its non-cash source instrument and positive `grossAmount`; optional `tax` records withholding.
+- `dividend` requires its non-cash source instrument and positive `grossAmount`; optional `tax` records withholding and cannot exceed `grossAmount`.
+- `dividend` settlement amount is `grossAmount - tax`, converted to account base currency when needed. A positive net amount creates a generated cash `deposit`; a zero net amount creates no cash leg.
 - `deposit`, `withdrawal`, and `interest` require a cash instrument and positive `grossAmount`.
 - `fee` requires a cash instrument and stores its positive value in `fee`.
 - `tax` requires a cash instrument and stores its positive value in `tax`.

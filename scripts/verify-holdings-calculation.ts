@@ -34,7 +34,12 @@ const transactions: InvestmentTransaction[] = [
   transaction("18", accountA.id, zeroCash.id, "withdrawal", { grossAmount: "5", currency: "NZD" }),
   transaction("19", accountA.id, negativeCash.id, "withdrawal", { grossAmount: "7", currency: "NZD" }),
   transaction("20", accountA.id, openingStock.id, "opening_position", { quantity: "8", grossAmount: "120" }),
-  transaction("21", accountA.id, openingCash.id, "opening_balance", { grossAmount: "250" })
+  transaction("21", accountA.id, openingCash.id, "opening_balance", { grossAmount: "250" }),
+  transaction("22", accountA.id, cash.id, "deposit", {
+    grossAmount: "17",
+    transactionSource: "generated_cash_leg",
+    linkedTransactionId: "3"
+  })
 ];
 
 const holdings = calculateHoldings(
@@ -63,7 +68,7 @@ assert.equal(oversold.costAmount, null);
 assert.deepEqual(oversold.warnings, ["NEGATIVE_POSITION", "COST_BASIS_UNAVAILABLE"]);
 
 const cashBalance = requiredHolding(accountA.id, cash.id);
-assert.equal(cashBalance.quantity, "90");
+assert.equal(cashBalance.quantity, "107");
 assert.equal(cashBalance.averageUnitCost, null);
 assert.equal(cashBalance.costAmount, null);
 assert.deepEqual(cashBalance.warnings, []);
@@ -166,6 +171,10 @@ function transaction(
     tax: "0",
     currency: "USD",
     adjustmentDirection: null,
+    transactionSource: "manual",
+    linkedTransactionId: null,
+    settlementCurrency: null,
+    settlementAmount: null,
     notes: null,
     createdByUserId: null,
     updatedByUserId: null,

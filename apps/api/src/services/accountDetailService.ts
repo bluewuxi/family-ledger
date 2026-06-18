@@ -183,7 +183,7 @@ function buildCashBalances(holdings: ValuedHoldingSummary[]): AccountDetailCashB
     }));
 }
 
-function buildRecentTransactions(
+export function buildRecentTransactions(
   transactions: InvestmentTransaction[],
   limit: number
 ): AccountDetailRecentTransaction[] {

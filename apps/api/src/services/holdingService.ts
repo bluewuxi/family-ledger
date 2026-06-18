@@ -233,7 +233,11 @@ function buildLinkedCashLegs(
 ): HoldingDetailLinkedCashLeg[] {
   const parentIds = new Set(
     holdingTransactions
-      .filter((transaction) => transaction.transactionType === "buy" || transaction.transactionType === "sell")
+      .filter((transaction) =>
+        transaction.transactionType === "buy" ||
+        transaction.transactionType === "sell" ||
+        transaction.transactionType === "dividend"
+      )
       .map((transaction) => transaction.id)
   );
 

@@ -62,14 +62,14 @@ Transactions are entered through the Lambda API and always reference an account 
 - `opening_position` references a non-cash instrument and stores the starting quantity plus total carrying cost in `gross_amount`.
 - `opening_balance` references a cash instrument and stores the starting cash balance in `gross_amount`.
 - `buy` and `sell` reference non-cash instruments. Their `gross_amount` is calculated in the API as `quantity * price`, rounded half-up to six decimal places.
-- `buy` and `sell` automatically create or update a generated linked cash transaction in the account base currency. A buy creates a cash `withdrawal`; a sell creates a cash `deposit`.
-- `dividend` references the paying non-cash instrument and may record withholding in `tax`.
+- `buy`, `sell`, and `dividend` automatically create or update a generated linked cash transaction in the account base currency. A buy creates a cash `withdrawal`; a sell creates a cash `deposit`; a dividend creates a cash `deposit` for `gross_amount - tax` when the net amount is positive.
+- `dividend` references the paying non-cash instrument and may record withholding in `tax`; withholding cannot exceed `gross_amount`.
 - `deposit`, `withdrawal`, `interest`, `fee`, `tax`, and `adjustment` reference currency-matching cash instruments.
 - Standalone `fee` records store their value in `fee`; standalone `tax` records store their value in `tax`.
 - `adjustment` records store a non-negative `gross_amount` and use `adjustment_direction` (`increase` or `decrease`) to describe direction.
-- Generated cash legs are marked with `transaction_source = 'generated_cash_leg'` and `linked_transaction_id` pointing to the parent trade. They cannot be edited or deleted directly through the API.
-- Parent buy/sell rows store the derived `settlement_currency` and `settlement_amount` for display and audit. The settlement currency defaults to the account `base_currency`.
-- Transaction records do not store manual FX rates. Buy/sell settlement cash amounts use the latest stored valuation FX from `exchange_rates` on or before the trade date; missing settlement FX rejects the write request.
+- Generated cash legs are marked with `transaction_source = 'generated_cash_leg'` and `linked_transaction_id` pointing to the parent trade or dividend. They cannot be edited or deleted directly through the API.
+- Parent buy/sell/dividend rows store the derived `settlement_currency` and `settlement_amount` for display and audit. The settlement currency defaults to the account `base_currency`.
+- Transaction records do not store manual FX rates. Buy/sell/dividend settlement cash amounts use the latest stored valuation FX from `exchange_rates` on or before the trade date; missing settlement FX rejects the write request.
 
 ## Market Data Foundation
 
@@ -117,8 +117,8 @@ Holdings are a read-only derived view calculated by the Lambda API from transact
 - Opening positions add starting quantity and carrying cost before later buys and sells are applied.
 - Buys add `gross_amount + fee + tax` to carrying cost; sells remove units at the prior average unit cost. Sell-side fees and taxes are not included in remaining carrying cost.
 - Dividends do not change security quantity or carrying cost.
-- Cash balances use transactions linked to cash instruments: opening balances, deposits, generated sell cash legs, and interest increase balance; withdrawals, generated buy cash legs, fees, and taxes reduce balance; adjustments use their recorded direction.
-- A security buy/sell automatically creates the matching linked cash transaction; other cash movements remain explicit cash transactions.
+- Cash balances use transactions linked to cash instruments: opening balances, deposits, generated sell/dividend cash legs, and interest increase balance; withdrawals, generated buy cash legs, fees, and taxes reduce balance; adjustments use their recorded direction.
+- A security buy/sell/dividend automatically creates the matching linked cash transaction when there is a positive cash movement; other cash movements remain explicit cash transactions.
 - Final zero positions are omitted.
 - A negative cash balance is returned with `NEGATIVE_POSITION`.
 - A security position that becomes negative is returned with `NEGATIVE_POSITION` and `COST_BASIS_UNAVAILABLE`, and its average cost and remaining cost are null.
@@ -153,7 +153,7 @@ Portfolio snapshots are durable but repairable daily valuation records generated
 - API reads can display stored USD canonical amounts as `USD`, `NZD`, or `CNY`.
 - Dashboard recent-snapshot activity compares each row's displayed `marketValue` with the previous persisted snapshot's displayed `marketValue` in the selected display currency. It does not use `dailyChange` or `dailyChangePct`, because those fields describe latest-price movement versus previous price inside a single snapshot valuation. Weekend or holiday snapshots are shown if they exist; changes may be zero or may reflect FX, cash, or other input changes.
 - Dashboard trend charts can request trend points from the snapshot API. Portfolio value normally uses every stored daily snapshot in the selected range. For long ranges of two years or more (`近3年`, `近5年`, or `投资以来`), the API thins portfolio points to weekly targets aligned to the current app business date; non-trading targets use the latest previous snapshot while keeping the target date as the chart label. The dashboard profit chart reuses the same trend points and plots `资产净值 - 总投入` as the profit value curve.
-- The dashboard `总投入` line is derived from manual principal events only: `期初持仓`, `期初余额`, `入金`, and `出金`. Generated buy/sell cash legs, dividends, interest, fees, tax, and adjustments are excluded. Principal is converted with exact trade-date valuation FX into the selected display currency; missing FX is a data quality issue and makes the principal line and `累计收益` unavailable until fixed.
+- The dashboard `总投入` line is derived from manual principal events only: `期初持仓`, `期初余额`, `入金`, and `出金`. Generated buy/sell/dividend cash legs, dividends, interest, fees, tax, and adjustments are excluded. Principal is converted with exact trade-date valuation FX into the selected display currency; missing FX is a data quality issue and makes the principal line and `累计收益` unavailable until fixed.
 - The expected historical series includes every stored market-data price date on or after the first transaction date where required NZD and CNY valuation FX is available, plus existing snapshot dates. Operator repair may insert missing expected dates and rewrite mismatched derived values.
 
 Snapshot generation uses as-of data:
@@ -175,7 +175,7 @@ When a valuation-impacting transaction is created, updated, or deleted through t
 
 The monthly family review combines a derived API/UI report with a small persisted workflow record. Derived financial values are not duplicated into monthly report rows. The app stores only one `monthly_reviews` row per `YYYY-MM` month for family notes and review completion metadata.
 
-The report reuses stored portfolio snapshots for month-start and month-end values, manual principal transactions for net invested cash, manual cash adjustments for month-end reconciliation, and dividend transactions as separate investment-income context. Buy/sell generated cash legs are shown only as linked settlement context under their parent trade.
+The report reuses stored portfolio snapshots for month-start and month-end values, manual principal transactions for net invested cash, manual cash adjustments for month-end reconciliation, and dividend transactions as separate investment-income context. Buy/sell generated cash legs are shown only as linked settlement context under their parent trade activity; dividend generated cash legs affect snapshots and cash balances but are not returned as linked rows in the monthly summary DTO.
 
 Account changes compare account snapshot rows from the selected start and end snapshots. A missing account row on one side is displayed as zero so accounts opened or closed during the month remain explainable. Rows with unavailable snapshot values remain unavailable and surface data-quality warnings rather than partial values.
 

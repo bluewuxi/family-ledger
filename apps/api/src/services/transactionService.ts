@@ -198,7 +198,7 @@ export async function deleteInvestmentTransaction(id: string): Promise<void> {
 async function withAutomaticSettlement(
   input: CreateInvestmentTransactionInput
 ): Promise<CreateInvestmentTransactionInput> {
-  if (input.transactionType !== "buy" && input.transactionType !== "sell") {
+  if (!usesAutomaticSettlement(input.transactionType)) {
     return {
       ...input,
       settlementCurrency: null,
@@ -213,8 +213,12 @@ async function withAutomaticSettlement(
   }
 
   const settlementCurrency = account.baseCurrency;
-  await findCashInstrument(settlementCurrency);
-  const tradeAmount = calculateTradeCashAmount(input);
+  const tradeAmount = calculateSettlementCashAmount(input);
+
+  if (!tradeAmount.isZero()) {
+    await findCashInstrument(settlementCurrency);
+  }
+
   const settlementAmount = await convertSettlementAmount({
     amount: tradeAmount,
     fromCurrency: input.currency,
@@ -232,7 +236,7 @@ async function withAutomaticSettlement(
 async function syncGeneratedCashLeg(parent: InvestmentTransaction, userId: string): Promise<void> {
   const existingCashLeg = await findGeneratedCashLegByParentId(parent.id);
 
-  if (parent.transactionType !== "buy" && parent.transactionType !== "sell") {
+  if (!usesAutomaticSettlement(parent.transactionType)) {
     if (existingCashLeg) {
       await deleteGeneratedCashLegByParentId(parent.id);
     }
@@ -243,8 +247,50 @@ async function syncGeneratedCashLeg(parent: InvestmentTransaction, userId: strin
     throw new ApiRequestError("VALIDATION_ERROR", "Settlement cash amount could not be calculated.", 400);
   }
 
+  if (isZeroDividendSettlement(parent)) {
+    if (existingCashLeg) {
+      await deleteGeneratedCashLegByParentId(parent.id);
+    }
+    return;
+  }
+
   const cashInstrument = await findCashInstrument(parent.settlementCurrency);
-  const cashInput: CreateInvestmentTransactionInput = {
+  const cashInput = buildGeneratedCashLegInput(parent, cashInstrument);
+
+  if (!cashInput) {
+    if (existingCashLeg) {
+      await deleteGeneratedCashLegByParentId(parent.id);
+    }
+    return;
+  }
+
+  if (existingCashLeg) {
+    await updateTransaction(existingCashLeg.id, cashInput, userId);
+    return;
+  }
+
+  await createTransaction(cashInput, userId);
+}
+
+export function buildGeneratedCashLegInput(
+  parent: InvestmentTransaction,
+  cashInstrument: Instrument
+): CreateInvestmentTransactionInput | null {
+  if (!usesAutomaticSettlement(parent.transactionType)) {
+    return null;
+  }
+
+  if (!parent.settlementCurrency || !parent.settlementAmount) {
+    return null;
+  }
+
+  const settlementAmount = new Decimal(parent.settlementAmount ?? "0");
+
+  if (parent.transactionType === "dividend" && settlementAmount.isZero()) {
+    return null;
+  }
+
+  return {
     accountId: parent.accountId,
     instrumentId: cashInstrument.id,
     transactionType: parent.transactionType === "buy" ? "withdrawal" : "deposit",
@@ -261,15 +307,8 @@ async function syncGeneratedCashLeg(parent: InvestmentTransaction, userId: strin
     linkedTransactionId: parent.id,
     settlementCurrency: null,
     settlementAmount: null,
-    notes: parent.transactionType === "buy" ? "自动现金流水：买入结算" : "自动现金流水：卖出结算"
+    notes: generatedCashLegNotes(parent.transactionType)
   };
-
-  if (existingCashLeg) {
-    await updateTransaction(existingCashLeg.id, cashInput, userId);
-    return;
-  }
-
-  await createTransaction(cashInput, userId);
 }
 
 async function findCashInstrument(currency: CurrencyCode): Promise<Instrument> {
@@ -283,17 +322,58 @@ async function findCashInstrument(currency: CurrencyCode): Promise<Instrument> {
   return cashInstrument;
 }
 
-function calculateTradeCashAmount(input: CreateInvestmentTransactionInput): Decimal {
+export function calculateSettlementCashAmount(input: CreateInvestmentTransactionInput): Decimal {
   const grossAmount = requiredAmount(input.grossAmount, "grossAmount");
   const fee = new Decimal(input.fee ?? "0");
   const tax = new Decimal(input.tax ?? "0");
-  const amount = input.transactionType === "sell" ? grossAmount.minus(fee).minus(tax) : grossAmount.plus(fee).plus(tax);
+  const amount = settlementCashAmount(input.transactionType, grossAmount, fee, tax);
 
-  if (!amount.gt(0)) {
+  if (input.transactionType === "dividend" && amount.isNegative()) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Dividend tax cannot exceed grossAmount.", 400);
+  }
+
+  if (input.transactionType !== "dividend" && !amount.gt(0)) {
     throw new ApiRequestError("VALIDATION_ERROR", "Settlement amount must be greater than zero.", 400);
   }
 
   return amount;
+}
+
+function settlementCashAmount(
+  transactionType: TransactionType,
+  grossAmount: Decimal,
+  fee: Decimal,
+  tax: Decimal
+): Decimal {
+  if (transactionType === "sell") {
+    return grossAmount.minus(fee).minus(tax);
+  }
+
+  if (transactionType === "dividend") {
+    return grossAmount.minus(tax);
+  }
+
+  return grossAmount.plus(fee).plus(tax);
+}
+
+function usesAutomaticSettlement(transactionType: TransactionType): boolean {
+  return transactionType === "buy" || transactionType === "sell" || transactionType === "dividend";
+}
+
+function isZeroDividendSettlement(transaction: InvestmentTransaction): boolean {
+  return transaction.transactionType === "dividend" && new Decimal(transaction.settlementAmount ?? "0").isZero();
+}
+
+function generatedCashLegNotes(transactionType: TransactionType): string {
+  if (transactionType === "buy") {
+    return "\u81ea\u52a8\u73b0\u91d1\u6d41\u6c34\uff1a\u4e70\u5165\u7ed3\u7b97";
+  }
+
+  if (transactionType === "sell") {
+    return "\u81ea\u52a8\u73b0\u91d1\u6d41\u6c34\uff1a\u5356\u51fa\u7ed3\u7b97";
+  }
+
+  return "\u81ea\u52a8\u73b0\u91d1\u6d41\u6c34\uff1a\u80a1\u606f\u5165\u8d26";
 }
 
 function requiredAmount(value: string | null | undefined, field: string): Decimal {
@@ -310,6 +390,10 @@ async function convertSettlementAmount(input: {
   toCurrency: CurrencyCode;
   tradeDate: string;
 }): Promise<string> {
+  if (input.amount.isZero()) {
+    return "0.000000";
+  }
+
   if (input.fromCurrency === input.toCurrency) {
     return input.amount.toDecimalPlaces(6, Decimal.ROUND_HALF_UP).toFixed(6);
   }
@@ -661,22 +745,29 @@ async function validateTransaction(
         adjustmentDirection: null
       };
     }
-    case "dividend":
+    case "dividend": {
       requireNonCashInstrument(instrument, input.transactionType);
       rejectValue(input.quantity, "quantity", input.transactionType);
       rejectValue(input.price, "price", input.transactionType);
       requireZero(fee, "fee", input.transactionType);
       rejectAdjustmentDirection(input);
 
+      const grossAmount = requiredDecimal(input.grossAmount, "grossAmount", 6, true);
+
+      if (new Decimal(tax).greaterThan(grossAmount)) {
+        throw new ApiRequestError("VALIDATION_ERROR", "Dividend tax cannot exceed grossAmount.", 400);
+      }
+
       return {
         ...input,
         quantity: null,
         price: null,
-        grossAmount: requiredDecimal(input.grossAmount, "grossAmount", 6, true),
+        grossAmount,
         fee: "0",
         tax,
         adjustmentDirection: null
       };
+    }
     case "deposit":
     case "withdrawal":
     case "interest":

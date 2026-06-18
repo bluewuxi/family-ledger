@@ -23,6 +23,7 @@
     "build": "corepack pnpm --filter @family-ledger/shared build && corepack pnpm --filter @family-ledger/api build && corepack pnpm --filter @family-ledger/jobs build && corepack pnpm --filter @family-ledger/web build",
     "smoke:stage1:test": "tsx scripts/smoke-test-stage1.ts",
     "verify:api-health": "tsx scripts/verify-api-health.ts",
+    "verify:dividend-cash-leg": "tsx scripts/verify-dividend-cash-leg.ts",
     "verify:holdings": "tsx scripts/verify-holdings-calculation.ts",
     "verify:holding-detail": "tsx scripts/verify-holding-detail.ts",
     "verify:account-detail": "tsx scripts/verify-account-detail.ts",

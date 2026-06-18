@@ -31,6 +31,11 @@ const transactions: InvestmentTransaction[] = [
     grossAmount: "100",
     transactionSource: "generated_cash_leg",
     linkedTransactionId: "t1"
+  }),
+  transaction("t6", accountA.id, cash.id, "deposit", {
+    grossAmount: "11",
+    transactionSource: "generated_cash_leg",
+    linkedTransactionId: "t2"
   })
 ];
 
@@ -92,16 +97,17 @@ assert.equal(securityDetail.dividendTransactions.length, 1);
 assert.equal(securityDetail.dividendSummary.totalGrossAmount, "12.500000");
 assert.equal(securityDetail.dividendSummary.totalTaxAmount, "1.500000");
 assert.equal(securityDetail.dividendSummary.latestDividendDate, "2026-01-02");
+assert.equal(securityDetail.linkedCashLegs.find((item) => item.parentTransactionId === "t2")?.transaction.grossAmount, "11");
 assert.equal(securityDetail.priceContext.movementAmount, "1.000000");
 assert.equal(securityDetail.priceContext.movementPct, "7.142857");
 
 const cashRelatedTransactions = selectHoldingDetailTransactions(accountA.id, cash.id, cash, transactions);
-assert.equal(cashRelatedTransactions.length, 1);
+assert.equal(cashRelatedTransactions.length, 2);
 assert.equal(cashRelatedTransactions[0]?.transactionSource, "generated_cash_leg");
 
 const nonCashRelatedTransactions = selectHoldingDetailTransactions(accountA.id, security.id, security, [
   ...transactions,
-  transaction("t6", accountA.id, security.id, "withdrawal", {
+  transaction("t7", accountA.id, security.id, "withdrawal", {
     grossAmount: "100",
     transactionSource: "generated_cash_leg",
     linkedTransactionId: "t1"

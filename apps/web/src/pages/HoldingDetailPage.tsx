@@ -165,7 +165,7 @@ export function HoldingDetailPage() {
                 <DetailRow label="最新价格日期" value={detail.holding.latestPriceDate ?? "--"} />
                 <DetailRow label="数据提示" value={formatHoldingWarnings(detail.holding)} />
               </dl>
-              <p className="holding-detail-note">股息不会改变持仓数量；如果股息再投资，请另行记录买入交易。</p>
+              <p className="holding-detail-note">股息不会改变持仓数量；记录股息会生成入账现金。如果股息再投资，请另行记录买入交易。</p>
             </article>
 
             <article className="flow-card holding-detail-panel">
@@ -234,13 +234,14 @@ export function HoldingDetailPage() {
                     <th>日期</th>
                     <th className="numeric-cell">股息金额</th>
                     <th className="numeric-cell">记录税额</th>
+                    <th>入账现金</th>
                     <th>备注</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedDividendTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan={4}>暂无股息记录。</td>
+                      <td colSpan={5}>暂无股息记录。</td>
                     </tr>
                   ) : (
                     sortedDividendTransactions.map((transaction) => (
@@ -248,6 +249,7 @@ export function HoldingDetailPage() {
                         <td>{transaction.tradeDate}</td>
                         <td className="numeric-cell">{formatDisplayAmount(transaction.grossAmount)}</td>
                         <td className="numeric-cell">{formatDisplayAmount(transaction.tax)}</td>
+                        <td>{formatLinkedCashLeg(linkedCashLegsByParentId.get(transaction.id))}</td>
                         <td>{transaction.notes ?? "-"}</td>
                       </tr>
                     ))
