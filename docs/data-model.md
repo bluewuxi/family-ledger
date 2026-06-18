@@ -173,11 +173,15 @@ When a valuation-impacting transaction is created, updated, or deleted through t
 
 ## Monthly Family Review
 
-The monthly family review is a derived, read-only API/UI view. It does not store monthly report rows, saved notes, generated files, or approval state in V1.
+The monthly family review combines a derived API/UI report with a small persisted workflow record. Derived financial values are not duplicated into monthly report rows. The app stores only one `monthly_reviews` row per `YYYY-MM` month for family notes and review completion metadata.
 
 The report reuses stored portfolio snapshots for month-start and month-end values, manual principal transactions for net invested cash, manual cash adjustments for month-end reconciliation, and dividend transactions as separate investment-income context. Buy/sell generated cash legs are shown only as linked settlement context under their parent trade.
 
 Account changes compare account snapshot rows from the selected start and end snapshots. A missing account row on one side is displayed as zero so accounts opened or closed during the month remain explainable. Rows with unavailable snapshot values remain unavailable and surface data-quality warnings rather than partial values.
+
+`monthly_reviews` stores `month`, `family_notes`, `review_status`, completion metadata, and audit timestamps/user ids. `review_status` is either `in_progress` or `complete`; completed rows must have `completed_at` and `completed_by_user_id`, while reopened rows clear both fields. Data quality remains computed from the monthly summary warnings and snapshot warnings, so a completed review can still show that current data needs attention after later data changes.
+
+Print/export for monthly review is browser-native and does not persist generated report files.
 
 ## Seeded Instruments
 
@@ -217,6 +221,7 @@ The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints
 - valuation exchange rates: constrained to `to_currency = 'USD'`
 - portfolio snapshots: unique by `snapshot_date`
 - portfolio account snapshots: unique by `snapshot_date, account_id`
+- monthly reviews: unique by `month`
 - adjustments: `adjustment_direction` is required only for adjustment transactions
 - opening entries: `opening_position` and `opening_balance` are stored in transaction history, not in a separate starting-holdings table
 

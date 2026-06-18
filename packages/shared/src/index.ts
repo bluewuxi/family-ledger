@@ -1255,6 +1255,25 @@ export interface MonthlySummaryWarning {
   message: string;
 }
 
+export const MONTHLY_REVIEW_STATUSES = ["in_progress", "complete"] as const;
+export type MonthlyReviewStatus = (typeof MONTHLY_REVIEW_STATUSES)[number];
+
+export interface MonthlyReview {
+  month: string;
+  familyNotes: string;
+  reviewStatus: MonthlyReviewStatus;
+  completedAt: string | null;
+  completedByUserId: string | null;
+  updatedByUserId: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface UpdateMonthlyReviewInput {
+  familyNotes?: string;
+  reviewStatus?: MonthlyReviewStatus;
+}
+
 export type MonthlyBridgeLineKey =
   | "start_value"
   | "end_value"

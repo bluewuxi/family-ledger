@@ -14,6 +14,7 @@ const RESTORE_ORDER = [
   "portfolio_snapshots",
   "portfolio_account_snapshots",
   "dashboard_instrument_quotes",
+  "monthly_reviews",
   "job_runs",
   "data_provider_runs"
 ] as const;
@@ -65,7 +66,7 @@ function parseBackupFile(args: string[]): string {
 function validatePrimaryKeys(payload: LedgerBackupPayload): void {
   for (const table of payload.manifest.tables) {
     const rows = payload.tables[table.name] as Array<Record<string, unknown>>;
-    const primaryKey = table.name === "currencies" ? "code" : "id";
+    const primaryKey = table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
     const values = rows.map((row) => row[primaryKey]).filter((value) => value !== null && value !== undefined);
 
     if (values.length !== rows.length) {
@@ -112,6 +113,8 @@ function collectExternalUserIds(payload: LedgerBackupPayload): Set<string> {
   collectValues(payload.tables.instruments, "updated_by_user_id", userIds);
   collectValues(payload.tables.transactions, "created_by_user_id", userIds);
   collectValues(payload.tables.transactions, "updated_by_user_id", userIds);
+  collectValues(payload.tables.monthly_reviews, "completed_by_user_id", userIds);
+  collectValues(payload.tables.monthly_reviews, "updated_by_user_id", userIds);
   collectValues(payload.tables.job_runs, "triggered_by_user_id", userIds);
 
   return userIds;

@@ -6,7 +6,7 @@ Ledger backup V1 is an operator-controlled safety mechanism for the small family
 
 The scheduled backup exports only the explicit public-table allowlist used by `public.export_ledger_backup()` and `LEDGER_BACKUP_TABLES`:
 
-- Profiles, roles, accounts, instruments, transactions, currencies, prices, FX rates, snapshots, dashboard quote cache, and job audit tables.
+- Profiles, roles, accounts, instruments, transactions, currencies, prices, FX rates, snapshots, dashboard quote cache, monthly review notes/status, and job audit tables.
 - Supabase Auth internals, sessions, password hashes, frontend assets, SSM parameters, service keys, and decrypted trading account passwords are excluded.
 
 The manifest declares Supabase Auth users as external dependencies. Rows such as `profiles`, `user_roles`, and audit user ids require matching Auth user UUIDs during restore, or an explicit operator remapping step before loading data.

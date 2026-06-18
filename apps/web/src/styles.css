@@ -2039,6 +2039,71 @@ textarea {
   min-width: 0;
 }
 
+.monthly-review-workflow {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.monthly-review-header,
+.monthly-review-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.monthly-review-header h2,
+.monthly-review-header p,
+.monthly-review-footer p {
+  margin: 0;
+}
+
+.monthly-review-header p {
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.monthly-review-statuses,
+.monthly-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.monthly-review-notes {
+  display: grid;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.monthly-review-notes textarea {
+  min-height: 136px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 12px;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.65;
+}
+
+.monthly-review-notes textarea:read-only {
+  background: var(--color-background-soft);
+}
+
+.monthly-review-notes textarea:focus {
+  border-color: var(--color-brand-leaf);
+  box-shadow: 0 0 0 3px rgb(65 122 90 / 16%);
+  outline: none;
+}
+
 .monthly-warning-list {
   display: grid;
   gap: 8px;
@@ -3889,6 +3954,26 @@ tr.editing-row td {
     grid-template-columns: 1fr;
   }
 
+  .monthly-review-header,
+  .monthly-review-footer,
+  .monthly-review-actions {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .monthly-review-statuses {
+    justify-content: flex-start;
+  }
+
+  .monthly-review-actions > * {
+    width: 100%;
+  }
+
+  .monthly-review-notes textarea {
+    min-height: 160px;
+    font-size: 16px;
+  }
+
   .monthly-dividend-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -4168,6 +4253,119 @@ tr.editing-row td {
   .footer-brand-copy {
     display: grid;
     row-gap: 4px;
+  }
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    background: #fff;
+    color: #111827;
+  }
+
+  .app-sidebar,
+  .mobile-app-header,
+  .app-footer,
+  .local-auth-banner,
+  .dashboard-controls,
+  .print-hidden {
+    display: none !important;
+  }
+
+  .app-shell,
+  .app-shell-collapsed,
+  .main-content {
+    display: block;
+    min-height: auto;
+  }
+
+  .main-content {
+    padding: 0;
+  }
+
+  .monthly-report-page::before {
+    content: "小家大财 月度回顾";
+    display: block;
+    margin-bottom: 8px;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .page-header,
+  .account-header {
+    display: block;
+    margin-bottom: 14px;
+  }
+
+  .page-header h1 {
+    color: #111827;
+    font-size: 24px;
+  }
+
+  .page-header p,
+  .monthly-review-header p,
+  .readonly-note,
+  .quote-update-note {
+    color: #374151;
+  }
+
+  .metric-grid,
+  .monthly-summary-grid,
+  .monthly-dividend-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card,
+  .flow-card,
+  .monthly-mini-metric {
+    break-inside: avoid;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .monthly-review-header,
+  .monthly-review-footer {
+    display: block;
+  }
+
+  .monthly-review-statuses {
+    justify-content: flex-start;
+    margin-top: 8px;
+  }
+
+  .monthly-review-notes textarea {
+    min-height: 96px;
+    border-color: #d1d5db;
+    background: #fff;
+    color: #111827;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  .compact-table-wrap table {
+    min-width: 0;
+  }
+
+  table {
+    font-size: 11px;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
   }
 }
 

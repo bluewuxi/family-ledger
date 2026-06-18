@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { RefreshCw } from "lucide-react";
+import { CheckCircle2, Printer, RefreshCw, RotateCcw, Save } from "lucide-react";
 import {
+  formatDateTimeInTimeZone,
   getAppBusinessDate,
   SNAPSHOT_DISPLAY_CURRENCIES,
   TRANSACTION_TYPE_LABELS,
+  type AuthenticatedUser,
   type InvestmentTransaction,
   type MonthlyCashAdjustmentSummary,
+  type MonthlyReview,
+  type MonthlyReviewStatus,
   type MonthlySummary,
   type MonthlySummaryWarning,
   type MonthlyTradeActivitySummary,
@@ -15,12 +19,18 @@ import {
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
-import { ApiClientError, apiGet } from "../lib/apiClient";
+import { ApiClientError, apiGet, apiPatch } from "../lib/apiClient";
 import { formatDisplayAmount, formatSignedDisplayAmount, formatSignedDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
 interface MonthlySummaryResponse {
+  user: AuthenticatedUser;
   monthlySummary: MonthlySummary;
+}
+
+interface MonthlyReviewResponse {
+  user: AuthenticatedUser;
+  monthlyReview: MonthlyReview;
 }
 
 const monthlySummaryCurrencyStorageKey = "family-ledger.monthly-summary.reportingCurrency";
@@ -32,8 +42,13 @@ export function MonthlySummaryPage() {
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
+  const [review, setReview] = useState<MonthlyReview | null>(null);
+  const [reviewNotesDraft, setReviewNotesDraft] = useState("");
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savingReview, setSavingReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!preferencesLoading && !currencyManuallySelected) {
@@ -53,15 +68,52 @@ export function MonthlySummaryPage() {
   async function loadMonthlySummary(selectedMonth: string, currency: SnapshotDisplayCurrency) {
     setLoading(true);
     setError(null);
+    setReviewMessage(null);
 
     try {
       const query = new URLSearchParams({ month: selectedMonth, currency });
-      const data = await apiGet<MonthlySummaryResponse>(`/reports/monthly-summary?${query.toString()}`);
-      setSummary(data.monthlySummary);
+      const reviewQuery = new URLSearchParams({ month: selectedMonth });
+      const [summaryData, reviewData] = await Promise.all([
+        apiGet<MonthlySummaryResponse>(`/reports/monthly-summary?${query.toString()}`),
+        apiGet<MonthlyReviewResponse>(`/reports/monthly-review?${reviewQuery.toString()}`)
+      ]);
+      setUser(summaryData.user);
+      setSummary(summaryData.monthlySummary);
+      setReview(reviewData.monthlyReview);
+      setReviewNotesDraft(reviewData.monthlyReview.familyNotes);
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveReview(nextStatus?: MonthlyReviewStatus) {
+    if (nextStatus === "complete" && dataNeedsAttention) {
+      const confirmed = window.confirm("当前月度数据仍有提醒。确认标记为已完成吗？");
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setSavingReview(true);
+    setError(null);
+    setReviewMessage(null);
+
+    try {
+      const query = new URLSearchParams({ month });
+      const data = await apiPatch<MonthlyReviewResponse>(`/reports/monthly-review?${query.toString()}`, {
+        familyNotes: reviewNotesDraft,
+        ...(nextStatus ? { reviewStatus: nextStatus } : {})
+      });
+      setUser(data.user);
+      setReview(data.monthlyReview);
+      setReviewNotesDraft(data.monthlyReview.familyNotes);
+      setReviewMessage(nextStatus === "complete" ? "月度复盘已标记完成。" : nextStatus === "in_progress" ? "月度复盘已重新打开。" : "家庭备注已保存。");
+    } catch (requestError) {
+      setError(toErrorMessage(requestError));
+    } finally {
+      setSavingReview(false);
     }
   }
 
@@ -73,9 +125,12 @@ export function MonthlySummaryPage() {
     () => unique((summary?.snapshotWarnings ?? []).map(formatSnapshotWarning)),
     [summary?.snapshotWarnings]
   );
+  const dataNeedsAttention = warningMessages.length > 0 || snapshotWarningMessages.length > 0;
+  const isAdmin = user?.role === "admin";
+  const reviewStatus = review?.reviewStatus ?? "in_progress";
 
   return (
-    <section>
+    <section className="monthly-report-page">
       <header className="page-header account-header">
         <div>
           <PageTitle route="/reports/monthly-summary">月度回顾</PageTitle>
@@ -106,10 +161,15 @@ export function MonthlySummaryPage() {
             <RefreshCw size={17} aria-hidden="true" />
             <span>刷新</span>
           </button>
+          <button className="secondary-button print-hidden" type="button" onClick={() => window.print()} disabled={pageLoading}>
+            <Printer size={17} aria-hidden="true" />
+            <span>打印 / 导出</span>
+          </button>
         </div>
       </header>
 
       {error ? <p className="form-error">{error}</p> : null}
+      {reviewMessage ? <p className="form-success print-hidden">{reviewMessage}</p> : null}
 
       <div className="metric-grid monthly-summary-metrics">
         {[
@@ -139,6 +199,67 @@ export function MonthlySummaryPage() {
           快照范围：{summary.startSnapshotDate ?? "缺少月初快照"} 至 {summary.endSnapshotDate ?? "缺少月末快照"}
         </p>
       ) : null}
+
+      <section className="flow-card monthly-review-workflow">
+        <div className="monthly-review-header">
+          <div>
+            <h2>本月复盘</h2>
+            <p>记录家庭讨论结论，并标记本月是否已经复盘完成。</p>
+          </div>
+          <div className="monthly-review-statuses">
+            <span className={`status-pill ${dataNeedsAttention ? "status-pill-paused" : "status-pill-active"}`}>
+              数据状态：{pageLoading ? "加载中" : dataNeedsAttention ? "数据需关注" : "数据正常"}
+            </span>
+            <span className={`status-pill ${reviewStatus === "complete" ? "status-pill-active" : ""}`}>
+              复盘状态：{reviewStatus === "complete" ? "已完成" : "复盘中"}
+            </span>
+          </div>
+        </div>
+        <label className="monthly-review-notes">
+          家庭备注
+          <textarea
+            value={reviewNotesDraft}
+            onChange={(event) => setReviewNotesDraft(event.target.value)}
+            readOnly={!isAdmin || pageLoading}
+            placeholder="记录本月主要变化、家庭讨论结论或需要下月跟进的事项。"
+          />
+        </label>
+        <div className="monthly-review-footer">
+          <p className="readonly-note">
+            {isAdmin ? "admin 可保存备注并更新复盘状态；viewer 只能查看。" : "当前角色为 viewer，可查看家庭备注和复盘状态。"}
+            {review?.updatedAt ? ` 最后保存：${formatReviewTimestamp(review.updatedAt)}` : ""}
+          </p>
+          {isAdmin ? (
+            <div className="monthly-review-actions print-hidden">
+              <button className="secondary-button" type="button" onClick={() => void saveReview()} disabled={pageLoading || savingReview}>
+                <Save size={17} aria-hidden="true" />
+                <span>保存备注</span>
+              </button>
+              {reviewStatus === "complete" ? (
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => void saveReview("in_progress")}
+                  disabled={pageLoading || savingReview}
+                >
+                  <RotateCcw size={17} aria-hidden="true" />
+                  <span>重新打开</span>
+                </button>
+              ) : (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => void saveReview("complete")}
+                  disabled={pageLoading || savingReview}
+                >
+                  <CheckCircle2 size={17} aria-hidden="true" />
+                  <span>标记为已完成</span>
+                </button>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       <section className="monthly-summary-grid">
         <article className="flow-card monthly-panel">
@@ -309,6 +430,10 @@ function MetricBlock({ label, value }: { label: string; value: ReactNode }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function formatReviewTimestamp(value: string): string {
+  return formatDateTimeInTimeZone(value, Intl.DateTimeFormat().resolvedOptions().timeZone, "zh-CN", value);
 }
 
 function TradeActivityTable({ loading, trades }: { loading: boolean; trades: MonthlyTradeActivitySummary[] }) {

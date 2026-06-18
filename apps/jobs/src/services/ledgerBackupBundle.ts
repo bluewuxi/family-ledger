@@ -3,7 +3,7 @@ import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
 export const LEDGER_BACKUP_VERSION = 1;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20260529100000_add_ledger_backup_export_rpc";
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20260618090000_add_monthly_reviews";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -87,6 +87,8 @@ export function createLedgerBackupObject(input: {
         "instruments.updated_by_user_id",
         "transactions.created_by_user_id",
         "transactions.updated_by_user_id",
+        "monthly_reviews.completed_by_user_id",
+        "monthly_reviews.updated_by_user_id",
         "job_runs.triggered_by_user_id"
       ]
     },

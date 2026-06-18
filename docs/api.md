@@ -50,6 +50,7 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /transactions`
 - `GET /portfolio-snapshots`
 - `GET /reports/monthly-summary`
+- `GET /reports/monthly-review`
 - `GET /data-maintenance/fx-rates`
 - `GET /data-maintenance/instrument-prices`
 - `GET /data-maintenance/job-runs`
@@ -66,6 +67,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 - `GET /settings/trading-password-gate`
 - `PATCH /users/:id`
 - `PATCH /settings/trading-password-gate`
+- `PATCH /reports/monthly-review`
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
@@ -76,6 +78,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
 `GET /reports/monthly-summary` returns a monthly value bridge plus dividend and cash-calibration context.
+`GET /reports/monthly-review` returns saved monthly family notes and review status. `PATCH /reports/monthly-review` updates those workflow fields for admins.
 Market data read endpoints return stored provider FX rates, instrument prices, and ingestion audit logs. They do not call external providers.
 
 Response data:
@@ -410,7 +413,22 @@ Account changes use the union of account rows from the selected start and end sn
 
 Manual buy/sell transactions are returned as monthly trade activity. Generated cash legs are not standalone trades; when present, they are attached to the parent buy/sell as settlement context in the cash-leg currency.
 
-Missing start/end snapshots, unavailable snapshot market values, missing exact transaction-date valuation FX rates, and snapshot valuation warnings are returned as warnings. The endpoint does not store report records or saved review notes.
+Missing start/end snapshots, unavailable snapshot market values, missing exact transaction-date valuation FX rates, and snapshot valuation warnings are returned as warnings. The endpoint does not store derived report records or generated files.
+
+### Monthly Review Workflow API
+
+`GET /reports/monthly-review?month=YYYY-MM` is available to authenticated `viewer` and `admin` users. It returns the saved workflow record for the month, or an unsaved default review with empty notes and `in_progress` status.
+
+`PATCH /reports/monthly-review?month=YYYY-MM` is admin-only. It accepts:
+
+```json
+{
+  "familyNotes": "本月主要变化和家庭讨论结论。",
+  "reviewStatus": "complete"
+}
+```
+
+`reviewStatus` must be `in_progress` or `complete`. Marking a review complete writes `completedAt` and `completedByUserId`; reopening clears both fields. The workflow record stores notes and completion metadata only. Data health is still computed from the monthly summary warnings and snapshot warnings.
 
 Response data:
 

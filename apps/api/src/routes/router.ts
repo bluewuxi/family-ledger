@@ -24,6 +24,7 @@ import {
 } from "../services/dataMaintenanceService";
 import { getManagedUsers, updateManagedUser } from "../services/managedUserService";
 import { getMonthlySummary } from "../services/monthlySummaryService";
+import { getMonthlyReview, updateMonthlyReview } from "../services/monthlyReviewService";
 import {
   createInvestmentInstrument,
   deleteInvestmentInstrument,
@@ -146,6 +147,20 @@ const routes: Record<string, RouteHandler> = {
         currency: event.queryStringParameters?.currency,
         user
       })
+    });
+  },
+  "GET /reports/monthly-review": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({
+      user,
+      monthlyReview: await getMonthlyReview(event.queryStringParameters?.month)
+    });
+  },
+  "PATCH /reports/monthly-review": async (event) => {
+    const user = await requireRole(event, "admin");
+    return success({
+      user,
+      monthlyReview: await updateMonthlyReview(event.queryStringParameters?.month, parseJsonBody(event), user)
     });
   },
   "GET /data-maintenance/fx-rates": async (event) => {

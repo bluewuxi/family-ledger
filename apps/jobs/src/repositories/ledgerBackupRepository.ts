@@ -12,6 +12,7 @@ export const LEDGER_BACKUP_TABLES = [
   { name: "portfolio_snapshots", orderColumn: "id" },
   { name: "portfolio_account_snapshots", orderColumn: "id" },
   { name: "dashboard_instrument_quotes", orderColumn: "id" },
+  { name: "monthly_reviews", orderColumn: "month" },
   { name: "job_runs", orderColumn: "id" },
   { name: "data_provider_runs", orderColumn: "id" }
 ] as const;

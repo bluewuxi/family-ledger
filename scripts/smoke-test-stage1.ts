@@ -15,7 +15,8 @@ const requiredTables = [
   "exchange_rates",
   "job_runs",
   "data_provider_runs",
-  "portfolio_snapshots"
+  "portfolio_snapshots",
+  "monthly_reviews"
 ];
 
 const businessTables = [
@@ -27,11 +28,13 @@ const businessTables = [
   "exchange_rates",
   "job_runs",
   "data_provider_runs",
-  "portfolio_snapshots"
+  "portfolio_snapshots",
+  "monthly_reviews"
 ];
 
 const tableIdentitySelects: Record<string, string> = {
-  currencies: "code"
+  currencies: "code",
+  monthly_reviews: "month"
 };
 
 function requiredEnv(name: string): string {
@@ -129,6 +132,7 @@ async function main(): Promise<void> {
     instrument_prices: "provider,source_symbol,is_adjusted,fetched_at",
     exchange_rates: "rate_type,provider,provider_rate_date,fetched_at",
     job_runs: "job_name,status,job_started_at,job_finished_at,records_inserted,records_skipped,error_message",
+    monthly_reviews: "family_notes,review_status,completed_at,completed_by_user_id,updated_by_user_id",
     data_provider_runs:
       "job_run_id,provider,data_kind,status,provider_started_at,provider_finished_at,records_inserted,records_skipped,error_message"
   };
