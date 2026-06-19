@@ -4,11 +4,12 @@ import {
   buildAccountChanges,
   buildTradeActivity,
   calculateMonthlyBridge,
+  calculateSyntheticStartBaseline,
   collectSnapshotWarnings,
   getMonthlySnapshotWindows
 } from "../apps/api/src/services/monthlySummaryService";
 import { parseMonthlyReportMonth } from "../apps/api/src/services/monthlyReportMonth";
-import type { InvestmentTransaction, PortfolioSnapshotSummary, SnapshotWarning } from "@family-ledger/shared";
+import type { InvestmentTransaction, PortfolioSnapshotSummary, PriceRecord, SnapshotWarning } from "@family-ledger/shared";
 
 const complete = calculateMonthlyBridge({
   startValue: "1000.000000",
@@ -39,6 +40,66 @@ const missingFlow = calculateMonthlyBridge({
 
 assert.equal(missingFlow.assetChange, "300.000000");
 assert.equal(missingFlow.valuationMovement, null);
+
+const initialMonthBridge = calculateMonthlyBridge({
+  startValue: "500.000000",
+  endValue: "550.000000",
+  netPrincipalFlow: "0.000000",
+  cashAdjustmentImpact: "0.000000"
+});
+
+assert.equal(initialMonthBridge.assetChange, "50.000000");
+assert.equal(initialMonthBridge.valuationMovement, "50.000000");
+
+const syntheticStartBaseline = calculateSyntheticStartBaseline({
+  transactions: [
+    transaction({
+      id: "opening-security",
+      transactionType: "opening_position",
+      transactionSource: "manual",
+      linkedTransactionId: null,
+      instrumentId: "instrument-a",
+      quantity: "10",
+      grossAmount: "100"
+    }),
+    transaction({
+      id: "opening-cash",
+      transactionType: "opening_balance",
+      transactionSource: "manual",
+      linkedTransactionId: null,
+      instrumentId: "cash-usd",
+      grossAmount: "50"
+    })
+  ],
+  currency: "USD",
+  prices: [price({ instrumentId: "instrument-a", priceDate: "2026-06-15", closePrice: "15", currency: "USD" })],
+  fxRates: []
+});
+
+assert.equal(syntheticStartBaseline.amount?.toFixed(6), "200.000000");
+assert.equal(syntheticStartBaseline.amountsByAccount.get("account-a")?.toFixed(6), "200.000000");
+assert.equal(syntheticStartBaseline.warnings.length, 0);
+
+const missingOpeningPriceBaseline = calculateSyntheticStartBaseline({
+  transactions: [
+    transaction({
+      id: "opening-security-missing-price",
+      transactionType: "opening_position",
+      transactionSource: "manual",
+      linkedTransactionId: null,
+      instrumentId: "instrument-a",
+      quantity: "10",
+      grossAmount: "100"
+    })
+  ],
+  currency: "USD",
+  prices: [],
+  fxRates: []
+});
+
+assert.equal(missingOpeningPriceBaseline.amount, null);
+assert.equal(missingOpeningPriceBaseline.amountsByAccount.get("account-a"), null);
+assert.equal(missingOpeningPriceBaseline.warnings[0]?.code, "MISSING_OPENING_PRICE");
 
 const windows = getMonthlySnapshotWindows("2026-06");
 
@@ -94,8 +155,31 @@ assert.equal(accountChanges.find((account) => account.accountId === "account-b")
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.valuationMovement, "0.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.changePct, null);
 assert.equal(accountChanges.find((account) => account.accountId === "account-c")?.changeAmount, null);
-assert.deepEqual(buildAccountChanges({ startSnapshot: null, endSnapshot }), []);
+assert.deepEqual(buildAccountChanges({ startSnapshot: null, endSnapshot: null }), []);
 assert.equal(collectSnapshotWarnings(startSnapshot, endSnapshot).length, 1);
+
+const initialMonthEndSnapshot = snapshot({
+  snapshotDate: "2026-05-31",
+  accounts: [
+    accountSnapshot({ accountId: "account-init", accountName: "Init Account", marketValue: "550.000000" })
+  ]
+});
+const initialMonthAccountChanges = buildAccountChanges({
+  startSnapshot: null,
+  endSnapshot: initialMonthEndSnapshot,
+  reportingCurrency: "USD",
+  syntheticStartValuesByAccount: new Map<string, Decimal | null>([["account-init", new Decimal("500")]]),
+  netPrincipalFlowsByAccount: new Map<string, Decimal | null>([["account-init", new Decimal("0")]]),
+  totalValuationMovement: "50.000000"
+});
+const initialMonthAccount = initialMonthAccountChanges.find((account) => account.accountId === "account-init");
+assert.equal(initialMonthAccountChanges.length, 1);
+assert.equal(initialMonthAccount?.startValue, "500.000000");
+assert.equal(initialMonthAccount?.endValue, "550.000000");
+assert.equal(initialMonthAccount?.assetChange, "50.000000");
+assert.equal(initialMonthAccount?.netPrincipalFlow, "0.000000");
+assert.equal(initialMonthAccount?.valuationMovement, "50.000000");
+assert.equal(initialMonthAccount?.valuationContributionPct, "100.000000");
 
 const missingFlowAccountChanges = buildAccountChanges({
   startSnapshot,
@@ -193,6 +277,8 @@ function transaction(input: {
   transactionSource: InvestmentTransaction["transactionSource"];
   linkedTransactionId: string | null;
   instrumentId: string;
+  quantity?: string | null;
+  grossAmount?: string | null;
 }): InvestmentTransaction {
   return {
     id: input.id,
@@ -205,9 +291,9 @@ function transaction(input: {
     transactionType: input.transactionType,
     tradeDate: "2026-06-15",
     settlementDate: "2026-06-17",
-    quantity: "1",
+    quantity: input.quantity ?? "1",
     price: "10",
-    grossAmount: "10",
+    grossAmount: input.grossAmount ?? "10",
     fee: "0",
     tax: "0",
     currency: "USD",
@@ -221,5 +307,25 @@ function transaction(input: {
     updatedByUserId: null,
     createdAt: "2026-06-15T00:00:00.000Z",
     updatedAt: "2026-06-15T00:00:00.000Z"
+  };
+}
+
+function price(input: {
+  instrumentId: string;
+  priceDate: string;
+  closePrice: string;
+  currency: PriceRecord["currency"];
+}): PriceRecord {
+  return {
+    id: `${input.instrumentId}:${input.priceDate}`,
+    instrumentId: input.instrumentId,
+    priceDate: input.priceDate,
+    closePrice: input.closePrice,
+    currency: input.currency,
+    source: "manual",
+    sourceSymbol: null,
+    isAdjusted: false,
+    createdAt: `${input.priceDate}T00:00:00.000Z`,
+    updatedAt: `${input.priceDate}T00:00:00.000Z`
   };
 }

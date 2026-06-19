@@ -15,10 +15,12 @@ import type {
   MonthlyTradeActivitySummary,
   PortfolioAccountSnapshotSummary,
   PortfolioSnapshotSummary,
+  PriceRecord,
   SnapshotWarning,
   SnapshotDisplayCurrency
 } from "@family-ledger/shared";
-import { listExactValuationRatesToUsdForDates } from "../repositories/fxRateRepository";
+import { listExactValuationRatesToUsdForDates, listValuationRatesToUsdForDates } from "../repositories/fxRateRepository";
+import { listLatestPricesForDates } from "../repositories/priceRepository";
 import { listPortfolioSnapshots } from "../repositories/portfolioSnapshotRepository";
 import { listTransactions } from "../repositories/transactionRepository";
 import { parseMonthlyReportMonth } from "./monthlyReportMonth";
@@ -38,6 +40,12 @@ interface TransactionAmountConversionResult {
 }
 
 interface AccountFlowConversionResult {
+  amountsByAccount: Map<string, Decimal | null>;
+  warnings: MonthlySummaryWarning[];
+}
+
+interface SyntheticStartBaselineResult {
+  amount: Decimal | null;
   amountsByAccount: Map<string, Decimal | null>;
   warnings: MonthlySummaryWarning[];
 }
@@ -65,6 +73,8 @@ export async function getMonthlySummary(input: {
       transaction.transactionType === "deposit" ||
       transaction.transactionType === "withdrawal"
     );
+  const openingPrincipalTransactions = principalTransactions.filter(isOpeningPrincipalTransaction);
+  const contributionPrincipalTransactions = principalTransactions.filter((transaction) => !isOpeningPrincipalTransaction(transaction));
   const adjustmentTransactions = transactions
     .filter((transaction) => transaction.transactionSource === "manual")
     .filter((transaction) => transaction.transactionType === "adjustment");
@@ -77,11 +87,38 @@ export async function getMonthlySummary(input: {
   );
   const ratesByCurrencyAndDate = new Map(exactFxRates.map((rate) => [fxRateKey(rate.fromCurrency, rate.rateDate), rate]));
   const warnings = new Map<string, MonthlySummaryWarning>();
+  const openingSecurityTransactions = openingPrincipalTransactions.filter(
+    (transaction) => transaction.transactionType === "opening_position"
+  );
+  const [openingPrices, openingFxRates] =
+    !startSnapshot && openingPrincipalTransactions.length > 0
+      ? await Promise.all([
+          openingSecurityTransactions.length > 0
+            ? listLatestPricesForDates(getRequiredFxDates(openingSecurityTransactions), uniqueValues(openingSecurityTransactions.map((transaction) => transaction.instrumentId)))
+            : Promise.resolve([]),
+          listValuationRatesToUsdForDates(
+            getRequiredFxDates(openingPrincipalTransactions),
+            getRequiredOpeningValuationCurrencies(openingPrincipalTransactions, currency)
+          )
+        ])
+      : [[], []];
 
-  addSnapshotWarnings(warnings, startSnapshot, endSnapshot);
+  const syntheticStartValue = !startSnapshot && openingPrincipalTransactions.length > 0
+    ? calculateSyntheticStartBaseline({
+        transactions: openingPrincipalTransactions,
+        currency,
+        prices: openingPrices,
+        fxRates: openingFxRates
+      })
+    : null;
+  addWarnings(warnings, syntheticStartValue?.warnings ?? []);
+  const usesSyntheticStartValue = syntheticStartValue?.amount !== null && syntheticStartValue?.amount !== undefined;
+  const bridgePrincipalTransactions = usesSyntheticStartValue ? contributionPrincipalTransactions : principalTransactions;
+
+  addSnapshotWarnings(warnings, startSnapshot, endSnapshot, usesSyntheticStartValue);
 
   const netPrincipalFlow = sumConvertedTransactions({
-    transactions: principalTransactions,
+    transactions: bridgePrincipalTransactions,
     currency,
     ratesByCurrencyAndDate,
     warningCode: "MISSING_PRINCIPAL_FX_RATE",
@@ -99,7 +136,7 @@ export async function getMonthlySummary(input: {
   addWarnings(warnings, cashAdjustmentImpact.warnings);
 
   const netPrincipalFlowsByAccount = sumConvertedTransactionsByAccount({
-    transactions: principalTransactions,
+    transactions: bridgePrincipalTransactions,
     currency,
     ratesByCurrencyAndDate,
     warningCode: "MISSING_PRINCIPAL_FX_RATE",
@@ -121,7 +158,7 @@ export async function getMonthlySummary(input: {
   addWarnings(warnings, dividendSummary.warnings);
 
   const bridge = calculateMonthlyBridge({
-    startValue: startSnapshot?.marketValue ?? null,
+    startValue: startSnapshot?.marketValue ?? (syntheticStartValue?.amount ? formatDecimal(syntheticStartValue.amount) : null),
     endValue: endSnapshot?.marketValue ?? null,
     netPrincipalFlow: netPrincipalFlow.amount === null ? null : formatDecimal(netPrincipalFlow.amount),
     cashAdjustmentImpact: cashAdjustmentImpact.amount === null ? null : formatDecimal(cashAdjustmentImpact.amount)
@@ -150,10 +187,12 @@ export async function getMonthlySummary(input: {
       currency,
       ratesByCurrencyAndDate
     }),
-    principalTransactions: principalTransactions.sort(compareTransactionsDesc),
+    principalTransactions: bridgePrincipalTransactions.sort(compareTransactionsDesc),
     accountChanges: buildAccountChanges({
       startSnapshot,
       endSnapshot,
+      reportingCurrency: currency,
+      syntheticStartValuesByAccount: usesSyntheticStartValue ? syntheticStartValue.amountsByAccount : undefined,
       netPrincipalFlowsByAccount: netPrincipalFlowsByAccount.amountsByAccount,
       cashAdjustmentImpactsByAccount: cashAdjustmentImpactsByAccount.amountsByAccount,
       totalValuationMovement: bridge.valuationMovement
@@ -226,16 +265,17 @@ function getMonthBoundaries(month: string): { monthStart: string; monthEnd: stri
 function addSnapshotWarnings(
   warnings: Map<string, MonthlySummaryWarning>,
   startSnapshot: PortfolioSnapshotSummary | null,
-  endSnapshot: PortfolioSnapshotSummary | null
+  endSnapshot: PortfolioSnapshotSummary | null,
+  hasSyntheticStartValue = false
 ): void {
-  if (!startSnapshot) {
+  if (!startSnapshot && !hasSyntheticStartValue) {
     addWarning(warnings, {
       code: "MISSING_START_SNAPSHOT",
       date: null,
       currency: null,
       message: "缺少月初前的资产快照，无法完整计算资产变化。"
     });
-  } else if (startSnapshot.marketValue === null) {
+  } else if (startSnapshot && startSnapshot.marketValue === null) {
     addWarning(warnings, {
       code: "START_VALUE_UNAVAILABLE",
       date: startSnapshot.snapshotDate,
@@ -338,6 +378,64 @@ function sumConvertedTransactionsByAccount(input: {
   }
 
   return { amountsByAccount, warnings: [...warnings.values()] };
+}
+
+export function calculateSyntheticStartBaseline(input: {
+  transactions: InvestmentTransaction[];
+  currency: SnapshotDisplayCurrency;
+  prices: PriceRecord[];
+  fxRates: ExchangeRateRecord[];
+}): SyntheticStartBaselineResult {
+  let total = new Decimal(0);
+  const totalsByAccount = new Map<string, Decimal>();
+  const warnings = new Map<string, MonthlySummaryWarning>();
+  const warningsByAccount = new Map<string, Map<string, MonthlySummaryWarning>>();
+
+  for (const transaction of input.transactions) {
+    if (!totalsByAccount.has(transaction.accountId)) {
+      totalsByAccount.set(transaction.accountId, new Decimal(0));
+    }
+
+    const nativeAmount = getOpeningMarketAmount(transaction, input.prices);
+    const transactionWarnings: MonthlySummaryWarning[] = [];
+
+    if (nativeAmount === null) {
+      transactionWarnings.push(toOpeningPriceWarning(transaction));
+    } else {
+      const conversion = convertMoneyUsingValuationRates({
+        amount: nativeAmount,
+        fromCurrency: transaction.currency,
+        toCurrency: input.currency,
+        date: transaction.tradeDate,
+        fxRates: input.fxRates,
+        warningCode: "MISSING_PRINCIPAL_FX_RATE"
+      });
+      transactionWarnings.push(...conversion.warnings);
+
+      if (conversion.amount !== null) {
+        total = total.plus(conversion.amount);
+        totalsByAccount.set(transaction.accountId, (totalsByAccount.get(transaction.accountId) ?? new Decimal(0)).plus(conversion.amount));
+      }
+    }
+
+    if (transactionWarnings.length > 0) {
+      const accountWarnings = warningsByAccount.get(transaction.accountId) ?? new Map<string, MonthlySummaryWarning>();
+      addWarnings(accountWarnings, transactionWarnings);
+      addWarnings(warnings, transactionWarnings);
+      warningsByAccount.set(transaction.accountId, accountWarnings);
+    }
+  }
+
+  const amountsByAccount = new Map<string, Decimal | null>();
+  for (const [accountId, amount] of totalsByAccount) {
+    amountsByAccount.set(accountId, warningsByAccount.has(accountId) ? null : amount);
+  }
+
+  return {
+    amount: warnings.size > 0 ? null : total,
+    amountsByAccount,
+    warnings: [...warnings.values()]
+  };
 }
 
 function buildDividendSummary(input: {
@@ -454,6 +552,8 @@ function buildCashAdjustmentSummaries(input: {
 export function buildAccountChanges(input: {
   startSnapshot: PortfolioSnapshotSummary | null;
   endSnapshot: PortfolioSnapshotSummary | null;
+  reportingCurrency?: SnapshotDisplayCurrency;
+  syntheticStartValuesByAccount?: Map<string, Decimal | null>;
   netPrincipalFlowsByAccount?: Map<string, Decimal | null>;
   cashAdjustmentImpactsByAccount?: Map<string, Decimal | null>;
   totalValuationMovement?: string | null;
@@ -461,20 +561,29 @@ export function buildAccountChanges(input: {
   const {
     startSnapshot,
     endSnapshot,
+    reportingCurrency = endSnapshot?.currency ?? startSnapshot?.currency ?? "USD",
+    syntheticStartValuesByAccount = new Map<string, Decimal | null>(),
     netPrincipalFlowsByAccount = new Map<string, Decimal | null>(),
     cashAdjustmentImpactsByAccount = new Map<string, Decimal | null>(),
     totalValuationMovement = null
   } = input;
 
-  if (!startSnapshot || !endSnapshot) {
+  if (
+    !startSnapshot &&
+    !endSnapshot &&
+    syntheticStartValuesByAccount.size === 0 &&
+    netPrincipalFlowsByAccount.size === 0 &&
+    cashAdjustmentImpactsByAccount.size === 0
+  ) {
     return [];
   }
 
-  const startAccounts = new Map(startSnapshot.accounts.map((account) => [account.accountId, account]));
-  const endAccounts = new Map(endSnapshot.accounts.map((account) => [account.accountId, account]));
+  const startAccounts = new Map((startSnapshot?.accounts ?? []).map((account) => [account.accountId, account]));
+  const endAccounts = new Map((endSnapshot?.accounts ?? []).map((account) => [account.accountId, account]));
   const accountIds = uniqueValues([
     ...startAccounts.keys(),
     ...endAccounts.keys(),
+    ...syntheticStartValuesByAccount.keys(),
     ...netPrincipalFlowsByAccount.keys(),
     ...cashAdjustmentImpactsByAccount.keys()
   ]);
@@ -483,9 +592,10 @@ export function buildAccountChanges(input: {
     .map((accountId) => {
       const startAccount = startAccounts.get(accountId) ?? null;
       const endAccount = endAccounts.get(accountId) ?? null;
-      const startValue = startAccount?.marketValue ?? "0.000000";
-      const endValue = endAccount?.marketValue ?? "0.000000";
-      const hasUnavailableValue = startAccount?.marketValue === null || endAccount?.marketValue === null;
+      const syntheticStartValue = formatKnownAccountAmount(syntheticStartValuesByAccount, accountId);
+      const startValue = startAccount ? startAccount.marketValue : syntheticStartValue !== undefined ? syntheticStartValue : "0.000000";
+      const endValue = endAccount ? endAccount.marketValue : "0.000000";
+      const hasUnavailableValue = startValue === null || endValue === null;
       const assetChange = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
       const netPrincipalFlow = formatOptionalAccountFlow(netPrincipalFlowsByAccount, accountId);
       const cashAdjustmentImpact = formatOptionalAccountFlow(cashAdjustmentImpactsByAccount, accountId);
@@ -494,16 +604,16 @@ export function buildAccountChanges(input: {
           ? formatDecimal(new Decimal(assetChange).minus(netPrincipalFlow).minus(cashAdjustmentImpact))
           : null;
       const valuationContributionPct = calculateValuationContributionPct(valuationMovement, totalValuationMovement);
-      const startDecimal = new Decimal(startValue);
+      const startDecimal = startValue === null ? null : new Decimal(startValue);
       const changePct =
-        assetChange === null || startDecimal.isZero()
+        assetChange === null || startDecimal === null || startDecimal.isZero()
           ? null
           : formatDecimal(new Decimal(assetChange).dividedBy(startDecimal).times(100));
 
       return {
         accountId,
         accountName: endAccount?.accountName ?? startAccount?.accountName ?? accountId,
-        currency: endAccount?.currency ?? startAccount?.currency ?? endSnapshot.currency,
+        currency: endAccount?.currency ?? startAccount?.currency ?? reportingCurrency,
         startValue: hasUnavailableValue ? null : startValue,
         endValue: hasUnavailableValue ? null : endValue,
         assetChange,
@@ -522,6 +632,15 @@ export function buildAccountChanges(input: {
 function formatOptionalAccountFlow(amountsByAccount: Map<string, Decimal | null>, accountId: string): string | null {
   if (!amountsByAccount.has(accountId)) {
     return "0.000000";
+  }
+
+  const amount = amountsByAccount.get(accountId);
+  return amount === null || amount === undefined ? null : formatDecimal(amount);
+}
+
+function formatKnownAccountAmount(amountsByAccount: Map<string, Decimal | null>, accountId: string): string | null | undefined {
+  if (!amountsByAccount.has(accountId)) {
+    return undefined;
   }
 
   const amount = amountsByAccount.get(accountId);
@@ -602,6 +721,38 @@ function convertMoney(input: {
   };
 }
 
+function convertMoneyUsingValuationRates(input: {
+  amount: Decimal;
+  fromCurrency: CurrencyCode;
+  toCurrency: SnapshotDisplayCurrency;
+  date: string;
+  fxRates: ExchangeRateRecord[];
+  warningCode: MonthlySummaryWarningCode;
+}): MoneyConversionResult {
+  if (input.fromCurrency === input.toCurrency) {
+    return { amount: input.amount, warnings: [] };
+  }
+
+  const sourceRate = selectLatestUsdRate(input.fromCurrency, input.date, input.fxRates);
+  const targetRate = selectLatestUsdRate(input.toCurrency, input.date, input.fxRates);
+  const warnings: MonthlySummaryWarning[] = [];
+
+  if (sourceRate === null) {
+    warnings.push(toFxWarning(input.warningCode, input.date, input.fromCurrency));
+  }
+  if (targetRate === null) {
+    warnings.push(toFxWarning(input.warningCode, input.date, input.toCurrency));
+  }
+  if (sourceRate === null || targetRate === null) {
+    return { amount: null, warnings };
+  }
+
+  return {
+    amount: input.amount.times(sourceRate).dividedBy(targetRate),
+    warnings: []
+  };
+}
+
 function getExactUsdRate(
   currency: CurrencyCode | SnapshotDisplayCurrency,
   date: string,
@@ -615,9 +766,56 @@ function getExactUsdRate(
   return rate ? new Decimal(rate.rate) : null;
 }
 
+function selectLatestUsdRate(
+  currency: CurrencyCode | SnapshotDisplayCurrency,
+  date: string,
+  rates: ExchangeRateRecord[]
+): Decimal | null {
+  if (currency === "USD") {
+    return new Decimal(1);
+  }
+
+  const selected = rates
+    .filter((rate) => rate.fromCurrency === currency && rate.toCurrency === "USD" && rate.rateType === "valuation" && rate.rateDate <= date)
+    .sort((left, right) => right.rateDate.localeCompare(left.rateDate))[0];
+
+  return selected ? new Decimal(selected.rate) : null;
+}
+
+function getOpeningMarketAmount(transaction: InvestmentTransaction, prices: PriceRecord[]): Decimal | null {
+  if (transaction.transactionType === "opening_balance") {
+    return new Decimal(transaction.grossAmount ?? "0");
+  }
+
+  if (transaction.transactionType !== "opening_position") {
+    return null;
+  }
+
+  const price = selectOpeningPrice(transaction, prices);
+  if (!price) {
+    return null;
+  }
+
+  return new Decimal(transaction.quantity ?? "0").times(price.closePrice);
+}
+
+function selectOpeningPrice(transaction: InvestmentTransaction, prices: PriceRecord[]): PriceRecord | null {
+  return prices
+    .filter((price) =>
+      price.instrumentId === transaction.instrumentId &&
+      price.currency === transaction.currency &&
+      price.priceDate <= transaction.tradeDate
+    )
+    .sort((left, right) => right.priceDate.localeCompare(left.priceDate))[0] ?? null;
+}
+
 function getPrincipalSignedAmount(transaction: InvestmentTransaction): Decimal {
   const amount = new Decimal(transaction.grossAmount ?? "0");
   return transaction.transactionType === "withdrawal" ? amount.negated() : amount;
+}
+
+function isOpeningPrincipalTransaction(transaction: InvestmentTransaction): boolean {
+  return transaction.transactionType === "opening_position" || transaction.transactionType === "opening_balance";
 }
 
 function getAdjustmentSignedAmount(transaction: InvestmentTransaction): Decimal {
@@ -644,6 +842,21 @@ function getRequiredFxCurrencies(
     }
   }
 
+  return [...currencies];
+}
+
+function getRequiredOpeningValuationCurrencies(
+  transactions: InvestmentTransaction[],
+  displayCurrency: SnapshotDisplayCurrency
+): CurrencyCode[] {
+  const currencies = new Set<CurrencyCode>();
+
+  for (const transaction of transactions) {
+    currencies.add(transaction.currency);
+    currencies.add(displayCurrency);
+  }
+
+  currencies.delete("USD");
   return [...currencies];
 }
 
@@ -675,6 +888,17 @@ function toFxWarning(
     date,
     currency,
     message: `${date} 缺少 ${currency} 的估值汇率，相关月度金额无法换算。`
+  };
+}
+
+function toOpeningPriceWarning(transaction: InvestmentTransaction): MonthlySummaryWarning {
+  const label = transaction.instrumentSymbol ?? transaction.instrumentShortName ?? transaction.instrumentName ?? transaction.instrumentId;
+
+  return {
+    code: "MISSING_OPENING_PRICE",
+    date: transaction.tradeDate,
+    currency: transaction.currency,
+    message: `${transaction.tradeDate} 缺少 ${label} (${transaction.currency}) 的期初估值价格，初始化月月初资产无法可靠计算。`
   };
 }
 
