@@ -77,7 +77,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 `GET /accounts/:id/detail` returns one account's current valued total, cash/non-cash subtotals, holdings, cash balance context, recent transactions with linked settlement cash legs, account snapshot trend, and account-scoped warnings.
 `GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
-`GET /reports/monthly-summary` returns a monthly value bridge plus dividend and cash-calibration context.
+`GET /reports/monthly-summary` returns a monthly value bridge plus account contribution, buy/sell activity, cash-calibration context, and dividend fields for compatibility.
 `GET /reports/monthly-review` returns saved monthly family notes and review status. `PATCH /reports/monthly-review` updates those workflow fields for admins.
 Market data read endpoints return stored provider FX rates, instrument prices, and ingestion audit logs. They do not call external providers.
 
@@ -395,9 +395,9 @@ Response data:
 
 ### Monthly Summary Read API
 
-`GET /reports/monthly-summary?month=YYYY-MM&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users.
+`GET /reports/monthly-summary?month=YYYY-MM&currency=NZD|USD|CNY` is available to authenticated `viewer` and `admin` users. Future months are rejected with `VALIDATION_ERROR`; the maximum month follows the app business date using the `06:00 Asia/Shanghai` cutoff.
 
-It returns a read-only monthly family review using stored portfolio snapshots, manual ledger cash-flow records, account-level snapshot rows, buy/sell activity, dividends, cash adjustments, and data-quality warnings.
+It returns a read-only monthly family review using stored portfolio snapshots, manual ledger cash-flow records, account-level snapshot rows, buy/sell activity, cash adjustments, dividend rows, and data-quality warnings.
 
 The value bridge remains:
 
@@ -407,9 +407,9 @@ The value bridge remains:
 
 `月初资产` uses the latest portfolio snapshot before the selected month. `月末资产` uses the latest portfolio snapshot on or before the selected month's last day. `净投入` uses manual opening, deposit, and withdrawal transactions in the month; generated buy/sell/dividend cash legs are excluded. `现金校准` uses manual cash `adjustment` transactions in the month, direction-aware. `估值变动` is the residual after subtracting net principal flow and cash calibration from asset change; it covers price movement, FX movement, and other valuation effects.
 
-Dividend transactions are returned as separate investment-income context. Their generated net-cash deposits are included in snapshots and therefore flow into the value bridge through `资产变化`; the dividend summary remains separate so income sources can be reviewed without treating dividends as new principal.
+Dividend transactions and `dividendSummary` are still returned for API compatibility and audit use. The web monthly review intentionally does not render a separate dividend section, so family members stay focused on `净投入`, `现金校准`, and `估值变动`. Generated dividend cash deposits are included in snapshots and therefore flow into the value bridge through `资产变化`; economically, dividends remain part of the residual `估值变动` rather than new principal.
 
-Account changes use the union of account rows from the selected start and end snapshots. A missing row on one side is treated as zero for display, so accounts opened or closed during the month can still be reviewed. If an account row exists with unavailable market value, the affected account change fields are returned as `null`.
+Account changes use the union of account rows from the selected start and end snapshots plus accounts with monthly principal or cash-adjustment flow. A missing snapshot row on one side is treated as zero for display, so accounts opened or closed during the month can still be reviewed. `assetChange` is end value minus start value. `valuationMovement` is the account residual after subtracting account-level `netPrincipalFlow` and `cashAdjustmentImpact`; dividends remain part of this residual through snapshots. `valuationContributionPct` is account `valuationMovement` divided by the absolute total portfolio `valuationMovement`. If an account row exists with unavailable market value, account-level FX is missing, or the total valuation movement is unavailable or zero, the affected fields are returned as `null`.
 
 Manual buy/sell transactions are returned as monthly trade activity. Generated buy/sell cash legs are not standalone trades; when present, they are attached to the parent buy/sell as settlement context in the cash-leg currency. Dividend cash legs are reflected through snapshots and cash balances, while dividend rows remain in `dividendTransactions` without a linked cash-leg DTO in this endpoint.
 
@@ -417,9 +417,9 @@ Missing start/end snapshots, unavailable snapshot market values, missing exact t
 
 ### Monthly Review Workflow API
 
-`GET /reports/monthly-review?month=YYYY-MM` is available to authenticated `viewer` and `admin` users. It returns the saved workflow record for the month, or an unsaved default review with empty notes and `in_progress` status.
+`GET /reports/monthly-review?month=YYYY-MM` is available to authenticated `viewer` and `admin` users. It returns the saved workflow record for the month, or an unsaved default review with empty notes and `in_progress` status. Future months are rejected with `VALIDATION_ERROR`.
 
-`PATCH /reports/monthly-review?month=YYYY-MM` is admin-only. It accepts:
+`PATCH /reports/monthly-review?month=YYYY-MM` is admin-only. Future months are rejected with `VALIDATION_ERROR`. It accepts:
 
 ```json
 {
@@ -459,7 +459,23 @@ Response data:
     "dividendTransactions": [],
     "cashAdjustments": [],
     "principalTransactions": [],
-    "accountChanges": [],
+    "accountChanges": [
+      {
+        "accountId": "account-1",
+        "accountName": "Brokerage",
+        "currency": "CNY",
+        "startValue": "60000.000000",
+        "endValue": "64000.000000",
+        "assetChange": "4000.000000",
+        "netPrincipalFlow": "1000.000000",
+        "cashAdjustmentImpact": "0.000000",
+        "valuationMovement": "3000.000000",
+        "valuationContributionPct": "99.337748",
+        "changeAmount": "4000.000000",
+        "changePct": "6.666667",
+        "warnings": []
+      }
+    ],
     "tradeActivity": [],
     "snapshotWarnings": [],
     "warnings": []

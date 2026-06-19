@@ -34,10 +34,12 @@ interface MonthlyReviewResponse {
 }
 
 const monthlySummaryCurrencyStorageKey = "family-ledger.monthly-summary.reportingCurrency";
+type GainColorScheme = Parameters<typeof signedToneClass>[1];
 
 export function MonthlySummaryPage() {
   const { preferences, loading: preferencesLoading } = usePreferences();
-  const [month, setMonth] = useState(() => getAppBusinessDate().slice(0, 7));
+  const maxSelectableMonth = getAppBusinessDate().slice(0, 7);
+  const [month, setMonth] = useState(() => maxSelectableMonth);
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
@@ -69,6 +71,12 @@ export function MonthlySummaryPage() {
     setLoading(true);
     setError(null);
     setReviewMessage(null);
+
+    if (selectedMonth > maxSelectableMonth) {
+      setError("不能查看未来月份的月度回顾。");
+      setLoading(false);
+      return;
+    }
 
     try {
       const query = new URLSearchParams({ month: selectedMonth, currency });
@@ -132,15 +140,23 @@ export function MonthlySummaryPage() {
   return (
     <section className="monthly-report-page">
       <header className="page-header account-header">
-        <div>
-          <PageTitle route="/reports/monthly-summary">月度回顾</PageTitle>
-          <p>用快照、投入、现金校准、交易和股息记录解释一个月的家庭资产变化。</p>
+        <div className="monthly-title-area">
+          <div className="monthly-title-row">
+            <PageTitle route="/reports/monthly-summary">月度回顾</PageTitle>
+            <label className="monthly-title-month">
+              回顾月份
+              <input
+                type="month"
+                value={month}
+                max={maxSelectableMonth}
+                onChange={(event) => setMonth(event.target.value)}
+                disabled={pageLoading}
+              />
+            </label>
+          </div>
+          <p>用快照、净投入和现金校准解释一个月的家庭资产变化。</p>
         </div>
         <div className="dashboard-controls">
-          <label>
-            月份
-            <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} disabled={pageLoading} />
-          </label>
           <CurrencySelect
             label="报告币种"
             options={SNAPSHOT_DISPLAY_CURRENCIES}
@@ -178,8 +194,7 @@ export function MonthlySummaryPage() {
           { label: "资产变化", value: summary?.assetChange, signed: true },
           { label: "净投入", value: summary?.netPrincipalFlow, signed: true },
           { label: "现金校准", value: summary?.cashAdjustmentImpact, signed: true },
-          { label: "估值变动", value: summary?.valuationMovement, signed: true },
-          { label: "股息记录", value: summary?.dividendSummary.netAmount, signed: false }
+          { label: "估值变动", value: summary?.valuationMovement, signed: true }
         ].map((metric) => (
           <article className="metric-card" key={metric.label}>
             <span>{metric.label}</span>
@@ -188,7 +203,7 @@ export function MonthlySummaryPage() {
               {activeCurrency}
             </small>
             <strong className={metric.signed ? signedToneClass(metric.value, preferences.gainColorScheme, 3) : undefined}>
-              {formatMetric(metric.value, pageLoading, metric.signed)}
+              {formatWholeMetric(metric.value, pageLoading, metric.signed)}
             </strong>
           </article>
         ))}
@@ -261,16 +276,16 @@ export function MonthlySummaryPage() {
         </div>
       </section>
 
-      <section className="monthly-summary-grid">
+      <section className="monthly-summary-grid monthly-summary-grid-compact">
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>资产变化桥</h2>
+              <h2>资产变化拆解</h2>
               <p>资产变化 = 净投入 + 现金校准 + 估值变动。</p>
             </div>
           </div>
-          <div className="table-wrap compact-table-wrap">
-            <table>
+          <div className="table-wrap compact-table-wrap monthly-bridge-wrap">
+            <table className="monthly-bridge-table">
               <thead>
                 <tr>
                   <th>项目</th>
@@ -299,41 +314,51 @@ export function MonthlySummaryPage() {
             </table>
           </div>
         </article>
+      </section>
 
+      <section className="monthly-single-panel">
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>账户变化</h2>
-              <p>按月初和月末快照比较账户资产变化；月内新增账户的月初值按 0 展示。</p>
+              <h2>账户贡献</h2>
+              <p>按账户拆解本月估值变动，贡献/拖累以全组合估值变动的绝对值为分母。</p>
             </div>
           </div>
-          <div className="table-wrap compact-table-wrap">
-            <table>
+          <div className="table-wrap compact-table-wrap monthly-account-contribution-wrap">
+            <table className="monthly-account-contribution-table">
               <thead>
                 <tr>
                   <th>账户</th>
                   <th className="numeric-cell">月初</th>
                   <th className="numeric-cell">月末</th>
-                  <th className="numeric-cell">变化</th>
-                  <th className="numeric-cell">变化率</th>
+                  <th className="numeric-cell">净投入</th>
+                  <th className="numeric-cell">现金校准</th>
+                  <th className="numeric-cell">估值变动</th>
+                  <th className="numeric-cell">贡献/拖累</th>
                 </tr>
               </thead>
               <tbody>
                 {pageLoading ? (
-                  <LoadingRow colSpan={5} label="正在加载账户变化" />
+                  <LoadingRow colSpan={7} label="正在加载账户贡献" />
                 ) : (summary?.accountChanges.length ?? 0) === 0 ? (
-                  <EmptyRow colSpan={5} label="暂无账户变化数据。" />
+                  <EmptyRow colSpan={7} label="暂无账户贡献数据。" />
                 ) : (
                   summary?.accountChanges.map((account) => (
                     <tr key={account.accountId}>
                       <td>{account.accountName}</td>
                       <td className="numeric-cell">{formatMetric(account.startValue, false, false)}</td>
                       <td className="numeric-cell">{formatMetric(account.endValue, false, false)}</td>
-                      <td className={`numeric-cell ${signedToneClass(account.changeAmount, preferences.gainColorScheme, 3)}`}>
-                        {formatMetric(account.changeAmount, false, true)}
+                      <td className={`numeric-cell ${signedToneClass(account.netPrincipalFlow, preferences.gainColorScheme, 3)}`}>
+                        {formatMetric(account.netPrincipalFlow, false, true)}
                       </td>
-                      <td className={`numeric-cell ${signedToneClass(account.changePct, preferences.gainColorScheme, 3)}`}>
-                        {account.changePct === null ? "--" : `${formatSignedDisplayPercent(account.changePct)}%`}
+                      <td className={`numeric-cell ${signedToneClass(account.cashAdjustmentImpact, preferences.gainColorScheme, 3)}`}>
+                        {formatMetric(account.cashAdjustmentImpact, false, true)}
+                      </td>
+                      <td className={`numeric-cell ${signedToneClass(account.valuationMovement, preferences.gainColorScheme, 3)}`}>
+                        {formatMetric(account.valuationMovement, false, true)}
+                      </td>
+                      <td className={`numeric-cell ${signedToneClass(account.valuationContributionPct, preferences.gainColorScheme, 3)}`}>
+                        {account.valuationContributionPct === null ? "--" : `${formatSignedDisplayPercent(account.valuationContributionPct)}%`}
                       </td>
                     </tr>
                   ))
@@ -355,27 +380,10 @@ export function MonthlySummaryPage() {
           <TradeActivityTable
             loading={pageLoading}
             trades={summary?.tradeActivity ?? []}
+            gainColorScheme={preferences.gainColorScheme}
           />
         </article>
 
-        <article className="flow-card monthly-panel">
-          <div className="chart-section-header">
-            <div>
-              <h2>股息记录</h2>
-              <p>股息用于解释收益来源；记录股息会生成入账现金，并随快照进入资产变化。</p>
-            </div>
-          </div>
-          <p className="readonly-note">
-            股息不会改变持仓数量；如果股息再投资，请另行记录买入交易。净股息现金会通过生成的现金流水计入账户余额。
-          </p>
-          <div className="monthly-dividend-summary">
-            <MetricBlock label="股息总额" value={formatMetric(summary?.dividendSummary.grossAmount, pageLoading, false)} />
-            <MetricBlock label="记录扣税" value={formatMetric(summary?.dividendSummary.taxAmount, pageLoading, false)} />
-            <MetricBlock label="净股息" value={formatMetric(summary?.dividendSummary.netAmount, pageLoading, false)} />
-            <MetricBlock label="记录数" value={pageLoading ? <LoadingState label="加载中" /> : String(summary?.dividendSummary.transactionCount ?? 0)} />
-          </div>
-          <DividendTable loading={pageLoading} summary={summary} />
-        </article>
       </section>
 
       <section className="monthly-summary-grid">
@@ -386,17 +394,26 @@ export function MonthlySummaryPage() {
               <p>月末手动校准现金时，可在备注中记录主要差异来源。</p>
             </div>
           </div>
-          <CashAdjustmentTable loading={pageLoading} adjustments={summary?.cashAdjustments ?? []} currency={activeCurrency} />
+          <CashAdjustmentTable
+            loading={pageLoading}
+            adjustments={summary?.cashAdjustments ?? []}
+            currency={activeCurrency}
+            gainColorScheme={preferences.gainColorScheme}
+          />
         </article>
 
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
               <h2>净投入明细</h2>
-              <p>列出本月手动期初、入金和出金记录，用于解释资产变化桥中的净投入。</p>
+              <p>列出本月手动期初、入金和出金记录，用于解释资产变化拆解中的净投入。</p>
             </div>
           </div>
-          <PrincipalFlowTable loading={pageLoading} transactions={summary?.principalTransactions ?? []} />
+          <PrincipalFlowTable
+            loading={pageLoading}
+            transactions={summary?.principalTransactions ?? []}
+            gainColorScheme={preferences.gainColorScheme}
+          />
         </article>
 
         <article className="flow-card monthly-panel">
@@ -423,27 +440,26 @@ export function MonthlySummaryPage() {
   );
 }
 
-function MetricBlock({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="monthly-mini-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function formatReviewTimestamp(value: string): string {
   return formatDateTimeInTimeZone(value, Intl.DateTimeFormat().resolvedOptions().timeZone, "zh-CN", value);
 }
 
-function TradeActivityTable({ loading, trades }: { loading: boolean; trades: MonthlyTradeActivitySummary[] }) {
+function TradeActivityTable({
+  loading,
+  trades,
+  gainColorScheme
+}: {
+  loading: boolean;
+  trades: MonthlyTradeActivitySummary[];
+  gainColorScheme: GainColorScheme;
+}) {
   return (
     <div className="table-wrap compact-table-wrap">
-      <table>
+      <table className="monthly-activity-table">
         <thead>
           <tr>
-            <th>日期</th>
-            <th>类型</th>
+            <th className="date-column">日期</th>
+            <th className="type-column">类型</th>
             <th>标的</th>
             <th className="numeric-cell">成交金额</th>
             <th className="numeric-cell">结算现金</th>
@@ -458,47 +474,14 @@ function TradeActivityTable({ loading, trades }: { loading: boolean; trades: Mon
           ) : (
             trades.map((item) => (
               <tr key={item.transaction.id}>
-                <td>{item.transaction.tradeDate}</td>
-                <td>{TRANSACTION_TYPE_LABELS[item.transaction.transactionType]}</td>
+                <td className="date-column">{formatMonthDay(item.transaction.tradeDate)}</td>
+                <td className="type-column">{TRANSACTION_TYPE_LABELS[item.transaction.transactionType]}</td>
                 <td>{formatInstrument(item.transaction)}</td>
                 <td className="numeric-cell">{formatTransactionAmount(item.transaction)}</td>
-                <td className="numeric-cell">{formatLinkedCashLeg(item.linkedCashLeg)}</td>
+                <td className={`numeric-cell ${signedToneClass(getLinkedCashLegSignedAmount(item.linkedCashLeg), gainColorScheme, 3)}`}>
+                  {formatLinkedCashLeg(item.linkedCashLeg)}
+                </td>
                 <td>{item.transaction.notes || "-"}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function DividendTable({ loading, summary }: { loading: boolean; summary: MonthlySummary | null }) {
-  return (
-    <div className="table-wrap compact-table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>标的</th>
-            <th>币种</th>
-            <th className="numeric-cell">总额</th>
-            <th className="numeric-cell">扣税记录</th>
-            <th className="numeric-cell">净额</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <LoadingRow colSpan={5} label="正在加载股息" />
-          ) : (summary?.dividendSummary.instruments.length ?? 0) === 0 ? (
-            <EmptyRow colSpan={5} label="本月暂无股息记录。" />
-          ) : (
-            summary?.dividendSummary.instruments.map((item) => (
-              <tr key={item.instrumentId}>
-                <td>{formatInstrumentName(item.instrumentSymbol, item.instrumentShortName, item.instrumentName)}</td>
-                <td>{item.currency}</td>
-                <td className="numeric-cell">{formatDisplayAmount(item.grossAmount)}</td>
-                <td className="numeric-cell">{formatDisplayAmount(item.taxAmount)}</td>
-                <td className="numeric-cell">{formatDisplayAmount(item.netAmount)}</td>
               </tr>
             ))
           )}
@@ -511,18 +494,20 @@ function DividendTable({ loading, summary }: { loading: boolean; summary: Monthl
 function CashAdjustmentTable({
   loading,
   adjustments,
-  currency
+  currency,
+  gainColorScheme
 }: {
   loading: boolean;
   adjustments: MonthlyCashAdjustmentSummary[];
   currency: SnapshotDisplayCurrency;
+  gainColorScheme: GainColorScheme;
 }) {
   return (
     <div className="table-wrap compact-table-wrap">
-      <table>
+      <table className="monthly-activity-table">
         <thead>
           <tr>
-            <th>日期</th>
+            <th className="date-column">日期</th>
             <th>标的</th>
             <th className="numeric-cell">校准金额 ({currency})</th>
             <th>备注</th>
@@ -536,9 +521,11 @@ function CashAdjustmentTable({
           ) : (
             adjustments.map((item) => (
               <tr key={item.transaction.id}>
-                <td>{item.transaction.tradeDate}</td>
+                <td className="date-column">{formatMonthDay(item.transaction.tradeDate)}</td>
                 <td>{formatInstrument(item.transaction)}</td>
-                <td className="numeric-cell">{formatMetric(item.signedAmount, false, true)}</td>
+                <td className={`numeric-cell ${signedToneClass(item.signedAmount, gainColorScheme, 3)}`}>
+                  {formatMetric(item.signedAmount, false, true)}
+                </td>
                 <td>{item.transaction.notes || "-"}</td>
               </tr>
             ))
@@ -549,14 +536,22 @@ function CashAdjustmentTable({
   );
 }
 
-function PrincipalFlowTable({ loading, transactions }: { loading: boolean; transactions: InvestmentTransaction[] }) {
+function PrincipalFlowTable({
+  loading,
+  transactions,
+  gainColorScheme
+}: {
+  loading: boolean;
+  transactions: InvestmentTransaction[];
+  gainColorScheme: GainColorScheme;
+}) {
   return (
     <div className="table-wrap compact-table-wrap">
-      <table>
+      <table className="monthly-activity-table">
         <thead>
           <tr>
-            <th>日期</th>
-            <th>类型</th>
+            <th className="date-column">日期</th>
+            <th className="type-column">类型</th>
             <th>标的</th>
             <th className="numeric-cell">金额</th>
             <th>备注</th>
@@ -570,10 +565,12 @@ function PrincipalFlowTable({ loading, transactions }: { loading: boolean; trans
           ) : (
             transactions.map((transaction) => (
               <tr key={transaction.id}>
-                <td>{transaction.tradeDate}</td>
-                <td>{TRANSACTION_TYPE_LABELS[transaction.transactionType]}</td>
+                <td className="date-column">{formatMonthDay(transaction.tradeDate)}</td>
+                <td className="type-column">{TRANSACTION_TYPE_LABELS[transaction.transactionType]}</td>
                 <td>{formatInstrument(transaction)}</td>
-                <td className="numeric-cell">{formatPrincipalAmount(transaction)}</td>
+                <td className={`numeric-cell ${signedToneClass(getPrincipalSignedDisplayAmount(transaction), gainColorScheme, 3)}`}>
+                  {formatPrincipalAmount(transaction)}
+                </td>
                 <td>{transaction.notes || "-"}</td>
               </tr>
             ))
@@ -614,9 +611,46 @@ function formatMetric(value: string | null | undefined, loading: boolean, signed
   return signed ? formatSignedDisplayAmount(value) : formatDisplayAmount(value);
 }
 
+function formatWholeMetric(value: string | null | undefined, loading: boolean, signed: boolean): ReactNode {
+  if (loading) {
+    return <LoadingState label="加载中" />;
+  }
+
+  if (value === null || value === undefined) {
+    return "--";
+  }
+
+  const numericValue = Number(String(value).trim());
+  if (!Number.isFinite(numericValue)) {
+    return value;
+  }
+
+  const roundedValue = Math.round(numericValue);
+  const normalizedValue = Object.is(roundedValue, -0) ? 0 : roundedValue;
+  const formatted = Math.abs(normalizedValue).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+
+  if (!signed) {
+    return normalizedValue < 0 ? `-${formatted}` : formatted;
+  }
+
+  if (normalizedValue > 0) {
+    return `+${formatted}`;
+  }
+
+  return normalizedValue < 0 ? `-${formatted}` : formatted;
+}
+
 function formatTransactionAmount(transaction: InvestmentTransaction): string {
   const amount = transaction.grossAmount ?? transaction.settlementAmount;
   return amount ? `${transaction.currency} ${formatDisplayAmount(amount)}` : "--";
+}
+
+function getLinkedCashLegSignedAmount(transaction: InvestmentTransaction | null): string | null {
+  if (!transaction || !transaction.grossAmount) {
+    return null;
+  }
+
+  return transaction.transactionType === "withdrawal" ? `-${transaction.grossAmount}` : transaction.grossAmount;
 }
 
 function formatLinkedCashLeg(transaction: InvestmentTransaction | null): string {
@@ -628,6 +662,14 @@ function formatLinkedCashLeg(transaction: InvestmentTransaction | null): string 
   return `${sign}${transaction.currency} ${formatDisplayAmount(transaction.grossAmount)}`;
 }
 
+function getPrincipalSignedDisplayAmount(transaction: InvestmentTransaction): string | null {
+  if (!transaction.grossAmount) {
+    return null;
+  }
+
+  return transaction.transactionType === "withdrawal" ? `-${transaction.grossAmount}` : transaction.grossAmount;
+}
+
 function formatPrincipalAmount(transaction: InvestmentTransaction): string {
   const amount = transaction.grossAmount;
 
@@ -637,6 +679,10 @@ function formatPrincipalAmount(transaction: InvestmentTransaction): string {
 
   const sign = transaction.transactionType === "withdrawal" ? "-" : "+";
   return `${sign}${transaction.currency} ${formatDisplayAmount(amount)}`;
+}
+
+function formatMonthDay(value: string): string {
+  return value.length >= 10 ? value.slice(5, 10) : value;
 }
 
 function formatInstrument(transaction: InvestmentTransaction): string {

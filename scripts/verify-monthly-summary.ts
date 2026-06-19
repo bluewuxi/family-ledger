@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import Decimal from "decimal.js";
 import {
   buildAccountChanges,
   buildTradeActivity,
@@ -6,6 +7,7 @@ import {
   collectSnapshotWarnings,
   getMonthlySnapshotWindows
 } from "../apps/api/src/services/monthlySummaryService";
+import { parseMonthlyReportMonth } from "../apps/api/src/services/monthlyReportMonth";
 import type { InvestmentTransaction, PortfolioSnapshotSummary, SnapshotWarning } from "@family-ledger/shared";
 
 const complete = calculateMonthlyBridge({
@@ -67,15 +69,53 @@ const endSnapshot = snapshot({
     accountSnapshot({ accountId: "account-c", accountName: "Account C", marketValue: null })
   ]
 });
-const accountChanges = buildAccountChanges(startSnapshot, endSnapshot);
+const accountChanges = buildAccountChanges({
+  startSnapshot,
+  endSnapshot,
+  netPrincipalFlowsByAccount: new Map<string, Decimal | null>([
+    ["account-a", new Decimal("20")],
+    ["account-b", new Decimal("500")]
+  ]),
+  cashAdjustmentImpactsByAccount: new Map<string, Decimal | null>([
+    ["account-a", new Decimal("-5")]
+  ]),
+  totalValuationMovement: "85.000000"
+});
 
 assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.changeAmount, "100.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.assetChange, "100.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.netPrincipalFlow, "20.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.cashAdjustmentImpact, "-5.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.valuationMovement, "85.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.valuationContributionPct, "100.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.warnings.length, 1);
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.startValue, "0.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.netPrincipalFlow, "500.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.valuationMovement, "0.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.changePct, null);
 assert.equal(accountChanges.find((account) => account.accountId === "account-c")?.changeAmount, null);
-assert.deepEqual(buildAccountChanges(null, endSnapshot), []);
+assert.deepEqual(buildAccountChanges({ startSnapshot: null, endSnapshot }), []);
 assert.equal(collectSnapshotWarnings(startSnapshot, endSnapshot).length, 1);
+
+const missingFlowAccountChanges = buildAccountChanges({
+  startSnapshot,
+  endSnapshot,
+  netPrincipalFlowsByAccount: new Map<string, Decimal | null>([["account-a", null]]),
+  cashAdjustmentImpactsByAccount: new Map<string, Decimal | null>(),
+  totalValuationMovement: "100.000000"
+});
+assert.equal(missingFlowAccountChanges.find((account) => account.accountId === "account-a")?.netPrincipalFlow, null);
+assert.equal(missingFlowAccountChanges.find((account) => account.accountId === "account-a")?.valuationMovement, null);
+
+const zeroTotalContribution = buildAccountChanges({
+  startSnapshot,
+  endSnapshot,
+  totalValuationMovement: "0.000000"
+});
+assert.equal(zeroTotalContribution.find((account) => account.accountId === "account-a")?.valuationContributionPct, null);
+
+assert.equal(parseMonthlyReportMonth("2026-06", "2026-06"), "2026-06");
+assert.throws(() => parseMonthlyReportMonth("2026-07", "2026-06"), /未来月份/);
 
 const trade = transaction({
   id: "trade-a",

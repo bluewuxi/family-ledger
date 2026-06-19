@@ -21,10 +21,9 @@ import type {
 import { listExactValuationRatesToUsdForDates } from "../repositories/fxRateRepository";
 import { listPortfolioSnapshots } from "../repositories/portfolioSnapshotRepository";
 import { listTransactions } from "../repositories/transactionRepository";
-import { ApiRequestError } from "../utils/apiError";
+import { parseMonthlyReportMonth } from "./monthlyReportMonth";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
 
-const monthPattern = /^\d{4}-\d{2}$/;
 const earliestDate = "0001-01-01";
 
 interface MoneyConversionResult {
@@ -38,13 +37,18 @@ interface TransactionAmountConversionResult {
   warnings: MonthlySummaryWarning[];
 }
 
+interface AccountFlowConversionResult {
+  amountsByAccount: Map<string, Decimal | null>;
+  warnings: MonthlySummaryWarning[];
+}
+
 export async function getMonthlySummary(input: {
   month?: string;
   currency?: string;
   user?: AuthenticatedUser;
 }): Promise<MonthlySummary> {
   const currency = await resolveReportingCurrency(input);
-  const month = parseMonth(input.month);
+  const month = parseMonthlyReportMonth(input.month);
   const { monthStart, monthEnd, previousDay } = getMonthBoundaries(month);
   const [startSnapshots, endSnapshots, transactions] = await Promise.all([
     listPortfolioSnapshots({ from: earliestDate, to: previousDay, currency, order: "desc", limit: 1 }),
@@ -94,6 +98,21 @@ export async function getMonthlySummary(input: {
   });
   addWarnings(warnings, cashAdjustmentImpact.warnings);
 
+  const netPrincipalFlowsByAccount = sumConvertedTransactionsByAccount({
+    transactions: principalTransactions,
+    currency,
+    ratesByCurrencyAndDate,
+    warningCode: "MISSING_PRINCIPAL_FX_RATE",
+    signedAmount: getPrincipalSignedAmount
+  });
+  const cashAdjustmentImpactsByAccount = sumConvertedTransactionsByAccount({
+    transactions: adjustmentTransactions,
+    currency,
+    ratesByCurrencyAndDate,
+    warningCode: "MISSING_ADJUSTMENT_FX_RATE",
+    signedAmount: getAdjustmentSignedAmount
+  });
+
   const dividendSummary = buildDividendSummary({
     transactions: dividendTransactions,
     currency,
@@ -132,7 +151,13 @@ export async function getMonthlySummary(input: {
       ratesByCurrencyAndDate
     }),
     principalTransactions: principalTransactions.sort(compareTransactionsDesc),
-    accountChanges: buildAccountChanges(startSnapshot, endSnapshot),
+    accountChanges: buildAccountChanges({
+      startSnapshot,
+      endSnapshot,
+      netPrincipalFlowsByAccount: netPrincipalFlowsByAccount.amountsByAccount,
+      cashAdjustmentImpactsByAccount: cashAdjustmentImpactsByAccount.amountsByAccount,
+      totalValuationMovement: bridge.valuationMovement
+    }),
     tradeActivity: buildTradeActivity(transactions),
     snapshotWarnings: collectSnapshotWarnings(startSnapshot, endSnapshot),
     warnings: [...warnings.values()]
@@ -169,20 +194,6 @@ export function calculateMonthlyBridge(input: {
     cashAdjustmentImpact: input.cashAdjustmentImpact,
     valuationMovement
   };
-}
-
-function parseMonth(value: string | undefined): string {
-  if (!value || !monthPattern.test(value)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "month must use YYYY-MM format.", 400);
-  }
-
-  const date = new Date(`${value}-01T00:00:00.000Z`);
-
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 7) !== value) {
-    throw new ApiRequestError("VALIDATION_ERROR", "month must be a valid calendar month.", 400);
-  }
-
-  return value;
 }
 
 export function getMonthlySnapshotWindows(month: string): {
@@ -282,6 +293,51 @@ function sumConvertedTransactions(input: {
     amount: warnings.size > 0 ? null : total,
     warnings: [...warnings.values()]
   };
+}
+
+function sumConvertedTransactionsByAccount(input: {
+  transactions: InvestmentTransaction[];
+  currency: SnapshotDisplayCurrency;
+  ratesByCurrencyAndDate: Map<string, ExchangeRateRecord>;
+  warningCode: MonthlySummaryWarningCode;
+  signedAmount: (transaction: InvestmentTransaction) => Decimal;
+}): AccountFlowConversionResult {
+  const totalsByAccount = new Map<string, Decimal>();
+  const warningsByAccount = new Map<string, Map<string, MonthlySummaryWarning>>();
+  const warnings = new Map<string, MonthlySummaryWarning>();
+
+  for (const transaction of input.transactions) {
+    if (!totalsByAccount.has(transaction.accountId)) {
+      totalsByAccount.set(transaction.accountId, new Decimal(0));
+    }
+
+    const conversion = convertMoney({
+      amount: input.signedAmount(transaction),
+      fromCurrency: transaction.currency,
+      toCurrency: input.currency,
+      date: transaction.tradeDate,
+      ratesByCurrencyAndDate: input.ratesByCurrencyAndDate,
+      warningCode: input.warningCode
+    });
+
+    if (conversion.amount !== null) {
+      totalsByAccount.set(transaction.accountId, (totalsByAccount.get(transaction.accountId) ?? new Decimal(0)).plus(conversion.amount));
+    }
+
+    if (conversion.warnings.length > 0) {
+      const accountWarnings = warningsByAccount.get(transaction.accountId) ?? new Map<string, MonthlySummaryWarning>();
+      addWarnings(accountWarnings, conversion.warnings);
+      addWarnings(warnings, conversion.warnings);
+      warningsByAccount.set(transaction.accountId, accountWarnings);
+    }
+  }
+
+  const amountsByAccount = new Map<string, Decimal | null>();
+  for (const [accountId, total] of totalsByAccount) {
+    amountsByAccount.set(accountId, warningsByAccount.has(accountId) ? null : total);
+  }
+
+  return { amountsByAccount, warnings: [...warnings.values()] };
 }
 
 function buildDividendSummary(input: {
@@ -395,17 +451,33 @@ function buildCashAdjustmentSummaries(input: {
     .map((item) => ({ transaction: item.transaction, signedAmount: item.amount === null ? null : formatDecimal(item.amount) }));
 }
 
-export function buildAccountChanges(
-  startSnapshot: PortfolioSnapshotSummary | null,
-  endSnapshot: PortfolioSnapshotSummary | null
-): MonthlyAccountChangeSummary[] {
+export function buildAccountChanges(input: {
+  startSnapshot: PortfolioSnapshotSummary | null;
+  endSnapshot: PortfolioSnapshotSummary | null;
+  netPrincipalFlowsByAccount?: Map<string, Decimal | null>;
+  cashAdjustmentImpactsByAccount?: Map<string, Decimal | null>;
+  totalValuationMovement?: string | null;
+}): MonthlyAccountChangeSummary[] {
+  const {
+    startSnapshot,
+    endSnapshot,
+    netPrincipalFlowsByAccount = new Map<string, Decimal | null>(),
+    cashAdjustmentImpactsByAccount = new Map<string, Decimal | null>(),
+    totalValuationMovement = null
+  } = input;
+
   if (!startSnapshot || !endSnapshot) {
     return [];
   }
 
   const startAccounts = new Map(startSnapshot.accounts.map((account) => [account.accountId, account]));
   const endAccounts = new Map(endSnapshot.accounts.map((account) => [account.accountId, account]));
-  const accountIds = uniqueValues([...startAccounts.keys(), ...endAccounts.keys()]);
+  const accountIds = uniqueValues([
+    ...startAccounts.keys(),
+    ...endAccounts.keys(),
+    ...netPrincipalFlowsByAccount.keys(),
+    ...cashAdjustmentImpactsByAccount.keys()
+  ]);
 
   return accountIds
     .map((accountId) => {
@@ -414,12 +486,19 @@ export function buildAccountChanges(
       const startValue = startAccount?.marketValue ?? "0.000000";
       const endValue = endAccount?.marketValue ?? "0.000000";
       const hasUnavailableValue = startAccount?.marketValue === null || endAccount?.marketValue === null;
-      const changeAmount = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
+      const assetChange = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
+      const netPrincipalFlow = formatOptionalAccountFlow(netPrincipalFlowsByAccount, accountId);
+      const cashAdjustmentImpact = formatOptionalAccountFlow(cashAdjustmentImpactsByAccount, accountId);
+      const valuationMovement =
+        assetChange !== null && netPrincipalFlow !== null && cashAdjustmentImpact !== null
+          ? formatDecimal(new Decimal(assetChange).minus(netPrincipalFlow).minus(cashAdjustmentImpact))
+          : null;
+      const valuationContributionPct = calculateValuationContributionPct(valuationMovement, totalValuationMovement);
       const startDecimal = new Decimal(startValue);
       const changePct =
-        changeAmount === null || startDecimal.isZero()
+        assetChange === null || startDecimal.isZero()
           ? null
-          : formatDecimal(new Decimal(changeAmount).dividedBy(startDecimal).times(100));
+          : formatDecimal(new Decimal(assetChange).dividedBy(startDecimal).times(100));
 
       return {
         accountId,
@@ -427,12 +506,39 @@ export function buildAccountChanges(
         currency: endAccount?.currency ?? startAccount?.currency ?? endSnapshot.currency,
         startValue: hasUnavailableValue ? null : startValue,
         endValue: hasUnavailableValue ? null : endValue,
-        changeAmount,
+        assetChange,
+        netPrincipalFlow,
+        cashAdjustmentImpact,
+        valuationMovement,
+        valuationContributionPct,
+        changeAmount: assetChange,
         changePct,
         warnings: uniqueSnapshotWarnings([...(startAccount?.warnings ?? []), ...(endAccount?.warnings ?? [])])
       };
     })
     .sort(compareAccountChanges);
+}
+
+function formatOptionalAccountFlow(amountsByAccount: Map<string, Decimal | null>, accountId: string): string | null {
+  if (!amountsByAccount.has(accountId)) {
+    return "0.000000";
+  }
+
+  const amount = amountsByAccount.get(accountId);
+  return amount === null || amount === undefined ? null : formatDecimal(amount);
+}
+
+function calculateValuationContributionPct(valuationMovement: string | null, totalValuationMovement: string | null): string | null {
+  if (valuationMovement === null || totalValuationMovement === null) {
+    return null;
+  }
+
+  const denominator = new Decimal(totalValuationMovement).abs();
+  if (denominator.isZero()) {
+    return null;
+  }
+
+  return formatDecimal(new Decimal(valuationMovement).dividedBy(denominator).times(100));
 }
 
 export function buildTradeActivity(transactions: InvestmentTransaction[]): MonthlyTradeActivitySummary[] {
@@ -594,8 +700,10 @@ function compareTransactionsDesc(left: InvestmentTransaction, right: InvestmentT
 }
 
 function compareAccountChanges(left: MonthlyAccountChangeSummary, right: MonthlyAccountChangeSummary): number {
-  const leftAmount = left.changeAmount === null ? null : new Decimal(left.changeAmount).abs();
-  const rightAmount = right.changeAmount === null ? null : new Decimal(right.changeAmount).abs();
+  const leftBasis = left.valuationMovement ?? left.changeAmount;
+  const rightBasis = right.valuationMovement ?? right.changeAmount;
+  const leftAmount = leftBasis === null ? null : new Decimal(leftBasis).abs();
+  const rightAmount = rightBasis === null ? null : new Decimal(rightBasis).abs();
 
   if (leftAmount !== null && rightAmount !== null && !leftAmount.equals(rightAmount)) {
     return rightAmount.comparedTo(leftAmount);

@@ -56,8 +56,8 @@
 
 ## Stage 5: Tax-Assist and Reports
 
-- Monthly value bridge (implemented: snapshot-based `资产变化 = 净投入 + 现金校准 + 估值变动`, with dividends shown as separate context)
-- Monthly family review report (implemented: extends the monthly bridge with account changes, buy/sell activity, linked settlement context, cash calibration notes, dividend context, data-quality warnings, saved family notes, review completion status, and print-friendly export)
+- Monthly value bridge (implemented: snapshot-based `资产变化 = 净投入 + 现金校准 + 估值变动`; dividends flow through snapshots into `估值变动` rather than a separate family-facing section)
+- Monthly family review report (implemented: extends the monthly bridge with account contribution, buy/sell activity, linked settlement context, cash calibration notes, data-quality warnings, saved family notes, review completion status, and print-friendly export)
 - Tax notes
 - Tax-year summaries
 - CSV export

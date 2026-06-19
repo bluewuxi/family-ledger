@@ -7,12 +7,12 @@ import type {
 import { MONTHLY_REVIEW_STATUSES } from "@family-ledger/shared";
 import { findMonthlyReview, saveMonthlyReviewRecord } from "../repositories/monthlyReviewRepository";
 import { ApiRequestError } from "../utils/apiError";
+import { parseMonthlyReportMonth } from "./monthlyReportMonth";
 
-const monthPattern = /^\d{4}-\d{2}$/;
 const maxFamilyNotesLength = 12000;
 
 export async function getMonthlyReview(monthInput: string | undefined): Promise<MonthlyReview> {
-  const month = parseMonth(monthInput);
+  const month = parseMonthlyReportMonth(monthInput);
   const review = await findMonthlyReview(month);
   return review ?? createEmptyMonthlyReview(month);
 }
@@ -22,7 +22,7 @@ export async function updateMonthlyReview(
   body: unknown,
   user: AuthenticatedUser
 ): Promise<MonthlyReview> {
-  const month = parseMonth(monthInput);
+  const month = parseMonthlyReportMonth(monthInput);
   const input = parseUpdateMonthlyReviewInput(body);
   const existing = await findMonthlyReview(month);
   const nextStatus = input.reviewStatus ?? existing?.reviewStatus ?? "in_progress";
@@ -54,20 +54,6 @@ function parseUpdateMonthlyReviewInput(body: unknown): UpdateMonthlyReviewInput 
   }
 
   return input;
-}
-
-function parseMonth(value: string | undefined): string {
-  if (!value || !monthPattern.test(value)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "month must use YYYY-MM format.", 400);
-  }
-
-  const date = new Date(`${value}-01T00:00:00.000Z`);
-
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 7) !== value) {
-    throw new ApiRequestError("VALIDATION_ERROR", "month must be a valid calendar month.", 400);
-  }
-
-  return value;
 }
 
 function optionalFamilyNotes(value: unknown): string {

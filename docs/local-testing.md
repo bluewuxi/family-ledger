@@ -130,6 +130,41 @@ corepack pnpm dev:api
 corepack pnpm dev:web:local
 ```
 
+For Codex/browser debugging, prefer enabling the bypass only for the current terminal process instead of editing `.env.local`. This keeps the local-only back door temporary and avoids accidentally leaving bypass flags enabled:
+
+```powershell
+$env:FAMILY_LEDGER_LOCAL_AUTH_BYPASS = "true"
+$env:LOCAL_AUTH_BYPASS_EMAIL = "ricky.yu@outlook.com"
+corepack pnpm dev:api
+```
+
+In a second terminal:
+
+```powershell
+$env:VITE_LOCAL_AUTH_BYPASS = "true"
+corepack pnpm dev:web:local
+```
+
+If an old local API or Vite process is already running and you need to verify current code without disturbing it, start an isolated pair on alternate ports:
+
+```powershell
+$env:LOCAL_API_PORT = "3001"
+$env:LOCAL_WEB_ORIGIN = "http://127.0.0.1:5182"
+$env:FAMILY_LEDGER_LOCAL_AUTH_BYPASS = "true"
+$env:LOCAL_AUTH_BYPASS_EMAIL = "ricky.yu@outlook.com"
+corepack pnpm dev:api
+```
+
+In a second terminal:
+
+```powershell
+$env:VITE_API_BASE_URL = "http://127.0.0.1:3001"
+$env:VITE_LOCAL_AUTH_BYPASS = "true"
+corepack pnpm --filter @family-ledger/web exec vite --host 127.0.0.1 --port 5182
+```
+
+Open `http://127.0.0.1:5182`. The app should show a `本地调试登录：ricky.yu@outlook.com` banner and authenticated pages should load without the login screen.
+
 The bypass works only when all local gates pass:
 
 - Vite is running in development mode.
@@ -139,6 +174,8 @@ The bypass works only when all local gates pass:
 - The API source IP and host are loopback/local.
 - The fixed local-only bearer token matches.
 - `ricky.yu@outlook.com` exists in Supabase Auth.
+
+Run `corepack pnpm verify:local-auth-bypass` when changing this behavior or if the bypass stops working.
 
 Do not add these bypass variables to `.env.test`, `.env.prod`, deployment parameters, CloudFormation, or generated `config.json`. Remote test and production must continue to use real Supabase Auth.
 

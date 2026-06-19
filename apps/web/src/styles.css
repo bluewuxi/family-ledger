@@ -2054,8 +2054,47 @@ textarea {
   margin-top: 20px;
 }
 
+.monthly-summary-grid-compact {
+  grid-template-columns: minmax(0, 560px);
+}
+
+.monthly-single-panel {
+  margin-top: 20px;
+}
+
 .monthly-panel {
   min-width: 0;
+}
+
+.monthly-title-area {
+  min-width: 0;
+}
+
+.monthly-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+
+.monthly-title-month {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.monthly-title-month input {
+  min-width: 150px;
+  min-height: 40px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: 600;
 }
 
 .monthly-review-workflow {
@@ -2166,6 +2205,38 @@ textarea {
 
 .compact-table-wrap table {
   min-width: 620px;
+}
+
+.compact-table-wrap .monthly-bridge-table,
+.compact-table-wrap .monthly-activity-table {
+  min-width: 0;
+}
+
+.compact-table-wrap .monthly-account-contribution-table {
+  min-width: 760px;
+}
+
+.monthly-bridge-table th:first-child,
+.monthly-bridge-table td:first-child {
+  width: 58%;
+}
+
+.monthly-bridge-table .numeric-cell,
+.monthly-account-contribution-table .numeric-cell,
+.monthly-activity-table .numeric-cell {
+  white-space: nowrap;
+}
+
+.monthly-activity-table .date-column {
+  width: 64px;
+  min-width: 64px;
+  white-space: nowrap;
+}
+
+.monthly-activity-table .type-column {
+  width: 56px;
+  min-width: 56px;
+  white-space: nowrap;
 }
 
 .activity-panel {
@@ -3971,6 +4042,19 @@ tr.editing-row td {
 
   .monthly-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .monthly-summary-grid-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-title-row {
+    align-items: flex-start;
+  }
+
+  .monthly-title-month,
+  .monthly-title-month input {
+    width: 100%;
   }
 
   .monthly-review-header,

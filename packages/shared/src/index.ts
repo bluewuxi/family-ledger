@@ -1320,6 +1320,11 @@ export interface MonthlyAccountChangeSummary {
   currency: SnapshotDisplayCurrency;
   startValue: string | null;
   endValue: string | null;
+  assetChange: string | null;
+  netPrincipalFlow: string | null;
+  cashAdjustmentImpact: string | null;
+  valuationMovement: string | null;
+  valuationContributionPct: string | null;
   changeAmount: string | null;
   changePct: string | null;
   warnings: SnapshotWarning[];
