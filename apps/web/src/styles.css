@@ -933,6 +933,25 @@ textarea {
   cursor: not-allowed;
 }
 
+.bank-cash-balance-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-table-soft);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 12px;
+}
+
+.bank-cash-balance-warning {
+  color: var(--color-warning-text);
+  font-weight: 600;
+}
+
 .checkbox-field {
   align-content: start;
   display: flex;
