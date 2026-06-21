@@ -35,11 +35,10 @@ export function LoginPage() {
         <div className="login-brand-lockup">
           <img className="brand-mark login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
           <div>
-            <h1 className="brand-name login-brand-name" id="login-title" aria-label="小家大财">
-              <span>小</span>
-              <span>家</span>
-              <span className="brand-name-emphasis">大</span>
-              <span className="brand-name-gold">财</span>
+            <h1 className="brand-name login-brand-name" id="login-title" aria-label="金财屋">
+              <span className="brand-name-gold">金</span>
+              <span>财</span>
+              <span className="brand-name-emphasis">屋</span>
             </h1>
             <p className="brand-subtitle login-brand-subtitle" aria-label="Family Ledger">
               <span>Family</span>

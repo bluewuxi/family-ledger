@@ -91,9 +91,9 @@ const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
   { value: "inception", label: "投资以来" }
 ];
 const dashboardAutoRefreshIntervalMs = 5 * 60 * 1000;
-const allocationColors = ["#08264A", "#F5B52E", "#3D8F67", "#D9534F", "#4D83B8", "#9C6B2F"];
+const allocationColors = ["#5A321C", "#F5B52E", "#C77A22", "#D9534F", "#A85A32", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
-const trendPrincipalColor = "#2563A8";
+const trendPrincipalColor = "#8A5A24";
 const chartPositiveColor = "var(--color-chart-positive)";
 const chartNegativeColor = "var(--color-chart-negative)";
 const chartTooltipContentStyle = {
@@ -107,7 +107,7 @@ const chartTooltipLabelStyle = {
   fontWeight: 600
 };
 const chartTooltipItemStyle = {
-  color: "var(--color-brand-leaf)",
+  color: "var(--color-brand-gold)",
   fontWeight: 600
 };
 
@@ -1420,8 +1420,8 @@ function toColorSplitProfitPoint(point: ProfitChartPoint): ColorSplitProfitChart
 }
 
 function getChartToneStyle(gainColorScheme: GainColorScheme): ChartToneStyle {
-  const positiveColor = gainColorScheme === "red_positive" ? "var(--color-brand-red)" : "var(--color-positive)";
-  const negativeColor = gainColorScheme === "red_positive" ? "var(--color-positive)" : "var(--color-brand-red)";
+  const positiveColor = gainColorScheme === "red_positive" ? "var(--color-gain-red)" : "var(--color-gain-green)";
+  const negativeColor = gainColorScheme === "red_positive" ? "var(--color-gain-green)" : "var(--color-gain-red)";
 
   return {
     "--color-chart-positive": positiveColor,

@@ -3,7 +3,7 @@
 ## Project Overview
 
 Project name: `family-ledger`
-Chinese product name: `小家大财`
+Chinese product name: `金财屋`
 English product name: `Family Ledger`
 
 `family-ledger` is the repository/package name only. Do not show `family-ledger` as user-facing UI text.

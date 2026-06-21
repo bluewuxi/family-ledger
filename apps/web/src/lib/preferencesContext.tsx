@@ -74,7 +74,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = preferences.uiTheme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", preferences.uiTheme === "dark" ? "#07111F" : "#08264A");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", preferences.uiTheme === "dark" ? "#180F0B" : "#5A321C");
     window.localStorage.setItem(themeStorageKey, preferences.uiTheme);
   }, [preferences.uiTheme]);
 

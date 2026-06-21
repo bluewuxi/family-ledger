@@ -276,7 +276,7 @@ export function MonthlySummaryPage() {
         </div>
       </section>
 
-      <section className="monthly-summary-grid monthly-summary-grid-compact">
+      <section className="monthly-summary-grid">
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
@@ -313,6 +313,20 @@ export function MonthlySummaryPage() {
               </tbody>
             </table>
           </div>
+        </article>
+
+        <article className="flow-card monthly-panel">
+          <div className="chart-section-header">
+            <div>
+              <h2>净投入明细</h2>
+              <p>列出本月手动期初、入金和出金记录，用于解释资产变化拆解中的净投入。</p>
+            </div>
+          </div>
+          <PrincipalFlowTable
+            loading={pageLoading}
+            transactions={summary?.principalTransactions ?? []}
+            gainColorScheme={preferences.gainColorScheme}
+          />
         </article>
       </section>
 
@@ -384,9 +398,6 @@ export function MonthlySummaryPage() {
           />
         </article>
 
-      </section>
-
-      <section className="monthly-summary-grid">
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
@@ -401,21 +412,9 @@ export function MonthlySummaryPage() {
             gainColorScheme={preferences.gainColorScheme}
           />
         </article>
+      </section>
 
-        <article className="flow-card monthly-panel">
-          <div className="chart-section-header">
-            <div>
-              <h2>净投入明细</h2>
-              <p>列出本月手动期初、入金和出金记录，用于解释资产变化拆解中的净投入。</p>
-            </div>
-          </div>
-          <PrincipalFlowTable
-            loading={pageLoading}
-            transactions={summary?.principalTransactions ?? []}
-            gainColorScheme={preferences.gainColorScheme}
-          />
-        </article>
-
+      <section className="monthly-summary-grid">
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>

@@ -2,7 +2,7 @@ const milestones = [
   {
     year: "起点",
     title: "从分散记录到一份共同账本",
-    body: "最初的问题很朴素：美股、港股、A 股基金、新西兰 PIE 基金和现金账户散落在不同平台，家庭成员很难用同一种口径理解资产现状。小家大财从这个痛点开始，把账户、标的、交易和持仓先放到同一个清晰结构里。"
+    body: "最初的问题很朴素：美股、港股、A 股基金、新西兰 PIE 基金和现金账户散落在不同平台，家庭成员很难用同一种口径理解资产现状。金财屋从这个痛点开始，把账户、标的、交易和持仓先放到同一个清晰结构里。"
   },
   {
     year: "现在",
@@ -23,11 +23,11 @@ const designIdeas = [
   },
   {
     title: "色彩",
-    body: "深蓝负责稳定和秩序，金色负责价值、收获和提醒，绿色保留家庭项目的生活感。界面尽量克制，让数字、时间和数据缺口成为真正的焦点。"
+    body: "红色负责行动和提醒，黄色承接家庭资产的土壤感，金色聚焦价值、规则和安全。界面保持克制，让数字、时间和数据缺口成为真正的焦点。"
   },
   {
     title: "字标",
-    body: "“小家”保持亲近，“大”字更高更醒目，表达长期积累带来的分量；“财”用金色收尾，强调财富记录要服务于家庭共识，而不是复杂炫技。"
+    body: "“金”强调规则、价值和数据安全，“财”直指投资理财的核心功能，“屋”代表承载资产记录的稳定空间。三字更中性，也更贴近工具型产品。"
   }
 ];
 
@@ -35,7 +35,7 @@ export function AboutPage() {
   return (
     <section className="about-page">
       <div className="about-hero">
-        <div className="about-hero-lockup" aria-label="小家大财 Family Ledger">
+        <div className="about-hero-lockup" aria-label="金财屋 Family Ledger">
           <div className="about-logo-stack">
             <img className="about-hero-logo" src="/icon-128x128.png" alt="" aria-hidden="true" />
             <span className="brand-subtitle about-logo-subtitle" aria-label="Family Ledger">
@@ -44,11 +44,10 @@ export function AboutPage() {
             </span>
           </div>
           <div className="about-hero-copy">
-            <h1 className="about-brand-name" aria-label="小家大财">
-              <span>小</span>
-              <span>家</span>
-              <span className="about-brand-emphasis">大</span>
-              <span className="about-brand-gold">财</span>
+            <h1 className="about-brand-name" aria-label="金财屋">
+              <span className="about-brand-gold">金</span>
+              <span>财</span>
+              <span className="about-brand-emphasis">屋</span>
             </h1>
             <p>
               为一个小家庭打造的投资账本。它记录资产，也记录共识：让每一笔变化都能解释，让每一次讨论都基于同一份事实。
@@ -59,12 +58,12 @@ export function AboutPage() {
 
       <section className="about-intro" aria-label="项目介绍">
         <p>
-          小家大财不是面向机构的复杂系统，也不是临时拼出来的电子表格。它是一个长期维护的家庭项目：用简洁的权限、稳定的接口和可核对的数据，
+          金财屋不是面向机构的复杂系统，也不是临时拼出来的电子表格。它是一个长期维护的家庭项目：用简洁的权限、稳定的接口和可核对的数据，
           把日常投资记录变成一家人都能看懂、能信任、能持续使用的资产档案。
         </p>
         <p>
-          这个项目的英文名保留为 Family Ledger，因为它的核心始终是 ledger：清楚、克制、可追溯。中文名“小家大财”强调另一层含义：
-          家不必大，资产也未必复杂，但共同理解和长期积累值得被认真对待。
+          这个项目的英文名保留为 Family Ledger，因为它的核心始终是 ledger：清楚、克制、可追溯。中文名“金财屋”强调另一层含义：
+          金代表规则和安全，财指向投资理财的核心，屋则是家庭资产的稳定容器。
         </p>
       </section>
 
@@ -123,8 +122,8 @@ export function AboutPage() {
         <p className="eyebrow">Mission</p>
         <blockquote>把复杂留在系统里，把判断还给家人。</blockquote>
         <p>
-          小家大财会继续保持克制：不堆叠复杂角色，不承诺不该承诺的税务结论，不让前端成为业务规则的唯一来源。
-          它要成为一个安静、可靠、长期可维护的家庭财富记录工具。
+          金财屋会继续保持克制：不堆叠复杂角色，不承诺不该承诺的税务结论，不让前端成为业务规则的唯一来源。
+          它要成为一个安静、可靠、长期可维护的家庭投资理财工具。
         </p>
       </section>
     </section>

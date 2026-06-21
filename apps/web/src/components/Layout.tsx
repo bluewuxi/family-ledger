@@ -129,11 +129,10 @@ export function Layout({ children }: LayoutProps) {
           <div className={`brand${sidebarCollapsed ? " brand-collapsed" : ""}`}>
             <img className="brand-mark" src="/icon-64x64.png" alt="" aria-hidden="true" />
             <div className="brand-copy">
-              <strong className="brand-name" aria-label="小家大财">
-                <span>小</span>
-                <span>家</span>
-                <span className="brand-name-emphasis">大</span>
-                <span className="brand-name-gold">财</span>
+              <strong className="brand-name" aria-label="金财屋">
+                <span className="brand-name-gold">金</span>
+                <span>财</span>
+                <span className="brand-name-emphasis">屋</span>
               </strong>
               <span className="brand-subtitle" aria-label="Family Ledger">
                 <span>Family</span>
@@ -226,14 +225,13 @@ function setElementInert(element: HTMLElement | null, inert: boolean): void {
 
 function MobileAppHeader() {
   return (
-    <header className="mobile-app-header" aria-label="小家大财 Family Ledger">
+    <header className="mobile-app-header" aria-label="金财屋 Family Ledger">
       <img className="mobile-app-logo" src="/icon-64x64.png" alt="" aria-hidden="true" />
       <div className="brand-copy mobile-app-brand-copy">
-        <strong className="brand-name" aria-label="小家大财">
-          <span>小</span>
-          <span>家</span>
-          <span className="brand-name-emphasis">大</span>
-          <span className="brand-name-gold">财</span>
+        <strong className="brand-name" aria-label="金财屋">
+          <span className="brand-name-gold">金</span>
+          <span>财</span>
+          <span className="brand-name-emphasis">屋</span>
         </strong>
         <span className="brand-subtitle" aria-label="Family Ledger">
           <span>Family</span>
@@ -246,9 +244,9 @@ function MobileAppHeader() {
 
 function CollapsedContentBrand() {
   return (
-    <div className="collapsed-content-brand" aria-label="小家大财 Family Ledger">
+    <div className="collapsed-content-brand" aria-label="金财屋 Family Ledger">
       <strong>
-        小家<span>大</span><em>财</em>
+        <em>金</em>财<span>屋</span>
       </strong>
       <small>
         <span>Family</span>
@@ -266,11 +264,10 @@ function AppFooter() {
           <img className="footer-brand-mark" src="/icon-64x64.png" alt="" />
         </span>
         <div className="footer-brand-copy">
-          <strong className="footer-brand-name" aria-label="小家大财">
-            <span>小</span>
-            <span>家</span>
-            <span className="footer-brand-emphasis">大</span>
-            <span className="footer-brand-gold">财</span>
+          <strong className="footer-brand-name" aria-label="金财屋">
+            <span className="footer-brand-gold">金</span>
+            <span>财</span>
+            <span className="footer-brand-emphasis">屋</span>
           </strong>
           <span className="brand-subtitle footer-brand-subtitle" aria-label="Family Ledger">
             <span>Family</span>

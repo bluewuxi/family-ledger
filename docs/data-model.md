@@ -1,6 +1,6 @@
 # Data Model
 
-`小家大财` / `Family Ledger` is a single-family shared ledger. Core business data is shared by the family, not owned by individual users.
+`金财屋` / `Family Ledger` is a single-family shared ledger. Core business data is shared by the family, not owned by individual users.
 
 Users are accessors/operators only. User-specific tables are limited to:
 

@@ -1,6 +1,6 @@
 # family-ledger
 
-`family-ledger`（小家大财 / Family Ledger）是一个中文家庭投资账务 Web 应用，用于少数家庭成员跟踪美股/ETF、港股、A 股 ETF/基金、新西兰 PIE 基金和现金账户。
+`family-ledger`（金财屋 / Family Ledger）是一个中文家庭投资账务 Web 应用，用于少数家庭成员跟踪美股/ETF、港股、A 股 ETF/基金、新西兰 PIE 基金和现金账户。
 
 当前状态：已完成基础 monorepo、Supabase schema、Supabase Auth 登录、viewer/admin 角色查询、Lambda API、账户/标的/交易 CRUD、持仓计算、仪表盘摘要、价格/汇率维护任务、投资组合快照、数据备份状态监控和操作员备份/恢复校验脚本。税务辅助、用户导出报表、生产环境正式运行和告警体系仍未实现。
 

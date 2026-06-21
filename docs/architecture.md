@@ -1,6 +1,6 @@
 # Architecture
 
-`小家大财` / `Family Ledger` uses a serverless architecture:
+`金财屋` / `Family Ledger` uses a serverless architecture:
 
 ```text
 CloudFront + private S3 static assets
