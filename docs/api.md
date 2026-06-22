@@ -409,7 +409,7 @@ The value bridge remains:
 
 Dividend transactions and `dividendSummary` are still returned for API compatibility and audit use. The web monthly review intentionally does not render a separate dividend section, so family members stay focused on `净投入`, `现金校准`, and `估值变动`. Generated dividend cash deposits are included in snapshots and therefore flow into the value bridge through `资产变化`; economically, dividends remain part of the residual `估值变动` rather than new principal.
 
-Account changes use the union of account rows from the selected start and end snapshots plus accounts with monthly principal or cash-adjustment flow. A missing snapshot row on one side is treated as zero for display, so accounts opened or closed during the month can still be reviewed. `assetChange` is end value minus start value. `valuationMovement` is the account residual after subtracting account-level `netPrincipalFlow` and `cashAdjustmentImpact`; dividends remain part of this residual through snapshots. `valuationContributionPct` is account `valuationMovement` divided by the absolute total portfolio `valuationMovement`. If an account row exists with unavailable market value, account-level FX is missing, or the total valuation movement is unavailable or zero, the affected fields are returned as `null`.
+Account changes use the union of account rows from the selected start and end snapshots plus accounts with monthly principal or cash-adjustment flow. A missing snapshot row on one side is treated as zero for display, so accounts opened or closed during the month can still be reviewed. `assetChange` is end value minus start value. `valuationMovement` is the account residual after subtracting account-level `netPrincipalFlow` and `cashAdjustmentImpact`; dividends remain part of this residual through snapshots. `valuationContributionPct` is account `valuationMovement` divided by the sum of absolute account-level `valuationMovement` values, so in-month principal changes do not inflate contribution shares. If an account row exists with unavailable market value, account-level FX is missing, the total valuation movement is unavailable, or the account-level contribution denominator is zero, the affected fields are returned as `null`.
 
 For an initialization month without an earlier portfolio snapshot, manual `opening_balance` rows and market-valued `opening_position` rows are treated as a synthetic month-start baseline instead of in-month net principal flow. Security openings are valued from quantity, the latest available instrument price on or before the opening date, and valuation FX; their `grossAmount` carrying cost is not used as market value. This allows the monthly bridge and account contribution table to show `assetChange` and `valuationMovement` without double-counting opening assets. If a security opening cannot be market-valued, the start bridge remains unavailable and returns a data-quality warning.
 
@@ -447,8 +447,8 @@ Response data:
     "endValue": "108000.000000",
     "assetChange": "8000.000000",
     "netPrincipalFlow": "5000.000000",
-    "cashAdjustmentImpact": "-20.000000",
-    "valuationMovement": "3020.000000",
+    "cashAdjustmentImpact": "0.000000",
+    "valuationMovement": "3000.000000",
     "bridgeLines": [],
     "dividendSummary": {
       "grossAmount": "300.000000",
@@ -472,7 +472,7 @@ Response data:
         "netPrincipalFlow": "1000.000000",
         "cashAdjustmentImpact": "0.000000",
         "valuationMovement": "3000.000000",
-        "valuationContributionPct": "99.337748",
+        "valuationContributionPct": "100.000000",
         "changeAmount": "4000.000000",
         "changePct": "6.666667",
         "warnings": []

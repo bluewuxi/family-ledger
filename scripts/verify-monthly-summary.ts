@@ -119,7 +119,8 @@ const accountWarning: SnapshotWarning = {
 const startSnapshot = snapshot({
   snapshotDate: "2026-05-31",
   accounts: [
-    accountSnapshot({ accountId: "account-a", accountName: "Account A", marketValue: "1000.000000", warnings: [accountWarning] })
+    accountSnapshot({ accountId: "account-a", accountName: "Account A", marketValue: "1000.000000", warnings: [accountWarning] }),
+    accountSnapshot({ accountId: "account-d", accountName: "Account D", marketValue: "200.000000" })
   ]
 });
 const endSnapshot = snapshot({
@@ -127,7 +128,8 @@ const endSnapshot = snapshot({
   accounts: [
     accountSnapshot({ accountId: "account-a", accountName: "Account A", marketValue: "1100.000000", warnings: [accountWarning] }),
     accountSnapshot({ accountId: "account-b", accountName: "Account B", marketValue: "500.000000" }),
-    accountSnapshot({ accountId: "account-c", accountName: "Account C", marketValue: null })
+    accountSnapshot({ accountId: "account-c", accountName: "Account C", marketValue: null }),
+    accountSnapshot({ accountId: "account-d", accountName: "Account D", marketValue: "150.000000" })
   ]
 });
 const accountChanges = buildAccountChanges({
@@ -140,7 +142,7 @@ const accountChanges = buildAccountChanges({
   cashAdjustmentImpactsByAccount: new Map<string, Decimal | null>([
     ["account-a", new Decimal("-5")]
   ]),
-  totalValuationMovement: "85.000000"
+  totalValuationMovement: "35.000000"
 });
 
 assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.changeAmount, "100.000000");
@@ -148,13 +150,16 @@ assert.equal(accountChanges.find((account) => account.accountId === "account-a")
 assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.netPrincipalFlow, "20.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.cashAdjustmentImpact, "-5.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.valuationMovement, "85.000000");
-assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.valuationContributionPct, "100.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.valuationContributionPct, "62.962963");
 assert.equal(accountChanges.find((account) => account.accountId === "account-a")?.warnings.length, 1);
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.startValue, "0.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.netPrincipalFlow, "500.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.valuationMovement, "0.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.valuationContributionPct, "0.000000");
 assert.equal(accountChanges.find((account) => account.accountId === "account-b")?.changePct, null);
 assert.equal(accountChanges.find((account) => account.accountId === "account-c")?.changeAmount, null);
+assert.equal(accountChanges.find((account) => account.accountId === "account-d")?.valuationMovement, "-50.000000");
+assert.equal(accountChanges.find((account) => account.accountId === "account-d")?.valuationContributionPct, "-37.037037");
 assert.deepEqual(buildAccountChanges({ startSnapshot: null, endSnapshot: null }), []);
 assert.equal(collectSnapshotWarnings(startSnapshot, endSnapshot).length, 1);
 
@@ -191,12 +196,25 @@ const missingFlowAccountChanges = buildAccountChanges({
 assert.equal(missingFlowAccountChanges.find((account) => account.accountId === "account-a")?.netPrincipalFlow, null);
 assert.equal(missingFlowAccountChanges.find((account) => account.accountId === "account-a")?.valuationMovement, null);
 
-const zeroTotalContribution = buildAccountChanges({
+const unavailableTotalContribution = buildAccountChanges({
   startSnapshot,
   endSnapshot,
+  totalValuationMovement: null
+});
+assert.equal(unavailableTotalContribution.find((account) => account.accountId === "account-a")?.valuationContributionPct, null);
+
+const zeroDenominatorContribution = buildAccountChanges({
+  startSnapshot: snapshot({
+    snapshotDate: "2026-05-31",
+    accounts: [accountSnapshot({ accountId: "account-zero", accountName: "Account Zero", marketValue: "100.000000" })]
+  }),
+  endSnapshot: snapshot({
+    snapshotDate: "2026-06-30",
+    accounts: [accountSnapshot({ accountId: "account-zero", accountName: "Account Zero", marketValue: "100.000000" })]
+  }),
   totalValuationMovement: "0.000000"
 });
-assert.equal(zeroTotalContribution.find((account) => account.accountId === "account-a")?.valuationContributionPct, null);
+assert.equal(zeroDenominatorContribution.find((account) => account.accountId === "account-zero")?.valuationContributionPct, null);
 
 assert.equal(parseMonthlyReportMonth("2026-06", "2026-06"), "2026-06");
 assert.throws(() => parseMonthlyReportMonth("2026-07", "2026-06"), /未来月份/);

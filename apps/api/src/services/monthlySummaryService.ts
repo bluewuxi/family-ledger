@@ -588,44 +588,49 @@ export function buildAccountChanges(input: {
     ...cashAdjustmentImpactsByAccount.keys()
   ]);
 
-  return accountIds
-    .map((accountId) => {
-      const startAccount = startAccounts.get(accountId) ?? null;
-      const endAccount = endAccounts.get(accountId) ?? null;
-      const syntheticStartValue = formatKnownAccountAmount(syntheticStartValuesByAccount, accountId);
-      const startValue = startAccount ? startAccount.marketValue : syntheticStartValue !== undefined ? syntheticStartValue : "0.000000";
-      const endValue = endAccount ? endAccount.marketValue : "0.000000";
-      const hasUnavailableValue = startValue === null || endValue === null;
-      const assetChange = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
-      const netPrincipalFlow = formatOptionalAccountFlow(netPrincipalFlowsByAccount, accountId);
-      const cashAdjustmentImpact = formatOptionalAccountFlow(cashAdjustmentImpactsByAccount, accountId);
-      const valuationMovement =
-        assetChange !== null && netPrincipalFlow !== null && cashAdjustmentImpact !== null
-          ? formatDecimal(new Decimal(assetChange).minus(netPrincipalFlow).minus(cashAdjustmentImpact))
-          : null;
-      const valuationContributionPct = calculateValuationContributionPct(valuationMovement, totalValuationMovement);
-      const startDecimal = startValue === null ? null : new Decimal(startValue);
-      const changePct =
-        assetChange === null || startDecimal === null || startDecimal.isZero()
-          ? null
-          : formatDecimal(new Decimal(assetChange).dividedBy(startDecimal).times(100));
+  const accountChanges = accountIds.map((accountId) => {
+    const startAccount = startAccounts.get(accountId) ?? null;
+    const endAccount = endAccounts.get(accountId) ?? null;
+    const syntheticStartValue = formatKnownAccountAmount(syntheticStartValuesByAccount, accountId);
+    const startValue = startAccount ? startAccount.marketValue : syntheticStartValue !== undefined ? syntheticStartValue : "0.000000";
+    const endValue = endAccount ? endAccount.marketValue : "0.000000";
+    const hasUnavailableValue = startValue === null || endValue === null;
+    const assetChange = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
+    const netPrincipalFlow = formatOptionalAccountFlow(netPrincipalFlowsByAccount, accountId);
+    const cashAdjustmentImpact = formatOptionalAccountFlow(cashAdjustmentImpactsByAccount, accountId);
+    const valuationMovement =
+      assetChange !== null && netPrincipalFlow !== null && cashAdjustmentImpact !== null
+        ? formatDecimal(new Decimal(assetChange).minus(netPrincipalFlow).minus(cashAdjustmentImpact))
+        : null;
+    const startDecimal = startValue === null ? null : new Decimal(startValue);
+    const changePct =
+      assetChange === null || startDecimal === null || startDecimal.isZero()
+        ? null
+        : formatDecimal(new Decimal(assetChange).dividedBy(startDecimal).times(100));
 
-      return {
-        accountId,
-        accountName: endAccount?.accountName ?? startAccount?.accountName ?? accountId,
-        currency: endAccount?.currency ?? startAccount?.currency ?? reportingCurrency,
-        startValue: hasUnavailableValue ? null : startValue,
-        endValue: hasUnavailableValue ? null : endValue,
-        assetChange,
-        netPrincipalFlow,
-        cashAdjustmentImpact,
-        valuationMovement,
-        valuationContributionPct,
-        changeAmount: assetChange,
-        changePct,
-        warnings: uniqueSnapshotWarnings([...(startAccount?.warnings ?? []), ...(endAccount?.warnings ?? [])])
-      };
-    })
+    return {
+      accountId,
+      accountName: endAccount?.accountName ?? startAccount?.accountName ?? accountId,
+      currency: endAccount?.currency ?? startAccount?.currency ?? reportingCurrency,
+      startValue: hasUnavailableValue ? null : startValue,
+      endValue: hasUnavailableValue ? null : endValue,
+      assetChange,
+      netPrincipalFlow,
+      cashAdjustmentImpact,
+      valuationMovement,
+      valuationContributionPct: null,
+      changeAmount: assetChange,
+      changePct,
+      warnings: uniqueSnapshotWarnings([...(startAccount?.warnings ?? []), ...(endAccount?.warnings ?? [])])
+    };
+  });
+  const valuationContributionDenominator = calculateValuationContributionDenominator(accountChanges, totalValuationMovement);
+
+  return accountChanges
+    .map((account) => ({
+      ...account,
+      valuationContributionPct: calculateValuationContributionPct(account.valuationMovement, valuationContributionDenominator)
+    }))
     .sort(compareAccountChanges);
 }
 
@@ -647,13 +652,28 @@ function formatKnownAccountAmount(amountsByAccount: Map<string, Decimal | null>,
   return amount === null || amount === undefined ? null : formatDecimal(amount);
 }
 
-function calculateValuationContributionPct(valuationMovement: string | null, totalValuationMovement: string | null): string | null {
-  if (valuationMovement === null || totalValuationMovement === null) {
+function calculateValuationContributionDenominator(
+  accountChanges: MonthlyAccountChangeSummary[],
+  totalValuationMovement: string | null
+): Decimal | null {
+  if (totalValuationMovement === null) {
     return null;
   }
 
-  const denominator = new Decimal(totalValuationMovement).abs();
+  const denominator = accountChanges.reduce(
+    (total, account) => account.valuationMovement === null ? total : total.plus(new Decimal(account.valuationMovement).abs()),
+    new Decimal(0)
+  );
+
   if (denominator.isZero()) {
+    return null;
+  }
+
+  return denominator;
+}
+
+function calculateValuationContributionPct(valuationMovement: string | null, denominator: Decimal | null): string | null {
+  if (valuationMovement === null || denominator === null) {
     return null;
   }
 

@@ -300,9 +300,8 @@ textarea {
 
 .brand-name-emphasis {
   color: var(--color-brand-brown);
-  font-size: 34px;
+  font-size: inherit;
   font-weight: 800;
-  transform: translateY(1px);
 }
 
 .brand-name-gold {
@@ -597,7 +596,7 @@ textarea {
 
 .collapsed-content-brand strong span {
   color: var(--color-brand-brown);
-  font-size: 34px;
+  font-size: inherit;
   font-weight: 800;
 }
 
@@ -707,7 +706,7 @@ textarea {
 
 .footer-brand-emphasis {
   color: var(--color-brand-brown);
-  font-size: 1.32em;
+  font-size: inherit;
   font-weight: 800;
 }
 
@@ -2953,7 +2952,7 @@ tr.editing-row td {
 }
 
 .login-brand-name .brand-name-emphasis {
-  font-size: 42px;
+  font-size: inherit;
 }
 
 .login-brand-subtitle {
@@ -3389,7 +3388,7 @@ tr.editing-row td {
 
 .about-brand-emphasis {
   color: var(--color-brand-brown);
-  font-size: 1.24em;
+  font-size: inherit;
   text-shadow: 0 0 20px rgb(214 162 74 / 22%);
 }
 

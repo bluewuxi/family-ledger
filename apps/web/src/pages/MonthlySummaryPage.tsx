@@ -304,7 +304,7 @@ export function MonthlySummaryPage() {
                       <tr key={line.key}>
                         <td>{line.label}</td>
                         <td className={`numeric-cell ${signed ? signedToneClass(line.amount, preferences.gainColorScheme, 3) : ""}`}>
-                          {formatMetric(line.amount, false, signed)}
+                          {formatBridgeLineAmount(line, false, signed)}
                         </td>
                       </tr>
                     );
@@ -335,7 +335,7 @@ export function MonthlySummaryPage() {
           <div className="chart-section-header">
             <div>
               <h2>账户贡献</h2>
-              <p>按账户拆解本月估值变动，贡献/拖累以全组合估值变动的绝对值为分母。</p>
+              <p>按账户拆解本月估值变动，已剔除净投入和现金校准；贡献/拖累以各账户估值变动绝对值合计为分母。</p>
             </div>
           </div>
           <div className="table-wrap compact-table-wrap monthly-account-contribution-wrap">
@@ -460,7 +460,7 @@ function TradeActivityTable({
             <th className="date-column">日期</th>
             <th className="type-column">类型</th>
             <th>标的</th>
-            <th className="numeric-cell">成交金额</th>
+            <th className="numeric-cell">价格</th>
             <th className="numeric-cell">结算现金</th>
             <th>备注</th>
           </tr>
@@ -476,7 +476,7 @@ function TradeActivityTable({
                 <td className="date-column">{formatMonthDay(item.transaction.tradeDate)}</td>
                 <td className="type-column">{TRANSACTION_TYPE_LABELS[item.transaction.transactionType]}</td>
                 <td>{formatInstrument(item.transaction)}</td>
-                <td className="numeric-cell">{formatTransactionAmount(item.transaction)}</td>
+                <td className="numeric-cell">{formatTransactionPrice(item.transaction)}</td>
                 <td className={`numeric-cell ${signedToneClass(getLinkedCashLegSignedAmount(item.linkedCashLeg), gainColorScheme, 3)}`}>
                   {formatLinkedCashLeg(item.linkedCashLeg)}
                 </td>
@@ -610,6 +610,16 @@ function formatMetric(value: string | null | undefined, loading: boolean, signed
   return signed ? formatSignedDisplayAmount(value) : formatDisplayAmount(value);
 }
 
+function formatBridgeLineAmount(
+  line: MonthlySummary["bridgeLines"][number],
+  loading: boolean,
+  signed: boolean
+): ReactNode {
+  return line.key === "cash_adjustment"
+    ? formatMetric(line.amount, loading, signed)
+    : formatWholeMetric(line.amount, loading, signed);
+}
+
 function formatWholeMetric(value: string | null | undefined, loading: boolean, signed: boolean): ReactNode {
   if (loading) {
     return <LoadingState label="加载中" />;
@@ -639,9 +649,8 @@ function formatWholeMetric(value: string | null | undefined, loading: boolean, s
   return normalizedValue < 0 ? `-${formatted}` : formatted;
 }
 
-function formatTransactionAmount(transaction: InvestmentTransaction): string {
-  const amount = transaction.grossAmount ?? transaction.settlementAmount;
-  return amount ? `${transaction.currency} ${formatDisplayAmount(amount)}` : "--";
+function formatTransactionPrice(transaction: InvestmentTransaction): string {
+  return transaction.price ? `${transaction.currency} ${formatDisplayAmount(transaction.price)}` : "--";
 }
 
 function getLinkedCashLegSignedAmount(transaction: InvestmentTransaction | null): string | null {
