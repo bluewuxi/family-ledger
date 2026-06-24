@@ -3,17 +3,19 @@ import {
   ADJUSTMENT_DIRECTIONS,
   CURRENCY_CODES,
   TRANSACTION_TYPES,
+  calculateHoldings,
   type AdjustmentDirection,
   type AuthenticatedUser,
   type CreateInvestmentTransactionInput,
   type CurrencyCode,
+  type HoldingSummary,
   type Instrument,
   type InvestmentTransaction,
   type PaginatedResult,
   type TransactionType,
   type UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
-import { findAccountById } from "../repositories/accountRepository";
+import { findAccountById, listAccounts } from "../repositories/accountRepository";
 import { findInstrumentById, listInstruments } from "../repositories/instrumentRepository";
 import { findValuationRateToUsdOnDate } from "../repositories/fxRateRepository";
 import {
@@ -92,6 +94,7 @@ export async function createInvestmentTransaction(
 
   try {
     const settlementInput = await withAutomaticSettlement(validated);
+    await assertSufficientTradeBalance(settlementInput);
     const transaction = await createTransaction(settlementInput, user.id);
     await syncGeneratedCashLeg(transaction, user.id);
     await recalculateSnapshotsFrom(transaction.tradeDate);
@@ -147,6 +150,10 @@ export async function updateInvestmentTransaction(
   const updateInput = shouldUpdateDerivedData ? await withAutomaticSettlement(validated) : validated;
 
   try {
+    if (shouldUpdateDerivedData) {
+      await assertSufficientTradeBalance(updateInput, id);
+    }
+
     const transaction = await updateTransaction(id, updateInput, user.id);
 
     if (shouldUpdateDerivedData) {
@@ -231,6 +238,73 @@ async function withAutomaticSettlement(
     settlementCurrency,
     settlementAmount
   };
+}
+
+async function assertSufficientTradeBalance(
+  input: CreateInvestmentTransactionInput,
+  existingTransactionId?: string
+): Promise<void> {
+  if (input.transactionType !== "buy" && input.transactionType !== "sell") {
+    return;
+  }
+
+  const [transactions, accounts, instruments] = await Promise.all([
+    listTransactions(),
+    listAccounts(),
+    listInstruments()
+  ]);
+  const baseTransactions = existingTransactionId
+    ? transactions.filter(
+        (transaction) => transaction.id !== existingTransactionId && transaction.linkedTransactionId !== existingTransactionId
+      )
+    : transactions;
+  const holdings = calculateHoldings(baseTransactions, accounts, instruments);
+
+  if (input.transactionType === "buy") {
+    assertSufficientCashForBuy(input, holdings, instruments);
+    return;
+  }
+
+  assertSufficientPositionForSell(input, holdings);
+}
+
+function assertSufficientCashForBuy(
+  input: CreateInvestmentTransactionInput,
+  holdings: HoldingSummary[],
+  instruments: Instrument[]
+): void {
+  if (!input.settlementCurrency || !input.settlementAmount) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Settlement cash amount could not be calculated.", 400);
+  }
+
+  const cashInstrument = instruments.find(
+    (instrument) => instrument.assetType === "cash" && instrument.currency === input.settlementCurrency
+  );
+
+  if (!cashInstrument) {
+    throw new ApiRequestError("VALIDATION_ERROR", `No ${input.settlementCurrency} cash instrument is configured.`, 400);
+  }
+
+  const availableCash = getHoldingQuantity(holdings, input.accountId, cashInstrument.id);
+  const requestedCash = new Decimal(input.settlementAmount);
+
+  if (requestedCash.gt(availableCash)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "可用资金不足，不能提交超过现金余额的买入交易。", 400);
+  }
+}
+
+function assertSufficientPositionForSell(input: CreateInvestmentTransactionInput, holdings: HoldingSummary[]): void {
+  const availableQuantity = getHoldingQuantity(holdings, input.accountId, input.instrumentId);
+  const requestedQuantity = new Decimal(input.quantity ?? "0");
+
+  if (requestedQuantity.gt(availableQuantity)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "可用持仓不足，不能提交超过当前持仓的卖出交易。", 400);
+  }
+}
+
+function getHoldingQuantity(holdings: HoldingSummary[], accountId: string, instrumentId: string): Decimal {
+  const holding = holdings.find((item) => item.accountId === accountId && item.instrumentId === instrumentId);
+  return new Decimal(holding?.quantity ?? "0");
 }
 
 async function syncGeneratedCashLeg(parent: InvestmentTransaction, userId: string): Promise<void> {

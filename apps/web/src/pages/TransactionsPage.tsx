@@ -114,6 +114,20 @@ export function TransactionsPage() {
     ? getBankCashInstrumentError(selectedAccount, bankCashInstruments)
     : null;
   const selectedInstrument = instruments.find((instrument) => instrument.id === form.instrumentId);
+  const editingTransaction = transactions.find((transaction) => transaction.id === editingTransactionId);
+  const accountCashInstruments = useMemo(
+    () => (selectedAccount ? getBankCashInstruments(selectedAccount, instruments) : []),
+    [selectedAccount, instruments]
+  );
+  const accountCashInstrument = accountCashInstruments.length === 1 ? accountCashInstruments[0] : null;
+  const tradeAvailability = getTradeAvailability({
+    form,
+    holdingsSummary,
+    selectedAccount,
+    selectedInstrument,
+    accountCashInstrument,
+    editingTransaction
+  });
   const bankCashBalance =
     isBankCashAccount && bankCashInstrument
       ? findCashBalance(holdingsSummary, selectedAccount.id, bankCashInstrument.id)
@@ -229,6 +243,18 @@ export function TransactionsPage() {
 
       const payload = toTransactionInput(form, selectedInstrument);
       const existingTransaction = transactions.find((transaction) => transaction.id === editingTransactionId);
+      const tradeAvailabilityError = getTradeAvailability({
+        form,
+        holdingsSummary,
+        selectedAccount,
+        selectedInstrument,
+        accountCashInstrument,
+        editingTransaction
+      }).error;
+
+      if (tradeAvailabilityError) {
+        throw new ApiClientError(tradeAvailabilityError, "INSUFFICIENT_TRADE_BALANCE");
+      }
 
       if (existingTransaction && isValuationImpactingFormChange(existingTransaction, payload)) {
         const confirmed = window.confirm("本次修改会自动更新关联现金流水，并重新计算受影响日期之后的资产快照。确定继续？");
@@ -388,7 +414,8 @@ export function TransactionsPage() {
     !form.accountId ||
     accounts.length === 0 ||
     eligibleInstruments.length === 0 ||
-    Boolean(bankCashInstrumentError);
+    Boolean(bankCashInstrumentError) ||
+    Boolean(tradeAvailability.error);
 
   return (
     <section>
@@ -628,6 +655,12 @@ export function TransactionsPage() {
                 ))}
               </select>
             )}
+            {tradeAvailability.label ? (
+              <span className={tradeAvailability.error ? "transaction-availability-label has-error" : "transaction-availability-label"}>
+                {tradeAvailability.label}
+                {tradeAvailability.error ? ` ${tradeAvailability.error}` : ""}
+              </span>
+            ) : null}
           </label>
 
           {isBankCashAccount ? (
@@ -835,6 +868,184 @@ function findCashBalance(
   return (
     holdingsSummary?.holdings.find((holding) => holding.accountId === accountId && holding.instrumentId === instrumentId) ?? null
   );
+}
+
+interface TradeAvailabilityInput {
+  form: TransactionFormState;
+  holdingsSummary: HoldingsValuationSummary | null;
+  selectedAccount: InvestmentAccount | undefined;
+  selectedInstrument: Instrument | undefined;
+  accountCashInstrument: Instrument | null;
+  editingTransaction: InvestmentTransaction | undefined;
+}
+
+function getTradeAvailability(input: TradeAvailabilityInput): { label: string | null; error: string | null } {
+  const { form, holdingsSummary, selectedAccount, selectedInstrument, accountCashInstrument, editingTransaction } = input;
+
+  if (!selectedAccount) {
+    return { label: null, error: null };
+  }
+
+  if (form.transactionType === "buy") {
+    const currentCashQuantity = accountCashInstrument
+      ? findCashBalance(holdingsSummary, selectedAccount.id, accountCashInstrument.id)?.quantity ?? "0"
+      : "0";
+    const cashQuantity = addBackEditedBuyCash(currentCashQuantity, selectedAccount, editingTransaction);
+    const label = `可用资金：${selectedAccount.baseCurrency} ${formatDisplayAmount(cashQuantity)}`;
+    const requiredAmount =
+      selectedInstrument?.currency === selectedAccount.baseCurrency ? calculateComparableBuyAmount(form) : null;
+    const error =
+      requiredAmount && compareDecimalStrings(requiredAmount, cashQuantity, 6) > 0
+        ? "可用资金不足，不能提交超过现金余额的买入交易。"
+        : null;
+
+    return { label, error };
+  }
+
+  if (form.transactionType === "sell" && selectedInstrument) {
+    const currentQuantity =
+      holdingsSummary?.holdings.find(
+        (holding) => holding.accountId === selectedAccount.id && holding.instrumentId === selectedInstrument.id
+      )?.quantity ?? "0";
+    const availableQuantity = addBackEditedSellQuantity(currentQuantity, selectedAccount, selectedInstrument, editingTransaction);
+    const label = `可用持仓：${formatDisplayQuantity(availableQuantity)}`;
+    const error =
+      form.quantity.trim() && compareDecimalStrings(form.quantity, availableQuantity, 10) > 0
+        ? "可用持仓不足，不能提交超过当前持仓的卖出交易。"
+        : null;
+
+    return { label, error };
+  }
+
+  return { label: null, error: null };
+}
+
+function addBackEditedBuyCash(
+  currentCashQuantity: string,
+  selectedAccount: InvestmentAccount,
+  editingTransaction: InvestmentTransaction | undefined
+): string {
+  if (
+    editingTransaction?.transactionType !== "buy" ||
+    editingTransaction.accountId !== selectedAccount.id ||
+    editingTransaction.settlementCurrency !== selectedAccount.baseCurrency ||
+    !editingTransaction.settlementAmount
+  ) {
+    return currentCashQuantity;
+  }
+
+  return addDecimalStrings(currentCashQuantity, editingTransaction.settlementAmount, 6);
+}
+
+function addBackEditedSellQuantity(
+  currentQuantity: string,
+  selectedAccount: InvestmentAccount,
+  selectedInstrument: Instrument,
+  editingTransaction: InvestmentTransaction | undefined
+): string {
+  if (
+    editingTransaction?.transactionType !== "sell" ||
+    editingTransaction.accountId !== selectedAccount.id ||
+    editingTransaction.instrumentId !== selectedInstrument.id ||
+    !editingTransaction.quantity
+  ) {
+    return currentQuantity;
+  }
+
+  return addDecimalStrings(currentQuantity, editingTransaction.quantity, 10);
+}
+
+function calculateComparableBuyAmount(form: TransactionFormState): string | null {
+  const grossAmount = multiplyDecimalStrings(form.quantity, form.price, 6);
+
+  if (!grossAmount) {
+    return null;
+  }
+
+  const fee = normalizeDecimalString(form.fee || "0");
+  const tax = normalizeDecimalString(form.tax || "0");
+
+  if (!fee || !tax) {
+    return null;
+  }
+
+  const total = toScaledBigInt(grossAmount, 6) + toScaledBigInt(fee, 6) + toScaledBigInt(tax, 6);
+  return fromScaledBigInt(total, 6);
+}
+
+function multiplyDecimalStrings(left: string, right: string, outputScale: number): string | null {
+  const normalizedLeft = normalizeDecimalString(left);
+  const normalizedRight = normalizeDecimalString(right);
+
+  if (!normalizedLeft || !normalizedRight) {
+    return null;
+  }
+
+  const leftScale = decimalScale(normalizedLeft);
+  const rightScale = decimalScale(normalizedRight);
+  const product = toScaledBigInt(normalizedLeft, leftScale) * toScaledBigInt(normalizedRight, rightScale);
+  const productScale = leftScale + rightScale;
+
+  if (productScale <= outputScale) {
+    return fromScaledBigInt(product * 10n ** BigInt(outputScale - productScale), outputScale);
+  }
+
+  const divisor = 10n ** BigInt(productScale - outputScale);
+  const quotient = product / divisor;
+  const remainder = product % divisor;
+  const rounded = remainder * 2n >= divisor ? quotient + 1n : quotient;
+
+  return fromScaledBigInt(rounded, outputScale);
+}
+
+function compareDecimalStrings(left: string, right: string, scale: number): number {
+  const leftAmount = toScaledBigInt(normalizeDecimalString(left) ?? "0", scale);
+  const rightAmount = toScaledBigInt(normalizeDecimalString(right) ?? "0", scale);
+
+  if (leftAmount === rightAmount) {
+    return 0;
+  }
+  return leftAmount > rightAmount ? 1 : -1;
+}
+
+function addDecimalStrings(left: string, right: string, scale: number): string {
+  const total =
+    toScaledBigInt(normalizeDecimalString(left) ?? "0", scale) +
+    toScaledBigInt(normalizeDecimalString(right) ?? "0", scale);
+  return fromScaledBigInt(total, scale);
+}
+
+function normalizeDecimalString(value: string): string | null {
+  const normalized = value.trim();
+  return /^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(normalized) ? normalized : null;
+}
+
+function decimalScale(value: string): number {
+  return value.split(".")[1]?.length ?? 0;
+}
+
+function toScaledBigInt(value: string, scale: number): bigint {
+  const [integerPart, decimalPart = ""] = value.split(".");
+  const paddedDecimal = decimalPart.padEnd(scale, "0").slice(0, scale);
+  return BigInt(`${integerPart}${paddedDecimal}`);
+}
+
+function fromScaledBigInt(value: bigint, scale: number): string {
+  const raw = value.toString().padStart(scale + 1, "0");
+  const integerPart = raw.slice(0, -scale);
+  const decimalPart = raw.slice(-scale).replace(/0+$/u, "");
+  return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+}
+
+function formatDisplayQuantity(value: string | number | null | undefined): string {
+  const normalized = String(value ?? "").trim();
+  const numericValue = Number(normalized);
+
+  if (!normalized || !Number.isFinite(numericValue)) {
+    return normalized || "--";
+  }
+
+  return numericValue.toLocaleString("zh-CN", { maximumFractionDigits: 6 });
 }
 
 interface RenderTransactionRowInput {

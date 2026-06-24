@@ -829,6 +829,17 @@ textarea {
   grid-column: span 2;
 }
 
+.transaction-availability-label {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.transaction-availability-label.has-error {
+  color: var(--color-danger);
+}
+
 .form-heading {
   display: flex;
   align-items: baseline;
