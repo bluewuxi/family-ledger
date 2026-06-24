@@ -42,20 +42,27 @@ export interface InsertInstrumentPriceResult {
 
 export async function listPriceEnabledInstrumentsBySource(input: {
   priceSource: PriceSource;
-  sourceSymbols: string[];
+  sourceSymbols?: string[];
 }): Promise<PriceEnabledInstrument[]> {
-  if (input.sourceSymbols.length === 0) {
+  if (input.sourceSymbols && input.sourceSymbols.length === 0) {
     return [];
   }
 
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
+  let query = supabase
     .from("instruments")
     .select(["id", "name", "currency", "price_source", "price_source_symbol", "exchange", "price_source_exchange"].join(", "))
     .eq("price_source", input.priceSource)
     .eq("price_update_enabled", true)
-    .in("price_source_symbol", input.sourceSymbols)
-    .returns<InstrumentRow[]>();
+    .not("price_source_symbol", "is", null)
+    .order("price_update_priority", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (input.sourceSymbols) {
+    query = query.in("price_source_symbol", input.sourceSymbols);
+  }
+
+  const { data, error } = await query.returns<InstrumentRow[]>();
 
   if (error) {
     throw new Error("Failed to list price-enabled instruments.");

@@ -35,7 +35,7 @@ Trading account passwords are not stored in Postgres. Each account has one SSM S
 
 `asset_type` is a classification field, not a separate table in Stage 1.
 
-`market_region` distinguishes broad regions such as `US`, `HK`, `CN`, `NZ`, `AU`, `MULTI`, and `OTHER`.
+`market_region` distinguishes broad regions such as `US`, `HK`, `CN`, `NZ`, `UK`, `MULTI`, and `OTHER`.
 
 `exchange` distinguishes venues or platform-specific sources such as `NASDAQ`, `NYSE_ARCA`, `HKEX`, `SSE`, `SZSE`, `INVESTNOW`, and `CASH`.
 
@@ -95,10 +95,10 @@ The FX job derives provider target currencies from distinct account base currenc
 
 The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` values as NZD instrument prices for the seeded `FS_NASDAQ_100`, `FS_TOTAL_WORLD`, and `FS_US_500` instruments. It does not store FundRock buy price, sell price, NAV, transaction spreads, fees, distributions, or historical backfills. FundRock unit prices may lag by multiple days; one provider day behind the snapshot date is expected when the main batch runs before the NZ evening publication window. Snapshots use the latest published unit price available and must keep the provider-supplied `price_date`.
 
-The stock/ETF price job also ingests best-effort latest daily prices for the seeded enabled instruments:
+The stock/ETF price job also ingests best-effort latest daily prices for enabled instruments configured in the database:
 
-- `yahoo_finance`: seeded US/HK stocks and ETFs (`AMD`, `QQQM`, `VOO`, `VGT`, `SMH`, `1810.HK`, `0700.HK`).
-- `eastmoney`: seeded China-listed ETFs/funds (`161128`, `159501`, `513500`).
+- `yahoo_finance`: enabled instruments with `price_source = 'yahoo_finance'` and a non-empty `price_source_symbol`.
+- `eastmoney`: enabled instruments with `price_source = 'eastmoney'`, a non-empty `price_source_symbol`, and a supported China exchange.
 
 These providers are treated as unofficial market-data sources for a small family ledger. They do not introduce API keys or paid provider secrets. Provider responses are validated before insert, and failures are recorded in `data_provider_runs`, but this is not a guaranteed market-data feed or historical backfill pipeline.
 
@@ -197,7 +197,9 @@ Seeded instruments:
 - QQQM
 - VOO
 - VGT
-- SMH
+- SMH (US)
+- SMH LSE USD
+- CNDX LSE USD
 - 01810
 - 00700
 - 161128

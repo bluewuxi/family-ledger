@@ -133,7 +133,7 @@ export type JobTriggerSource = (typeof JOB_TRIGGER_SOURCES)[number];
 export const DATA_KINDS = ["exchange_rates", "instrument_prices"] as const;
 export type DataKind = (typeof DATA_KINDS)[number];
 
-export const MARKET_REGIONS = ["US", "HK", "CN", "NZ", "AU", "MULTI", "OTHER"] as const;
+export const MARKET_REGIONS = ["US", "HK", "CN", "NZ", "UK", "MULTI", "OTHER"] as const;
 export type MarketRegion = (typeof MARKET_REGIONS)[number];
 
 export const MARKET_REGION_LABELS: Record<MarketRegion, string> = {
@@ -141,7 +141,7 @@ export const MARKET_REGION_LABELS: Record<MarketRegion, string> = {
   HK: "\u6e2f\u80a1",
   CN: "\u4e2d\u56fd\u5927\u9646",
   NZ: "\u65b0\u897f\u5170",
-  AU: "\u6fb3\u5927\u5229\u4e9a",
+  UK: "\u82f1\u56fd",
   MULTI: "\u591a\u5e02\u573a",
   OTHER: "\u5176\u4ed6"
 };

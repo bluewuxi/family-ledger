@@ -74,7 +74,7 @@ create table public.investment_accounts (
   updated_at timestamptz not null default now(),
   constraint investment_accounts_account_type_check check (account_type in ('brokerage', 'fund_platform', 'bank', 'retirement', 'other')),
   constraint investment_accounts_base_currency_check check (base_currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
-  constraint investment_accounts_market_region_check check (market_region in ('US', 'HK', 'CN', 'NZ', 'AU', 'MULTI', 'OTHER'))
+  constraint investment_accounts_market_region_check check (market_region in ('US', 'HK', 'CN', 'NZ', 'UK', 'MULTI', 'OTHER'))
 );
 
 create table public.instruments (
@@ -97,7 +97,7 @@ create table public.instruments (
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint instruments_market_region_check check (market_region in ('US', 'HK', 'CN', 'NZ', 'AU', 'MULTI', 'OTHER')),
+  constraint instruments_market_region_check check (market_region in ('US', 'HK', 'CN', 'NZ', 'UK', 'MULTI', 'OTHER')),
   constraint instruments_currency_check check (currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
   constraint instruments_asset_type_check check (asset_type in ('stock', 'etf', 'pie_fund', 'mutual_fund', 'cash', 'bond', 'other')),
   constraint instruments_price_source_check check (price_source in ('manual', 'yahoo_finance', 'alpha_vantage', 'stooq', 'twelvedata', 'eastmoney', 'sina', 'investnow_manual', 'custom')),

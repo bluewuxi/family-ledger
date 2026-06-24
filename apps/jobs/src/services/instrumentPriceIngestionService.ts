@@ -35,13 +35,11 @@ export const YAHOO_FINANCE_PROVIDER_NAME = "Yahoo Finance";
 export const EASTMONEY_PROVIDER_NAME = "Eastmoney";
 
 const INSTRUMENT_PRICE_DATA_KIND: DataKind = "instrument_prices";
-const YAHOO_FINANCE_SEEDED_SYMBOLS = ["AMD", "QQQM", "VOO", "VGT", "SMH", "1810.HK", "0700.HK"] as const;
-const EASTMONEY_SEEDED_SYMBOLS = ["161128", "159501", "513500"] as const;
 
 interface InstrumentPriceRepository {
   listPriceEnabledInstrumentsBySource(input: {
     priceSource: PriceSource;
-    sourceSymbols: string[];
+    sourceSymbols?: string[];
   }): Promise<PriceEnabledInstrument[]>;
   insertInstrumentPriceIfNotExists(input: CreateInstrumentPriceInput): Promise<InsertInstrumentPriceResult>;
 }
@@ -84,7 +82,7 @@ interface JobRunRepository {
 
 export interface InstrumentPriceProviderConfig {
   priceSource: PriceSource;
-  sourceSymbols: string[];
+  sourceSymbols?: string[];
   provider: IInstrumentPriceProvider;
   providerInstrumentNames?: Record<string, string>;
 }
@@ -209,12 +207,10 @@ export function defaultInstrumentPriceProviderConfigs(): InstrumentPriceProvider
   return [
     {
       priceSource: "yahoo_finance",
-      sourceSymbols: [...YAHOO_FINANCE_SEEDED_SYMBOLS],
       provider: new YahooFinanceInstrumentPriceProvider()
     },
     {
       priceSource: "eastmoney",
-      sourceSymbols: [...EASTMONEY_SEEDED_SYMBOLS],
       provider: new EastMoneyInstrumentPriceProvider()
     },
     {

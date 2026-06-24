@@ -93,8 +93,8 @@ async function main(): Promise<void> {
     jobRunRepository: createFakeJobRunRepository(calls),
     instrumentPriceRepository: {
       async listPriceEnabledInstrumentsBySource(input) {
-        calls.push(`instruments:${input.priceSource}:${input.sourceSymbols.join(",")}`);
-        return priceEnabledInstruments(input.priceSource);
+        calls.push(`instruments:${input.priceSource}:${input.sourceSymbols?.join(",") ?? "ALL"}`);
+        return selectPriceEnabledInstruments(input.priceSource, input.sourceSymbols);
       },
       async insertInstrumentPriceIfNotExists(input) {
         insertedInputs.push(input);
@@ -110,6 +110,9 @@ async function main(): Promise<void> {
   assert.equal(result.recordsSkipped, 0);
   assert.deepEqual(result.providerRuns.map((run) => run.provider), ["Yahoo Finance", "Eastmoney", "FundRock"]);
   assert.deepEqual(insertedInputs.map((input) => input.sourceSymbol), ["AMD", "VOO", "1810.HK", "161128", "159501", "FS_US_500"]);
+  assert.ok(calls.includes("instruments:yahoo_finance:ALL"));
+  assert.ok(calls.includes("instruments:eastmoney:ALL"));
+  assert.ok(calls.includes("instruments:custom:FS_US_500"));
   assert.ok(calls.includes(`job:start:${UPDATE_PRICES_JOB_NAME}:2026-05-23T01:00:00.000Z`));
   assert.ok(calls.includes("provider:start:Yahoo Finance:instrument_prices:2026-05-23T01:00:00.000Z"));
   assert.ok(calls.includes("provider:start:Eastmoney:instrument_prices:2026-05-23T01:00:00.000Z"));
@@ -123,7 +126,7 @@ async function main(): Promise<void> {
     jobRunRepository: createFakeJobRunRepository([]),
     instrumentPriceRepository: {
       async listPriceEnabledInstrumentsBySource(input) {
-        return priceEnabledInstruments(input.priceSource);
+        return selectPriceEnabledInstruments(input.priceSource, input.sourceSymbols);
       },
       async insertInstrumentPriceIfNotExists(input) {
         const key = `${input.instrumentId}:${input.provider}:${input.priceDate}`;
@@ -152,11 +155,11 @@ async function main(): Promise<void> {
     ingestLatestInstrumentPrices({
       fetchedAt: "2026-05-29T06:00:00.000Z",
       now: fixedNow(),
-      providerConfigs: [providerConfig("eastmoney", ["161128", "159501"], providerReturningDate("Eastmoney", "CNY", "2026-05-29"))],
+      providerConfigs: [providerConfig("eastmoney", providerReturningDate("Eastmoney", "CNY", "2026-05-29"), ["161128", "159501"])],
       jobRunRepository: createFakeJobRunRepository(closePolicyCalls),
       instrumentPriceRepository: {
         async listPriceEnabledInstrumentsBySource(input) {
-          return priceEnabledInstruments(input.priceSource);
+          return selectPriceEnabledInstruments(input.priceSource, input.sourceSymbols);
         },
         async insertInstrumentPriceIfNotExists(input) {
           return { inserted: true, record: instrumentPriceRecord(input) };
@@ -203,13 +206,13 @@ async function main(): Promise<void> {
       fetchedAt: "2026-05-23T01:00:00.000Z",
       now: fixedNow(),
       providerConfigs: [
-        providerConfig("yahoo_finance", ["AMD"], providerReturning("Yahoo Finance", "USD")),
-        providerConfig("eastmoney", ["161128"], providerFailing("Eastmoney"))
+        providerConfig("yahoo_finance", providerReturning("Yahoo Finance", "USD"), ["AMD"]),
+        providerConfig("eastmoney", providerFailing("Eastmoney"), ["161128"])
       ],
       jobRunRepository: createFakeJobRunRepository(failureCalls),
       instrumentPriceRepository: {
         async listPriceEnabledInstrumentsBySource(input) {
-          return priceEnabledInstruments(input.priceSource).slice(0, 1);
+          return selectPriceEnabledInstruments(input.priceSource, input.sourceSymbols).slice(0, 1);
         },
         async insertInstrumentPriceIfNotExists(input) {
           return { inserted: true, record: instrumentPriceRecord(input) };
@@ -244,18 +247,18 @@ async function main(): Promise<void> {
 
 function providerConfigs(): InstrumentPriceProviderConfig[] {
   return [
-    providerConfig("yahoo_finance", ["AMD", "VOO", "1810.HK"], providerReturning("Yahoo Finance", "USD")),
-    providerConfig("eastmoney", ["161128", "159501"], providerReturning("Eastmoney", "CNY")),
-    providerConfig("custom", ["FS_US_500"], providerReturning("FundRock", "NZD"))
+    providerConfig("yahoo_finance", providerReturning("Yahoo Finance", "USD")),
+    providerConfig("eastmoney", providerReturning("Eastmoney", "CNY")),
+    providerConfig("custom", providerReturning("FundRock", "NZD"), ["FS_US_500"])
   ];
 }
 
 function providerConfig(
   priceSource: InstrumentPriceProviderConfig["priceSource"],
-  sourceSymbols: string[],
-  provider: IInstrumentPriceProvider
+  provider: IInstrumentPriceProvider,
+  sourceSymbols?: string[]
 ): InstrumentPriceProviderConfig {
-  return { priceSource, sourceSymbols, provider };
+  return { priceSource, provider, ...(sourceSymbols ? { sourceSymbols } : {}) };
 }
 
 function providerReturning(providerName: string, fallbackCurrency: "USD" | "HKD" | "CNY" | "NZD"): IInstrumentPriceProvider {
@@ -304,6 +307,14 @@ function priceEnabledInstruments(priceSource: InstrumentPriceProviderConfig["pri
   ];
 
   return instruments.filter((instrument) => instrument.priceSource === priceSource);
+}
+
+function selectPriceEnabledInstruments(
+  priceSource: InstrumentPriceProviderConfig["priceSource"],
+  sourceSymbols: string[] | undefined
+): PriceEnabledInstrument[] {
+  const instruments = priceEnabledInstruments(priceSource);
+  return sourceSymbols ? instruments.filter((instrument) => sourceSymbols.includes(instrument.priceSourceSymbol)) : instruments;
 }
 
 function priceEnabledInstrument(
