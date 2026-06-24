@@ -93,6 +93,8 @@ The FX job derives provider target currencies from distinct account base currenc
 
 `instrument_prices` stores provider-supplied calendar-date instrument close prices or published unit prices in the instrument price currency. `price_date` and `rate_date` are provider-supplied dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
 
+When an admin creates a past-date buy or sell transaction and no `instrument_prices` row exists for that instrument, date, and currency, the API writes a `manual` price row using the transaction price before recalculating affected snapshots. This is an intentional consistency trade-off: a transaction price is not guaranteed to equal the official close, but using it as a best-effort historical price keeps derived snapshots internally consistent and avoids turning affected aggregate values unavailable until an operator replaces it with a better market-data record.
+
 The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` values as NZD instrument prices for the seeded `FS_NASDAQ_100`, `FS_TOTAL_WORLD`, and `FS_US_500` instruments. It does not store FundRock buy price, sell price, NAV, transaction spreads, fees, distributions, or historical backfills. FundRock unit prices may lag by multiple days; one provider day behind the snapshot date is expected when the main batch runs before the NZ evening publication window. Snapshots use the latest published unit price available and must keep the provider-supplied `price_date`.
 
 The stock/ETF price job also ingests best-effort latest daily prices for enabled instruments configured in the database:

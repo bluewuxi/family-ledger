@@ -216,6 +216,14 @@ corepack pnpm typecheck
 corepack pnpm build
 ```
 
+Transaction price backfill has a focused verification script:
+
+```powershell
+corepack pnpm verify:transaction-price-backfill
+```
+
+It checks the intentional consistency trade-off where a past-date buy/sell can create a best-effort `manual` instrument price from the transaction price when no same-day price exists.
+
 Snapshot audit is dry-run by default and is intended for the test Supabase project:
 
 ```powershell

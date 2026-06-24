@@ -84,6 +84,28 @@ export async function listLatestPricesForDates(
   return ((data ?? []) as unknown as PriceForDateRow[]).map(mapPriceRow);
 }
 
+export async function hasInstrumentPriceOnDate(input: {
+  instrumentId: string;
+  priceDate: string;
+  currency: PriceRecord["currency"];
+}): Promise<boolean> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("instrument_prices")
+    .select("id")
+    .eq("instrument_id", input.instrumentId)
+    .eq("price_date", input.priceDate)
+    .eq("currency", input.currency)
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    throw new Error("Failed to check instrument price.");
+  }
+
+  return data !== null;
+}
+
 export async function insertInstrumentPriceIfNotExists(
   input: CreateInstrumentPriceInput
 ): Promise<InstrumentPriceRecord> {

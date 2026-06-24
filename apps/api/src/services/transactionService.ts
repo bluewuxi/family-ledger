@@ -4,8 +4,10 @@ import {
   CURRENCY_CODES,
   TRANSACTION_TYPES,
   calculateHoldings,
+  getAppBusinessDate,
   type AdjustmentDirection,
   type AuthenticatedUser,
+  type CreateInstrumentPriceInput,
   type CreateInvestmentTransactionInput,
   type CurrencyCode,
   type HoldingSummary,
@@ -30,6 +32,7 @@ import {
   listTransactions,
   updateTransaction
 } from "../repositories/transactionRepository";
+import { hasInstrumentPriceOnDate, insertInstrumentPriceIfNotExists } from "../repositories/priceRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
 
@@ -97,6 +100,7 @@ export async function createInvestmentTransaction(
     await assertSufficientTradeBalance(settlementInput);
     const transaction = await createTransaction(settlementInput, user.id);
     await syncGeneratedCashLeg(transaction, user.id);
+    await createPriceRecordFromPastTradeIfMissing(transaction);
     await recalculateSnapshotsFrom(transaction.tradeDate);
     return transaction;
   } catch (error) {
@@ -110,6 +114,57 @@ export async function createInvestmentTransaction(
 
     throw error;
   }
+}
+
+async function createPriceRecordFromPastTradeIfMissing(transaction: InvestmentTransaction): Promise<void> {
+  const instrument = await findInstrumentById(transaction.instrumentId);
+
+  if (!instrument) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction instrument was not found.", 400);
+  }
+
+  const priceInput = buildTransactionPriceRecordInput(transaction, instrument);
+
+  if (!priceInput) {
+    return;
+  }
+
+  const existingPrice = await hasInstrumentPriceOnDate({
+    instrumentId: priceInput.instrumentId,
+    priceDate: priceInput.priceDate,
+    currency: priceInput.currency
+  });
+
+  if (!existingPrice) {
+    await insertInstrumentPriceIfNotExists(priceInput);
+  }
+}
+
+export function buildTransactionPriceRecordInput(
+  transaction: InvestmentTransaction,
+  instrument: Instrument,
+  appBusinessDate = getAppBusinessDate()
+): CreateInstrumentPriceInput | null {
+  if (
+    (transaction.transactionType !== "buy" && transaction.transactionType !== "sell") ||
+    instrument.assetType === "cash" ||
+    transaction.price === null ||
+    transaction.tradeDate >= appBusinessDate ||
+    transaction.currency !== instrument.currency
+  ) {
+    return null;
+  }
+
+  return {
+    instrumentId: transaction.instrumentId,
+    priceDate: transaction.tradeDate,
+    closePrice: transaction.price,
+    currency: transaction.currency,
+    provider: "manual",
+    sourceSymbol: instrument.symbol ?? instrument.priceSourceSymbol,
+    isAdjusted: false,
+    fetchedAt: transaction.createdAt
+  };
 }
 
 export async function updateInvestmentTransaction(
