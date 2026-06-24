@@ -26,7 +26,7 @@ create table public.profiles (
   preferred_currency text not null default 'NZD',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint profiles_preferred_currency_check check (preferred_currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR'))
+  constraint profiles_preferred_currency_check check (preferred_currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR'))
 );
 
 create table public.user_roles (
@@ -73,7 +73,7 @@ create table public.investment_accounts (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint investment_accounts_account_type_check check (account_type in ('brokerage', 'fund_platform', 'bank', 'retirement', 'other')),
-  constraint investment_accounts_base_currency_check check (base_currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
+  constraint investment_accounts_base_currency_check check (base_currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')),
   constraint investment_accounts_market_region_check check (market_region in ('US', 'HK', 'CN', 'NZ', 'UK', 'MULTI', 'OTHER'))
 );
 
@@ -98,7 +98,7 @@ create table public.instruments (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint instruments_market_region_check check (market_region in ('US', 'HK', 'CN', 'NZ', 'UK', 'MULTI', 'OTHER')),
-  constraint instruments_currency_check check (currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
+  constraint instruments_currency_check check (currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')),
   constraint instruments_asset_type_check check (asset_type in ('stock', 'etf', 'pie_fund', 'mutual_fund', 'cash', 'bond', 'other')),
   constraint instruments_price_source_check check (price_source in ('manual', 'yahoo_finance', 'alpha_vantage', 'stooq', 'twelvedata', 'eastmoney', 'sina', 'investnow_manual', 'custom')),
   constraint instruments_price_update_priority_check check (price_update_priority >= 0)
@@ -124,7 +124,7 @@ create table public.transactions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint transactions_transaction_type_check check (transaction_type in ('buy', 'sell', 'dividend', 'fee', 'tax', 'deposit', 'withdrawal', 'interest', 'adjustment')),
-  constraint transactions_currency_check check (currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
+  constraint transactions_currency_check check (currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')),
   constraint transactions_quantity_non_negative_check check (quantity is null or quantity >= 0),
   constraint transactions_price_non_negative_check check (price is null or price >= 0),
   constraint transactions_gross_amount_non_negative_check check (gross_amount is null or gross_amount >= 0),
@@ -145,7 +145,7 @@ create table public.prices (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint prices_close_price_non_negative_check check (close_price >= 0),
-  constraint prices_currency_check check (currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
+  constraint prices_currency_check check (currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')),
   constraint prices_instrument_date_key unique (instrument_id, price_date)
 );
 
@@ -158,8 +158,8 @@ create table public.fx_rates (
   source text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint fx_rates_from_currency_check check (from_currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
-  constraint fx_rates_to_currency_check check (to_currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
+  constraint fx_rates_from_currency_check check (from_currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')),
+  constraint fx_rates_to_currency_check check (to_currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')),
   constraint fx_rates_rate_positive_check check (rate > 0),
   constraint fx_rates_pair_date_key unique (from_currency, to_currency, rate_date)
 );

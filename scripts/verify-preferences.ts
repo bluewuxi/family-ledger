@@ -43,7 +43,7 @@ async function verifyPreferences(): Promise<void> {
   assert.equal(legacyFallbackCurrency, "NZD");
 
   await assert.rejects(
-    () => resolveReportingCurrency({ currency: "AUD", user }, loadPreferences),
+    () => resolveReportingCurrency({ currency: "JPY", user }, loadPreferences),
     /currency must be NZD, USD, or CNY/
   );
 

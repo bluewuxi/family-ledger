@@ -18,7 +18,7 @@ alter table public.transactions
 alter table public.transactions
   add constraint transactions_settlement_currency_check check (
     settlement_currency is null
-    or settlement_currency in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')
+    or settlement_currency in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')
   );
 
 alter table public.transactions

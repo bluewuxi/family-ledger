@@ -5,7 +5,7 @@ create table public.currencies (
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint currencies_code_check check (code in ('NZD', 'USD', 'HKD', 'CNY', 'AUD', 'GBP', 'EUR')),
+  constraint currencies_code_check check (code in ('NZD', 'USD', 'HKD', 'CNY', 'GBP', 'EUR')),
   constraint currencies_minor_unit_check check (minor_unit >= 0)
 );
 
@@ -15,7 +15,6 @@ values
   ('NZD', 'New Zealand Dollar', 2),
   ('HKD', 'Hong Kong Dollar', 2),
   ('CNY', 'Chinese Yuan', 2),
-  ('AUD', 'Australian Dollar', 2),
   ('GBP', 'British Pound', 2),
   ('EUR', 'Euro', 2)
 on conflict (code) do update

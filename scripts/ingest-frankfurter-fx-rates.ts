@@ -4,7 +4,7 @@ import { DEFAULT_FRANKFURTER_TARGET_CURRENCIES, ingestLatestFrankfurterFxRates }
 
 config({ path: ".env.test", override: false });
 
-const SUPPORTED_CURRENCIES = new Set<CurrencyCode>(["NZD", "USD", "HKD", "CNY", "AUD", "GBP", "EUR"]);
+const SUPPORTED_CURRENCIES = new Set<CurrencyCode>(["NZD", "USD", "HKD", "CNY", "GBP", "EUR"]);
 
 main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : "Frankfurter FX ingestion failed.");

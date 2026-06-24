@@ -16,7 +16,6 @@ const currencyCountryLabels: Record<string, string> = {
   USD: "美国",
   HKD: "香港",
   CNY: "中国",
-  AUD: "澳大利亚",
   GBP: "英国",
   EUR: "欧盟"
 };

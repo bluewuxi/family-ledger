@@ -118,7 +118,7 @@ function toIsoDate(year: number, month: number, day: number): string {
 export const USER_ROLES = ["viewer", "admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const CURRENCY_CODES = ["NZD", "USD", "HKD", "CNY", "AUD", "GBP", "EUR"] as const;
+export const CURRENCY_CODES = ["NZD", "USD", "HKD", "CNY", "GBP", "EUR"] as const;
 export type CurrencyCode = (typeof CURRENCY_CODES)[number];
 
 export const RATE_TYPES = ["valuation", "tax"] as const;

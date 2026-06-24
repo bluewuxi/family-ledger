@@ -23,7 +23,6 @@ async function main(): Promise<void> {
               NZD: 1.632,
               CNY: 7.121,
               HKD: 7.849,
-              AUD: 1.521,
               EUR: 0.923,
               GBP: 0.784
             }
@@ -35,14 +34,14 @@ async function main(): Promise<void> {
 
   const result = await provider.fetchLatestRates({
     baseCurrency: "USD",
-    targetCurrencies: ["NZD", "CNY", "HKD", "AUD", "EUR", "GBP"],
+    targetCurrencies: ["NZD", "CNY", "HKD", "EUR", "GBP"],
     fetchedAt: "2026-05-23T01:00:00.000Z"
   });
 
   const url = new URL(requestedUrl);
   assert.equal(url.origin + url.pathname, "https://api.frankfurter.app/latest");
   assert.equal(url.searchParams.get("from"), "USD");
-  assert.equal(url.searchParams.get("to"), "NZD,CNY,HKD,AUD,EUR,GBP");
+  assert.equal(url.searchParams.get("to"), "NZD,CNY,HKD,EUR,GBP");
   assert.equal(result.provider, "Frankfurter");
   assert.equal(result.baseCurrency, "USD");
   assert.equal(result.rateDate, "2026-05-22");
@@ -51,7 +50,6 @@ async function main(): Promise<void> {
     { currency: "NZD", providerRate: "1.632" },
     { currency: "CNY", providerRate: "7.121" },
     { currency: "HKD", providerRate: "7.849" },
-    { currency: "AUD", providerRate: "1.521" },
     { currency: "EUR", providerRate: "0.923" },
     { currency: "GBP", providerRate: "0.784" }
   ]);

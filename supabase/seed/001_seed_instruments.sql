@@ -120,8 +120,8 @@ values
     null
   ),
   (
-    'SMH',
-    'SMH LSE USD',
+    'SMH.L',
+    'SMH.L',
     'VanEck Semiconductor UCITS ETF Acc (LSE USD)',
     'VanEck Semiconductor UCITS ETF Acc is the London Stock Exchange USD trading line of the Ireland-domiciled UCITS accumulating ETF tracking semiconductor companies, distinct from the US-domiciled VanEck Semiconductor ETF.',
     'UK',
@@ -140,8 +140,8 @@ values
     'LSE USD accumulating UCITS line; distinct from the US market SMH ETF.'
   ),
   (
-    'CNDX',
-    'CNDX LSE USD',
+    'CNDX.L',
+    'CNDX.L',
     'iShares Nasdaq 100 UCITS ETF Acc (LSE USD)',
     'iShares Nasdaq 100 UCITS ETF Acc is the London Stock Exchange USD trading line of the Ireland-domiciled accumulating UCITS ETF tracking the Nasdaq-100 Index.',
     'UK',
@@ -160,7 +160,7 @@ values
     'LSE USD accumulating UCITS line.'
   ),
   (
-    '01810',
+    '01810.HK',
     '小米',
     'Xiaomi Corporation',
     'Xiaomi is a consumer electronics and smart manufacturing company with smartphones and smart hardware connected by an IoT platform at its core, with related internet services.',
@@ -180,7 +180,7 @@ values
     null
   ),
   (
-    '00700',
+    '00700.HK',
     '腾讯',
     'Tencent Holdings Limited',
     'Tencent provides value-added services, marketing services, fintech, and business services, with consumer internet and enterprise services across Mainland China and internationally.',
@@ -372,26 +372,6 @@ values
     null,
     'manual',
     'CASH_NZD',
-    'CASH',
-    false,
-    9,
-    null,
-    now(),
-    null
-  ),
-  (
-    'CASH_AUD',
-    'AUD现金',
-    'AUD Cash',
-    'Australian dollar cash position used for shared family ledger cash balances and cash transactions.',
-    'OTHER',
-    'CASH',
-    'AUD',
-    'cash',
-    null,
-    null,
-    'manual',
-    'CASH_AUD',
     'CASH',
     false,
     9,

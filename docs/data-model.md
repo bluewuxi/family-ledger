@@ -198,10 +198,10 @@ Seeded instruments:
 - VOO
 - VGT
 - SMH (US)
-- SMH LSE USD
-- CNDX LSE USD
-- 01810
-- 00700
+- SMH.L
+- CNDX.L
+- 01810.HK
+- 00700.HK
 - 161128
 - 159501
 - 513500

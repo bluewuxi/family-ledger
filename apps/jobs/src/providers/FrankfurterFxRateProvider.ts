@@ -22,7 +22,7 @@ export interface FrankfurterFxRateProviderOptions {
 }
 
 const FRANKFURTER_ENDPOINT = "https://api.frankfurter.app";
-const SUPPORTED_CURRENCY_CODES = new Set<CurrencyCode>(["NZD", "USD", "HKD", "CNY", "AUD", "GBP", "EUR"]);
+const SUPPORTED_CURRENCY_CODES = new Set<CurrencyCode>(["NZD", "USD", "HKD", "CNY", "GBP", "EUR"]);
 
 export class FrankfurterFxRateProvider implements IFxRateProvider {
   readonly name = "Frankfurter";
