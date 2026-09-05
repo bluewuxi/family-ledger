@@ -132,7 +132,7 @@ export async function buildPortfolioTrend(input: {
     rangeStart,
     rangeEnd
   });
-  const points = mergeTrendPoints(portfolioPoints, principal.principalPoints);
+  const points = mergeTrendPoints(portfolioPoints, principal.principalPoints, allSnapshots, principalEvents);
 
   return {
     points,
@@ -394,42 +394,32 @@ function findSnapshotAsOf(
 
 function mergeTrendPoints(
   portfolioPoints: Array<Omit<PortfolioTrendPoint, "totalInvestment">>,
-  principalPoints: PortfolioPrincipalPoint[]
+  principalPoints: PortfolioPrincipalPoint[],
+  snapshots: PortfolioSnapshotSummary[],
+  principalEvents: PrincipalEvent[]
 ): PortfolioTrendPoint[] {
   const portfolioByDate = new Map(portfolioPoints.map((point) => [point.date, point]));
-  const sortedPortfolioPoints = [...portfolioPoints].sort((left, right) => left.date.localeCompare(right.date));
+  const sortedSnapshots = [...snapshots].sort((left, right) => left.snapshotDate.localeCompare(right.snapshotDate));
   const principalByDate = new Map(principalPoints.map((point) => [point.date, point.totalInvestment]));
   const dates = uniqueValues([...portfolioByDate.keys(), ...principalByDate.keys()]).sort();
 
   return dates.map((date) => {
-    const portfolioPoint = portfolioByDate.get(date) ?? findPortfolioPointAsOf(sortedPortfolioPoints, date);
+    // Resolve event dates from the full history, before chart sampling.
+    const snapshot = findSnapshotAsOf(sortedSnapshots, date);
+    const portfolioPoint = portfolioByDate.get(date);
+    const snapshotDate = snapshot?.snapshotDate ?? null;
+    const hasUnvaluedFlow = snapshotDate !== null && principalEvents.some(
+      (event) => event.date > snapshotDate && event.date <= date
+    );
 
     return {
       date,
-      portfolioValue: portfolioPoint?.portfolioValue ?? null,
-      snapshotDate: portfolioPoint?.snapshotDate ?? null,
+      portfolioValue: hasUnvaluedFlow ? null : snapshot?.marketValue ?? null,
+      snapshotDate,
       liveValue: portfolioPoint?.liveValue ?? null,
       totalInvestment: principalByDate.get(date) ?? null
     };
   });
-}
-
-function findPortfolioPointAsOf(
-  points: Array<Omit<PortfolioTrendPoint, "totalInvestment">>,
-  targetDate: string
-): Omit<PortfolioTrendPoint, "totalInvestment"> | null {
-  let selected: Omit<PortfolioTrendPoint, "totalInvestment"> | null = null;
-
-  for (const point of points) {
-    if (point.date > targetDate) {
-      break;
-    }
-    if (point.portfolioValue !== null) {
-      selected = point;
-    }
-  }
-
-  return selected;
 }
 
 async function resolveSnapshotQuery(input: {

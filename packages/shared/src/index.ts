@@ -625,9 +625,12 @@ function applySecurityTransaction(
 
       if (state.quantity.isNegative()) {
         markCostBasisUnavailable(state);
-      } else if (state.quantity.isZero() && !state.costBasisUnavailable) {
+      } else if (state.quantity.isZero()) {
         state.costAmount = new Decimal(0);
         state.costAmountUsd = new Decimal(0);
+        state.costBasisUnavailable = false;
+        state.costBasisUsdUnavailable = false;
+        state.warnings.clear();
       }
       return;
     }
@@ -1238,6 +1241,7 @@ export interface PortfolioTrend {
 }
 
 export const MONTHLY_SUMMARY_WARNING_CODES = [
+  "SNAPSHOT_DATE_MISMATCH",
   "MISSING_START_SNAPSHOT",
   "MISSING_END_SNAPSHOT",
   "START_VALUE_UNAVAILABLE",

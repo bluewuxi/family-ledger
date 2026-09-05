@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { getAppBusinessDate } from "@family-ledger/shared";
 import type {
   AuthenticatedUser,
   CurrencyCode,
@@ -58,13 +59,14 @@ export async function getMonthlySummary(input: {
   const currency = await resolveReportingCurrency(input);
   const month = parseMonthlyReportMonth(input.month);
   const { monthStart, monthEnd, previousDay } = getMonthBoundaries(month);
+  const valuationEnd = getMonthlyValuationEnd(month);
   const [startSnapshots, endSnapshots, transactions] = await Promise.all([
     listPortfolioSnapshots({ from: earliestDate, to: previousDay, currency, order: "desc", limit: 1 }),
-    listPortfolioSnapshots({ from: monthStart, to: monthEnd, currency, order: "desc", limit: 1 }),
-    listTransactions({ from: monthStart, to: monthEnd })
+    listPortfolioSnapshots({ from: monthStart, to: valuationEnd, currency, order: "desc", limit: 1 }),
+    listTransactions({ from: monthStart, to: valuationEnd })
   ]);
-  const startSnapshot = startSnapshots[0] ?? null;
-  const endSnapshot = endSnapshots[0] ?? null;
+  const startSnapshot = requireMonthlySnapshotDate(startSnapshots[0] ?? null, previousDay);
+  const endSnapshot = requireMonthlySnapshotDate(endSnapshots[0] ?? null, valuationEnd);
   const principalTransactions = transactions
     .filter((transaction) => transaction.transactionSource === "manual")
     .filter((transaction) =>
@@ -116,6 +118,14 @@ export async function getMonthlySummary(input: {
   const bridgePrincipalTransactions = usesSyntheticStartValue ? contributionPrincipalTransactions : principalTransactions;
 
   addSnapshotWarnings(warnings, startSnapshot, endSnapshot, usesSyntheticStartValue);
+  for (const [snapshot, expectedDate] of [[startSnapshots[0], previousDay], [endSnapshots[0], valuationEnd]] as const) {
+    if (snapshot && snapshot.snapshotDate !== expectedDate) {
+      addWarning(warnings, {
+        code: "SNAPSHOT_DATE_MISMATCH", date: expectedDate, currency,
+        message: `需要 ${expectedDate} 的资产快照，现有快照为 ${snapshot.snapshotDate}，相关收益暂不可用。`
+      });
+    }
+  }
 
   const netPrincipalFlow = sumConvertedTransactions({
     transactions: bridgePrincipalTransactions,
@@ -201,6 +211,23 @@ export async function getMonthlySummary(input: {
     snapshotWarnings: collectSnapshotWarnings(startSnapshot, endSnapshot),
     warnings: [...warnings.values()]
   };
+}
+
+// Current-month reports stop at the last completed global business day.
+export function getMonthlyValuationEnd(month: string, now: Date | string = new Date()): string {
+  const businessDate = getAppBusinessDate(now);
+  const completedDay = new Date(`${businessDate}T00:00:00.000Z`);
+  completedDay.setUTCDate(completedDay.getUTCDate() - 1);
+  const lastCompletedDate = completedDay.toISOString().slice(0, 10);
+  return [getMonthBoundaries(month).monthEnd, lastCompletedDate].sort()[0];
+}
+
+export function requireMonthlySnapshotDate(
+  snapshot: PortfolioSnapshotSummary | null, expectedDate: string
+): PortfolioSnapshotSummary | null {
+  if (!snapshot || snapshot.snapshotDate === expectedDate) return snapshot;
+  // Keep the row to distinguish an incomplete history from initialization.
+  return { ...snapshot, marketValue: null, accounts: snapshot.accounts.map((account) => ({ ...account, marketValue: null })) };
 }
 
 export function calculateMonthlyBridge(input: {
@@ -592,8 +619,11 @@ export function buildAccountChanges(input: {
     const startAccount = startAccounts.get(accountId) ?? null;
     const endAccount = endAccounts.get(accountId) ?? null;
     const syntheticStartValue = formatKnownAccountAmount(syntheticStartValuesByAccount, accountId);
-    const startValue = startAccount ? startAccount.marketValue : syntheticStartValue !== undefined ? syntheticStartValue : "0.000000";
-    const endValue = endAccount ? endAccount.marketValue : "0.000000";
+    const startValue = startAccount ? startAccount.marketValue
+      : syntheticStartValue !== undefined ? syntheticStartValue
+      : (startSnapshot ? startSnapshot.marketValue !== null : syntheticStartValuesByAccount.size > 0) ? "0.000000" : null;
+    const endValue = endAccount ? endAccount.marketValue
+      : !endSnapshot || endSnapshot.marketValue === null ? null : "0.000000";
     const hasUnavailableValue = startValue === null || endValue === null;
     const assetChange = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
     const netPrincipalFlow = formatOptionalAccountFlow(netPrincipalFlowsByAccount, accountId);

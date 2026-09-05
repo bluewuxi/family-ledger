@@ -6,7 +6,9 @@ import {
   calculateMonthlyBridge,
   calculateSyntheticStartBaseline,
   collectSnapshotWarnings,
-  getMonthlySnapshotWindows
+  getMonthlySnapshotWindows,
+  getMonthlyValuationEnd,
+  requireMonthlySnapshotDate
 } from "../apps/api/src/services/monthlySummaryService";
 import { parseMonthlyReportMonth } from "../apps/api/src/services/monthlyReportMonth";
 import type { InvestmentTransaction, PortfolioSnapshotSummary, PriceRecord, SnapshotWarning } from "@family-ledger/shared";
@@ -20,6 +22,39 @@ const complete = calculateMonthlyBridge({
 
 assert.equal(complete.assetChange, "300.000000");
 assert.equal(complete.valuationMovement, "110.000000");
+
+assert.equal(getMonthlyValuationEnd("2026-05", "2026-06-15T00:00:00Z"), "2026-05-31");
+assert.equal(getMonthlyValuationEnd("2026-06", "2026-06-15T00:00:00Z"), "2026-06-14");
+assert.equal(getMonthlyValuationEnd("2026-06", "2026-06-14T21:59:59Z"), "2026-06-13");
+const staleBoundary = requireMonthlySnapshotDate(snapshot({
+  snapshotDate: "2026-06-28", marketValue: "1000",
+  accounts: [accountSnapshot({ accountId: "account-a", accountName: "A", marketValue: "1000" })]
+}), "2026-06-30");
+assert.equal(staleBoundary?.marketValue, null);
+assert.equal(staleBoundary?.accounts[0]?.marketValue, null);
+assert.equal(calculateMonthlyBridge({ startValue: "1000", endValue: staleBoundary?.marketValue ?? null,
+  netPrincipalFlow: "500", cashAdjustmentImpact: "0" }).valuationMovement, null);
+assert.equal(requireMonthlySnapshotDate(staleBoundary, "2026-06-28"), staleBoundary);
+
+const partialStart = snapshot({ snapshotDate: "2026-05-31", marketValue: null, accounts: [
+  accountSnapshot({ accountId: "healthy", accountName: "Healthy", marketValue: "1000" }),
+  accountSnapshot({ accountId: "missing", accountName: "Missing", marketValue: null })
+] });
+const partialEnd = snapshot({ snapshotDate: "2026-06-30", marketValue: null, accounts: [
+  accountSnapshot({ accountId: "healthy", accountName: "Healthy", marketValue: "1100" }),
+  accountSnapshot({ accountId: "missing", accountName: "Missing", marketValue: null })
+] });
+const partialChanges = buildAccountChanges({ startSnapshot: partialStart, endSnapshot: partialEnd,
+  totalValuationMovement: null });
+const healthyChange = partialChanges.find((row) => row.accountId === "healthy");
+assert.equal(healthyChange?.startValue, "1000");
+assert.equal(healthyChange?.endValue, "1100");
+assert.equal(healthyChange?.valuationMovement, "100.000000");
+assert.equal(healthyChange?.valuationContributionPct, null);
+assert.equal(partialChanges.find((row) => row.accountId === "missing")?.valuationMovement, null);
+assert.equal(buildAccountChanges({ startSnapshot: partialStart,
+  endSnapshot: requireMonthlySnapshotDate(partialEnd, "2026-07-31")
+}).find((row) => row.accountId === "healthy")?.valuationMovement, null);
 
 const missingSnapshot = calculateMonthlyBridge({
   startValue: null,

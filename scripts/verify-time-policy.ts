@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
 import { formatHoursMinutes } from "../apps/web/src/lib/timeFormat";
-import { buildProfitChartData, buildTrendChartData } from "../apps/web/src/lib/trendChartData";
+import { buildProfitChartData, buildTrendChartData, calculateTrendCumulativeMovement, getLiveValuationDot } from "../apps/web/src/lib/trendChartData";
 
 void main();
 
@@ -118,10 +118,35 @@ async function main(): Promise<void> {
     }
   ]);
   assert.deepEqual(profitChart.map((point) => [point.date, point.profitValue]), [
-    ["2026-05-28", 20],
-    ["2026-05-29", 30],
-    ["2026-05-30", 20]
+    ["2026-05-28", 0],
+    ["2026-05-29", 10],
+    ["2026-05-30", 0]
   ]);
+
+  const unavailable = buildTrendChartData([
+    { date: "2026-05-28", portfolioValue: 1000, totalInvestment: 1000 },
+    { date: "2026-05-29", portfolioValue: null, totalInvestment: 1500 }
+  ], null, null);
+  assert.equal(calculateTrendCumulativeMovement(unavailable), null);
+  assert.equal(buildProfitChartData(unavailable).at(-1)?.profitValue, null);
+  const recovered = buildTrendChartData([
+    { date: "2026-05-29", portfolioValue: null, totalInvestment: 1000 }
+  ], "1100", "2026-05-29", aShareOpenTime);
+  assert.equal(calculateTrendCumulativeMovement(recovered), "100");
+  assert.equal(recovered.length, 1);
+  for (const liveValue of ["1600", "1400"]) {
+    const isolated = buildTrendChartData([
+      { date: "2026-05-28", portfolioValue: 1000, totalInvestment: 1000 },
+      { date: "2026-05-29", portfolioValue: null, totalInvestment: 1500 }
+    ], liveValue, "2026-05-29", aShareOpenTime);
+    assert.deepEqual(getLiveValuationDot(isolated), { r: 4 });
+    assert.equal(isolated[0]?.liveValue, null);
+    assert.equal(isolated.at(-1)?.liveValue, Number(liveValue));
+    assert.equal(calculateTrendCumulativeMovement(isolated), String(Number(liveValue) - 1500));
+  }
+  assert.equal(getLiveValuationDot(unavailable), false);
+  assert.equal(getLiveValuationDot(sameDayLiveChart), false);
+  assert.equal(buildProfitChartData(sameDayLiveChart).some((point) => point.date.startsWith("__live_midpoint__")), false);
 
   const staleQuoteChart = buildTrendChartData(
     [{ date: "2026-05-28", portfolioValue: 100, totalInvestment: null }],

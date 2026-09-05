@@ -43,6 +43,8 @@ import { formatHoursMinutes, formatLocalDateTimeNote } from "../lib/timeFormat";
 import {
   buildProfitChartData,
   buildTrendChartData,
+  calculateTrendCumulativeMovement,
+  getLiveValuationDot,
   isSyntheticTrendDate,
   type ProfitChartPoint,
   type TrendChartPoint,
@@ -297,8 +299,7 @@ export function DashboardPage() {
             portfolioValue: parseNullableNumber(point.portfolioValue),
             totalInvestment: parseNullableNumber(point.totalInvestment),
             snapshotDate: point.snapshotDate
-          }))
-          .filter((point) => point.portfolioValue !== null || point.totalInvestment !== null);
+          }));
       }
 
       return snapshots
@@ -324,6 +325,7 @@ export function DashboardPage() {
     () => buildColorSplitTrendChartData(trendChartData),
     [trendChartData]
   );
+  const liveValuationDot = useMemo(() => getLiveValuationDot(trendChartData), [trendChartData]);
   const trendSummary = useMemo(
     () => buildTrendSummary(trendChartData),
     [trendChartData]
@@ -606,7 +608,7 @@ export function DashboardPage() {
                     stroke={chartPositiveColor}
                     strokeDasharray="3 5"
                     strokeWidth={2}
-                    dot={false}
+                    dot={liveValuationDot}
                     activeDot={{ r: 5 }}
                     connectNulls={false}
                   />
@@ -617,7 +619,7 @@ export function DashboardPage() {
                     stroke={chartNegativeColor}
                     strokeDasharray="3 5"
                     strokeWidth={2}
-                    dot={false}
+                    dot={liveValuationDot}
                     activeDot={{ r: 5 }}
                     connectNulls={false}
                   />
@@ -1473,18 +1475,6 @@ function getNiceTickStep(rawStep: number): number {
   }
 
   return magnitude * 10;
-}
-
-function calculateTrendCumulativeMovement(chartPoints: TrendChartPoint[]): string | null {
-  const sortedPoints = [...chartPoints].sort((left, right) => left.date.localeCompare(right.date));
-  const latestPortfolioPoint = [...sortedPoints].reverse().find((point) => Number.isFinite(point.value));
-  const latestPrincipalPoint = [...sortedPoints].reverse().find((point) => point.totalInvestment !== null);
-
-  if (!latestPortfolioPoint || !latestPrincipalPoint || latestPrincipalPoint.totalInvestment === null) {
-    return null;
-  }
-
-  return String(latestPortfolioPoint.value - latestPrincipalPoint.totalInvestment);
 }
 
 function formatChartMoney(value: number): string {

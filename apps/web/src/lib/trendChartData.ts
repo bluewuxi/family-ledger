@@ -26,6 +26,11 @@ export interface ProfitChartPoint {
   isSynthetic?: boolean;
 }
 
+export function getLiveValuationDot(points: TrendChartPoint[]): false | { r: number } {
+  // A single live value has no line segment; make it visible without joining a data gap.
+  return points.filter((point) => point.liveValue !== null).length === 1 ? { r: 4 } : false;
+}
+
 export function buildTrendChartData(
   points: TrendPoint[],
   liveTotalAssets: string | null | undefined,
@@ -68,6 +73,18 @@ export function buildTrendChartData(
 
   if (lastPoint.date > today || !isCurrentBusinessDateQuote(liveQuoteDate, today)) {
     return chartPoints;
+  }
+
+  if (lastPoint.snapshotValue === null) {
+    // A chart fallback (such as principal) is not a valuation baseline.
+    const endpoint = {
+      date: today,
+      value: liveValue,
+      snapshotValue: options.showLiveConnector === false ? liveValue : null,
+      liveValue: options.showLiveConnector === false ? null : liveValue,
+      totalInvestment: lastPoint.date === today ? lastPoint.totalInvestment : null
+    };
+    return [...(lastPoint.date === today ? chartPoints.slice(0, -1) : chartPoints), endpoint];
   }
 
   if (options.showLiveConnector === false) {
@@ -130,6 +147,7 @@ export function buildProfitChartData(chartPoints: TrendChartPoint[]): ProfitChar
   let periodStartValue: number | null = null;
 
   return chartPoints
+    .filter((point) => !point.date.startsWith("__live_midpoint__"))
     .map((point) => {
       if (point.totalInvestment !== null && Number.isFinite(point.totalInvestment)) {
         carriedTotalInvestment = point.totalInvestment;
@@ -155,8 +173,20 @@ export function buildProfitChartData(chartPoints: TrendChartPoint[]): ProfitChar
         snapshotDate: point.snapshotDate ?? null,
         isSynthetic: point.isSynthetic
       };
-    })
-    .filter((point) => point.profitValue !== null);
+    });
+}
+
+export function calculateTrendCumulativeMovement(chartPoints: TrendChartPoint[]): string | null {
+  let principal: number | null = null;
+  let latest: TrendChartPoint | undefined;
+  for (const point of chartPoints) {
+    if (point.isSynthetic && point.date.startsWith("__live_midpoint__")) continue;
+    if (point.totalInvestment !== null) principal = point.totalInvestment;
+    latest = point;
+  }
+  const value = latest?.liveValue ?? latest?.snapshotValue;
+  return value === null || value === undefined || principal === null || !Number.isFinite(value)
+    ? null : String(value - principal);
 }
 
 export function isSyntheticTrendDate(value: string): boolean {

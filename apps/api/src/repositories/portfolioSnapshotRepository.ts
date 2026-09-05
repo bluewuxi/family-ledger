@@ -53,10 +53,6 @@ interface PortfolioAccountSnapshotTrendRow {
   } | null;
 }
 
-interface SnapshotIdRow {
-  id: string;
-}
-
 export interface UpsertPortfolioSnapshotResult {
   snapshotId: string;
   accountsWritten: number;
@@ -188,49 +184,11 @@ export async function upsertPortfolioSnapshot(
   valuation: PortfolioSnapshotValuation
 ): Promise<UpsertPortfolioSnapshotResult> {
   const supabase = await getSupabaseAdmin();
-  const { data: snapshot, error: snapshotError } = await supabase
-    .from("portfolio_snapshots")
-    .upsert(toSnapshotRow(valuation), { onConflict: "snapshot_date" })
-    .select("id")
-    .single<SnapshotIdRow>();
-
-  if (snapshotError) {
-    throw new Error("Failed to upsert portfolio snapshot.");
+  const { data, error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation });
+  if (error || typeof data !== "string") {
+    throw new Error("Failed to atomically write portfolio snapshot.");
   }
-
-  const accountRows = valuation.accounts.map((account) => ({
-    portfolio_snapshot_id: snapshot.id,
-    snapshot_date: valuation.snapshotDate,
-    account_id: account.accountId,
-    account_name: account.accountName,
-    market_value_usd: account.marketValueUsd,
-    cost_usd: account.costUsd,
-    unrealized_gain_usd: account.unrealizedGainUsd,
-    daily_change_usd: account.dailyChangeUsd,
-    daily_change_pct: account.dailyChangePct,
-    warnings: account.warnings
-  }));
-
-  const { error: deleteError } = await supabase
-    .from("portfolio_account_snapshots")
-    .delete()
-    .eq("portfolio_snapshot_id", snapshot.id);
-
-  if (deleteError) {
-    throw new Error("Failed to clear portfolio account snapshots.");
-  }
-
-  if (accountRows.length === 0) {
-    return { snapshotId: snapshot.id, accountsWritten: 0 };
-  }
-
-  const { error: accountError } = await supabase.from("portfolio_account_snapshots").insert(accountRows);
-
-  if (accountError) {
-    throw new Error("Failed to upsert portfolio account snapshots.");
-  }
-
-  return { snapshotId: snapshot.id, accountsWritten: accountRows.length };
+  return { snapshotId: data, accountsWritten: valuation.accounts.length };
 }
 
 const snapshotSelect = [
@@ -273,20 +231,6 @@ const accountSnapshotTrendSelect = [
   "warnings",
   "portfolio_snapshots!inner(usd_to_nzd_rate, usd_to_cny_rate)"
 ].join(", ");
-
-function toSnapshotRow(valuation: PortfolioSnapshotValuation) {
-  return {
-    snapshot_date: valuation.snapshotDate,
-    total_market_value_usd: valuation.marketValueUsd,
-    total_cost_usd: valuation.costUsd,
-    unrealized_gain_usd: valuation.unrealizedGainUsd,
-    daily_change_usd: valuation.dailyChangeUsd,
-    daily_change_pct: valuation.dailyChangePct,
-    usd_to_nzd_rate: valuation.usdToNzdRate,
-    usd_to_cny_rate: valuation.usdToCnyRate,
-    warnings: valuation.warnings
-  };
-}
 
 function mapSnapshotRow(
   row: PortfolioSnapshotRow,

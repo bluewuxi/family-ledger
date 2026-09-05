@@ -282,4 +282,6 @@ aws ssm get-parameter \
 
 ## CI/CD
 
+Apply `supabase/migrations/20260906000000_atomic_portfolio_snapshot_write.sql` before deploying the API/jobs or running snapshot repair with this code version. Snapshot writers now require its service-role-only RPC and deliberately have no non-atomic fallback. The migration defines the write function only; it does not rebuild or alter existing snapshot values. Historical rebuilding is a separate operation after backup and dry-run review.
+
 GitHub Actions currently installs dependencies, type-checks, and builds. Deployment workflows can be added in a later stage.

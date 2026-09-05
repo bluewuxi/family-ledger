@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import Decimal from "decimal.js";
+import { buildProfitChartData, buildTrendChartData } from "../apps/web/src/lib/trendChartData";
 import type { ExchangeRateRecord, InvestmentTransaction, PortfolioSnapshotSummary } from "@family-ledger/shared";
 import {
   buildPortfolioTrend,
@@ -141,13 +142,50 @@ async function main(): Promise<void> {
     clampedTrend.points.find((point) => point.date === "2026-05-27"),
     {
       date: "2026-05-27",
-      portfolioValue: "130",
+      portfolioValue: null,
       snapshotDate: "2026-05-15",
       liveValue: null,
       totalInvestment: "1100.000000"
     }
   );
 
+  const depositTrend = await buildPortfolioTrend({
+    currency: "NZD", range: "1m", today: "2026-06-03",
+    snapshots: [snapshot("2026-06-01", "1000")],
+    principalTransactions: [transaction("2026-06-01", "deposit", "NZD", "1000"), transaction("2026-06-02", "deposit", "NZD", "500")],
+    exactFxRates: []
+  });
+  assert.equal(depositTrend.points.find((point) => point.date === "2026-06-02")?.portfolioValue, null);
+  assert.equal(depositTrend.points.at(-1)?.portfolioValue, null);
+
+  const recoveredTrend = await buildPortfolioTrend({
+    currency: "NZD", range: "1m", today: "2026-06-03",
+    snapshots: [snapshot("2026-06-01", "1000"), snapshot("2026-06-03", "1500")],
+    principalTransactions: [transaction("2026-06-01", "deposit", "NZD", "1000"), transaction("2026-06-02", "deposit", "NZD", "500")],
+    exactFxRates: []
+  });
+  const profit = buildProfitChartData(buildTrendChartData(recoveredTrend.points.map((point) => ({
+    ...point, portfolioValue: point.portfolioValue === null ? null : Number(point.portfolioValue),
+    totalInvestment: point.totalInvestment === null ? null : Number(point.totalInvestment)
+  })), null, null));
+  assert.deepEqual(profit.map((point) => point.profitValue), [0, null, 0]);
+  const withdrawalTrend = await buildPortfolioTrend({
+    currency: "NZD", range: "1m", today: "2026-06-03",
+    snapshots: [snapshot("2026-06-01", "1000")],
+    principalTransactions: [transaction("2026-06-01", "deposit", "NZD", "1000"),
+      { ...transaction("2026-06-02", "deposit", "NZD", "500"), transactionType: "withdrawal" }],
+    exactFxRates: []
+  });
+  assert.equal(withdrawalTrend.points.at(-1)?.portfolioValue, null);
+
+  const weekly = await buildPortfolioTrend({
+    currency: "NZD", range: "3y", today: "2026-06-03",
+    snapshots: [snapshot("2023-06-03", "1000"), snapshot("2026-06-01", "1500")],
+    principalTransactions: [transaction("2023-06-03", "deposit", "NZD", "1000"), transaction("2026-06-01", "deposit", "NZD", "500")],
+    exactFxRates: []
+  });
+  assert.equal(weekly.points.find((point) => point.date === "2026-06-01")?.portfolioValue, "1500");
+  assert.equal(weekly.points.find((point) => point.date === "2026-06-01")?.snapshotDate, "2026-06-01");
   console.log("Portfolio trend verification: success");
 }
 

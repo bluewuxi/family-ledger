@@ -344,59 +344,9 @@ function compareAccountSnapshots(
 }
 
 async function upsertSnapshot(supabase: ReturnType<typeof createClient>, valuation: PortfolioSnapshotValuation): Promise<void> {
-  const { data: snapshot, error: snapshotError } = await supabase
-    .from("portfolio_snapshots")
-    .upsert(
-      {
-        snapshot_date: valuation.snapshotDate,
-        total_market_value_usd: valuation.marketValueUsd,
-        total_cost_usd: valuation.costUsd,
-        unrealized_gain_usd: valuation.unrealizedGainUsd,
-        daily_change_usd: valuation.dailyChangeUsd,
-        daily_change_pct: valuation.dailyChangePct,
-        usd_to_nzd_rate: valuation.usdToNzdRate,
-        usd_to_cny_rate: valuation.usdToCnyRate,
-        warnings: valuation.warnings
-      },
-      { onConflict: "snapshot_date" }
-    )
-    .select("id")
-    .single<{ id: string }>();
-
-  if (snapshotError) {
-    throw new Error(`Failed to upsert portfolio snapshot ${valuation.snapshotDate}: ${snapshotError.message}`);
-  }
-
-  const { error: deleteError } = await supabase
-    .from("portfolio_account_snapshots")
-    .delete()
-    .eq("portfolio_snapshot_id", snapshot.id);
-
-  if (deleteError) {
-    throw new Error(`Failed to clear account snapshots for ${valuation.snapshotDate}: ${deleteError.message}`);
-  }
-
-  if (valuation.accounts.length === 0) {
-    return;
-  }
-
-  const { error: insertError } = await supabase.from("portfolio_account_snapshots").insert(
-    valuation.accounts.map((account) => ({
-      portfolio_snapshot_id: snapshot.id,
-      snapshot_date: valuation.snapshotDate,
-      account_id: account.accountId,
-      account_name: account.accountName,
-      market_value_usd: account.marketValueUsd,
-      cost_usd: account.costUsd,
-      unrealized_gain_usd: account.unrealizedGainUsd,
-      daily_change_usd: account.dailyChangeUsd,
-      daily_change_pct: account.dailyChangePct,
-      warnings: account.warnings
-    }))
-  );
-
-  if (insertError) {
-    throw new Error(`Failed to insert account snapshots for ${valuation.snapshotDate}: ${insertError.message}`);
+  const { error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation });
+  if (error) {
+    throw new Error(`Failed to atomically write snapshot ${valuation.snapshotDate}: ${error.message}`);
   }
 }
 

@@ -209,6 +209,17 @@ Check `public.user_roles` in the test project and assign the intended active rol
 
 ## Validation
 
+Snapshot/profit regression checks:
+
+```powershell
+corepack pnpm verify:portfolio-snapshots
+corepack pnpm verify:portfolio-trend
+corepack pnpm verify:monthly-summary
+corepack pnpm verify:time-policy
+```
+
+`scripts/verify-snapshot-atomicity.sql` is an integration check for an **empty, disposable local PostgreSQL database**. Run it with `psql -v ON_ERROR_STOP=1 -f scripts/verify-snapshot-atomicity.sql` and explicit local connection arguments. It creates minimal schema/roles, applies the real migration twice, and verifies retries, rollback after account-write failure, empty-account replacement, and RPC execution permissions. Do not run this fixture against test or production business data.
+
 After making code changes, run:
 
 ```powershell

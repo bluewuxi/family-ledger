@@ -141,6 +141,14 @@ assert.equal(duplicateProviderValuation.marketValueUsd, "236.000000");
 assert.equal(duplicateProviderValuation.costUsd, "169.000000");
 assert.equal(duplicateProviderValuation.dailyChangeUsd, "11.800000");
 
+const reopened = calculateHoldings([
+  transaction("old-buy", "account-a", "nzd-security", "buy", "2026-05-18", "1", "100", "100", "NZD"),
+  transaction("old-sell", "account-a", "nzd-security", "sell", "2026-05-19", "1", "100", "100", "NZD"),
+  transaction("new-buy", "account-a", "nzd-security", "buy", "2026-05-22", "1", "100", "100", "NZD")
+], accounts, instruments, { fxRates: rates });
+assert.equal(reopened[0]?.costAmountUsd, "60");
+assert.deepEqual(reopened[0]?.warnings, []);
+
 void main();
 
 async function main(): Promise<void> {
