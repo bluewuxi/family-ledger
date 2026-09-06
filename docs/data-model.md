@@ -97,6 +97,8 @@ When an admin creates a past-date buy or sell transaction and no `instrument_pri
 
 The Stage 4 FundRock price job stores public Foundation Series PIE `Unit Price` values as NZD instrument prices for the seeded `FS_NASDAQ_100`, `FS_TOTAL_WORLD`, and `FS_US_500` instruments. It does not store FundRock buy price, sell price, NAV, transaction spreads, fees, distributions, or historical backfills. FundRock unit prices may lag by multiple days; one provider day behind the snapshot date is expected when the main batch runs before the NZ evening publication window. Snapshots use the latest published unit price available and must keep the provider-supplied `price_date`.
 
+The FundRock unit-price table now uses `M/D/YYYY`; its separate performance table still uses `D/M/YYYY`. The price importer parses the unit-price convention and rejects dates later than the fetch date in `Pacific/Auckland`. On 2026-09-06, test history repair corrected 27 transposed FundRock dates and rebuilt 107 daily snapshots from 2026-05-22 through 2026-09-05 after a full ledger backup. Uncollected prices from failed provider runs were not fabricated; valuations carry the latest stored published price.
+
 The stock/ETF price job also ingests best-effort latest daily prices for enabled instruments configured in the database:
 
 - `yahoo_finance`: enabled instruments with `price_source = 'yahoo_finance'` and a non-empty `price_source_symbol`.

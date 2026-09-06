@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import type { CurrencyCode } from "@family-ledger/shared";
+import { getTimeZoneDateString, type CurrencyCode } from "@family-ledger/shared";
 import type {
   FetchLatestInstrumentPricesInput,
   InstrumentPriceProviderPrice,
@@ -45,6 +45,10 @@ export class FundRockPieUnitPriceProvider implements IInstrumentPriceProvider {
     const prices = input.instruments.map((instrument) =>
       extractFundUnitPrice(pageText, instrument.providerInstrumentName, instrument.sourceSymbol, instrument.currency)
     );
+    const fetchedDate = getTimeZoneDateString(input.fetchedAt, "Pacific/Auckland");
+    if (prices.some((price) => price.priceDate > fetchedDate)) {
+      throw new Error("FundRock unit price date is in the future.");
+    }
 
     return {
       provider: this.name,
@@ -110,8 +114,10 @@ function toIsoDate(value: string, providerInstrumentName: string): string {
     throw new Error(`FundRock unit price date is invalid for ${providerInstrumentName}.`);
   }
 
-  const day = Number(match[1]);
-  const month = Number(match[2]);
+  // The provider's unit-price table uses M/D/YYYY (the performance table
+  // elsewhere on the same page still uses D/M/YYYY).
+  const month = Number(match[1]);
+  const day = Number(match[2]);
   const year = Number(match[3]);
   const date = new Date(Date.UTC(year, month - 1, day));
 

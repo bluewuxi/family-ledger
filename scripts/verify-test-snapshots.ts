@@ -5,6 +5,7 @@ import { config as loadDotenv } from "dotenv";
 import {
   calculateHoldings,
   calculatePortfolioSnapshotValuation,
+  getAppBusinessDate,
   type ExchangeRateRecord,
   type Instrument,
   type InvestmentAccount,
@@ -215,13 +216,25 @@ function getExpectedSnapshotDates(
       earliest === null || transaction.tradeDate < earliest ? transaction.tradeDate : earliest,
     null
   );
+  const end = new Date(`${getAppBusinessDate()}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() - 1);
+  const lastCompletedDate = end.toISOString().slice(0, 10);
+  if (prices.some((price) => price.priceDate > getAppBusinessDate())) {
+    throw new Error("Future-dated prices require source-data repair before rebuilding snapshots.");
+  }
+  if (snapshots.some((snapshot) => snapshot.snapshot_date > lastCompletedDate)) {
+    throw new Error("Future or incomplete-day snapshots require manual inspection before repair.");
+  }
   const dates = new Set(snapshots.map((snapshot) => snapshot.snapshot_date));
 
   if (firstTransactionDate) {
-    for (const price of prices) {
-      if (price.priceDate >= firstTransactionDate && hasRatesForSnapshotDate(price.priceDate, rates)) {
-        dates.add(price.priceDate);
+    const cursor = new Date(`${firstTransactionDate}T00:00:00Z`);
+    while (cursor <= end) {
+      const date = cursor.toISOString().slice(0, 10);
+      if (hasRatesForSnapshotDate(date, rates)) {
+        dates.add(date);
       }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
   }
 

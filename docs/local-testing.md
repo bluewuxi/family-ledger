@@ -263,3 +263,5 @@ corepack pnpm verify:snapshot-audit
 ```
 
 The market-close repair apply path writes a local JSON backup under `tmp/market-close-repair/`, deletes suspect rows, then recalculates snapshots. If recalculation is interrupted, rerun `corepack pnpm verify:snapshot-audit` and `corepack pnpm fix:snapshot-audit`.
+
+The test snapshot audit covers every calendar day from the first transaction through the last completed app business date, including weekends and month ends. It refuses future-dated prices or incomplete-day snapshots; investigate those source records before using `fix:snapshot-audit`. Always create a ledger backup before a historical repair.
