@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import type { Instrument, InvestmentTransaction } from "@family-ledger/shared";
-import { buildTransactionPriceRecordInput } from "../apps/api/src/services/transactionService";
+import { readFileSync } from "node:fs";
+import type { CreateInstrumentPriceInput, Instrument, InvestmentTransaction } from "@family-ledger/shared";
+import {
+  buildTransactionPriceRecordInput,
+  reconcileTransactionPrice
+} from "../apps/api/src/services/transactionService";
 
 const stock = instrument("instrument-stock", "SMH.L", "stock", "USD");
 const cash = instrument("instrument-cash", "CASH_USD", "cash", "USD");
@@ -21,7 +25,8 @@ assert.deepEqual(pastBuyPrice, {
   provider: "manual",
   sourceSymbol: "SMH.L",
   isAdjusted: false,
-  fetchedAt: "2026-06-24T10:26:41.679Z"
+  fetchedAt: "2026-06-24T10:26:41.679Z",
+  sourceTransactionId: "transaction-a"
 });
 
 const pastSellPrice = buildTransactionPriceRecordInput(
@@ -65,7 +70,68 @@ const cashPrice = buildTransactionPriceRecordInput(
 );
 assert.equal(cashPrice, null);
 
-console.log("Transaction price backfill verification: success");
+const correctedHistoricalPrice = buildTransactionPriceRecordInput(
+  transaction("buy", {
+    tradeDate: "2026-06-04",
+    price: "7.281",
+    currency: "CNY"
+  }),
+  instrument("instrument-stock", "161128", "fund", "CNY"),
+  "2026-09-06"
+);
+assert.equal(correctedHistoricalPrice?.priceDate, "2026-06-04");
+assert.equal(correctedHistoricalPrice?.sourceTransactionId, "transaction-a");
+
+const correctedToCurrentDate = buildTransactionPriceRecordInput(
+  transaction("buy", { tradeDate: "2026-09-06", price: "7.281", currency: "CNY" }),
+  instrument("instrument-stock", "161128", "fund", "CNY"),
+  "2026-09-06"
+);
+assert.equal(correctedToCurrentDate, null);
+
+const migration = readFileSync(
+  new URL("../supabase/migrations/20260907010000_link_transaction_generated_prices.sql", import.meta.url),
+  "utf8"
+);
+assert.match(migration, /source_transaction_id uuid/i);
+assert.match(migration, /references public\.transactions\(id\)[\s\S]*on delete cascade/i);
+assert.match(migration, /where source_transaction_id is not null/i);
+
+void verifyLifecycle();
+
+async function verifyLifecycle(): Promise<void> {
+  const lifecycleCalls: string[] = [];
+  const insertedPrices: CreateInstrumentPriceInput[] = [];
+  let independentPriceExists = false;
+  const dependencies = {
+    async deleteOwnedPrice(sourceTransactionId: string) {
+      lifecycleCalls.push(`delete:${sourceTransactionId}`);
+    },
+    async findInstrument() {
+      return stock;
+    },
+    async hasPriceOnDate() {
+      return independentPriceExists;
+    },
+    async insertPrice(input: CreateInstrumentPriceInput) {
+      insertedPrices.push(input);
+    }
+  };
+
+  await reconcileTransactionPrice(transaction("buy", { tradeDate: "2026-06-22" }), "2026-06-24", dependencies);
+  assert.deepEqual(lifecycleCalls, ["delete:transaction-a"]);
+  assert.equal(insertedPrices.at(-1)?.priceDate, "2026-06-22");
+
+  await reconcileTransactionPrice(transaction("buy", { tradeDate: "2026-06-24" }), "2026-06-24", dependencies);
+  assert.equal(insertedPrices.length, 1, "editing to the current date must remove rather than replace its owned price");
+
+  independentPriceExists = true;
+  await reconcileTransactionPrice(transaction("buy", { tradeDate: "2026-06-21" }), "2026-06-24", dependencies);
+  assert.equal(insertedPrices.length, 1, "an independent same-day price must be preserved without a generated replacement");
+  assert.deepEqual(lifecycleCalls, ["delete:transaction-a", "delete:transaction-a", "delete:transaction-a"]);
+
+  console.log("Transaction price backfill verification: success");
+}
 
 function transaction(
   transactionType: InvestmentTransaction["transactionType"],

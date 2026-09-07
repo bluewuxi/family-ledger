@@ -21,6 +21,7 @@ interface PriceRow {
   source_symbol: string | null;
   is_adjusted: boolean;
   fetched_at: string | null;
+  source_transaction_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +107,18 @@ export async function hasInstrumentPriceOnDate(input: {
   return data !== null;
 }
 
+export async function deletePriceBySourceTransactionId(sourceTransactionId: string): Promise<void> {
+  const supabase = await getSupabaseAdmin();
+  const { error } = await supabase
+    .from("instrument_prices")
+    .delete()
+    .eq("source_transaction_id", sourceTransactionId);
+
+  if (error) {
+    throw new Error("Failed to delete transaction-generated instrument price.");
+  }
+}
+
 export async function insertInstrumentPriceIfNotExists(
   input: CreateInstrumentPriceInput
 ): Promise<InstrumentPriceRecord> {
@@ -150,6 +163,7 @@ const priceSelect = [
   "source_symbol",
   "is_adjusted",
   "fetched_at",
+  "source_transaction_id",
   "created_at",
   "updated_at"
 ].join(", ");
@@ -180,6 +194,7 @@ function mapInstrumentPriceRow(row: PriceRow): InstrumentPriceRecord {
     sourceSymbol: row.source_symbol,
     isAdjusted: row.is_adjusted,
     fetchedAt: row.fetched_at,
+    sourceTransactionId: row.source_transaction_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -194,7 +209,8 @@ function toInstrumentPriceInsertRow(input: CreateInstrumentPriceInput) {
     provider: input.provider,
     source_symbol: input.sourceSymbol ?? null,
     is_adjusted: input.isAdjusted ?? false,
-    fetched_at: input.fetchedAt ?? null
+    fetched_at: input.fetchedAt ?? null,
+    source_transaction_id: input.sourceTransactionId ?? null
   };
 }
 

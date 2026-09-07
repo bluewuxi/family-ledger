@@ -9,8 +9,8 @@ const RESTORE_ORDER = [
   "investment_accounts",
   "instruments",
   "exchange_rates",
-  "instrument_prices",
   "transactions",
+  "instrument_prices",
   "portfolio_snapshots",
   "portfolio_account_snapshots",
   "dashboard_instrument_quotes",
@@ -82,6 +82,7 @@ function validatePrimaryKeys(payload: LedgerBackupPayload): void {
 function validateInternalReferences(payload: LedgerBackupPayload): void {
   const accounts = idSet(payload.tables.investment_accounts);
   const instruments = idSet(payload.tables.instruments);
+  const transactions = idSet(payload.tables.transactions);
   const snapshots = idSet(payload.tables.portfolio_snapshots);
   const jobRuns = idSet(payload.tables.job_runs);
   const currencies = new Set((payload.tables.currencies as Array<Record<string, unknown>>).map((row) => String(row.code)));
@@ -95,6 +96,7 @@ function validateInternalReferences(payload: LedgerBackupPayload): void {
   requireKnownValues(payload.tables.exchange_rates, "exchange_rates", "to_currency", currencies);
   requireKnownValues(payload.tables.instrument_prices, "instrument_prices", "instrument_id", instruments);
   requireKnownValues(payload.tables.instrument_prices, "instrument_prices", "currency", currencies);
+  requireKnownValues(payload.tables.instrument_prices, "instrument_prices", "source_transaction_id", transactions);
   requireKnownValues(payload.tables.portfolio_account_snapshots, "portfolio_account_snapshots", "portfolio_snapshot_id", snapshots);
   requireKnownValues(payload.tables.portfolio_account_snapshots, "portfolio_account_snapshots", "account_id", accounts);
   requireKnownValues(payload.tables.dashboard_instrument_quotes, "dashboard_instrument_quotes", "instrument_id", instruments);

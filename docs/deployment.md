@@ -284,4 +284,6 @@ aws ssm get-parameter \
 
 Apply `supabase/migrations/20260906000000_atomic_portfolio_snapshot_write.sql` before deploying the API/jobs or running snapshot repair with this code version. Snapshot writers now require its service-role-only RPC and deliberately have no non-atomic fallback. The migration defines the write function only; it does not rebuild or alter existing snapshot values. Historical rebuilding is a separate operation after backup and dry-run review.
 
+Apply `supabase/migrations/20260907010000_link_transaction_generated_prices.sql` before deploying the API. Transaction-created historical price rows now require their source transaction foreign key so edits and deletes cannot leave stale valuation prices behind.
+
 GitHub Actions currently installs dependencies, type-checks, and builds. Deployment workflows can be added in a later stage.

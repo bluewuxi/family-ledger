@@ -32,7 +32,11 @@ import {
   listTransactions,
   updateTransaction
 } from "../repositories/transactionRepository";
-import { hasInstrumentPriceOnDate, insertInstrumentPriceIfNotExists } from "../repositories/priceRepository";
+import {
+  deletePriceBySourceTransactionId,
+  hasInstrumentPriceOnDate,
+  insertInstrumentPriceIfNotExists
+} from "../repositories/priceRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
 
@@ -100,7 +104,7 @@ export async function createInvestmentTransaction(
     await assertSufficientTradeBalance(settlementInput);
     const transaction = await createTransaction(settlementInput, user.id);
     await syncGeneratedCashLeg(transaction, user.id);
-    await createPriceRecordFromPastTradeIfMissing(transaction);
+    await reconcileTransactionPrice(transaction);
     await recalculateSnapshotsFrom(transaction.tradeDate);
     return transaction;
   } catch (error) {
@@ -116,27 +120,52 @@ export async function createInvestmentTransaction(
   }
 }
 
-async function createPriceRecordFromPastTradeIfMissing(transaction: InvestmentTransaction): Promise<void> {
-  const instrument = await findInstrumentById(transaction.instrumentId);
+interface TransactionPriceDependencies {
+  deleteOwnedPrice(sourceTransactionId: string): Promise<void>;
+  findInstrument(instrumentId: string): Promise<Instrument | null>;
+  hasPriceOnDate(input: {
+    instrumentId: string;
+    priceDate: string;
+    currency: CurrencyCode;
+  }): Promise<boolean>;
+  insertPrice(input: CreateInstrumentPriceInput): Promise<void>;
+}
+
+const transactionPriceDependencies: TransactionPriceDependencies = {
+  deleteOwnedPrice: deletePriceBySourceTransactionId,
+  findInstrument: findInstrumentById,
+  hasPriceOnDate: hasInstrumentPriceOnDate,
+  insertPrice: async (input) => {
+    await insertInstrumentPriceIfNotExists(input);
+  }
+};
+
+export async function reconcileTransactionPrice(
+  transaction: InvestmentTransaction,
+  appBusinessDate = getAppBusinessDate(),
+  dependencies: TransactionPriceDependencies = transactionPriceDependencies
+): Promise<void> {
+  await dependencies.deleteOwnedPrice(transaction.id);
+  const instrument = await dependencies.findInstrument(transaction.instrumentId);
 
   if (!instrument) {
     throw new ApiRequestError("VALIDATION_ERROR", "Transaction instrument was not found.", 400);
   }
 
-  const priceInput = buildTransactionPriceRecordInput(transaction, instrument);
+  const priceInput = buildTransactionPriceRecordInput(transaction, instrument, appBusinessDate);
 
   if (!priceInput) {
     return;
   }
 
-  const existingPrice = await hasInstrumentPriceOnDate({
+  const existingPrice = await dependencies.hasPriceOnDate({
     instrumentId: priceInput.instrumentId,
     priceDate: priceInput.priceDate,
     currency: priceInput.currency
   });
 
   if (!existingPrice) {
-    await insertInstrumentPriceIfNotExists(priceInput);
+    await dependencies.insertPrice(priceInput);
   }
 }
 
@@ -163,7 +192,8 @@ export function buildTransactionPriceRecordInput(
     provider: "manual",
     sourceSymbol: instrument.symbol ?? instrument.priceSourceSymbol,
     isAdjusted: false,
-    fetchedAt: transaction.createdAt
+    fetchedAt: transaction.createdAt,
+    sourceTransactionId: transaction.id
   };
 }
 
@@ -213,6 +243,7 @@ export async function updateInvestmentTransaction(
 
     if (shouldUpdateDerivedData) {
       await syncGeneratedCashLeg(transaction, user.id);
+      await reconcileTransactionPrice(transaction);
       await recalculateSnapshotsFrom(minDate(existing.tradeDate, transaction.tradeDate));
     }
 

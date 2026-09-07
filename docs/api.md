@@ -837,7 +837,7 @@ Transaction validation rules:
 - `adjustment` requires a cash instrument, positive `grossAmount`, and `adjustmentDirection` of `increase` or `decrease`.
 - Transaction currency must match the selected instrument currency.
 - Optional settlement date cannot precede trade date.
-- Creating a past-date `buy` or `sell` best-effort backfills a missing same-day `instrument_prices` row with a `manual` price copied from the transaction price before snapshot recalculation. This is a deliberate data-consistency trade-off: it is not a guaranteed official close, but it prevents affected historical snapshots from becoming unavailable until better market data is loaded.
+- Creating a past-date `buy` or `sell` best-effort backfills a missing same-day `instrument_prices` row with a `manual` price copied from the transaction price before snapshot recalculation. The row is linked to its source transaction, reconciled when that transaction changes, and deleted with it; independent same-day prices are preserved. This is a deliberate data-consistency trade-off: it is not a guaranteed official close, but it prevents affected historical snapshots from becoming unavailable until better market data is loaded.
 - Valuation-impacting transaction creates, updates, and deletes recalculate existing portfolio snapshots from the affected trade date onward.
 
 Create/update response data:

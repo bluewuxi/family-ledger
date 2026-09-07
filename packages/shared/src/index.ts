@@ -1015,6 +1015,7 @@ export interface InstrumentPriceRecord {
   sourceSymbol: string | null;
   isAdjusted: boolean;
   fetchedAt: string | null;
+  sourceTransactionId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1028,6 +1029,7 @@ export interface CreateInstrumentPriceInput {
   sourceSymbol?: string | null;
   isAdjusted?: boolean;
   fetchedAt?: string | null;
+  sourceTransactionId?: string | null;
 }
 
 export interface ExchangeRateRecord {
