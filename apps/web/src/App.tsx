@@ -17,6 +17,7 @@ import { MonthlySummaryPage } from "./pages/MonthlySummaryPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
+import { AccountPurposePage } from "./pages/AccountPurposePage";
 
 function AppRoutes() {
   return (
@@ -27,6 +28,8 @@ function AppRoutes() {
       <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
       <Route path="/instruments" element={<InstrumentsPage />} />
       <Route path="/transactions" element={<TransactionsPage />} />
+      <Route path="/daily-expense" element={<AccountPurposePage key="daily_expense" purpose="daily_expense" />} />
+      <Route path="/education" element={<AccountPurposePage key="education" purpose="education" />} />
       <Route path="/holdings" element={<HoldingsPage />} />
       <Route path="/holdings/:accountId/:instrumentId" element={<HoldingDetailPage />} />
       <Route path="/reports/monthly-summary" element={<MonthlySummaryPage />} />

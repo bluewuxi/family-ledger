@@ -43,6 +43,7 @@
     "verify:eastmoney-provider": "tsx scripts/verify-eastmoney-provider.ts",
     "verify:stock-etf-price-ingestion": "tsx scripts/verify-stock-etf-price-ingestion.ts",
     "verify:portfolio-snapshots": "tsx scripts/verify-portfolio-snapshot-calculation.ts",
+    "verify:account-purposes": "tsx scripts/verify-account-purposes.ts",
     "verify:time-policy": "tsx scripts/verify-time-policy.ts",
     "verify:market-close-repair": "tsx scripts/verify-market-close-repair.ts",
     "verify:snapshot-audit": "tsx scripts/verify-test-snapshots.ts",

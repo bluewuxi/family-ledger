@@ -6,6 +6,8 @@ import {
   FileText,
   Info,
   Landmark,
+  GraduationCap,
+  WalletCards,
   Settings,
   Tags,
   type LucideIcon
@@ -19,7 +21,9 @@ export interface NavigationItem {
 
 export const navigationItems: NavigationItem[] = [
   { to: "/dashboard", label: "财富足迹", icon: AreaChart },
-  { to: "/accounts", label: "投资账户", icon: Landmark },
+  { to: "/accounts", label: "账户管理", icon: Landmark },
+  { to: "/daily-expense", label: "日常收支", icon: WalletCards },
+  { to: "/education", label: "教育储备", icon: GraduationCap },
   { to: "/instruments", label: "投资标的", icon: Tags },
   { to: "/transactions", label: "交易记录", icon: FileText },
   { to: "/holdings", label: "持仓总览", icon: BarChart3 },

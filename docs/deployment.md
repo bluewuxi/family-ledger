@@ -114,7 +114,7 @@ The web Data Maintenance page can manually trigger the FX and price jobs. CloudF
 
 Because only the test environment exists and production has not started, the data maintenance API surface was renamed directly without a production compatibility window. Deploy API and web together in the same test rollout so the test frontend does not temporarily call removed legacy endpoints.
 
-The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the most recently completed snapshot date from the `06:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the `portfolio_snapshots(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints.
+The snapshot handler uses `event.detail.snapshotDate` when present for manual backfills; otherwise it derives the most recently completed snapshot date from the `06:00 Asia/Shanghai` business-day cutoff. Retries are idempotent through the stored `portfolio_snapshot_headers(snapshot_date)` and `portfolio_account_snapshots(snapshot_date, account_id)` uniqueness constraints. `portfolio_snapshots` is a read-only aggregate view.
 
 The ledger backup handler writes a gzipped JSON object to the private backup S3 bucket under:
 
@@ -287,3 +287,20 @@ Apply `supabase/migrations/20260906000000_atomic_portfolio_snapshot_write.sql` b
 Apply `supabase/migrations/20260907010000_link_transaction_generated_prices.sql` before deploying the API. Transaction-created historical price rows now require their source transaction foreign key so edits and deletes cannot leave stale valuation prices behind.
 
 GitHub Actions currently installs dependencies, type-checks, and builds. Deployment workflows can be added in a later stage.
+
+### Snapshot view verification — 2026-09-22
+
+Applied only the additive account-purpose/header/view migration to the test database. All 119 snapshots (2026-05-22 through 2026-09-21) passed exact USD, percentage, FX, metadata, timestamp and warning-multiset comparison in one read-only repeatable-read transaction. All 952 account snapshot rows have headers. No empty snapshots or populated legacy NZD aggregate columns exist in this dataset. A rolled-back source metadata update verified header synchronization. The original aggregate table and writer remain in place; destructive cutover has not been applied. Production is unchanged.
+
+### Separate snapshot cutover release
+
+The `test` branch deploys only to test, which contains real data. There have been no production releases.
+
+1. Apply the additive migration with `psql -X -v ON_ERROR_STOP=1 --single-transaction -f supabase/migrations/20260922090000_add_account_purposes_and_snapshot_view.sql`.
+2. Run `scripts/verify-portfolio-snapshot-view.sql`. Any exact mismatch blocks cutover; investigate without overwriting historical valuations.
+3. Deploy compatible API/jobs/web code first. Reads use stored headers and account rows; the RPC name stays unchanged. Backup code accepts the legacy export and retains its aggregate/NZD rows until cutover.
+4. Create and validate a fresh S3 ledger backup and a public-schema `pg_dump` archive. Rehearse restoration and the cutover in an isolated database. Auth is an external dependency; local rehearsals use minimal Auth fixtures, not real password/session data.
+5. Run the separate `20260922091000_cut_over_derived_portfolio_snapshots.sql` using `psql -X -v ON_ERROR_STOP=1 -f ...`. Its explicit transaction locks all three snapshot relations, synchronizes headers, checks exact parity and account integrity, redirects the FK, replaces the RPC/export, drops only the original table, and renames the view. Lock timeout or any assertion/dependency failure rolls everything back. Never use broad `CASCADE`.
+6. Confirm view reads, header FX reads, backup export, and absence of aggregate writes. `NOTIFY pgrst` refreshes schema metadata. Run writer/retry/concurrency/permission fixtures only in the isolated restored database; do not regenerate real historical valuations as a smoke test.
+
+Rollback after a committed cutover requires an operator-reviewed restore from the pre-cutover archive, reconciling any newer writes. Do not drop the view and reload an older backup blindly.

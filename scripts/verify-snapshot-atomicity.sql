@@ -1,62 +1,59 @@
--- Run with psql -v ON_ERROR_STOP=1 against an EMPTY, disposable local database.
--- These minimal fixtures intentionally fail if business tables already exist.
+-- Run against an isolated restored database AFTER applying the real cutover migration.
+-- All fixture writes roll back. Tests the actual RPC, never a copied implementation.
 \set ON_ERROR_STOP on
-create table public.investment_accounts (id uuid primary key);
-create table public.portfolio_snapshots (
-  id uuid primary key default gen_random_uuid(), snapshot_date date unique not null,
-  total_market_value_usd numeric(28,6), total_cost_usd numeric(28,6),
-  unrealized_gain_usd numeric(28,6), daily_change_usd numeric(28,6), daily_change_pct numeric(18,8),
-  usd_to_nzd_rate numeric(28,10) not null, usd_to_cny_rate numeric(28,10) not null,
-  warnings jsonb not null
-);
-create table public.portfolio_account_snapshots (
-  id uuid primary key default gen_random_uuid(),
-  portfolio_snapshot_id uuid not null references public.portfolio_snapshots(id),
-  snapshot_date date not null, account_id uuid not null references public.investment_accounts(id),
-  account_name text not null, market_value_usd numeric(28,6), cost_usd numeric(28,6),
-  unrealized_gain_usd numeric(28,6), daily_change_usd numeric(28,6), daily_change_pct numeric(18,8),
-  warnings jsonb not null,
-  unique (portfolio_snapshot_id, account_id), unique (snapshot_date, account_id)
-);
-create role anon;
-create role authenticated;
-create role service_role;
-\ir ../supabase/migrations/20260906000000_atomic_portfolio_snapshot_write.sql
--- Applying the migration twice is safe.
-\ir ../supabase/migrations/20260906000000_atomic_portfolio_snapshot_write.sql
-
-insert into public.investment_accounts values ('00000000-0000-0000-0000-000000000001');
+begin;
 do $$
 declare
-  v jsonb := '{"snapshotDate":"2026-06-01","marketValueUsd":"100","costUsd":"80",
-    "unrealizedGainUsd":"20","dailyChangeUsd":"1","dailyChangePct":"1",
-    "usdToNzdRate":"1.6","usdToCnyRate":"7","warnings":[],"accounts":[{
-      "accountId":"00000000-0000-0000-0000-000000000001","accountName":"A",
-      "marketValueUsd":"100","costUsd":"80","unrealizedGainUsd":"20",
-      "dailyChangeUsd":"1","dailyChangePct":"1","warnings":[]}]}';
-  first_id uuid;
+  account_id uuid := gen_random_uuid();
+  snapshot_id uuid;
+  v jsonb;
+  result public.portfolio_snapshots%rowtype;
 begin
-  first_id := public.upsert_portfolio_snapshot(v);
-  assert public.upsert_portfolio_snapshot(v) = first_id, 'Retry must keep snapshot ID';
-  assert (select count(*) from public.portfolio_account_snapshots) = 1, 'Retry must not duplicate accounts';
+  assert (select relkind = 'v' from pg_class where oid = 'public.portfolio_snapshots'::regclass), 'Cutover required';
+  insert into public.investment_accounts(id, name, account_type, base_currency, market_region)
+    values(account_id, 'Snapshot verification', 'bank', 'USD', 'US');
+  assert (select purpose = 'investment' from public.investment_accounts where id = account_id), 'Default purpose';
   begin
-    perform public.upsert_portfolio_snapshot(
-      jsonb_set(jsonb_set(v, '{marketValueUsd}', '"999"'), '{accounts,0,accountId}',
-      '"00000000-0000-0000-0000-000000000002"'));
-    raise exception 'Expected account foreign key failure';
-  exception when foreign_key_violation then null;
-  end;
-  assert (select total_market_value_usd from public.portfolio_snapshots where id = first_id) = 100,
-    'Failed account write must roll back aggregate';
-  assert (select market_value_usd from public.portfolio_account_snapshots where portfolio_snapshot_id = first_id) = 100,
-    'Failed account write must restore old account rows';
-
-  perform public.upsert_portfolio_snapshot(jsonb_set(jsonb_set(v, '{accounts}', '[]'), '{marketValueUsd}', '"0"'));
-  assert (select count(*) from public.portfolio_account_snapshots) = 0, 'Empty account set must remove old rows';
+    update public.investment_accounts set purpose = 'invalid' where id = account_id;
+    raise exception 'Expected invalid purpose failure';
+  exception when check_violation then null; end;
+  begin
+    update public.investment_accounts set purpose = null where id = account_id;
+    raise exception 'Expected null purpose failure';
+  exception when not_null_violation then null; end;
+  v := jsonb_build_object('snapshotDate', '2099-06-01', 'usdToNzdRate', '1.6', 'usdToCnyRate', '7',
+    'marketValueUsd', '999999', 'accounts', jsonb_build_array(jsonb_build_object(
+      'accountId', account_id, 'accountName', 'A', 'marketValueUsd', '100', 'costUsd', '120',
+      'unrealizedGainUsd', '-20', 'dailyChangeUsd', '1', 'dailyChangePct', '999',
+      'warnings', '[{"code":"MISSING_PRICE"},{"code":"MISSING_PRICE"}]'::jsonb)));
+  snapshot_id := public.upsert_portfolio_snapshot(v);
+  assert public.upsert_portfolio_snapshot(v) = snapshot_id, 'Retry preserves ID';
+  select * into result from public.portfolio_snapshots where id = snapshot_id;
+  assert result.total_market_value_usd = 100, 'Ignore aggregate input';
+  assert result.unrealized_gain_usd = -20, 'Negative gain';
+  assert result.daily_change_pct = 1.01010101, 'Percentage from prior total';
+  assert jsonb_array_length(result.warnings) = 2, 'Warning duplicates';
+  assert (select count(*) = 1 from public.portfolio_account_snapshots where portfolio_snapshot_id=snapshot_id), 'No duplicate rows';
+  begin
+    perform public.upsert_portfolio_snapshot(jsonb_set(v, '{accounts,0,accountId}', to_jsonb(gen_random_uuid())));
+    raise exception 'Expected foreign key failure';
+  exception when foreign_key_violation then null; end;
+  assert (select total_market_value_usd = 100 from public.portfolio_snapshots where id=snapshot_id), 'Failed replacement rolls back';
+  perform public.upsert_portfolio_snapshot(jsonb_set(v, '{accounts,0,costUsd}', 'null'));
+  assert (select total_cost_usd is null and total_market_value_usd = 100 from public.portfolio_snapshots where id=snapshot_id), 'Unavailable cost';
+  perform public.upsert_portfolio_snapshot(jsonb_set(v, '{accounts,0,marketValueUsd}', 'null'));
+  assert (select total_market_value_usd is null and total_cost_usd is null and daily_change_usd is null and daily_change_pct is null from public.portfolio_snapshots where id=snapshot_id), 'Unavailable valuation/FX propagates';
+  perform public.upsert_portfolio_snapshot(jsonb_set(v, '{accounts,0,dailyChangeUsd}', '"100"'));
+  assert (select daily_change_pct is null from public.portfolio_snapshots where id=snapshot_id), 'Zero prior value';
+  perform public.upsert_portfolio_snapshot(jsonb_set(v, '{accounts,0,marketValueUsd}', '"100.0000005"'));
+  assert (select total_market_value_usd = 100.000001 and daily_change_pct = round(1 / 99.000001 * 100, 8) from public.portfolio_snapshots where id=snapshot_id), 'Rounding boundary';
+  perform public.upsert_portfolio_snapshot(jsonb_set(v, '{accounts}', '[]'));
+  assert (select total_market_value_usd = 0 and total_cost_usd = 0 and unrealized_gain_usd = 0 and daily_change_usd = 0 and daily_change_pct is null and warnings = '[]'::jsonb from public.portfolio_snapshots where id=snapshot_id), 'Empty snapshot';
   perform public.upsert_portfolio_snapshot(v);
-  assert not has_function_privilege('anon', 'public.upsert_portfolio_snapshot(jsonb)', 'EXECUTE');
-  assert not has_function_privilege('authenticated', 'public.upsert_portfolio_snapshot(jsonb)', 'EXECUTE');
-  assert has_function_privilege('service_role', 'public.upsert_portfolio_snapshot(jsonb)', 'EXECUTE');
-end;
-$$;
-select 'Snapshot atomicity verification passed' as result;
+  delete from public.portfolio_snapshot_headers where id=snapshot_id;
+  assert not exists (select 1 from public.portfolio_account_snapshots where portfolio_snapshot_id=snapshot_id), 'Header cascade';
+  assert public.export_ledger_backup() ? 'portfolio_snapshot_headers', 'Backup stores headers';
+  assert not (public.export_ledger_backup() ? 'portfolio_snapshots'), 'Backup excludes view';
+  assert not has_function_privilege('authenticated', 'public.upsert_portfolio_snapshot(jsonb)', 'EXECUTE'), 'RPC restricted';
+end $$;
+rollback;

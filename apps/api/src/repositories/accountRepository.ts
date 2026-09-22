@@ -6,6 +6,7 @@ interface InvestmentAccountRow {
   name: string;
   broker: string | null;
   account_type: InvestmentAccount["accountType"];
+  purpose: InvestmentAccount["purpose"];
   base_currency: InvestmentAccount["baseCurrency"];
   market_region: InvestmentAccount["marketRegion"];
   notes: string | null;
@@ -30,31 +31,31 @@ export class AccountInUseError extends Error {
 
 export async function listAccounts(): Promise<InvestmentAccount[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
+  const result = await supabase
     .from("investment_accounts")
     .select(accountSelect)
     .order("name", { ascending: true });
 
-  if (error) {
+  if (result.error) {
     throw new Error("Failed to list accounts.");
   }
 
-  return (data as unknown as InvestmentAccountRow[]).map(mapAccountRow);
+  return (result.data as unknown as InvestmentAccountRow[]).map(mapAccountRow);
 }
 
 export async function findAccountById(id: string): Promise<InvestmentAccount | null> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
+  const result = await supabase
     .from("investment_accounts")
     .select(accountSelect)
     .eq("id", id)
     .maybeSingle<InvestmentAccountRow>();
 
-  if (error) {
+  if (result.error) {
     throw new Error("Failed to find account.");
   }
 
-  return data ? mapAccountRow(data) : null;
+  return result.data ? mapAccountRow(result.data) : null;
 }
 
 export async function createAccount(
@@ -68,6 +69,7 @@ export async function createAccount(
       name: input.name,
       broker: input.broker ?? null,
       account_type: input.accountType,
+      purpose: input.purpose ?? "investment",
       base_currency: input.baseCurrency,
       market_region: input.marketRegion,
       notes: input.notes ?? null,
@@ -153,6 +155,7 @@ const accountSelect = [
   "name",
   "broker",
   "account_type",
+  "purpose",
   "base_currency",
   "market_region",
   "notes",
@@ -169,6 +172,7 @@ function mapAccountRow(row: InvestmentAccountRow): InvestmentAccount {
     name: row.name,
     broker: row.broker,
     accountType: row.account_type,
+    purpose: row.purpose ?? "investment",
     baseCurrency: row.base_currency,
     marketRegion: row.market_region,
     notes: row.notes,
@@ -185,6 +189,7 @@ function toAccountUpdateRow(input: UpdateInvestmentAccountInput) {
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.broker !== undefined ? { broker: input.broker } : {}),
     ...(input.accountType !== undefined ? { account_type: input.accountType } : {}),
+    ...(input.purpose !== undefined ? { purpose: input.purpose } : {}),
     ...(input.baseCurrency !== undefined ? { base_currency: input.baseCurrency } : {}),
     ...(input.marketRegion !== undefined ? { market_region: input.marketRegion } : {}),
     ...(input.notes !== undefined ? { notes: input.notes } : {}),

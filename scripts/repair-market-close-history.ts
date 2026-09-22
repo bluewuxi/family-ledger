@@ -328,13 +328,13 @@ async function readTable<T>(
 
 async function readSnapshots(supabase: ReturnType<typeof createClient>): Promise<SnapshotRow[]> {
   const { data, error } = await supabase
-    .from("portfolio_snapshots")
+    .from("portfolio_snapshot_headers")
     .select("id, snapshot_date")
     .order("snapshot_date", { ascending: true })
     .returns<SnapshotRow[]>();
 
   if (error) {
-    throw new Error(`Failed to read portfolio_snapshots: ${error.message}`);
+    throw new Error(`Failed to read portfolio_snapshot_headers: ${error.message}`);
   }
 
   return data;

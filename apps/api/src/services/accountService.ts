@@ -1,8 +1,10 @@
 import {
   ACCOUNT_TYPES,
+  ACCOUNT_PURPOSES,
   CURRENCY_CODES,
   MARKET_REGIONS,
   type AccountType,
+  type AccountPurpose,
   type AuthenticatedUser,
   type CreateInvestmentAccountInput,
   type CurrencyCode,
@@ -101,7 +103,7 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
   }
 }
 
-function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {
+export function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {
   const record = asRecord(body);
   const name = requiredString(record.name, "name");
 
@@ -109,6 +111,7 @@ function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {
     name,
     broker: optionalString(record.broker, "broker"),
     accountType: requiredEnum(record.accountType, ACCOUNT_TYPES, "accountType"),
+    purpose: record.purpose === undefined ? "investment" : requiredEnum(record.purpose, ACCOUNT_PURPOSES, "purpose"),
     baseCurrency: requiredEnum(record.baseCurrency, CURRENCY_CODES, "baseCurrency"),
     marketRegion: requiredEnum(record.marketRegion, MARKET_REGIONS, "marketRegion"),
     notes: optionalString(record.notes, "notes"),
@@ -116,7 +119,7 @@ function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {
   };
 }
 
-function parseUpdateAccountInput(body: unknown): UpdateInvestmentAccountInput {
+export function parseUpdateAccountInput(body: unknown): UpdateInvestmentAccountInput {
   const record = asRecord(body);
   const input: UpdateInvestmentAccountInput = {};
 
@@ -130,6 +133,10 @@ function parseUpdateAccountInput(body: unknown): UpdateInvestmentAccountInput {
 
   if ("accountType" in record) {
     input.accountType = requiredEnum(record.accountType, ACCOUNT_TYPES, "accountType");
+  }
+
+  if ("purpose" in record) {
+    input.purpose = requiredEnum(record.purpose, ACCOUNT_PURPOSES, "purpose");
   }
 
   if ("baseCurrency" in record) {
@@ -190,7 +197,7 @@ function optionalString(value: unknown, field: string): string | null {
   return trimmed ? trimmed : null;
 }
 
-function requiredEnum<T extends AccountType | CurrencyCode | MarketRegion>(
+function requiredEnum<T extends AccountType | AccountPurpose | CurrencyCode | MarketRegion>(
   value: unknown,
   allowedValues: readonly T[],
   field: string

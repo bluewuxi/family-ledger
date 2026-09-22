@@ -4,6 +4,8 @@ import { ChevronDown, ChevronRight, Eye, KeyRound, Plus, RefreshCw, Trash2 } fro
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPES,
+  ACCOUNT_PURPOSE_LABELS,
+  ACCOUNT_PURPOSES,
   ASSET_TYPE_LABELS,
   CURRENCY_CODES,
   MARKET_REGION_LABELS,
@@ -11,6 +13,7 @@ import {
   SNAPSHOT_DISPLAY_CURRENCIES,
   getLocalDateString,
   type AccountType,
+  type AccountPurpose,
   type AuthenticatedUser,
   type CreateInvestmentAccountInput,
   type CreateInvestmentTransactionInput,
@@ -54,6 +57,7 @@ interface PortfolioSnapshotsResponse {
   snapshots: PortfolioSnapshotSummary[];
 }
 
+
 interface HoldingsResponse extends HoldingsValuationSummary {}
 
 interface AccountResponse {
@@ -80,6 +84,7 @@ interface AccountFormState {
   name: string;
   broker: string;
   accountType: AccountType;
+  purpose: AccountPurpose;
   baseCurrency: CurrencyCode;
   marketRegion: MarketRegion;
   notes: string;
@@ -102,6 +107,7 @@ const emptyForm: AccountFormState = {
   name: "",
   broker: "",
   accountType: "brokerage",
+  purpose: "investment",
   baseCurrency: "NZD",
   marketRegion: "NZ",
   notes: "",
@@ -118,6 +124,8 @@ export function AccountsPage() {
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
+  const [purposeFilter, setPurposeFilter] = useState<AccountPurpose | "">("");
+  const visibleAccounts = accounts.filter((account) => !purposeFilter || account.purpose === purposeFilter);
   const [accountTotals, setAccountTotals] = useState<Map<string, AccountTotalDisplay>>(new Map());
   const [accountHoldings, setAccountHoldings] = useState<ValuedHoldingSummary[]>([]);
   const [holdingsReportingCurrency, setHoldingsReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
@@ -295,6 +303,7 @@ export function AccountsPage() {
       name: account.name,
       broker: account.broker ?? "",
       accountType: account.accountType,
+      purpose: account.purpose,
       baseCurrency: account.baseCurrency,
       marketRegion: account.marketRegion,
       notes: account.notes ?? "",
@@ -391,8 +400,8 @@ export function AccountsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <PageTitle route="/accounts">投资账户</PageTitle>
-          <p>维护券商、基金平台、银行和现金账户。可在保存账户时一并录入期初资产。</p>
+          <PageTitle route="/accounts">账户管理</PageTitle>
+          <p>维护投资、日常收支和教育储备账户。可在保存账户时一并录入期初资产。</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (
@@ -414,6 +423,14 @@ export function AccountsPage() {
         <p className="readonly-note">当前角色为 viewer，可查看账户信息；持有额外密码时也可查看交易密码。新增、编辑、删除和更新交易密码仅限 admin。</p>
       ) : null}
 
+      <div className="filter-bar">
+        <label>账户用途
+          <select value={purposeFilter} onChange={(event) => setPurposeFilter(event.target.value as AccountPurpose | "")}>
+            <option value="">全部用途</option>
+            {ACCOUNT_PURPOSES.map((purpose) => <option key={purpose} value={purpose}>{ACCOUNT_PURPOSE_LABELS[purpose]}</option>)}
+          </select>
+        </label>
+      </div>
       <div className="table-wrap">
         <table className="account-table">
           <thead>
@@ -422,6 +439,7 @@ export function AccountsPage() {
               <th>账户名称</th>
               <th>券商/平台</th>
               <th>账户类型</th>
+              <th>用途</th>
               <th>基准货币</th>
               <th className="numeric-cell">账户总额</th>
               <th>主要市场</th>
@@ -431,14 +449,14 @@ export function AccountsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8}>正在加载账户...</td>
+                <td colSpan={9}>正在加载账户...</td>
               </tr>
-            ) : accounts.length === 0 ? (
+            ) : visibleAccounts.length === 0 ? (
               <tr>
-                <td colSpan={8}>暂无投资账户。</td>
+                <td colSpan={9}>暂无账户。</td>
               </tr>
             ) : (
-              accounts.map((account) => {
+              visibleAccounts.map((account) => {
                 const accountHoldingsForRow = holdingsByAccount.get(account.id) ?? [];
                 const isExpanded = expandedAccountId === account.id;
 
@@ -472,6 +490,7 @@ export function AccountsPage() {
                       <td>{account.name}</td>
                       <td>{account.broker ?? "-"}</td>
                       <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
+                      <td>{ACCOUNT_PURPOSE_LABELS[account.purpose]}</td>
                       <td>{account.baseCurrency}</td>
                       <td className="numeric-cell">{formatAccountTotal(accountTotals.get(account.id))}</td>
                       <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
@@ -504,7 +523,7 @@ export function AccountsPage() {
                     </tr>
                     {isExpanded ? (
                       <tr className="account-holdings-row">
-                        <td colSpan={8}>
+                        <td colSpan={9}>
                           {renderAccountHoldings(
                             accountHoldingsForRow,
                             holdingsReportingCurrency,
@@ -581,6 +600,19 @@ export function AccountsPage() {
                 <option key={accountType} value={accountType}>
                   {ACCOUNT_TYPE_LABELS[accountType]}
                 </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            账户用途
+            <select
+              value={form.purpose}
+              onChange={(event) => setForm({ ...form, purpose: event.target.value as AccountPurpose })}
+              disabled={isDrawerReadOnly}
+            >
+              {ACCOUNT_PURPOSES.map((purpose) => (
+                <option key={purpose} value={purpose}>{ACCOUNT_PURPOSE_LABELS[purpose]}</option>
               ))}
             </select>
           </label>
@@ -793,6 +825,7 @@ function toAccountInput(form: AccountFormState): CreateInvestmentAccountInput {
     name: form.name,
     broker: form.broker,
     accountType: form.accountType,
+    purpose: form.purpose,
     baseCurrency: form.baseCurrency,
     marketRegion: form.marketRegion,
     notes: form.notes,
@@ -892,6 +925,8 @@ async function loadAccountTotals(
       });
     }
   }
+
+
 
   return totals;
 }

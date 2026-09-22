@@ -124,7 +124,7 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background:
     linear-gradient(115deg, rgb(245 181 46 / 14%), transparent 42%),
@@ -1977,8 +1977,17 @@ textarea {
 .trend-summary-change {
   display: inline-flex;
   align-items: baseline;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 4px;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+@media (max-width: 360px) {
+  .dashboard-metric-grid .metric-card strong {
+    font-size: 18px;
+    overflow-wrap: normal;
+  }
 }
 
 .trend-summary .trend-summary-change {

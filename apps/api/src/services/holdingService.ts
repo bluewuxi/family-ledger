@@ -1,7 +1,9 @@
 import Decimal from "decimal.js";
-import { calculateHoldings as calculateSharedHoldings, getAppBusinessDate } from "@family-ledger/shared";
+import { ACCOUNT_PURPOSES, calculateHoldings as calculateSharedHoldings, getAppBusinessDate } from "@family-ledger/shared";
 import type {
   AuthenticatedUser,
+  AccountPurpose,
+  AccountPurposeOverview,
   ExchangeRateRecord,
   HoldingDetailLinkedCashLeg,
   HoldingDetailPriceContext,
@@ -50,6 +52,57 @@ export async function getHoldings(input: { currency?: string; user?: Authenticat
   const holdings = calculateHoldings(transactions, accounts, instruments, fxRates);
 
   return calculateHoldingsValuation(holdings, prices, fxRates, reportingCurrency);
+}
+
+export async function getAccountPurposeOverview(input: {
+  purpose?: string;
+  currency?: string;
+  from?: string;
+  to?: string;
+  accountId?: string;
+  user?: AuthenticatedUser;
+}): Promise<AccountPurposeOverview> {
+  if (!input.purpose || !ACCOUNT_PURPOSES.includes(input.purpose as AccountPurpose) || input.purpose === "investment") {
+    throw new ApiRequestError("VALIDATION_ERROR", "purpose must be daily_expense or education.", 400);
+  }
+  const purpose = input.purpose as AccountPurpose;
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  const validDate = (value: string) => datePattern.test(value) &&
+    Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+  if ((input.from && !validDate(input.from)) || (input.to && !validDate(input.to))) {
+    throw new ApiRequestError("VALIDATION_ERROR", "from and to must use YYYY-MM-DD format.", 400);
+  }
+  if (input.from && input.to && input.from > input.to) {
+    throw new ApiRequestError("VALIDATION_ERROR", "from cannot be after to.", 400);
+  }
+  const [summary, accounts, transactions] = await Promise.all([
+    getHoldings({ currency: input.currency, user: input.user }),
+    listAccounts(),
+    listTransactions()
+  ]);
+  const purposeAccounts = accounts.filter((account) => account.purpose === purpose);
+  const accountIds = new Set(purposeAccounts.map((account) => account.id));
+  if (input.accountId && !accountIds.has(input.accountId)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "accountId is not part of the selected purpose.", 400);
+  }
+  const balances = purposeAccounts
+    .map((account) => {
+      const holdings = summary.holdings.filter((holding) => holding.accountId === account.id);
+      const unavailable = holdings.some((holding) => holding.marketValue === null);
+      const balance = unavailable
+        ? null
+        : holdings.reduce((sum, holding) => sum.plus(holding.marketValue ?? "0"), new Decimal(0)).toFixed(2);
+      return { account, balance, currency: summary.reportingCurrency };
+    });
+  const flows = transactions.filter((transaction) =>
+    accountIds.has(transaction.accountId) &&
+    (!input.accountId || transaction.accountId === input.accountId) &&
+    transaction.transactionSource === "manual" &&
+    (transaction.transactionType === "deposit" || transaction.transactionType === "withdrawal") &&
+    (!input.from || transaction.tradeDate >= input.from) &&
+    (!input.to || transaction.tradeDate <= input.to)
+  );
+  return { purpose, balances, flows };
 }
 
 export async function getHoldingDetail(input: {

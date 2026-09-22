@@ -344,7 +344,11 @@ Current valuation is account-scoped: the API calculates holdings, filters to the
 
 `valuationBusinessDate` is the app business date used as the valuation reference date. It does not mean every holding has same-day market data. Each holding still carries row-level `latestPriceDate`; lagged funds may use the latest published price available.
 
-The account trend uses persisted `portfolio_account_snapshots`. Account snapshot rows store USD values, so NZD/CNY display values are converted with the parent `portfolio_snapshots.usd_to_nzd_rate` and `usd_to_cny_rate` from the same snapshot. For long ranges of two years or more (`3y`, `5y`, or `inception`), account trend points use the same weekly thinning semantics as portfolio trend points.
+The account trend uses persisted `portfolio_account_snapshots`. Account snapshot rows store USD values, so NZD/CNY display values are converted with the parent `portfolio_snapshot_headers.usd_to_nzd_rate` and `usd_to_cny_rate` from the same snapshot. For long ranges of two years or more (`3y`, `5y`, or `inception`), account trend points use the same weekly thinning semantics as portfolio trend points.
+
+`GET /account-purpose-overview` accepts `purpose=daily_expense|education`, optional `currency`, `accountId`, `from`, and `to`. It returns purpose accounts with current balances plus manual deposit and withdrawal records. Date filters apply to flows; balances are current. The dashboard and portfolio trend include only accounts whose current purpose is `investment`. `GET /portfolio-snapshots` defaults to all purposes and accepts `purpose=investment|daily_expense|education`; dashboard requests explicitly pass `investment`. The optional `includeTrend` result always represents investment history and principal. `GET /transactions` supports the same optional purpose filter before pagination. Account management and monthly family reports remain all-purpose.
+
+Account create/update DTOs accept `purpose=investment|daily_expense|education`. Omitted create purpose defaults to investment; omitted update purpose is unchanged. Changing purpose immediately changes historical query membership without snapshot rewrites. Responses use `Cache-Control: no-store`; there is no aggregate dashboard cache. The instrument quote cache is independent of account membership.
 
 Recent transactions exclude `generated_cash_leg` rows as primary activity. When a buy/sell/dividend has an automatically generated cash leg, it is attached as `linkedCashLeg`.
 

@@ -39,6 +39,7 @@ import {
 } from "../repositories/priceRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
+import { optionalAccountPurpose } from "./accountPurpose";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const maxLimit = 200;
@@ -69,6 +70,7 @@ export async function getTransactions(
   validateTransactionTypeFilters(transactionType, transactionTypes);
 
   const rows = await listTransactions({
+    purpose: optionalAccountPurpose(query.purpose),
     from,
     to,
     accountId: optionalUuid("accountId", query.accountId),
@@ -615,6 +617,7 @@ function minDate(left: string, right: string): string {
 
 function hasTransactionListQuery(query: Record<string, string | undefined>): boolean {
   return [
+    "purpose",
     "from",
     "to",
     "accountId",

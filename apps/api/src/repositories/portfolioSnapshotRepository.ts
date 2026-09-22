@@ -1,4 +1,6 @@
 import {
+  combineAccountValuations,
+  type AccountPurpose,
   convertSnapshotAmount,
   type AccountDetailSnapshotPoint,
   type PortfolioSnapshotValuation,
@@ -8,20 +10,24 @@ import {
   type SnapshotWarning
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
+import { readAllRows } from "./readAllRows";
 
-interface PortfolioSnapshotRow {
+interface PortfolioSnapshotHeaderRow {
   id: string;
   snapshot_date: string;
+  usd_to_nzd_rate: string;
+  usd_to_cny_rate: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PortfolioSnapshotRow extends PortfolioSnapshotHeaderRow {
   total_market_value_usd: string | null;
   total_cost_usd: string | null;
   unrealized_gain_usd: string | null;
   daily_change_usd: string | null;
   daily_change_pct: string | null;
-  usd_to_nzd_rate: string;
-  usd_to_cny_rate: string;
   warnings: unknown;
-  created_at: string;
-  updated_at: string;
 }
 
 interface PortfolioAccountSnapshotRow {
@@ -38,6 +44,7 @@ interface PortfolioAccountSnapshotRow {
   warnings: unknown;
   created_at: string;
   updated_at: string;
+  investment_accounts?: { purpose: string } | null;
 }
 
 interface PortfolioAccountSnapshotTrendRow {
@@ -47,7 +54,7 @@ interface PortfolioAccountSnapshotTrendRow {
   account_name: string;
   market_value_usd: string | null;
   warnings: unknown;
-  portfolio_snapshots: {
+  portfolio_snapshot_headers?: {
     usd_to_nzd_rate: string;
     usd_to_cny_rate: string;
   } | null;
@@ -59,6 +66,7 @@ export interface UpsertPortfolioSnapshotResult {
 }
 
 export async function listPortfolioSnapshots(input: {
+  purpose?: AccountPurpose;
   from: string;
   to: string;
   currency: SnapshotDisplayCurrency;
@@ -73,12 +81,7 @@ export async function listPortfolioSnapshots(input: {
   }
 
   const snapshotIds = snapshots.map((snapshot) => snapshot.id);
-  const { data: accounts, error: accountError } = await supabase
-    .from("portfolio_account_snapshots")
-    .select(accountSnapshotSelect)
-    .in("portfolio_snapshot_id", snapshotIds)
-    .order("account_name", { ascending: true })
-    .returns<PortfolioAccountSnapshotRow[]>();
+  const { data: accounts, error: accountError } = await listAccountSnapshotRows(supabase, snapshotIds, input.purpose);
 
   if (accountError) {
     console.error("Failed to list portfolio account snapshots", { error: accountError });
@@ -86,18 +89,24 @@ export async function listPortfolioSnapshots(input: {
   }
 
   const accountsBySnapshotId = groupAccountsBySnapshotId(accounts);
-  return snapshots.map((snapshot) => mapSnapshotRow(snapshot, accountsBySnapshotId.get(snapshot.id) ?? [], input.currency));
+  return snapshots.map((snapshot) => mapSnapshotRow(aggregateSnapshotRow(snapshot, accountsBySnapshotId.get(snapshot.id) ?? []), accountsBySnapshotId.get(snapshot.id) ?? [], input.currency));
 }
 
 export async function listPortfolioSnapshotTrendRows(input: {
+  purpose?: AccountPurpose;
   from: string;
   to: string;
   currency: SnapshotDisplayCurrency;
   order?: "asc" | "desc";
   limit?: number;
 }): Promise<PortfolioSnapshotSummary[]> {
+  const supabase = await getSupabaseAdmin();
   const snapshots = await listPortfolioSnapshotRows(input);
-  return snapshots.map((snapshot) => mapSnapshotRow(snapshot, [], input.currency));
+  if (snapshots.length === 0) return [];
+  const { data, error } = await listAccountSnapshotRows(supabase, snapshots.map((snapshot) => snapshot.id), input.purpose);
+  if (error) throw new Error("Failed to list investment account snapshots.");
+  const accountsBySnapshotId = groupAccountsBySnapshotId(data);
+  return snapshots.map((snapshot) => mapSnapshotRow(aggregateSnapshotRow(snapshot, accountsBySnapshotId.get(snapshot.id) ?? []), [], input.currency));
 }
 
 export async function listAccountSnapshotTrendRows(input: {
@@ -121,14 +130,21 @@ export async function listAccountSnapshotTrendRows(input: {
     query = query.limit(input.limit);
   }
 
-  const { data, error } = await query.returns<PortfolioAccountSnapshotTrendRow[]>();
+  const { data, error } = await readAllRows(query.returns<PortfolioAccountSnapshotTrendRow[]>(), input.limit);
 
   if (error) {
     console.error("Failed to list account snapshot trend rows", { error });
     throw new Error("Failed to list account snapshot trend rows.");
   }
 
-  return data.map((row) => mapAccountSnapshotTrendRow(row, input.currency));
+  // Explicit header lookup works both before and after the foreign-key cutover.
+  const headers = await listPortfolioSnapshotRows({ ...input, limit: undefined });
+  const byDate = new Map(headers.map((header) => [header.snapshot_date, header]));
+  return data.map((row) => {
+    const header = byDate.get(row.snapshot_date);
+    if (!header) throw new Error("Account snapshot header is missing.");
+    return mapAccountSnapshotTrendRow({ ...row, portfolio_snapshot_headers: header }, input.currency);
+  });
 }
 
 async function listPortfolioSnapshotRows(input: {
@@ -137,10 +153,10 @@ async function listPortfolioSnapshotRows(input: {
   currency: SnapshotDisplayCurrency;
   order?: "asc" | "desc";
   limit?: number;
-}): Promise<PortfolioSnapshotRow[]> {
+}): Promise<PortfolioSnapshotHeaderRow[]> {
   const supabase = await getSupabaseAdmin();
   let snapshotQuery = supabase
-    .from("portfolio_snapshots")
+    .from("portfolio_snapshot_headers")
     .select(snapshotSelect)
     .gte("snapshot_date", input.from)
     .lte("snapshot_date", input.to)
@@ -150,14 +166,14 @@ async function listPortfolioSnapshotRows(input: {
     snapshotQuery = snapshotQuery.limit(input.limit);
   }
 
-  const { data: snapshots, error: snapshotError } = await snapshotQuery.returns<PortfolioSnapshotRow[]>();
+  const { data: snapshots, error: snapshotError } = await readAllRows(snapshotQuery.returns<PortfolioSnapshotHeaderRow[]>(), input.limit);
 
   if (snapshotError) {
     console.error("Failed to list portfolio snapshots", { error: snapshotError });
     throw new Error("Failed to list portfolio snapshots.");
   }
 
-  if (snapshots.length === 0) {
+  if (!snapshots || snapshots.length === 0) {
     return [];
   }
 
@@ -166,12 +182,12 @@ async function listPortfolioSnapshotRows(input: {
 
 export async function listSnapshotDatesFrom(fromDate: string): Promise<string[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("portfolio_snapshots")
+  const { data, error } = await readAllRows(supabase
+    .from("portfolio_snapshot_headers")
     .select("snapshot_date")
     .gte("snapshot_date", fromDate)
     .order("snapshot_date", { ascending: true })
-    .returns<Array<{ snapshot_date: string }>>();
+    .returns<Array<{ snapshot_date: string }>>());
 
   if (error) {
     throw new Error("Failed to list affected portfolio snapshots.");
@@ -194,17 +210,36 @@ export async function upsertPortfolioSnapshot(
 const snapshotSelect = [
   "id",
   "snapshot_date",
-  "total_market_value_usd",
-  "total_cost_usd",
-  "unrealized_gain_usd",
-  "daily_change_usd",
-  "daily_change_pct",
   "usd_to_nzd_rate",
   "usd_to_cny_rate",
-  "warnings",
   "created_at",
   "updated_at"
 ].join(", ");
+
+function aggregateSnapshotRow(
+  snapshot: PortfolioSnapshotHeaderRow,
+  accounts: PortfolioAccountSnapshotRow[]
+): PortfolioSnapshotRow {
+  const total = combineAccountValuations(snapshot.snapshot_date, accounts.map((account) => ({
+    accountId: account.account_id,
+    accountName: account.account_name,
+    marketValueUsd: account.market_value_usd,
+    costUsd: account.cost_usd,
+    unrealizedGainUsd: account.unrealized_gain_usd,
+    dailyChangeUsd: account.daily_change_usd,
+    dailyChangePct: account.daily_change_pct,
+    warnings: parseWarnings(account.warnings)
+  })), snapshot.usd_to_nzd_rate, snapshot.usd_to_cny_rate);
+  return {
+    ...snapshot,
+    total_market_value_usd: total.marketValueUsd,
+    total_cost_usd: total.costUsd,
+    unrealized_gain_usd: total.unrealizedGainUsd,
+    daily_change_usd: total.dailyChangeUsd,
+    daily_change_pct: total.dailyChangePct,
+    warnings: total.warnings
+  };
+}
 
 const accountSnapshotSelect = [
   "id",
@@ -228,8 +263,7 @@ const accountSnapshotTrendSelect = [
   "account_id",
   "account_name",
   "market_value_usd",
-  "warnings",
-  "portfolio_snapshots!inner(usd_to_nzd_rate, usd_to_cny_rate)"
+  "warnings"
 ].join(", ");
 
 function mapSnapshotRow(
@@ -280,8 +314,8 @@ function mapAccountSnapshotTrendRow(
   currency: SnapshotDisplayCurrency
 ): AccountDetailSnapshotPoint & { warnings: SnapshotWarning[] } {
   const rates = {
-    usdToNzdRate: row.portfolio_snapshots?.usd_to_nzd_rate ?? "0",
-    usdToCnyRate: row.portfolio_snapshots?.usd_to_cny_rate ?? "0"
+    usdToNzdRate: row.portfolio_snapshot_headers!.usd_to_nzd_rate,
+    usdToCnyRate: row.portfolio_snapshot_headers!.usd_to_cny_rate
   };
 
   return {
@@ -304,6 +338,30 @@ function groupAccountsBySnapshotId(
   }
 
   return grouped;
+}
+
+async function listAccountSnapshotRows(
+  supabase: Awaited<ReturnType<typeof getSupabaseAdmin>>,
+  snapshotIds: string[],
+  purpose?: AccountPurpose
+) {
+  const rows: PortfolioAccountSnapshotRow[] = [];
+  // Bound URL size and paginate within each batch; history must never silently truncate.
+  for (let start = 0; start < snapshotIds.length; start += 50) {
+    for (let offset = 0; ; offset += 500) {
+      let query = supabase.from("portfolio_account_snapshots")
+        .select(`${accountSnapshotSelect}, investment_accounts!inner(purpose)`)
+        .in("portfolio_snapshot_id", snapshotIds.slice(start, start + 50))
+        .order("id", { ascending: true }).range(offset, offset + 499);
+      if (purpose) query = query.eq("investment_accounts.purpose", purpose);
+      const { data, error } = await query.returns<PortfolioAccountSnapshotRow[]>();
+      if (error) return { data: rows, error };
+      rows.push(...data);
+      if (data.length < 500) break;
+    }
+  }
+  rows.sort((left, right) => left.account_name.localeCompare(right.account_name) || left.account_id.localeCompare(right.account_id));
+  return { data: rows, error: null };
 }
 
 function parseWarnings(value: unknown): SnapshotWarning[] {

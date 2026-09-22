@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import type { JobRun } from "@family-ledger/shared";
 import { createBackupLedgerDataHandler } from "../apps/jobs/src/handlers/backupLedgerData";
-import { LEDGER_BACKUP_TABLES, type LedgerBackupRows } from "../apps/jobs/src/repositories/ledgerBackupRepository";
+import { LEDGER_BACKUP_TABLES, normalizeLedgerBackupRows, type LedgerBackupRows } from "../apps/jobs/src/repositories/ledgerBackupRepository";
 import {
   backupLedgerData,
   BACKUP_BLOCKED_BY_RUNNING_JOB_CODE,
@@ -12,6 +12,7 @@ import {
 import {
   createLedgerBackupObject,
   validateLedgerBackupPayload,
+  prepareLedgerRestoreRows,
   type LedgerBackupPayload
 } from "../apps/jobs/src/services/ledgerBackupBundle";
 
@@ -42,6 +43,26 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
+  assert.equal(backupObject.payload.manifest.version, 2);
+  const legacySource = { ...rows, portfolio_snapshot_headers: undefined, portfolio_snapshots: [{
+    id: "snapshot-id", snapshot_date: "2026-05-29", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7",
+    notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z",
+    total_market_value_nzd: "123.456789", total_market_value_usd: "99"
+  }] };
+  const legacyObject = createLedgerBackupObject({ environment: "test", generatedAt: "2026-05-29T01:00:00Z",
+    rows: normalizeLedgerBackupRows(legacySource) });
+  validateLedgerBackupPayload(legacyObject.payload);
+  assert.equal(legacyObject.payload.manifest.version, 1);
+  assert.equal(legacyObject.payload.tables.portfolio_snapshots?.length, 1);
+  assert.equal("portfolio_snapshot_headers" in legacyObject.payload.tables, false);
+  const restored = prepareLedgerRestoreRows(legacyObject.payload);
+  assert.equal("portfolio_snapshots" in restored, false);
+  assert.deepEqual(restored.portfolio_snapshot_headers, [{
+    id: "snapshot-id", snapshot_date: "2026-05-29", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7",
+    notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z"
+  }]);
+  assert.equal((restored.investment_accounts[0] as { purpose: string }).purpose, "investment");
+  assert.deepEqual(prepareLedgerRestoreRows(backupObject.payload).portfolio_snapshot_headers, []);
   assert.equal(backupObject.key, "backups/test/2026/05/29/family-ledger-test-2026-05-29T01-00-00-000Z.json.gz");
   assert.equal(backupObject.payload.manifest.secretsExcluded, true);
   assert.equal(backupObject.payload.manifest.totalRows, 2);

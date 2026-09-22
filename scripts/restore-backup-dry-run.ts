@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { validateLedgerBackupPayload, type LedgerBackupPayload } from "../apps/jobs/src/services/ledgerBackupBundle";
+import { prepareLedgerRestoreRows, type LedgerBackupPayload } from "../apps/jobs/src/services/ledgerBackupBundle";
 
 const RESTORE_ORDER = [
   "currencies",
@@ -11,7 +11,7 @@ const RESTORE_ORDER = [
   "exchange_rates",
   "transactions",
   "instrument_prices",
-  "portfolio_snapshots",
+  "portfolio_snapshot_headers",
   "portfolio_account_snapshots",
   "dashboard_instrument_quotes",
   "monthly_reviews",
@@ -28,9 +28,16 @@ async function main(): Promise<void> {
   const backupFile = parseBackupFile(process.argv.slice(2));
   const payload = readBackupPayload(backupFile);
 
-  validateLedgerBackupPayload(payload);
+  payload.tables = prepareLedgerRestoreRows(payload);
   validatePrimaryKeys(payload);
   validateInternalReferences(payload);
+
+  const outputIndex = process.argv.indexOf("--output-tables");
+  if (outputIndex >= 0) {
+    const output = process.argv[outputIndex + 1];
+    if (!output) throw new Error("--output-tables requires a file path.");
+    writeFileSync(output, JSON.stringify(payload.tables, null, 2), { flag: "wx" });
+  }
 
   const externalUserIds = collectExternalUserIds(payload);
 
@@ -64,7 +71,8 @@ function parseBackupFile(args: string[]): string {
 }
 
 function validatePrimaryKeys(payload: LedgerBackupPayload): void {
-  for (const table of payload.manifest.tables) {
+  for (const name of RESTORE_ORDER) {
+    const table = { name };
     const rows = payload.tables[table.name] as Array<Record<string, unknown>>;
     const primaryKey = table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
     const values = rows.map((row) => row[primaryKey]).filter((value) => value !== null && value !== undefined);
@@ -83,7 +91,7 @@ function validateInternalReferences(payload: LedgerBackupPayload): void {
   const accounts = idSet(payload.tables.investment_accounts);
   const instruments = idSet(payload.tables.instruments);
   const transactions = idSet(payload.tables.transactions);
-  const snapshots = idSet(payload.tables.portfolio_snapshots);
+  const snapshots = idSet(payload.tables.portfolio_snapshot_headers);
   const jobRuns = idSet(payload.tables.job_runs);
   const currencies = new Set((payload.tables.currencies as Array<Record<string, unknown>>).map((row) => String(row.code)));
 
@@ -103,6 +111,7 @@ function validateInternalReferences(payload: LedgerBackupPayload): void {
   requireKnownValues(payload.tables.dashboard_instrument_quotes, "dashboard_instrument_quotes", "currency", currencies);
   requireKnownValues(payload.tables.data_provider_runs, "data_provider_runs", "job_run_id", jobRuns);
 }
+
 
 function collectExternalUserIds(payload: LedgerBackupPayload): Set<string> {
   const userIds = new Set<string>();

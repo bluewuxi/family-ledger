@@ -7,12 +7,14 @@ import type {
   PriceRecord
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
+import { readAllRows } from "./readAllRows";
 
 interface AccountRow {
   id: string;
   name: string;
   broker: string | null;
   account_type: InvestmentAccount["accountType"];
+  purpose: InvestmentAccount["purpose"];
   base_currency: InvestmentAccount["baseCurrency"];
   market_region: InvestmentAccount["marketRegion"];
   notes: string | null;
@@ -146,13 +148,14 @@ export async function listSnapshotInstruments(): Promise<Instrument[]> {
 
 export async function listSnapshotTransactions(snapshotDate: string): Promise<InvestmentTransaction[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
+  const { data, error } = await readAllRows(supabase
     .from("transactions")
     .select(transactionSelect)
     .lte("trade_date", snapshotDate)
     .order("trade_date", { ascending: true })
     .order("created_at", { ascending: true })
-    .returns<TransactionRow[]>();
+    .order("id", { ascending: true })
+    .returns<TransactionRow[]>());
 
   if (error) {
     throw new Error("Failed to list snapshot transactions.");
@@ -212,6 +215,7 @@ const accountSelect = [
   "name",
   "broker",
   "account_type",
+  "purpose",
   "base_currency",
   "market_region",
   "notes",
@@ -307,6 +311,7 @@ function mapAccountRow(row: AccountRow): InvestmentAccount {
     name: row.name,
     broker: row.broker,
     accountType: row.account_type,
+    purpose: row.purpose,
     baseCurrency: row.base_currency,
     marketRegion: row.market_region,
     notes: row.notes,

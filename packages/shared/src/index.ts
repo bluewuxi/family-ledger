@@ -236,6 +236,15 @@ export type TransactionSource = (typeof TRANSACTION_SOURCES)[number];
 export const ACCOUNT_TYPES = ["brokerage", "fund_platform", "bank", "retirement", "other"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
+export const ACCOUNT_PURPOSES = ["investment", "daily_expense", "education"] as const;
+export type AccountPurpose = (typeof ACCOUNT_PURPOSES)[number];
+
+export const ACCOUNT_PURPOSE_LABELS: Record<AccountPurpose, string> = {
+  investment: "投资",
+  daily_expense: "日常收支",
+  education: "教育储备"
+};
+
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   brokerage: "\u5238\u5546\u8d26\u6237",
   fund_platform: "\u57fa\u91d1\u5e73\u53f0",
@@ -326,6 +335,7 @@ export interface InvestmentAccount {
   name: string;
   broker: string | null;
   accountType: AccountType;
+  purpose: AccountPurpose;
   baseCurrency: CurrencyCode;
   marketRegion: MarketRegion;
   notes: string | null;
@@ -340,6 +350,7 @@ export interface CreateInvestmentAccountInput {
   name: string;
   broker?: string | null;
   accountType: AccountType;
+  purpose?: AccountPurpose;
   baseCurrency: CurrencyCode;
   marketRegion: MarketRegion;
   notes?: string | null;
@@ -350,6 +361,7 @@ export interface UpdateInvestmentAccountInput {
   name?: string;
   broker?: string | null;
   accountType?: AccountType;
+  purpose?: AccountPurpose;
   baseCurrency?: CurrencyCode;
   marketRegion?: MarketRegion;
   notes?: string | null;
@@ -1187,11 +1199,14 @@ export interface DataMaintenanceBackupSummary {
 export interface PortfolioSnapshot {
   id: string;
   snapshotDate: string;
-  totalMarketValueNzd: string | null;
-  totalCostNzd: string | null;
-  unrealizedGainNzd: string | null;
-  dailyChangeNzd: string | null;
+  totalMarketValueUsd: string | null;
+  totalCostUsd: string | null;
+  unrealizedGainUsd: string | null;
+  dailyChangeUsd: string | null;
   dailyChangePct: string | null;
+  usdToNzdRate: string;
+  usdToCnyRate: string;
+  warnings: SnapshotWarning[];
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -1681,7 +1696,13 @@ function toSnapshotAccountValuation(
   };
 }
 
-function combineAccountValuations(
+export interface AccountPurposeOverview {
+  purpose: AccountPurpose;
+  balances: Array<{ account: InvestmentAccount; balance: string | null; currency: SnapshotDisplayCurrency }>;
+  flows: InvestmentTransaction[];
+}
+
+export function combineAccountValuations(
   snapshotDate: string,
   accounts: PortfolioSnapshotValuationAccount[],
   usdToNzdRate: string,

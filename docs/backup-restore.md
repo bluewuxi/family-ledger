@@ -1,6 +1,6 @@
 # Backup And Restore
 
-Ledger backup V1 is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export UI.
+Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export UI. Version 2 stores snapshot headers and account rows; version 1 remains supported for older files and during the pre-cutover rollout.
 
 ## Backup Scope
 
@@ -62,8 +62,8 @@ For an empty test database:
 1. Apply all Supabase migrations through at least the backup manifest's `migrationHighWaterMark`.
 2. Recreate Supabase Auth users with matching UUIDs where possible. If UUIDs cannot match, prepare a reviewed user-id remapping for `profiles`, `user_roles`, audit fields, and `job_runs.triggered_by_user_id`.
 3. Run `verify:backup` and `restore:backup:dry-run`.
-4. Load public tables in the dry-run restore order.
+4. Load public tables in the dry-run restore order. For either backup version, use `restore:backup:dry-run -- --file <backup.json.gz> --output-tables <new-normalized-file.json>` to obtain current-schema rows after validation. The conversion maps legacy snapshot IDs, dates, FX, notes and timestamps into `portfolio_snapshot_headers`, defaults legacy account purposes to `investment`, and omits aggregate rows. Never insert into the `portfolio_snapshots` view. Keep the original backup to retain legacy NZD columns; conversion does not overwrite it.
 5. Recreate or reset SSM trading-password parameters separately; V1 backups do not contain decrypted trading passwords.
 6. Run normal app validation, including holdings, dashboard, market data, snapshots, typecheck, and build.
 
-Production restore should first be rehearsed against a disposable test Supabase project.
+The test environment contains real family data. Rehearse restores in an isolated database, not in the live test database. No production release has been performed.

@@ -16,6 +16,8 @@ const requiredTables = [
   "job_runs",
   "data_provider_runs",
   "portfolio_snapshots",
+  "portfolio_snapshot_headers",
+  "portfolio_account_snapshots",
   "monthly_reviews"
 ];
 
@@ -29,6 +31,8 @@ const businessTables = [
   "job_runs",
   "data_provider_runs",
   "portfolio_snapshots",
+  "portfolio_snapshot_headers",
+  "portfolio_account_snapshots",
   "monthly_reviews"
 ];
 

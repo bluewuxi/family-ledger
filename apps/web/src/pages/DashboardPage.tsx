@@ -218,7 +218,7 @@ export function DashboardPage() {
 
     try {
       const data = await apiGet<PortfolioSnapshotsResponse>(
-        `/portfolio-snapshots?currency=${currency}&includeTrend=true&trendRange=${range}`
+        `/portfolio-snapshots?purpose=investment&currency=${currency}&includeTrend=true&trendRange=${range}`
       );
       setSnapshots(data.snapshots);
       setTrend(data.trend ?? null);
@@ -241,9 +241,9 @@ export function DashboardPage() {
     try {
       const [transactionData, snapshotData] = await Promise.all([
         apiGet<TransactionsResponse>(
-          "/transactions?transactionTypes=buy,sell&excludeGeneratedCashLegs=true&excludeCashInstruments=true&limit=10&offset=0"
+          "/transactions?purpose=investment&transactionTypes=buy,sell&excludeGeneratedCashLegs=true&excludeCashInstruments=true&limit=10&offset=0"
         ),
-        apiGet<PortfolioSnapshotsResponse>(`/portfolio-snapshots?currency=${currency}&limit=16&order=desc`)
+        apiGet<PortfolioSnapshotsResponse>(`/portfolio-snapshots?purpose=investment&currency=${currency}&limit=16&order=desc`)
       ]);
       setRecentTransactions(transactionData.transactions);
       setRecentSnapshots(snapshotData.snapshots);

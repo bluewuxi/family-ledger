@@ -13,7 +13,7 @@ interface FetchResponseLike {
   json(): Promise<unknown>;
 }
 
-type FetchLike = (url: string) => Promise<FetchResponseLike>;
+type FetchLike = (url: string, options?: { signal: AbortSignal }) => Promise<FetchResponseLike>;
 
 export interface EastMoneyInstrumentQuoteProviderOptions {
   fetchFn?: FetchLike;
@@ -36,13 +36,14 @@ export class EastMoneyInstrumentQuoteProvider implements IInstrumentQuoteProvide
 
   async fetchLatestQuotes(input: FetchLatestInstrumentQuotesInput): Promise<InstrumentQuoteProviderResult> {
     const quotes: InstrumentQuoteProviderQuote[] = [];
+    const signal = AbortSignal.timeout(6000);
 
     for (const instrument of input.instruments) {
       if (!SUPPORTED_CURRENCIES.has(instrument.currency)) {
         throw new Error(`Eastmoney instrument ${instrument.sourceSymbol} uses unsupported currency ${instrument.currency}.`);
       }
 
-      const response = await this.fetchFn(this.buildUrl(instrument.sourceSymbol, instrument.sourceExchange));
+      const response = await this.fetchFn(this.buildUrl(instrument.sourceSymbol, instrument.sourceExchange), { signal });
 
       if (!response.ok) {
         throw new Error(`Eastmoney request failed for ${instrument.sourceSymbol} with status ${response.status}.`);

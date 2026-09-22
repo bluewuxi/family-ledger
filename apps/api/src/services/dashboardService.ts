@@ -5,6 +5,7 @@ import type {
   HoldingSummary,
   DashboardSummary,
   Instrument,
+  InvestmentAccount,
   InvestmentTransaction,
   PriceSource
 } from "@family-ledger/shared";
@@ -47,7 +48,8 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
     listAccounts(),
     listInstruments()
   ]);
-  const preliminaryHoldings = calculateHoldings(transactions, accounts, instruments);
+  const { accounts: investmentAccounts, transactions: investmentTransactions } = selectInvestmentLedger(accounts, transactions);
+  const preliminaryHoldings = calculateHoldings(investmentTransactions, investmentAccounts, instruments);
   const securityInstruments = uniqueBy(
     preliminaryHoldings
       .filter((holding) => holding.assetType !== "cash")
@@ -58,20 +60,29 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
     listLatestPrices(securityInstruments),
     listValuationRatesForHoldings({
       valuationDate: businessDate,
-      transactions,
+      transactions: investmentTransactions,
       holdings: preliminaryHoldings,
       reportingCurrency
     })
   ]);
-  const holdings = calculateHoldings(transactions, accounts, instruments, fxRates);
+  const holdings = calculateHoldings(investmentTransactions, investmentAccounts, instruments, fxRates);
   const dashboardQuotes = await refreshDashboardQuotes({
     holdings,
     instruments,
     now
   });
-  const dailyTradeCount = countDailyTrades(transactions, instruments, businessDate);
+  const dailyTradeCount = countDailyTrades(investmentTransactions, instruments, businessDate);
 
-  return calculateDashboardSummary(holdings, accounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
+  return calculateDashboardSummary(holdings, investmentAccounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
+}
+
+export function selectInvestmentLedger(accounts: InvestmentAccount[], transactions: InvestmentTransaction[]) {
+  const investmentAccounts = accounts.filter((account) => account.purpose === "investment");
+  const investmentAccountIds = new Set(investmentAccounts.map((account) => account.id));
+  return {
+    accounts: investmentAccounts,
+    transactions: transactions.filter((transaction) => investmentAccountIds.has(transaction.accountId))
+  };
 }
 
 export function countDailyTrades(transactions: InvestmentTransaction[], instruments: Instrument[], businessDate: string): number {

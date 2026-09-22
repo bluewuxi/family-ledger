@@ -20,6 +20,7 @@ import { listPortfolioSnapshots, listPortfolioSnapshotTrendRows } from "../repos
 import { listManualPrincipalTransactionsUntil } from "../repositories/transactionRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
+import { optionalAccountPurpose } from "./accountPurpose";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const earliestDate = "0001-01-01";
@@ -56,6 +57,7 @@ interface PrincipalCalculation {
 }
 
 export async function getPortfolioSnapshots(input: {
+  purpose?: string;
   from?: string;
   to?: string;
   currency?: string;
@@ -64,10 +66,11 @@ export async function getPortfolioSnapshots(input: {
   user?: AuthenticatedUser;
 }): Promise<PortfolioSnapshotSummary[]> {
   const query = await resolveSnapshotQuery(input);
-  return listPortfolioSnapshots(query);
+  return listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) });
 }
 
 export async function getPortfolioSnapshotsResponse(input: {
+  purpose?: string;
   from?: string;
   to?: string;
   currency?: string;
@@ -78,7 +81,7 @@ export async function getPortfolioSnapshotsResponse(input: {
   user?: AuthenticatedUser;
 }): Promise<PortfolioSnapshotsResponse> {
   const query = await resolveSnapshotQuery(input);
-  const snapshots = await listPortfolioSnapshots(query);
+  const snapshots = await listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) });
 
   if (!optionalBoolean("includeTrend", input.includeTrend)) {
     return { snapshots };
@@ -106,13 +109,13 @@ export async function buildPortfolioTrend(input: {
   validateDate("today", rangeEnd);
 
   const principalTransactions =
-    input.principalTransactions ?? await listManualPrincipalTransactionsUntil(rangeEnd);
+    input.principalTransactions ?? await listManualPrincipalTransactionsUntil(rangeEnd, "investment");
   const principalEvents = principalTransactions.map(toPrincipalEvent);
   const inceptionDate = principalEvents[0]?.date ?? null;
   const requestedRangeStart = getTrendRangeStart(input.range, rangeEnd, inceptionDate);
   const rangeStart = inceptionDate && requestedRangeStart < inceptionDate ? inceptionDate : requestedRangeStart;
   const allSnapshots =
-    input.snapshots ?? await listPortfolioSnapshotTrendRows({ from: earliestDate, to: rangeEnd, currency: input.currency, order: "asc" });
+    input.snapshots ?? await listPortfolioSnapshotTrendRows({ from: earliestDate, to: rangeEnd, currency: input.currency, order: "asc", purpose: "investment" });
   const exactFxRates =
     input.exactFxRates ?? await listExactValuationRatesToUsdForDates(
       principalEvents.map((event) => event.date),

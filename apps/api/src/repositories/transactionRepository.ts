@@ -1,4 +1,5 @@
 import type {
+  AccountPurpose,
   CreateInvestmentTransactionInput,
   InvestmentTransaction,
   TransactionSource,
@@ -6,8 +7,10 @@ import type {
   UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
+import { readAllRows } from "./readAllRows";
 
 export interface TransactionListFilters {
+  purpose?: AccountPurpose;
   from?: string;
   to?: string;
   accountId?: string;
@@ -73,9 +76,13 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("transactions")
-    .select(input.excludeCashInstruments ? transactionSelectWithInnerInstrument : transactionSelect)
+    .select((input.excludeCashInstruments ? transactionSelectWithInnerInstrument : transactionSelect)
+      + (input.purpose ? ", investment_accounts!inner(purpose)" : ""))
     .order("trade_date", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (input.purpose) query = query.eq("investment_accounts.purpose", input.purpose);
 
   if (input.from) {
     query = query.gte("trade_date", input.from);
@@ -105,7 +112,9 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
     query = query.range(input.offset, input.offset + input.limit);
   }
 
-  const { data, error } = await query;
+  const { data, error } = input.limit !== undefined
+    ? await query.returns<InvestmentTransactionRow[]>()
+    : await readAllRows(query.returns<InvestmentTransactionRow[]>());
 
   if (error) {
     throw new Error("Failed to list transactions.");
@@ -115,39 +124,15 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
 }
 
 export async function listTransactionsUntil(tradeDate: string): Promise<InvestmentTransaction[]> {
-  const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("transactions")
-    .select(transactionSelect)
-    .lte("trade_date", tradeDate)
-    .order("trade_date", { ascending: true })
-    .order("created_at", { ascending: true })
-    .returns<InvestmentTransactionRow[]>();
-
-  if (error) {
-    throw new Error("Failed to list snapshot transactions.");
-  }
-
-  return data.map(mapTransactionRow);
+  return (await listTransactions({ to: tradeDate })).reverse();
 }
 
-export async function listManualPrincipalTransactionsUntil(tradeDate: string): Promise<InvestmentTransaction[]> {
-  const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("transactions")
-    .select(transactionSelect)
-    .in("transaction_type", ["opening_position", "opening_balance", "deposit", "withdrawal"])
-    .eq("transaction_source", "manual")
-    .lte("trade_date", tradeDate)
-    .order("trade_date", { ascending: true })
-    .order("created_at", { ascending: true })
-    .returns<InvestmentTransactionRow[]>();
-
-  if (error) {
-    throw new Error("Failed to list principal transactions.");
-  }
-
-  return data.map(mapTransactionRow);
+export async function listManualPrincipalTransactionsUntil(tradeDate: string, purpose?: AccountPurpose): Promise<InvestmentTransaction[]> {
+  const rows = await listTransactions({
+    to: tradeDate, purpose,
+    transactionTypes: ["opening_position", "opening_balance", "deposit", "withdrawal"]
+  });
+  return rows.filter((row) => row.transactionSource === "manual").reverse();
 }
 
 export async function findTransactionById(id: string): Promise<InvestmentTransaction | null> {

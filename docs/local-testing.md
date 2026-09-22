@@ -265,3 +265,11 @@ corepack pnpm verify:snapshot-audit
 The market-close repair apply path writes a local JSON backup under `tmp/market-close-repair/`, deletes suspect rows, then recalculates snapshots. If recalculation is interrupted, rerun `corepack pnpm verify:snapshot-audit` and `corepack pnpm fix:snapshot-audit`.
 
 The test snapshot audit covers every calendar day from the first transaction through the last completed app business date, including weekends and month ends. It refuses future-dated prices or incomplete-day snapshots; investigate those source records before using `fix:snapshot-audit`. Always create a ledger backup before a historical repair.
+
+## Account purposes and snapshot cutover
+
+Run `verify:account-purposes`, `verify:backup`, and `pnpm exec tsx scripts/verify-purpose-read-paths.ts` (the last is read-only against test). The snapshot comparison SQL uses a single repeatable-read snapshot and exact numeric equality; it must pass before cutover. Test contains real data: never create business fixtures or rebuild history there just to verify a release.
+
+Restore a public-schema archive into an isolated local Postgres cluster to rehearse the actual cutover SQL, followed by `scripts/verify-snapshot-atomicity.sql` and `scripts/verify-snapshot-permissions.sql`. The permission test uses local Auth fixtures. `pnpm exec tsx scripts/verify-snapshot-concurrency.ts` targets only the rehearsal cluster on loopback port 55439. `pnpm exec tsx scripts/verify-dashboard-quote-timeout.ts` checks stalled-provider cancellation without network calls.
+
+Authenticated browser checks cover dashboard, account purpose selection/filtering, and both purpose pages at 320×740, 393×852, 430×932, 768×1024 and desktop. Let the user log in; inspect forms without saving changes to real accounts. All current purposes remain investment unless the user reclassifies an account.
