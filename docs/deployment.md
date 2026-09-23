@@ -290,7 +290,20 @@ GitHub Actions currently installs dependencies, type-checks, and builds. Deploym
 
 ### Snapshot view verification — 2026-09-22
 
-Applied only the additive account-purpose/header/view migration to the test database. All 119 snapshots (2026-05-22 through 2026-09-21) passed exact USD, percentage, FX, metadata, timestamp and warning-multiset comparison in one read-only repeatable-read transaction. All 952 account snapshot rows have headers. No empty snapshots or populated legacy NZD aggregate columns exist in this dataset. A rolled-back source metadata update verified header synchronization. The original aggregate table and writer remain in place; destructive cutover has not been applied. Production is unchanged.
+The initial additive account-purpose/header/view migration was applied to the test database. All 119 snapshots (2026-05-22 through 2026-09-21) passed exact USD, percentage, FX, metadata, timestamp and warning-multiset comparison in one read-only repeatable-read transaction. All 952 account snapshot rows had headers. No empty snapshots or populated legacy NZD aggregate columns existed in this dataset. A rolled-back source metadata update verified header synchronization. The original aggregate table and writer remained in place during this phase.
+
+### Test cutover completed — 2026-09-23
+
+After a five-hour pause, fresh verification included the newly written 2026-09-22 snapshot: all 120 snapshots and 960 account rows passed exact parity. A new ledger backup and public-schema archive were taken and validated; the archive was restored and the cutover rehearsed locally before applying it to test. Compatible API/jobs/web code was deployed first, with the destructive migration released separately.
+
+The transaction committed successfully. `portfolio_snapshots` is now an invoker-security view, account rows reference headers, and no active database function writes aggregate rows. Post-cutover header and account-row hashes exactly matched the fresh restored backup, including IDs and timestamps. Repository reads covered all 120 dates; the authenticated local dashboard loaded without a server error. The deployed test API health and web runtime configuration passed checks. A new version-2 backup passed restore dry-run validation.
+
+Pre-cutover backup objects under the test backup bucket:
+
+- `backups/test/2026/09/23/family-ledger-test-2026-09-23T00-29-19-379Z.json.gz` (content SHA-256 `26078fd15d43320f92f8d737dcbc369e93fa1c8ffe4388bde5925270d114449b`).
+- `backups/test/2026/09/23/pre-cutover-public-75133348.dump` (archive SHA-256 `751333482AD54C7024A768F18FA614F79C93F72C690A557B1161CC179EF2FFA2`).
+
+Atomic retries, concurrent writers, permission enforcement, cascade behavior, edge-case aggregation, and failed-parity rollback were exercised in isolated restored databases. UI checks covered 320×740, 393×852, 430×932, 768×1024, and desktop; real account edits were not saved for testing. Typecheck, build, and focused purpose, snapshot, dashboard, trend, account-detail, backup, and time-policy checks passed. Production was not deployed.
 
 ### Separate snapshot cutover release
 

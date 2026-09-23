@@ -32,7 +32,7 @@
 - Holdings calculation (implemented: native-currency quantity, cash balance, average-cost carrying value, opening entries, and valued holding rows)
 - Portfolio summary (implemented: reporting-currency dashboard cards using stored prices, FX rates, and dashboard quote cache where available)
 - Account purposes (implemented: investment, daily expense, and education accounts; investment-only dashboard and dedicated flow pages)
-- Derived portfolio snapshots (code and local rehearsal complete; additive headers/view verified in test; separate cutover release pending)
+- Derived portfolio snapshots (implemented and deployed to test; separate cutover completed on 2026-09-23 after fresh backup and exact parity verification)
 - Dashboard account allocation and holding allocation (implemented)
 - Holding detail page (implemented: account/instrument drill-down with valuation, transactions, dividend summary, linked cash-leg context, and price context)
 - Account detail page (implemented: account-level current value, snapshot trend, holdings, recent transactions, cash balance context, and warnings)
