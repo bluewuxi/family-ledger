@@ -135,6 +135,7 @@ Holding rows report native-currency quantity and carrying cost, plus optional va
 The current read-only dashboard summary values current non-zero holdings without persisting a derived dashboard record. Dashboard valuation is USD-centered internally and is displayed in the selected reporting currency: `NZD`, `USD`, or `CNY`.
 
 - `dashboard_instrument_quotes` stores the latest dashboard-only delayed quote cache per instrument and provider. It is refreshed by `GET /dashboard` when older than five minutes; stale rows that cannot be refreshed are ignored for dashboard valuation so newer stored closes can be used instead.
+- Each live quote provider has a six-second batch deadline. Deadline expiry preserves completed quotes for caching and stops the remaining requests; missing quotes do not block stored-close fallback. This deadline and partial-result behavior do not apply to scheduled historical-price ingestion.
 - Securities use the dashboard quote cache for current dashboard valuation when available; daily movement compares that quote with the latest stored market close before the quote date, or the latest stored close as a display baseline when no earlier close exists.
 - Historical snapshots and data maintenance query pages continue to use stored `instrument_prices` close records, not dashboard quote cache rows.
 - Cash uses its derived cash balance and has zero daily price movement.

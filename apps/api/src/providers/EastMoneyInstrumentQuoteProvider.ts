@@ -39,17 +39,24 @@ export class EastMoneyInstrumentQuoteProvider implements IInstrumentQuoteProvide
     const signal = AbortSignal.timeout(6000);
 
     for (const instrument of input.instruments) {
+      if (signal.aborted) break;
       if (!SUPPORTED_CURRENCIES.has(instrument.currency)) {
         throw new Error(`Eastmoney instrument ${instrument.sourceSymbol} uses unsupported currency ${instrument.currency}.`);
       }
 
-      const response = await this.fetchFn(this.buildUrl(instrument.sourceSymbol, instrument.sourceExchange), { signal });
+      try {
+        const response = await this.fetchFn(this.buildUrl(instrument.sourceSymbol, instrument.sourceExchange), { signal });
 
-      if (!response.ok) {
-        throw new Error(`Eastmoney request failed for ${instrument.sourceSymbol} with status ${response.status}.`);
+        if (!response.ok) {
+          throw new Error(`Eastmoney request failed for ${instrument.sourceSymbol} with status ${response.status}.`);
+        }
+
+        quotes.push(parseEastMoneyResponse(await response.json(), instrument.instrumentId, instrument.sourceSymbol, instrument.currency));
+      } catch (error) {
+        // Keep completed quotes when the shared deadline interrupts fetch or body reading.
+        if (signal.aborted) break;
+        throw error;
       }
-
-      quotes.push(parseEastMoneyResponse(await response.json(), instrument.instrumentId, instrument.sourceSymbol, instrument.currency));
     }
 
     return {

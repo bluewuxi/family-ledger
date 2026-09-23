@@ -2,7 +2,7 @@
 
 Account purpose is a current attribute, with exactly one purpose per account. Investment dashboard services filter accounts and transactions before valuation and historical aggregation. Account management and family reports cover all purposes.
 
-Snapshot persistence consists of headers (identity, date, historical FX and metadata) and account rows. The final `portfolio_snapshots` relation is an invoker-security all-account view. During staged rollout, the original table remains alongside synchronized headers and `portfolio_snapshots_v`; a separately verified transaction performs cutover. Snapshot generation and repairs keep the same atomic writer RPC. Backup export switches from legacy aggregate rows to stored headers at cutover, while restore supports both formats.
+Snapshot persistence consists of headers (identity, date, historical FX and metadata) and account rows. The final `portfolio_snapshots` relation is an invoker-security all-account view. The staged test rollout completed on 2026-09-23: synchronized headers and `portfolio_snapshots_v` first coexisted with the original table, then a separately verified transaction performed cutover. Snapshot generation and repairs keep the same atomic writer RPC. Backup export now stores headers; future restores use post-cutover version-2 backups. Legacy conversion code remains, but version-1 restore compatibility is outside operational scope. Production has not been deployed.
 
 `金财屋` / `Family Ledger` uses a serverless architecture:
 

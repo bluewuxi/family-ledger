@@ -309,6 +309,8 @@ Atomic retries, concurrent writers, permission enforcement, cascade behavior, ed
 
 The `test` branch deploys only to test, which contains real data. There have been no production releases.
 
+The procedure below records the completed one-time cutover. Do not rerun it on the current test database. Future routine restore rehearsals use post-cutover version-2 backups as specified in `backup-restore.md`; version-1 backup restoration is outside operational scope.
+
 1. Apply the additive migration with `psql -X -v ON_ERROR_STOP=1 --single-transaction -f supabase/migrations/20260922090000_add_account_purposes_and_snapshot_view.sql`.
 2. Run `scripts/verify-portfolio-snapshot-view.sql`. Any exact mismatch blocks cutover; investigate without overwriting historical valuations.
 3. Deploy compatible API/jobs/web code first. Reads use stored headers and account rows; the RPC name stays unchanged. Backup code accepts the legacy export and retains its aggregate/NZD rows until cutover.

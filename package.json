@@ -31,6 +31,7 @@
     "verify:local-auth-bypass": "tsx scripts/verify-local-auth-bypass.ts",
     "verify:monthly-summary": "tsx scripts/verify-monthly-summary.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
+    "verify:dashboard-quote-timeout": "tsx scripts/verify-dashboard-quote-timeout.ts",
     "verify:portfolio-trend": "tsx scripts/verify-portfolio-trend.ts",
     "verify:preferences": "tsx scripts/verify-preferences.ts",
     "verify:account-secrets": "tsx scripts/verify-account-trading-passwords.ts",

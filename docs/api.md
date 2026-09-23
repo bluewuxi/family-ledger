@@ -263,6 +263,7 @@ The dashboard derives holdings through the existing holdings calculation and may
 
 - Securities use a dashboard-only delayed quote cache for current-estimate valuation when available; cash uses its calculated cash balance.
 - Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`. If a stale cache row cannot be refreshed, the dashboard ignores it and falls back to stored closes.
+- Yahoo Finance and Eastmoney each have a six-second deadline for their sequential quote batch, including response-body reading. On deadline expiry, completed quotes are returned and cached; no further instruments are requested in that batch. An entirely timed-out batch returns no quotes. Instruments without a fresh quote use the existing stored-close fallback and remain eligible for refresh on the next dashboard request. Non-timeout HTTP and invalid-response errors still fail the provider batch.
 - Holdings are valued internally in USD using USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
 - `todayChange` is retained as the wire field name, but the UI labels it `行情变动`. It compares current quantity at the dashboard quote/latest stored price with the same current quantity at the preceding stored security close. It is latest-price movement on current holdings, not cash-flow-adjusted portfolio daily P&L and not a persisted snapshot change.
 - Current market value and latest-price movement use latest valuation FX. Unrealized gain uses transaction-date USD cost basis when historical FX is available, so reported cost does not move with later FX rates.
@@ -334,6 +335,23 @@ If the current holding quantity is zero but historical transactions exist for th
 
 Dividend transactions are displayed as investment income context. They do not change holding quantity. A positive net dividend automatically creates a linked generated cash `deposit`; reinvested dividends should still be recorded as a separate buy transaction.
 
+### Account Purposes and Overview API
+
+Each account has one current `purpose`: `investment`, `daily_expense`, or `education`. Account create/update DTOs accept this field. Omitted create purpose defaults to investment; omitted update purpose is unchanged. Changing purpose immediately changes historical query membership without snapshot rewrites.
+
+| Read surface | Account scope |
+| --- | --- |
+| Dashboard and portfolio trend (including `includeTrend`) | Current investment accounts only |
+| Account management, holdings and monthly family reports | All purposes |
+| Portfolio snapshots and transactions | All purposes by default; optional `purpose` filter |
+| Daily expense / education overview | Requested purpose only |
+
+`GET /account-purpose-overview` is available to authenticated viewers and admins. It requires `purpose=daily_expense|education` and accepts optional `currency`, `accountId`, `from`, and `to`. It returns `overview.balances` (all accounts of that purpose with current balances and display currency) and `overview.flows` (manual deposits and withdrawals only). The page filters balance rows by selected account. API account/date filters apply to flows; dates do not change current balances. Dates must be valid `YYYY-MM-DD` values with `from <= to`; an account outside the selected purpose is rejected with `VALIDATION_ERROR`.
+
+`GET /portfolio-snapshots` and `GET /transactions` accept `purpose=investment|daily_expense|education`. Transaction filtering occurs before pagination. Dashboard requests explicitly pass `investment`; the optional snapshot `includeTrend` result always represents investment history and principal, independently of the snapshot purpose filter.
+
+Responses use `Cache-Control: no-store`; there is no aggregate dashboard cache. The instrument quote cache is independent of account membership. Account writes remain admin-only; purpose pages link to the existing transaction workflow.
+
 ### Account Detail Read API
 
 `GET /accounts/:id/detail?currency=NZD|USD|CNY&trendRange=1m|3m|1y|3y|5y|inception&recentLimit=1..50` is available to authenticated `viewer` and `admin` users.
@@ -345,10 +363,6 @@ Current valuation is account-scoped: the API calculates holdings, filters to the
 `valuationBusinessDate` is the app business date used as the valuation reference date. It does not mean every holding has same-day market data. Each holding still carries row-level `latestPriceDate`; lagged funds may use the latest published price available.
 
 The account trend uses persisted `portfolio_account_snapshots`. Account snapshot rows store USD values, so NZD/CNY display values are converted with the parent `portfolio_snapshot_headers.usd_to_nzd_rate` and `usd_to_cny_rate` from the same snapshot. For long ranges of two years or more (`3y`, `5y`, or `inception`), account trend points use the same weekly thinning semantics as portfolio trend points.
-
-`GET /account-purpose-overview` accepts `purpose=daily_expense|education`, optional `currency`, `accountId`, `from`, and `to`. It returns purpose accounts with current balances plus manual deposit and withdrawal records. Date filters apply to flows; balances are current. The dashboard and portfolio trend include only accounts whose current purpose is `investment`. `GET /portfolio-snapshots` defaults to all purposes and accepts `purpose=investment|daily_expense|education`; dashboard requests explicitly pass `investment`. The optional `includeTrend` result always represents investment history and principal. `GET /transactions` supports the same optional purpose filter before pagination. Account management and monthly family reports remain all-purpose.
-
-Account create/update DTOs accept `purpose=investment|daily_expense|education`. Omitted create purpose defaults to investment; omitted update purpose is unchanged. Changing purpose immediately changes historical query membership without snapshot rewrites. Responses use `Cache-Control: no-store`; there is no aggregate dashboard cache. The instrument quote cache is independent of account membership.
 
 Recent transactions exclude `generated_cash_leg` rows as primary activity. When a buy/sell/dividend has an automatically generated cash leg, it is attached as `linkedCashLeg`.
 
