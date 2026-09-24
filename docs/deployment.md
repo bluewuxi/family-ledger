@@ -322,7 +322,7 @@ Rollback after a committed cutover requires an operator-reviewed restore from th
 
 ## Spending statements rollout
 
-The spending migration and PDF infrastructure are prepared in source; applying/deploying them requires a separate requested rollout. Back up first, apply `20260923090000_add_spending_statements.sql`, then deploy API/jobs/web and the infrastructure change set together. The new backup exporter must be present before the version-3 backup job runs. No existing investment records are modified.
+The spending migration and PDF infrastructure were deployed to test on 2026-09-24 under issue #90. Rollout order: fresh backup, `20260923090000_add_spending_statements.sql`, then infrastructure/API/jobs and web deployment. The new backup exporter must be present before the version-3 backup job runs. Hash checks confirmed investment accounts, instruments, transactions, and monthly reviews were unchanged by the migration.
 
 `StatementBucket` is a separate generated-name private S3 bucket with AES256 encryption, public access blocked, TLS-only access, versioning, and Retain deletion/replacement policies. The API receives its name through `STATEMENT_BUCKET_NAME`; deployment does not require hard-coded bucket names. Upload CORS allows the configured web origin and the local development origin. IAM grants object upload/read/version-read for the statements prefix, with no delete permission.
 
@@ -330,4 +330,8 @@ Signed PDF upload and read URLs expire after five minutes. Signed uploads bind e
 
 After rollout verify viewer/admin access, manual entry/query totals, PDF upload/view/replacement, version-3 backup, and the authenticated mobile checks. Do not use the supplied personal statement as seed/test data.
 
-The pending spending migration follows [the spending specification](spending.md): it stores no balances or reconciliation fields and uses an explicit is_spending flag for totals. This pending migration was revised before deployment, rather than adding an alteration to existing live tables.
+The spending migration follows [the spending specification](spending.md): it stores no balances or reconciliation fields and uses an explicit is_spending flag for totals. It was revised before its first deployment and creates the three new business tables without altering existing investment tables.
+
+Test rollout evidence: CloudFormation reached `UPDATE_COMPLETE`; the reviewed change set had no resource removals or replacements. Live authenticated checks passed for CRUD, duplicate rejection, inclusion defaults/overrides, totals across pagination, completion reopening, viewer write protection, and signed PDF upload/read/replacement/unlink with invalid-file and size rejection. Temporary ledger records and Auth users were removed; synthetic PDF versions remain under the retention policy. Web runtime configuration and the spending route returned successfully. Authenticated browser checks remain skipped at the user's request.
+
+The pre-migration version-2 backup was generated at `2026-09-24T00:15:49.846Z`; the post-deployment version-3 backup at `2026-09-24T00:22:39.640Z`. Both passed restore dry-run validation. Production and personal-statement import were not part of this rollout.

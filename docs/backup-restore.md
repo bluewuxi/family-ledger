@@ -1,6 +1,6 @@
 # Backup And Restore
 
-Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export UI. Version 2 stores snapshot headers and account rows and is the baseline for future restores after the test cutover on 2026-09-23. Test contains real family data; production has not been deployed. Restoring version-1 backups is outside the supported operational scope. Existing legacy conversion code is retained for the completed rollout, without additional compatibility work.
+Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export UI. Version 2 introduced snapshot headers and account rows after the test cutover on 2026-09-23; version 3 adds spending tables and is the current test export format. Both version-2 and version-3 restores are supported. Test contains real family data; production has not been deployed. Restoring version-1 backups is outside the supported operational scope. Existing legacy conversion code is retained for the completed rollout, without additional compatibility work.
 
 ## Backup Scope
 
@@ -68,8 +68,8 @@ For an empty isolated rehearsal database, using a post-cutover version-2 backup:
 
 The test environment contains real family data. Rehearse restores in an isolated database, not in the live test database. No production release has been performed.
 
-## Version 3 spending extension (prepared)
+## Version 3 spending extension
 
-Version 3 adds `spending_accounts`, `account_statements`, and `statement_rows` to the allowlisted single-snapshot export and restore order. Version-2 files remain valid; restore validates their original checksums first and initializes the three missing tables as empty. Existing version-1 compatibility validation is retained. Live backups remain version 2 until the spending migration and updated jobs are deployed.
+Version 3 adds `spending_accounts`, `account_statements`, and `statement_rows` to the allowlisted single-snapshot export and restore order. Version-2 files remain valid; restore validates their original checksums first and initializes the three missing tables as empty. Existing version-1 compatibility validation is retained. Test uses version 3 following the 2026-09-24 spending rollout; a deployed backup and its restore dry-run passed after deployment.
 
 Spending audit fields also reference external Supabase Auth users. PDF metadata is backed up, including the exact S3 object version, but PDF bytes are not in the database bundle. Retain the dedicated statement bucket and all object versions; replacement, unlinking, and statement deletion do not delete objects. Restoring into another storage environment requires copying those versions or remapping metadata explicitly.

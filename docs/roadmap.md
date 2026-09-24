@@ -84,6 +84,6 @@
 
 ## Spending Queries and Statements
 
-- Implemented in source: 日常收支 tabs for account flows and spending, three-table spending schema, manual statement/transaction entry, text tags/card suffix filters, monthly and tag summaries, exact settlement-currency totals, and private version-pinned PDF attachments.
+- Implemented and deployed to test on 2026-09-24: 日常收支 tabs for account flows and spending, three-table spending schema, manual statement/transaction entry, text tags/card suffix filters, monthly and tag summaries, exact settlement-currency totals, and private version-pinned PDF attachments.
 - Saved rows count immediately; is_spending alone controls inclusion, with positive-amount defaults and explicit overrides. Negative refunds/cashback reduce net spending only when included. Balance/reconciliation fields are removed. Budget management, CSV import, PDF extraction, FX conversion, and portfolio integration are excluded.
-- Live migration/deployment and authenticated browser acceptance are pending; initial authenticated browser checks were skipped at the user's request.
+- Test migration, authenticated API/PDF smoke checks, and version-3 backup/restore dry-run passed. Authenticated browser acceptance remains deferred at the user's request. Production deployment and importing personal statements are outside this rollout.
