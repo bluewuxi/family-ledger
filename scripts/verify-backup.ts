@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import type { JobRun } from "@family-ledger/shared";
@@ -13,6 +14,7 @@ import {
   createLedgerBackupObject,
   validateLedgerBackupPayload,
   prepareLedgerRestoreRows,
+  stableStringify,
   type LedgerBackupPayload
 } from "../apps/jobs/src/services/ledgerBackupBundle";
 
@@ -43,7 +45,21 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 2);
+  assert.equal(backupObject.payload.manifest.version, 3);
+  const previous = structuredClone(backupObject.payload);
+  previous.manifest.version = 2;
+  const newTables = ["spending_accounts", "account_statements", "statement_rows"];
+  previous.manifest.tables = previous.manifest.tables.filter((table) => !newTables.includes(table.name));
+  previous.manifest.tableOrder = previous.manifest.tableOrder.filter((name) => !newTables.includes(name));
+  for (const name of newTables) delete (previous.tables as unknown as Record<string, unknown>)[name];
+  const { payloadChecksumSha256: _oldPayload, fileChecksumSha256: _oldFile, ...oldManifest } = previous.manifest;
+  const hash = (value: unknown) => createHash("sha256").update(stableStringify(value)).digest("hex");
+  previous.manifest.payloadChecksumSha256 = hash({ manifest: oldManifest, tables: previous.tables });
+  previous.manifest.fileChecksumSha256 = hash({ manifest: { ...oldManifest, payloadChecksumSha256: previous.manifest.payloadChecksumSha256 }, tables: previous.tables });
+  validateLedgerBackupPayload(previous);
+  assert.deepEqual(prepareLedgerRestoreRows(previous).statement_rows, []);
+  assert.deepEqual(prepareLedgerRestoreRows(previous).account_statements, []);
+  assert.deepEqual(prepareLedgerRestoreRows(previous).spending_accounts, []);
   const legacySource = { ...rows, portfolio_snapshot_headers: undefined, portfolio_snapshots: [{
     id: "snapshot-id", snapshot_date: "2026-05-29", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7",
     notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z",

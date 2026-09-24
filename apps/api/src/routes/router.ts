@@ -40,6 +40,7 @@ import {
 import { getPortfolioSnapshotsResponse } from "../services/portfolioSnapshotService";
 import { getProfilePreferences, updateProfilePreferences } from "../services/profileService";
 import { ApiAuthError, requireRole } from "../auth/auth";
+import { spendingRoute } from "./spendingRoutes";
 import { ApiRequestError } from "../utils/apiError";
 import { parseJsonBody } from "../utils/requestBody";
 import { failure, preflight, success } from "../utils/response";
@@ -319,6 +320,7 @@ export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
       return preflight();
     }
 
+    if (event.rawPath.startsWith("/spending/")) return await spendingRoute(event);
     const handler = resolveRoute(event);
 
     if (!handler) {

@@ -254,3 +254,15 @@ RLS is enabled as a defensive layer.
 - Active `admin` users can write shared business tables.
 - Lambda API remains the primary business authorization layer.
 - Frontend must not write business tables directly.
+
+## Spending statements
+
+See [Spending statements specification](spending.md) for the design and acceptance criteria.
+
+Three shared-family tables store spending sources independently of investments: `spending_accounts`, `account_statements`, and `statement_rows`. Statements have no balance or reconciliation fields. A statement is unique by `(account_id, statement_date)` and has one settlement currency. Card suffix is optional four-character text; tags are optional free text.
+
+`statement_rows.is_spending` is the sole spending inclusion rule. On insert, omission defaults to `settlement_amount > 0`; explicit booleans override it. Updates preserve the saved choice unless explicitly changed. Included signed amounts determine net spending, including any explicitly included negative refund/cashback. Transaction type remains descriptive and never automatically overrides the flag. Inclusion edits reopen completed statements; tag/notes-only edits do not.
+
+Money uses `numeric(20,6)` and decimal-string DTOs. Month/date filters use recorded calendar transaction dates; statement month uses statement date. Queries aggregate the entire filtered dataset in PostgreSQL, grouped separately by settlement currency. Positive included amounts, negative included amounts, net spending, excluded signed amounts, row count, and included-row count are returned for totals/month/tag groups. No FX conversion, balances, or portfolio integration is performed.
+
+PDFs remain private version-pinned S3 objects with metadata only in Postgres. Backup/restore includes the complete new rows and their flags. Existing viewer/admin authorization and API-only writes remain unchanged.

@@ -4506,3 +4506,44 @@ tr.editing-row td {
   }
 }
 
+
+/* Spending workspace: compact summaries, readable tables, and stacked mobile forms. */
+.spending-tabs { display:flex; gap:8px; border-bottom:1px solid var(--color-border); margin-bottom:24px; }
+.spending-tabs button { min-height:44px; padding:10px 18px; border:0; background:transparent; color:inherit; cursor:pointer; }
+.spending-tabs button[aria-current] { border-bottom:3px solid var(--color-brand-brown); font-weight:700; }
+.spending-toolbar { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:20px; }
+.spending-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0; }
+.spending-actions button, .spending-upload { min-height:44px; }
+.spending-form { display:grid; gap:16px; padding:0; border:0; margin:20px 0; min-width:0; }
+.spending-form label { display:grid; gap:7px; min-width:0; }
+.spending-form input,.spending-form select,.spending-form textarea,.spending-filters input,.spending-filters select { min-height:44px; width:100%; min-width:0; box-sizing:border-box; }
+.spending-form textarea { min-height:88px; }
+.spending-form .spending-checkbox { display:flex; align-items:center; }
+.spending-checkbox input { width:20px; }
+.spending-hint { font-size:14px; line-height:1.6; opacity:.8; }
+.spending-more-filters summary,.spending-breakdowns summary { cursor:pointer; min-height:44px; padding:12px 0; }
+.spending-totals { margin:20px 0 10px; border-block:1px solid var(--color-border); }
+.spending-total-line { display:flex; flex-wrap:wrap; gap:18px; padding:18px 0; align-items:baseline; }
+.spending-total-line span { display:flex; gap:8px; }
+.spending-net b { font-size:21px; }
+.spending-text-button { background:transparent; border:0; color:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-underline-offset:4px; min-height:44px; padding:4px; font:inherit; }
+.spending-table { min-width:1000px; }
+.spending-table td:nth-child(2) { min-width:180px; max-width:320px; white-space:normal; overflow-wrap:anywhere; }
+.spending-account-list { display:grid; gap:10px; }
+.spending-account-list button { min-height:44px; text-align:left; }
+.spending-upload { display:inline-flex; align-items:center; position:relative; cursor:pointer; }
+.spending-upload input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer; }
+.spending-filename { overflow-wrap:anywhere; }
+.spending-delete { margin-top:24px; }
+.spending-breakdowns { margin-bottom:20px; }
+@media (max-width:600px) {
+  .spending-filters { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+  .spending-filters label { width:100%; min-width:0; }
+  .spending-total-line { display:grid; grid-template-columns:minmax(0,1fr); gap:10px; }
+  .spending-total-line span { justify-content:space-between; }
+  .spending-actions { gap:8px; }
+  .spending-actions button { flex:1 1 auto; }
+}
+
+.spending-inclusion-filter { display:grid; gap:7px; max-width:260px; margin:14px 0; }
+.spending-inclusion-filter select { min-height:44px; width:100%; }

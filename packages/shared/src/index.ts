@@ -1804,9 +1804,11 @@ function formatFlexibleDecimal(amount: Decimal, decimalPlaces: number): string {
 }
 
 export interface ApiError {
-  code: "UNAUTHORIZED" | "FORBIDDEN" | "VALIDATION_ERROR" | "NOT_FOUND" | "INTERNAL_ERROR";
+  code: "UNAUTHORIZED" | "FORBIDDEN" | "VALIDATION_ERROR" | "NOT_FOUND" | "INTERNAL_ERROR" | "CONFLICT";
   message: string;
 }
+
+export * from "./spending";
 
 export type ApiResponse<T> =
   | {

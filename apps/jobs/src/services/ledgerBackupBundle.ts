@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 2;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20260922091000_cut_over_derived_portfolio_snapshots";
+export const LEDGER_BACKUP_VERSION = 3;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20260923090000_add_spending_statements";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -21,7 +21,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -56,7 +56,7 @@ export function createLedgerBackupObject(input: {
   rows: LedgerBackupRows;
 }): LedgerBackupObject {
   const legacy = Array.isArray(input.rows.portfolio_snapshots);
-  const tableDefinitions = LEDGER_BACKUP_TABLES.map((table) =>
+  const tableDefinitions = LEDGER_BACKUP_TABLES.filter((table) => !legacy || !["spending_accounts", "account_statements", "statement_rows"].includes(table.name)).map((table) =>
     legacy && table.name === "portfolio_snapshot_headers" ? { name: "portfolio_snapshots" as const, orderColumn: "id" } : table);
   const payloadRows = Object.fromEntries(tableDefinitions.map((table) => [table.name, input.rows[table.name]])) as LedgerBackupRows;
   const tables = tableDefinitions.map((table) => {
@@ -85,6 +85,7 @@ export function createLedgerBackupObject(input: {
       restoreRequiresMatchingAuthUserIdsOrRemap: true,
       userIdFields: [
         "profiles.id",
+        ...["spending_accounts", "account_statements", "statement_rows"].flatMap((table) => [`${table}.created_by_user_id`, `${table}.updated_by_user_id`]),
         "user_roles.user_id",
         "investment_accounts.created_by_user_id",
         "investment_accounts.updated_by_user_id",
@@ -137,7 +138,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (payload.manifest.version !== 1 && payload.manifest.version !== LEDGER_BACKUP_VERSION) {
+  if (payload.manifest.version !== 1 && payload.manifest.version !== 2 && payload.manifest.version !== LEDGER_BACKUP_VERSION) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -161,7 +162,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
     throw new Error("Backup JSON serialization is unsupported.");
   }
 
-  const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name);
+  const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name).filter((name) => payload.manifest.version === 3 || !["spending_accounts", "account_statements", "statement_rows"].includes(name));
   const manifestTableNames = payload.manifest.tables.map((table) => table.name);
   const legacyTableNames = currentTableNames.map((name) => name === "portfolio_snapshot_headers" ? "portfolio_snapshots" : name);
   const acceptsLegacySnapshots = JSON.stringify(manifestTableNames) === JSON.stringify(legacyTableNames);
@@ -294,7 +295,7 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload): LedgerBa
           .map((key) => [key, snapshot[key]]));
       });
     } else {
-      rows[table.name] = structuredClone(source[table.name]);
+      rows[table.name] = structuredClone(source[table.name] ?? []);
     }
   }
   rows.investment_accounts = rows.investment_accounts.map((value) => {

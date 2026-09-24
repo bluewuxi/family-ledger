@@ -56,7 +56,9 @@
     "backup:ledger:test": "tsx scripts/backup-ledger-data.ts --env test",
     "backup:ledger:prod": "tsx scripts/backup-ledger-data.ts --env prod",
     "restore:backup:dry-run": "tsx scripts/restore-backup-dry-run.ts",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "verify:spending": "tsx scripts/verify-spending.ts",
+    "verify:spending-db": "tsx scripts/verify-spending-db.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",

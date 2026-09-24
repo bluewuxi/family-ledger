@@ -319,3 +319,15 @@ The procedure below records the completed one-time cutover. Do not rerun it on t
 6. Confirm view reads, header FX reads, backup export, and absence of aggregate writes. `NOTIFY pgrst` refreshes schema metadata. Run writer/retry/concurrency/permission fixtures only in the isolated restored database; do not regenerate real historical valuations as a smoke test.
 
 Rollback after a committed cutover requires an operator-reviewed restore from the pre-cutover archive, reconciling any newer writes. Do not drop the view and reload an older backup blindly.
+
+## Spending statements rollout
+
+The spending migration and PDF infrastructure are prepared in source; applying/deploying them requires a separate requested rollout. Back up first, apply `20260923090000_add_spending_statements.sql`, then deploy API/jobs/web and the infrastructure change set together. The new backup exporter must be present before the version-3 backup job runs. No existing investment records are modified.
+
+`StatementBucket` is a separate generated-name private S3 bucket with AES256 encryption, public access blocked, TLS-only access, versioning, and Retain deletion/replacement policies. The API receives its name through `STATEMENT_BUCKET_NAME`; deployment does not require hard-coded bucket names. Upload CORS allows the configured web origin and the local development origin. IAM grants object upload/read/version-read for the statements prefix, with no delete permission.
+
+Signed PDF upload and read URLs expire after five minutes. Signed uploads bind exact file length, type, and checksum metadata; the API verifies a maximum 10 MiB, PDF signature, and SHA-256 before linking the returned object version. Replacement and unlinking retain old objects; no lifecycle expiration is configured for this bucket. Database backup does not copy PDF bytes. Restore requires retaining this bucket and its versions (or separately copying/remapping the objects into the replacement environment).
+
+After rollout verify viewer/admin access, manual entry/query totals, PDF upload/view/replacement, version-3 backup, and the authenticated mobile checks. Do not use the supplied personal statement as seed/test data.
+
+The pending spending migration follows [the spending specification](spending.md): it stores no balances or reconciliation fields and uses an explicit is_spending flag for totals. This pending migration was revised before deployment, rather than adding an alteration to existing live tables.

@@ -275,3 +275,13 @@ The completed cutover was rehearsed by restoring a pre-cutover public-schema arc
 `corepack pnpm verify:dashboard-quote-timeout` checks both live providers without network calls: the real six-second deadline for a stalled first request, preservation of completed quotes when fetch or body reading times out, no new requests after expiry, and continued rejection of non-timeout HTTP/invalid-response errors. This complements `verify:dashboard`, which checks quote caching and stored-close fallback.
 
 Authenticated browser checks cover dashboard, account purpose selection/filtering, and both purpose pages at 320×740, 393×852, 430×932, 768×1024 and desktop. Let the user log in; inspect forms without saving changes to real accounts. All current purposes remain investment unless the user reclassifies an account.
+
+## Spending statements (local)
+
+Run `corepack pnpm verify:spending` for classification, dates, PDF validation/failure behavior, and API authorization checks. Run `corepack pnpm verify:spending-db` for the actual migration, aggregation, decimal precision, concurrency, RLS, spending inclusion, and deletion tests. This database test creates a disposable loopback PostgreSQL cluster, never reads deployment credentials, and stops/removes its temporary cluster afterward. On Windows it discovers PostgreSQL under Program Files; `SPENDING_TEST_PG_BIN` can select another installation. PostgreSQL binaries must be installed.
+
+The web entry is `/daily-expense?tab=spending`. Existing account flows remain at `?tab=accounts`. Test a purchase dated in May under a June statement, explicitly included June refunds/cashback, a manually excluded positive transfer, different settlement currencies, unclassified tags, a leading-zero suffix, and more than one page of results. Check Save and Continue and completion reopening. All saved entries affect matching queries immediately.
+
+Real PDF upload needs `STATEMENT_BUCKET_NAME` for the dedicated deployed statement bucket and local AWS permissions for PutObject/GetObject/GetObjectVersion. The bucket CORS includes `http://127.0.0.1:5181`; no PDF data is sent through Lambda/API Gateway. Upload failures must preserve the previous attachment. The local spending feature also needs its migration applied to the selected database; implementation alone does not apply live migrations.
+
+Authenticated browser verification requires the user to log in and confirm readiness. Check 320x740, 393x852, 430x932, 768x1024 and desktop; tables should scroll horizontally while filters and drawer actions fit. Browser verification was explicitly deferred for the initial implementation.

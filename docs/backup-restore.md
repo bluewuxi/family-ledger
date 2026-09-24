@@ -67,3 +67,9 @@ For an empty isolated rehearsal database, using a post-cutover version-2 backup:
 6. Run normal app validation, including holdings, dashboard, market data, snapshots, typecheck, and build.
 
 The test environment contains real family data. Rehearse restores in an isolated database, not in the live test database. No production release has been performed.
+
+## Version 3 spending extension (prepared)
+
+Version 3 adds `spending_accounts`, `account_statements`, and `statement_rows` to the allowlisted single-snapshot export and restore order. Version-2 files remain valid; restore validates their original checksums first and initializes the three missing tables as empty. Existing version-1 compatibility validation is retained. Live backups remain version 2 until the spending migration and updated jobs are deployed.
+
+Spending audit fields also reference external Supabase Auth users. PDF metadata is backed up, including the exact S3 object version, but PDF bytes are not in the database bundle. Retain the dedicated statement bucket and all object versions; replacement, unlinking, and statement deletion do not delete objects. Restoring into another storage environment requires copying those versions or remapping metadata explicitly.

@@ -124,6 +124,13 @@ Resources:
                 Action:
                   - ssm:PutParameter
                 Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_trading_password_gate
+        - PolicyName: StatementAttachments
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion]
+                Resource: !Sub ${StatementBucket.Arn}/statements/*
         - PolicyName: WriteFamilyLedgerBackups
           PolicyDocument:
             Version: "2012-10-17"
@@ -137,6 +144,48 @@ Resources:
           Value: family-ledger
         - Key: Environment
           Value: !Ref EnvironmentName
+
+  StatementBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - !Sub https://${WebDomainName}
+              - http://127.0.0.1:5181
+            AllowedMethods: [POST]
+            AllowedHeaders: ['*']
+            MaxAge: 300
+
+  StatementBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StatementBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt StatementBucket.Arn
+              - !Sub ${StatementBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
 
   WebBucket:
     Type: AWS::S3::Bucket
@@ -351,6 +400,7 @@ Resources:
       Environment:
         Variables:
           ALLOWED_ORIGIN: !Sub https://${WebDomainName}
+          STATEMENT_BUCKET_NAME: !Ref StatementBucket
           UPDATE_FX_RATES_FUNCTION_NAME: !Ref UpdateFxRatesFunction
           UPDATE_PRICES_FUNCTION_NAME: !Ref UpdatePricesFunction
       Events:
@@ -606,6 +656,8 @@ Resources:
           MaximumRetryAttempts: 2
 
 Outputs:
+  StatementBucketName:
+    Value: !Ref StatementBucket
   WebBucketName:
     Description: S3 bucket that stores the built frontend assets.
     Value: !Ref WebBucket
