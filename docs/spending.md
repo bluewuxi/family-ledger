@@ -67,3 +67,4 @@ Confirmation copies the validated exact source version to a retained prefix. CSV
 Backup version 4 handles this schema and exports spending amounts as text. Older backups remain readable, but restoring any pre-v4 spending records is rejected; empty legacy spending tables need no conversion. Investment restore behavior stays intact.
 
 Before release run typecheck/build, spending/database/time-policy/backup checks, then authenticated UI checks at the required phone/tablet/desktop sizes. Applying this migration is a breaking API/schema cutover: stop old spending writes, verify emptiness, apply migration, deploy compatible API/jobs/web and storage lifecycle together, and verify before allowing personal imports.
+Account format/currency/identity can be corrected when only draft/preview batches exist. Corrections expire those batches and clear previews; start a new import afterwards. Transactions and completed/document history continue to lock these fields.

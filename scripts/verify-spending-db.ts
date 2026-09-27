@@ -121,6 +121,13 @@ async function main() {
     assert.equal(sql("select count(*) from spending_accounts"), "1");
     sql("delete from spending_accounts");
     sql(redesign);
+    sql(readFileSync("supabase/migrations/20260927060000_allow_spending_draft_account_corrections.sql", "utf8"));
+    sql(`begin;
+      insert into spending_accounts(id,name,source_format,default_currency) values('00000000-0000-4000-8000-000000000091','Correction','ccb_debit','NZD');
+      insert into account_statements(account_id,preview_token) values('00000000-0000-4000-8000-000000000091',gen_random_uuid());
+      update spending_accounts set source_format='bnz' where id='00000000-0000-4000-8000-000000000091';
+      do $$begin if exists(select 1 from account_statements where preview_token is not null or expires_at>now()) then raise exception 'Draft not invalidated';end if;end$$;
+      rollback;`);
     const a = sql(
       "insert into spending_accounts(name,source_format,default_currency) values('Example','ccb_credit','CNY') returning id",
     );
