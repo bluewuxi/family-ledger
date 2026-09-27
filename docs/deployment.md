@@ -320,7 +320,7 @@ The procedure below records the completed one-time cutover. Do not rerun it on t
 
 Rollback after a committed cutover requires an operator-reviewed restore from the pre-cutover archive, reconciling any newer writes. Do not drop the view and reload an older backup blindly.
 
-## Spending statements rollout
+## Spending statements rollout (historical: 2026-09-24)
 
 The spending migration and PDF infrastructure were deployed to test on 2026-09-24 under issue #90. Rollout order: fresh backup, `20260923090000_add_spending_statements.sql`, then infrastructure/API/jobs and web deployment. The new backup exporter must be present before the version-3 backup job runs. Hash checks confirmed investment accounts, instruments, transactions, and monthly reviews were unchanged by the migration.
 
@@ -330,8 +330,18 @@ Signed PDF upload and read URLs expire after five minutes. Signed uploads bind e
 
 After rollout verify viewer/admin access, manual entry/query totals, PDF upload/view/replacement, version-3 backup, and the authenticated mobile checks. Do not use the supplied personal statement as seed/test data.
 
-The spending migration follows [the spending specification](spending.md): it stores no balances or reconciliation fields and uses an explicit is_spending flag for totals. It was revised before its first deployment and creates the three new business tables without altering existing investment tables.
+The original spending migration used the previous specification: it stores no balances or reconciliation fields and uses an explicit is_spending flag for totals. It was revised before its first deployment and creates the three new business tables without altering existing investment tables.
 
 Test rollout evidence: CloudFormation reached `UPDATE_COMPLETE`; the reviewed change set had no resource removals or replacements. Live authenticated checks passed for CRUD, duplicate rejection, inclusion defaults/overrides, totals across pagination, completion reopening, viewer write protection, and signed PDF upload/read/replacement/unlink with invalid-file and size rejection. Temporary ledger records and Auth users were removed; synthetic PDF versions remain under the retention policy. Web runtime configuration and the spending route returned successfully. Authenticated browser checks remain skipped at the user's request.
 
 The pre-migration version-2 backup was generated at `2026-09-24T00:15:49.846Z`; the post-deployment version-3 backup at `2026-09-24T00:22:39.640Z`. Both passed restore dry-run validation. Production and personal-statement import were not part of this rollout.
+
+## CSV import redesign rollout (pending)
+
+The new code requires `20260926090000_redesign_spending_imports.sql`. This migration locks/checks all three spending tables are empty, then replaces their schema and RPCs in one transaction. It fails if any records exist. No backfill or old spending-data conversion is implemented. Existing investment tables are not altered. Preserve the applied original migration file.
+
+This is a breaking spending API/schema cutover. On an authorized release: validate and back up, stop old spending writes, confirm emptiness, apply the new migration (which refreshes PostgREST), deploy compatible API/jobs/web and the S3 lifecycle changes, then verify before allowing personal imports. The backup job must use version 4 after the new exporter is installed. Old nonempty spending backups are rejected; empty historical spending tables need no conversion. Do not change the shared schema solely for local UI testing while the old API is deployed.
+
+New uploads use `statements/pending/`: current and noncurrent versions expire after seven days; abandoned multipart uploads after one day. Previews expire after 24 hours. Successful confirmation copies an exact version into the retained `statements/<batch>/` prefix before linking it. Confirmed/unlinked copies remain retained, including rare copies left by a failed database commit. The API has no delete permission. CSV and PDF bytes are not included in database backups; retain the bucket/versions separately.
+
+Verify all three bank layouts and encodings with anonymous files, CN versus NZ date interpretation, permissions, exact-version storage, import retry/undo, classification/chart totals, version-4 backup restoration and authenticated mobile layouts. No live schema/storage migration or deployment has been performed by the implementation task.

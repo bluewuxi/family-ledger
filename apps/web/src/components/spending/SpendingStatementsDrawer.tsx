@@ -1,494 +1,504 @@
 import { useEffect, useState } from "react";
 import {
-  SPENDING_CURRENCIES,
-  getLocalDateString,
-  type SpendingAccount,
+  SPENDING_CLASSES,
+  SPENDING_CLASS_LABELS,
+  SPENDING_ENCODINGS,
   type AccountStatement,
+  type SpendingAccount,
+  type SpendingClass,
+  type SpendingEncoding,
+  type SpendingImportDecision,
   type StatementListResult,
 } from "@family-ledger/shared";
 import { Drawer } from "../Drawer";
 import { PaginationControls } from "../PaginationControls";
 import { spendingClient } from "../../lib/spendingClient";
-interface Props {
-  accounts: SpendingAccount[];
-  admin: boolean;
-  create?: boolean;
-  onClose: () => void;
-  onSaved: () => void;
-  onAddRow: (id: string) => void;
-  onViewRows: (id: string) => void;
-}
-function emptyForm(accounts: SpendingAccount[]) {
-  const today = getLocalDateString(),
-    a = accounts.find((x) => x.is_active);
-  return {
-    account_id: a?.id ?? "",
-    statement_date: today,
-    period_start: today.slice(0, 7) + "-01",
-    period_end: today,
-    currency: a?.default_currency ?? "CNY",
-    notes: "",
-  };
-}
+import { formatLocalDateTimeNote } from "../../lib/timeFormat";
+const statusLabels = {
+  draft: "待上传",
+  preview: "待确认",
+  committed: "已导入",
+  undone: "已撤销",
+  document: "PDF 附件",
+};
 export function SpendingStatementsDrawer({
   accounts,
   admin,
-  create,
   onClose,
   onSaved,
-  onAddRow,
   onViewRows,
-}: Props) {
-  const [editing, setEditing] = useState(!!create),
-    [current, setCurrent] = useState<AccountStatement>(),
-    [form, setForm] = useState(() => emptyForm(accounts));
-  const [result, setResult] = useState<StatementListResult>(),
-    [filters, setFilters] = useState({
-      accountId: "",
-      month: "",
-      status: "",
-      offset: 0,
-    }),
+}: {
+  accounts: SpendingAccount[];
+  admin: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  onViewRows: (id: string) => void;
+}) {
+  const [list, setList] = useState<StatementListResult>(),
+    [offset, setOffset] = useState(0),
     [revision, setRevision] = useState(0);
-  const [busy, setBusy] = useState(false),
-    [loading, setLoading] = useState(false),
+  const [batch, setBatch] = useState<AccountStatement>(),
+    [account, setAccount] = useState(
+      accounts.find((a) => a.is_active)?.id ?? "",
+    ),
+    [file, setFile] = useState<File>(),
+    [encoding, setEncoding] = useState<SpendingEncoding | "">("");
+  const [key, setKey] = useState(""),
+    [choices, setChoices] = useState<SpendingImportDecision[]>([]),
+    [page, setPage] = useState(0),
+    [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
-    if (editing) return;
     let active = true;
-    setLoading(true);
-    setError("");
-    const query = new URLSearchParams({
-      ...filters,
-      offset: String(filters.offset),
-      limit: "20",
-    });
     void spendingClient
-      .statements(query.toString())
-      .then((data) => {
-        if (active) setResult(data);
+      .statements(`limit=20&offset=${offset}`)
+      .then((r) => {
+        if (active) setList(r);
       })
       .catch((e) => {
         if (active) setError(e.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [editing, filters, revision]);
-  function open(statement: AccountStatement) {
-    setCurrent(statement);
-    setForm({
-      account_id: statement.account_id,
-      statement_date: statement.statement_date,
-      period_start: statement.period_start,
-      period_end: statement.period_end,
-      currency: statement.currency,
-      notes: statement.notes ?? "",
-    });
-    setEditing(true);
-    setError("");
+  }, [offset, revision]);
+  function select(b: AccountStatement) {
+    setBatch(b);
+    setAccount(b.account_id);
+    setKey(b.csv_file_key ?? "");
+    setEncoding(b.encoding ?? "");
+    setFile(undefined);
+    setPage(0);
+    setChoices(
+      (b.preview?.rows ?? []).map((r) => ({
+        row_number: r.row_number,
+        classification: r.classification,
+        tag: r.tag,
+        skip: r.duplicate_count > 0,
+        allow_duplicate: false,
+      })),
+    );
   }
-  async function action(work: () => Promise<unknown>) {
+  async function act(work: () => Promise<void>) {
     setBusy(true);
     setError("");
     try {
       await work();
-      setRevision((n) => n + 1);
-      onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "操作失败。");
     } finally {
       setBusy(false);
     }
   }
-  async function save() {
-    await action(async () => {
-      const statement = await spendingClient.saveStatement(form, current?.id);
-      open(statement);
-    });
+  function refreshed() {
+    setRevision((n) => n + 1);
+    onSaved();
   }
-  async function viewPdf() {
-    if (!current) return;
-    const tab = window.open("about:blank", "_blank");
-    if (tab) tab.opener = null;
-    await action(async () => {
-      try {
-        const url = await spendingClient.pdfUrl(current.id);
-        if (tab) tab.location.href = url;
-        else throw new Error("请允许浏览器打开 PDF 新窗口。");
-      } catch (e) {
-        tab?.close();
-        throw e;
-      }
-    });
+  async function preview() {
+    let b = batch;
+    if (!b || !["draft", "preview"].includes(b.status)) {
+      b = await spendingClient.createBatch(account);
+      setBatch(b);
+    }
+    let k = key;
+    if (file) {
+      k = await spendingClient.uploadCsv(b.id, file);
+      setKey(k);
+      setFile(undefined);
+    }
+    if (!k) throw new Error("请选择 CSV 文件。");
+    select(await spendingClient.preview(b.id, k, encoding || undefined));
+    refreshed();
   }
-  const field = (key: keyof typeof form, value: string) =>
-    setForm((old) => ({ ...old, [key]: value }));
-  const title = editing ? (current ? "账单详情" : "新建账单") : "账单管理";
+  function update(index: number, change: Partial<SpendingImportDecision>) {
+    setChoices((old) =>
+      old.map((d, i) => (i === index ? { ...d, ...change } : d)),
+    );
+  }
+  async function openSource(kind: "pdf" | "csv") {
+    if (!batch) return;
+    const url = await (kind === "pdf"
+      ? spendingClient.pdfUrl(batch.id)
+      : spendingClient.csvUrl(batch.id));
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
   return (
     <Drawer
       open
-      title={title}
+      title="导入与附件"
       onClose={() => {
         if (!busy) onClose();
       }}
-      footer={
-        editing ? (
-          <div className="spending-actions">
-            <button
-              className="secondary-button"
-              disabled={busy}
-              onClick={() => {
-                setEditing(false);
-                setCurrent(undefined);
-                setError("");
-              }}
-            >
-              返回账单列表
-            </button>
-            {admin && (
-              <button
-                className="primary-button"
-                disabled={busy || !form.account_id}
-                onClick={() => void save()}
-              >
-                保存账单
-              </button>
-            )}
-          </div>
-        ) : undefined
-      }
     >
       {error && (
-        <p className="form-error" role="alert">
+        <p role="alert" className="form-error">
           {error}
         </p>
       )}
-      {!editing ? (
-        <>
-          {admin && (
+      <fieldset disabled={busy} className="spending-form">
+        {admin && (
+          <>
             <button
-              className="primary-button"
+              className="secondary-button"
               onClick={() => {
-                setForm(emptyForm(accounts));
-                setCurrent(undefined);
-                setEditing(true);
+                setBatch(undefined);
+                setKey("");
+                setFile(undefined);
+                setChoices([]);
+                setEncoding("");
               }}
             >
-              新建账单
+              新建导入
             </button>
-          )}
-          <div className="spending-form">
             <label>
               账户
               <select
-                value={filters.accountId}
-                onChange={(e) =>
-                  setFilters({
-                    ...filters,
-                    accountId: e.target.value,
-                    offset: 0,
-                  })
-                }
-              >
-                <option value="">全部账户</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              账单月份
-              <input
-                type="month"
-                value={filters.month}
-                onChange={(e) =>
-                  setFilters({ ...filters, month: e.target.value, offset: 0 })
-                }
-              />
-            </label>
-            <label>
-              录入状态
-              <select
-                value={filters.status}
-                onChange={(e) =>
-                  setFilters({ ...filters, status: e.target.value, offset: 0 })
-                }
-              >
-                <option value="">全部</option>
-                <option value="entering">录入中</option>
-                <option value="complete">已完成</option>
-              </select>
-            </label>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>账户 / 月份</th>
-                  <th>账单周期</th>
-                  <th>结算币种</th>
-                  <th>明细</th>
-                  <th>状态 / 附件</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!loading &&
-                  result?.statements.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <button
-                          className="spending-text-button"
-                          onClick={() => open(s)}
-                        >
-                          {s.account_name}
-                          <br />
-                          {s.month.slice(0, 7)}
-                        </button>
-                      </td>
-                      <td>
-                        {s.period_start}
-                        <br />
-                        {s.period_end}
-                      </td>
-                      <td>{s.currency}</td>
-                      <td>{s.row_count}</td>
-                      <td>
-                        {s.status === "complete" ? "已完成" : "录入中"}
-                        {s.source_file_key ? " · PDF" : ""}
-                      </td>
-                    </tr>
-                  ))}
-                {(loading || !result?.statements.length) && (
-                  <tr>
-                    <td colSpan={5}>{loading ? "加载中…" : "暂无账单。"}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {result && (
-            <PaginationControls
-              pagination={result.pagination}
-              loading={loading}
-              onPageChange={(offset) => setFilters({ ...filters, offset })}
-            />
-          )}
-        </>
-      ) : (
-        <>
-          {!accounts.some((a) => a.is_active) && !current && (
-            <p>请先在“消费账户”中添加或启用一个账户。</p>
-          )}
-          {current && (
-            <>
-              <p>
-                {current.status === "complete" ? "已完成录入" : "录入中"} ·{" "}
-                {current.row_count} 条明细
-              </p>
-              <div className="spending-actions">
-                <button
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => onViewRows(current.id)}
-                >
-                  查看明细
-                </button>
-                {admin && (
-                  <>
-                    <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => onAddRow(current.id)}
-                    >
-                      新增消费
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() =>
-                        void action(async () => {
-                          const s = await spendingClient.saveStatement(
-                            {
-                              status:
-                                current.status === "complete"
-                                  ? "entering"
-                                  : "complete",
-                            },
-                            current.id,
-                          );
-                          setCurrent(s);
-                        })
-                      }
-                    >
-                      {current.status === "complete"
-                        ? "重新录入"
-                        : "标记录入完成"}
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-          <fieldset disabled={!admin || busy} className="spending-form">
-            <label>
-              消费账户
-              <select
-                disabled={!!current?.row_count}
-                value={form.account_id}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    account_id: e.target.value,
-                    currency:
-                      accounts.find((a) => a.id === e.target.value)
-                        ?.default_currency ?? "CNY",
-                  })
-                }
+                disabled={!!batch}
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
               >
                 <option value="">请选择账户</option>
                 {accounts
-                  .filter((a) => a.is_active || a.id === form.account_id)
+                  .filter((a) => a.is_active || a.id === account)
                   .map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name}
+                      {a.name} · {a.default_currency}
                     </option>
                   ))}
               </select>
             </label>
+          </>
+        )}
+        {admin && (!batch || ["draft", "preview"].includes(batch.status)) && (
+          <>
             <label>
-              账单日期
+              CSV 文件（最大 2 MiB）
               <input
-                type="date"
-                value={form.statement_date}
-                onChange={(e) => field("statement_date", e.target.value)}
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  setFile(e.target.files?.[0]);
+                  setChoices([]);
+                }}
               />
             </label>
             <label>
-              周期开始
-              <input
-                type="date"
-                value={form.period_start}
-                onChange={(e) => field("period_start", e.target.value)}
-              />
-            </label>
-            <label>
-              周期结束
-              <input
-                type="date"
-                value={form.period_end}
-                onChange={(e) => field("period_end", e.target.value)}
-              />
-            </label>
-            <label>
-              结算币种
+              字符编码
               <select
-                disabled={!!current?.row_count}
-                value={form.currency}
-                onChange={(e) => field("currency", e.target.value)}
+                value={encoding}
+                onChange={(e) => {
+                  setEncoding(e.target.value as SpendingEncoding | "");
+                  setChoices([]);
+                }}
               >
-                {SPENDING_CURRENCIES.map((c) => (
-                  <option key={c}>{c}</option>
+                <option value="">自动识别</option>
+                {SPENDING_ENCODINGS.map((e) => (
+                  <option key={e} value={e}>
+                    {e === "gb18030" ? "GB18030 / GBK" : e.toUpperCase()}
+                  </option>
                 ))}
               </select>
             </label>
-            <label>
-              备注
-              <textarea
-                value={form.notes}
-                onChange={(e) => field("notes", e.target.value)}
-              />
-            </label>
-          </fieldset>
-          {current && (
-            <>
-              <h3>原始 PDF</h3>
-              <p className="spending-hint">
-                仅保存附件，不自动提取消费明细。最大 10 MiB。
-              </p>
-              {current.source_file_name && (
-                <p className="spending-filename">{current.source_file_name}</p>
-              )}
-              <div className="spending-actions">
-                {current.source_file_key && (
-                  <button
-                    className="secondary-button"
-                    disabled={busy}
-                    onClick={() => void viewPdf()}
-                  >
-                    查看 PDF
-                  </button>
-                )}
-                {admin && (
-                  <>
-                    {current.source_file_key && (
-                      <button
-                        className="secondary-button"
-                        disabled={busy}
-                        onClick={() => {
-                          if (window.confirm("移除此账单的 PDF 关联？"))
-                            void action(async () => {
-                              await spendingClient.removePdf(current.id);
-                              setCurrent(
-                                await spendingClient.statement(current.id),
-                              );
-                            });
-                        }}
-                      >
-                        移除附件
-                      </button>
-                    )}
-                    <label className="secondary-button spending-upload">
-                      {current.source_file_key ? "替换 PDF" : "上传 PDF"}
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        disabled={busy}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (file)
-                            void action(async () => {
-                              await spendingClient.uploadPdf(current.id, file);
-                              setCurrent(
-                                await spendingClient.statement(current.id),
-                              );
-                            });
-                        }}
-                      />
-                    </label>
-                  </>
-                )}
-              </div>
-              {busy && <p role="status">正在处理…</p>}
-              {admin && (
+            <button
+              className="primary-button"
+              disabled={!account || (!file && !key)}
+              onClick={() => void act(preview)}
+            >
+              预览导入
+            </button>
+            <p className="spending-hint">
+              建行：年月日（YYYYMMDD）。BNZ：日/月/年（DD/MM/YY，2000–2099）。预览有效期
+              24 小时，确认前请核对日期和中文。
+            </p>
+          </>
+        )}
+        {batch && (
+          <>
+            <p>
+              {batch.csv_file_name ?? "附件记录"} · {statusLabels[batch.status]}{" "}
+              · {batch.encoding?.toUpperCase()}
+            </p>
+            <p className="spending-hint">
+              创建于 {formatLocalDateTimeNote(batch.created_at, "—")}
+            </p>
+            <p>
+              已导入 {batch.imported_count} 条，跳过 {batch.skipped_count}{" "}
+              条，目前保留 {batch.row_count} 条。
+            </p>
+            <div className="spending-actions">
+              {batch.csv_file_key && (
                 <button
-                  className="secondary-button spending-delete"
-                  disabled={busy}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `删除此账单及其 ${current.row_count} 条明细？此操作无法撤销。`,
-                      )
-                    )
-                      void action(async () => {
-                        await spendingClient.deleteStatement(current.id);
-                        setCurrent(undefined);
-                        setEditing(false);
-                      });
-                  }}
+                  className="secondary-button"
+                  onClick={() => void act(() => openSource("csv"))}
                 >
-                  删除账单及明细
+                  下载原 CSV
                 </button>
               )}
-            </>
+              {batch.source_file_key && (
+                <button
+                  className="secondary-button"
+                  onClick={() => void act(() => openSource("pdf"))}
+                >
+                  查看 PDF
+                </button>
+              )}
+              {batch.status === "committed" && (
+                <button
+                  className="secondary-button"
+                  onClick={() => onViewRows(batch.id)}
+                >
+                  查看交易
+                </button>
+              )}
+              {admin && batch.status === "committed" && (
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    void act(async () => {
+                      const current = await spendingClient.statement(batch.id);
+                      if (
+                        !window.confirm(
+                          `撤销这次导入的 ${current.row_count} 条交易？其中 ${current.edited_count} 条导入后已修改。源文件及导入记录会保留。`,
+                        )
+                      )
+                        return;
+                      await spendingClient.undo(
+                        batch.id,
+                        current.edited_count > 0,
+                      );
+                      select(await spendingClient.statement(batch.id));
+                      refreshed();
+                    })
+                  }
+                >
+                  撤销导入
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        {admin && (
+          <label>
+            添加 PDF 附件（可单独保存，不解析内容）
+            <input
+              type="file"
+              accept=".pdf"
+              disabled={!account}
+              onChange={(e) => {
+                const pdf = e.target.files?.[0];
+                e.target.value = "";
+                if (pdf)
+                  void act(async () => {
+                    const b =
+                      batch ??
+                      (await spendingClient.createBatch(account, true));
+                    await spendingClient.uploadPdf(b.id, pdf);
+                    select(await spendingClient.statement(b.id));
+                    refreshed();
+                  });
+              }}
+            />
+          </label>
+        )}
+        {admin && batch?.source_file_key && (
+          <button
+            className="secondary-button"
+            onClick={() =>
+              void act(async () => {
+                if (!window.confirm("移除此 PDF 附件链接？源文件仍保留。"))
+                  return;
+                await spendingClient.removePdf(batch.id);
+                select(await spendingClient.statement(batch.id));
+                refreshed();
+              })
+            }
+          >
+            移除 PDF 链接
+          </button>
+        )}
+      </fieldset>
+      {batch?.status === "preview" && batch.preview && (
+        <>
+          <p>
+            识别 {batch.preview.rows.length} 条交易，
+            {batch.preview.errors.length}{" "}
+            条错误。重复候选默认跳过；相同金额的真实交易可以保留。
+          </p>
+          {batch.preview.warnings.length > 0 && (
+            <details>
+              <summary>查看导入提示（{batch.preview.warnings.length}）</summary>
+              {batch.preview.warnings.map((w, i) => (
+                <p key={i}>{w}</p>
+              ))}
+            </details>
+          )}
+          {batch.preview.errors.length > 0 && (
+            <div role="alert">
+              请修正原 CSV 后重新上传。
+              {batch.preview.errors.map((e) => (
+                <p key={e.row_number}>
+                  第 {e.row_number} 行：{e.message}
+                </p>
+              ))}
+            </div>
+          )}
+          <div className="table-wrap">
+            <table className="spending-table">
+              <thead>
+                <tr>
+                  <th>导入</th>
+                  <th>日期 / 原始行</th>
+                  <th>描述</th>
+                  <th>金额</th>
+                  <th>统计归类</th>
+                  <th>标签</th>
+                </tr>
+              </thead>
+              <tbody>
+                {batch.preview.rows
+                  .slice(page * 50, page * 50 + 50)
+                  .map((r, j) => {
+                    const i = page * 50 + j,
+                      d = choices[i];
+                    return (
+                      <tr key={r.row_number}>
+                        <td>
+                          {d && (
+                            <input
+                              aria-label={`导入第 ${r.row_number} 行`}
+                              type="checkbox"
+                              disabled={!admin || busy}
+                              checked={!d.skip}
+                              onChange={(e) =>
+                                update(i, {
+                                  skip: !e.target.checked,
+                                  allow_duplicate:
+                                    r.duplicate_count > 0 && e.target.checked,
+                                })
+                              }
+                            />
+                          )}{" "}
+                          {r.duplicate_count > 0 &&
+                            `已有 ${r.duplicate_count} 条相同候选`}
+                        </td>
+                        <td>
+                          {r.transaction_date}
+                          <br />第 {r.row_number} 行
+                        </td>
+                        <td>{r.description}</td>
+                        <td>{r.amount}</td>
+                        <td>
+                          {d ? (
+                            <select
+                              aria-label={`第 ${r.row_number} 行统计归类`}
+                              disabled={!admin || busy}
+                              value={d.classification}
+                              onChange={(e) =>
+                                update(i, {
+                                  classification: e.target
+                                    .value as SpendingClass,
+                                })
+                              }
+                            >
+                              {SPENDING_CLASSES.map((c) => (
+                                <option key={c} value={c}>
+                                  {SPENDING_CLASS_LABELS[c]}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            SPENDING_CLASS_LABELS[r.classification]
+                          )}
+                        </td>
+                        <td>
+                          {d && (
+                            <input
+                              aria-label={`第 ${r.row_number} 行标签`}
+                              maxLength={80}
+                              disabled={!admin || busy}
+                              value={d.tag ?? ""}
+                              onChange={(e) =>
+                                update(i, { tag: e.target.value || null })
+                              }
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+          <div className="spending-actions">
+            <button
+              className="secondary-button"
+              disabled={!page}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              上一页
+            </button>
+            <span>第 {page + 1} 页</span>
+            <button
+              className="secondary-button"
+              disabled={(page + 1) * 50 >= batch.preview.rows.length}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              下一页
+            </button>
+          </div>
+          {admin && (
+            <button
+              className="primary-button"
+              disabled={
+                busy ||
+                !!batch.preview.errors.length ||
+                !choices.length ||
+                choices.length !== batch.preview.rows.length ||
+                !batch.preview_token
+              }
+              onClick={() =>
+                void act(async () => {
+                  select(
+                    await spendingClient.commit(
+                      batch.id,
+                      batch.preview_token!,
+                      choices,
+                    ),
+                  );
+                  refreshed();
+                })
+              }
+            >
+              确认导入 {choices.filter((c) => !c.skip).length} 条
+            </button>
           )}
         </>
+      )}
+      <h3>导入记录</h3>
+      <div className="spending-account-list">
+        {list?.statements.map((b) => (
+          <button
+            className="secondary-button"
+            disabled={busy}
+            key={b.id}
+            onClick={() =>
+              void act(async () => select(await spendingClient.statement(b.id)))
+            }
+          >
+            {b.account_name} ·{" "}
+            {b.csv_file_name ?? b.source_file_name ?? "待上传"} ·{" "}
+            {statusLabels[b.status]}
+            <br />
+            {formatLocalDateTimeNote(b.created_at, "—")}
+          </button>
+        ))}
+      </div>
+      {list && (
+        <PaginationControls
+          pagination={list.pagination}
+          loading={busy}
+          onPageChange={setOffset}
+        />
       )}
     </Drawer>
   );

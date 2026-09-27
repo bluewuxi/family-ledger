@@ -109,243 +109,278 @@ async function main() {
       "create table currencies(code text);create table monthly_reviews(month text);",
     );
     sql(migration);
-    assert.equal(sql("select count(*) from information_schema.columns where table_name='account_statements' and column_name in ('opening_balance','closing_balance','charges_total','credits_total')"), "0");
+    const redesign = readFileSync(
+      "supabase/migrations/20260926090000_redesign_spending_imports.sql",
+      "utf8",
+    );
+    // Guard must fail without modifying data when the empty-table assumption is false.
+    sql(
+      "insert into spending_accounts(name,default_currency) values('Guard','CNY')",
+    );
+    assert.throws(() => sql(redesign));
+    assert.equal(sql("select count(*) from spending_accounts"), "1");
+    sql("delete from spending_accounts");
+    sql(redesign);
     const a = sql(
-      `insert into spending_accounts(name,default_currency) values('Test','CNY') returning id;`,
+      "insert into spending_accounts(name,source_format,default_currency) values('Example','ccb_credit','CNY') returning id",
     );
-    const s = sql(
-      `insert into account_statements(account_id,month,statement_date,period_start,period_end,currency) values('${a}','2026-06-01','2026-06-27','2026-05-28','2026-06-27','CNY') returning id;`,
+    const nz = sql(
+      "insert into spending_accounts(name,source_format,default_currency) values('Example NZ','bnz','NZD') returning id",
     );
-    const insert = (
-      date: string,
-      type: string,
-      value: string,
-      tag: string | null = "food",
-    ) =>
-      `insert into statement_rows(statement_id,transaction_date,posting_date,description,transaction_type,original_currency,original_amount,settlement_amount,suffix_number,tag) values('${s}','${date}','2026-06-27','fixture','${type}','CNY',${value},${value},'0175',${tag === null ? "null" : `'${tag}'`}) returning id;`;
-    const purchase = sql(insert("2026-05-27", "purchase", "10.123456"));
-    sql(insert("2026-06-01", "purchase", "100"));
-    const refund = sql(insert("2026-06-02", "refund", "-10"));
-    const cashback = sql(insert("2026-06-03", "cashback", "-2"));
-    sql(insert("2026-06-04", "repayment", "-50"));
-    const advance = sql(insert("2026-06-05", "cash_advance", "20"));
-    sql(insert("2026-06-06", "adjustment", "5", null));
-    const query = (filters: Record<string, unknown> = {}) =>
+    const actor = "00000000-0000-4000-8000-000000000099";
+    sql(`insert into auth.users values('${actor}')`);
+    const json = (v: unknown) =>
+      "'" + JSON.stringify(v).replace(/'/g, "''") + "'::jsonb";
+    const makeRow = (
+      row_number: number,
+      amount: string,
+      classification: string,
+      fingerprint: string,
+      date = "2026-09-24",
+    ) => ({
+      row_number,
+      amount,
+      classification,
+      fingerprint,
+      transaction_date: date,
+      description: "Example",
+      tag: null,
+      notes: null,
+      source_metadata: { test: "source" },
+      duplicate_count: 0,
+    });
+    const rows = [
+      makeRow(2, "-20", "spending", "a".repeat(64)),
+      makeRow(3, "-20", "spending", "a".repeat(64)),
+      makeRow(4, "5", "refund", "b".repeat(64)),
+      makeRow(5, "100", "income", "c".repeat(64)),
+      makeRow(6, "1000", "excluded", "d".repeat(64)),
+      makeRow(7, "-3", "review", "e".repeat(64)),
+    ];
+    const choices = (rs: typeof rows) =>
+      rs.map((r) => ({
+        row_number: r.row_number,
+        skip: false,
+        classification: r.classification,
+        tag: null,
+        allow_duplicate: false,
+      }));
+    const create = (rs = rows, hash = "1".repeat(64), account = a) => {
+      const id = sql(
+        `insert into account_statements(account_id) values('${account}') returning id`,
+      );
+      const payload = {
+        preview: {
+          encoding: "utf-8",
+          parser_version: "bank-csv-1",
+          rows: rs,
+          errors: [],
+          warnings: [],
+        },
+        key: `statements/pending/${id}/file.csv`,
+        version: "v1",
+        filename: "sample.csv",
+        sha256: hash,
+      };
+      const token = sql(
+        `select set_spending_preview('${id}',${json(payload)},'${actor}')`,
+      );
+      return { id, token, rs };
+    };
+    const command = (b: ReturnType<typeof create>, cs = choices(b.rs)) =>
+      `select commit_spending_import('${b.id}','${b.token}',${json(cs)},'${actor}','statements/${b.id}/file.csv','v2')`;
+    const b = create();
+    assert.equal(sql("select count(*) from statement_rows"), "0");
+    assert.throws(() => sql(command(b, choices(rows).slice(1))));
+    assert.throws(() =>
+      sql(
+        command(
+          b,
+          choices(rows).map((c, i) =>
+            i === 0 ? { ...c, classification: "income" } : c,
+          ),
+        ),
+      ),
+    );
+    assert.equal(sql("select count(*) from statement_rows"), "0");
+    assert.equal(sql(command(b)), b.id);
+    assert.equal(sql(command(b)), b.id); // Lost response/retry does not duplicate rows.
+    assert.equal(sql("select count(*) from statement_rows"), "6");
+    assert.equal(
+      sql(
+        `select count(*) from statement_rows where fingerprint='${"a".repeat(64)}'`,
+      ),
+      "2",
+    );
+    assert.throws(() =>
+      sql(
+        command(
+          b,
+          choices(rows).map((c) => ({ ...c, skip: true })),
+        ),
+      ),
+    );
+    const q = (filters = {}) =>
       JSON.parse(
         sql(
-          `select query_spending_rows('${JSON.stringify({ limit: 2, offset: 0, ...filters })}'::jsonb);`,
+          `select query_spending_rows(${json({ limit: 2, offset: 0, ...filters })})`,
         ),
       );
-    let r = query({ from: "2026-06-01", to: "2026-06-30" });
-    assert.equal(r.rows.length, 2);
-    assert.equal(r.pagination.total, 6);
-    assert.equal(r.pagination.hasMore, true);
-    assert.equal(r.totals[0].net_spending, "125.000000");
-    assert.equal(r.totals[0].spending_count, 3);
-    assert.equal(r.totals[0].excluded_amount, "-62.000000");
-    assert.equal(r.entering_count, 1);
-    assert.equal(
-      query({ from: "2026-05-01", to: "2026-05-31" }).totals[0].net_spending,
-      "10.123456",
-    );
-    assert.equal(query({ statementMonth: "2026-06-01" }).pagination.total, 7);
-    assert.equal(query({ untagged: "true" }).pagination.total, 1);
-    assert.equal(
-      query({ suffixNumber: "0175", tag: "food" }).pagination.total,
-      6,
-    );
-    assert.equal(query({ q: "fix", offset: 6 }).rows[0].id, purchase);
-    assert.equal(query({ q: "%" }).pagination.total, 0);
-    assert.equal(query({ suffixNumber: "9999" }).totals.length, 0);
-    assert.equal(
-      query({ accountId: "00000000-0000-4000-8000-000000000000" }).pagination
-        .total,
-      0,
-    );
-    assert.equal(
-      sql(`select is_spending from statement_rows where id='${purchase}'`),
-      "t",
-    );
-    assert.equal(
-      sql(`select is_spending from statement_rows where id='${refund}'`),
-      "f",
-    );
-    sql(
-      `update statement_rows set is_spending=true where id in ('${refund}','${cashback}');update statement_rows set is_spending=false where id='${advance}';`,
-    );
-    r = query({ from: "2026-06-01", to: "2026-06-30" });
-    assert.equal(r.totals[0].net_spending, "93.000000");
-    assert.equal(r.totals[0].included_positive, "105.000000");
-    assert.equal(r.totals[0].included_negative, "-12.000000");
-    assert.equal(r.monthly[0].net_spending, "93.000000");
-    assert.equal(
-      query({
-        from: "2026-06-01",
-        to: "2026-06-30",
-        tag: "food",
-        suffixNumber: "0175",
-        isSpending: "true",
-      }).pagination.total,
-      3,
-    );
-    r = query({ isSpending: "false" });
-    assert.equal(r.pagination.total, 2);
-    assert.equal(r.totals[0].net_spending, "0");
-    sql(
-      `update account_statements set status='complete' where id='${s}';update statement_rows set is_spending=false where id='${purchase}';`,
-    );
-    assert.equal(
-      sql(`select status from account_statements where id='${s}'`),
-      "entering",
-    );
-    sql(
-      `update statement_rows set transaction_type='adjustment',original_amount=-3,settlement_amount=-3 where id='${purchase}';`,
-    );
-    assert.equal(
-      sql(`select is_spending from statement_rows where id='${purchase}'`),
-      "f",
-    );
-    sql(
-      `update statement_rows set original_amount=10.123456,settlement_amount=10.123456,is_spending=true where id='${purchase}';`,
-    );
-    assert.throws(() =>
-      sql(`update statement_rows set is_spending=null where id='${purchase}'`),
-    );
-    const zero = sql(insert("2026-06-09", "adjustment", "0"));
-    assert.equal(
-      sql(`select is_spending from statement_rows where id='${zero}'`),
-      "f",
-    );
-    const excluded = sql(
-      insert("2026-06-09", "purchase", "10")
-        .replace("suffix_number,tag)", "suffix_number,tag,is_spending)")
-        .replace(") returning id;", ",false) returning id;"),
-    );
-    assert.equal(
-      sql(`select is_spending from statement_rows where id='${excluded}'`),
-      "f",
-    );
-    const included = sql(
-      insert("2026-06-09", "refund", "-1")
-        .replace("suffix_number,tag)", "suffix_number,tag,is_spending)")
-        .replace(") returning id;", ",true) returning id;"),
-    );
-    assert.equal(
-      sql(`select is_spending from statement_rows where id='${included}'`),
-      "t",
-    );
-    sql(
-      `update account_statements set status='complete' where id='${s}';update statement_rows set tag='telecom',notes='test' where id='${purchase}';`,
-    );
-    assert.equal(
-      sql(`select status from account_statements where id='${s}'`),
-      "complete",
-    );
-    sql(
-      `update statement_rows set settlement_amount=11 where id='${purchase}'`,
-    );
-    assert.equal(
-      sql(`select status from account_statements where id='${s}'`),
-      "entering",
-    );
-    sql(
-      `update account_statements set status='complete' where id='${s}';update account_statements set period_start='2026-05-27' where id='${s}'`,
-    );
-    assert.equal(
-      sql(`select status from account_statements where id='${s}'`),
-      "entering",
-    );
-    assert.throws(() =>
-      sql(`update account_statements set currency='NZD' where id='${s}'`),
-    );
-    assert.throws(() => sql(`delete from spending_accounts where id='${a}'`));
-    assert.throws(() =>
+    const report = q();
+    assert.equal(report.rows.length, 2);
+    assert.equal(report.pagination.total, 6);
+    assert.equal(report.pagination.hasMore, true);
+    assert.equal(report.totals[0].gross_spending, "40.000000");
+    assert.equal(report.totals[0].refunds, "5.000000");
+    assert.equal(report.totals[0].net_spending, "35.000000");
+    assert.equal(report.totals[0].income, "100.000000");
+    assert.equal(report.totals[0].pending_count, 1);
+    assert.equal(q({ classification: "review" }).pagination.total, 1);
+    assert.equal(q({ from: "2026-10-01" }).totals.length, 0);
+    const duplicates = JSON.parse(
       sql(
-        `insert into account_statements(account_id,month,statement_date,period_start,period_end,currency) values('${a}','2026-06-01','2026-06-27','2026-05-28','2026-06-27','NZD')`,
+        `select spending_duplicate_counts('${a}',array['${"a".repeat(64)}'])`,
       ),
     );
-    assert.throws(() => sql(insert("2026-06-08", "refund", "10")));
-    const s2 = sql(
-      `insert into account_statements(account_id,month,statement_date,period_start,period_end,currency) values('${a}','2026-07-01','2026-07-27','2026-06-28','2026-07-27','NZD') returning id;`,
+    assert.equal(duplicates["a".repeat(64)], 2);
+    // A different file with overlapping transactions needs explicit review.
+    const overlap = create(
+      rows.map((r) => ({ ...r, duplicate_count: r.row_number <= 3 ? 2 : 1 })),
+      "2".repeat(64),
     );
-    sql(
-      insert("2026-06-28", "purchase", "99999999999999.999999").replace(s, s2),
-    );
-    r = query();
-    assert.equal(r.totals.length, 2);
-    assert.equal(
-      r.totals.find((x: { currency: string }) => x.currency === "NZD")
-        .net_spending,
-      "99999999999999.999999",
-    );
+    assert.throws(() => sql(command(overlap)));
     assert.equal(
       sql(
-        `select not (to_jsonb(t) ? 'closing_balance') from spending_statement_details t where id='${s2}'`,
+        command(
+          overlap,
+          choices(overlap.rs).map((c) => ({ ...c, skip: true })),
+        ),
       ),
-      "t",
+      overlap.id,
     );
-    const concurrentFile = join(temporary, "insert.sql");
-    writeFileSync(concurrentFile, insert("2026-06-10", "purchase", "1"));
-    await Promise.all(
-      Array.from({ length: 6 }, () =>
-        promisify(execFile)(exe("psql"), [...args, "-f", concurrentFile], {
-          windowsHide: true,
+    assert.equal(sql("select count(*) from statement_rows"), "6");
+    // Unique file guard is independent of the row choices.
+    const repeat = create(
+      rows.map((r) => ({ ...r, duplicate_count: r.row_number <= 3 ? 2 : 1 })),
+    );
+    assert.throws(() =>
+      sql(
+        command(
+          repeat,
+          choices(repeat.rs).map((c) => ({ ...c, allow_duplicate: true })),
+        ),
+      ),
+    );
+    // Manual rows do not require any statement and preserve exact decimal precision.
+    const manual = (amount: string, classification: string, account = nz) =>
+      JSON.parse(
+        JSON.stringify({
+          account_id: account,
+          transaction_date: "2026-02-01",
+          description: "manual",
+          amount,
+          classification,
+          tag: "Food",
+          notes: null,
         }),
-      ),
+      );
+    const mid = sql(
+      `select mutate_spending_row(null,${json(manual("-99999999999999.999999", "spending"))},'${actor}',false)`,
     );
     assert.equal(
-      sql(
-        `select count(*)=count(distinct row_number) from statement_rows where statement_id='${s}'`,
-      ),
-      "t",
+      sql(`select amount::text from statement_rows where id='${mid}'`),
+      "-99999999999999.999999",
     );
+    assert.equal(q().totals.length, 2);
+    assert.equal(q({ currency: "NZD" }).pagination.total, 1);
+    assert.equal(q({ tag: "Food" }).pagination.total, 1);
+    assert.throws(() =>
+      sql(
+        `update spending_accounts set default_currency='USD' where id='${a}'`,
+      ),
+    );
+    const rid = sql(
+      `select id from statement_rows where statement_id='${b.id}' order by row_number limit 1`,
+    );
+    sql(
+      `select bulk_classify_spending(array['${rid}'::uuid],'{"tag":"Groceries"}','${actor}')`,
+    );
+    assert.equal(q({ tag: "Groceries" }).pagination.total, 1);
     assert.equal(
       sql(
-        `set role authenticated;set test.role='viewer';select count(*) from spending_accounts;`,
+        `select edited_count from spending_statement_details where id='${b.id}'`,
       ),
       "1",
     );
     assert.throws(() =>
-      sql(
-        `set role authenticated;insert into spending_accounts(name,default_currency) values('No','CNY')`,
-      ),
-    );
-    assert.throws(() =>
-      sql(`set role authenticated;select query_spending_rows('{}')`),
+      sql(`select undo_spending_import('${b.id}','${actor}',false)`),
     );
     assert.equal(
-      sql(
-        `set role authenticated;set test.role='none';select count(*) from spending_accounts;`,
-      ),
+      sql(`select undo_spending_import('${b.id}','${actor}',true)`),
+      "6",
+    );
+    assert.equal(
+      sql(`select undo_spending_import('${b.id}','${actor}',true)`),
       "0",
     );
     assert.equal(
+      sql(`select count(*) from statement_rows where id='${mid}'`),
+      "1",
+    );
+    assert.equal(
+      sql(`select csv_file_version from account_statements where id='${b.id}'`),
+      "v2",
+    );
+    // Concurrent overlapping imports serialize on the account; exactly one wins.
+    const one = create([rows[0]], "3".repeat(64)),
+      two = create([rows[0]], "4".repeat(64));
+    const run = promisify(execFile);
+    const results = await Promise.allSettled([
+      run(exe("psql"), [...args, "-c", command(one)], { windowsHide: true }),
+      run(exe("psql"), [...args, "-c", command(two)], { windowsHide: true }),
+    ]);
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    assert.equal(
+      sql(`select count(*) from statement_rows where account_id='${a}'`),
+      "1",
+    );
+    const expired = create([rows[0]], "5".repeat(64));
+    sql(
+      `update account_statements set expires_at=now()-interval '1 hour' where id='${expired.id}'`,
+    );
+    assert.throws(() => sql(command(expired)));
+    sql("grant usage on schema public to authenticated");
+    assert.equal(
       sql(
-        `select jsonb_array_length(export_ledger_backup()->'account_statements');`,
+        "set role authenticated;set test.role='viewer';select count(*) from spending_accounts",
       ),
       "2",
     );
-    const actor = "00000000-0000-4000-8000-000000000099";
-    sql(`insert into auth.users(id) values('${actor}');`);
     assert.equal(
-      sql(`select delete_spending_row('${purchase}','${actor}');`),
-      "t",
-    );
-    assert.equal(
-      sql(`select updated_by_user_id from account_statements where id='${s}'`),
-      actor,
-    );
-    assert.equal(
-      sql(`select delete_spending_row('${purchase}','${actor}');`),
-      "f",
-    );
-    sql(`delete from account_statements where id='${s}'`);
-    assert.equal(
-      sql(`select count(*) from statement_rows where statement_id='${s}'`),
+      sql(
+        "set role authenticated;set test.role='none';select count(*) from spending_accounts",
+      ),
       "0",
     );
+    assert.throws(() =>
+      sql(
+        "set role authenticated;insert into spending_accounts(name,source_format,default_currency) values('No','bnz','NZD')",
+      ),
+    );
+    assert.throws(() =>
+      sql("set role authenticated;select query_spending_rows('{}')"),
+    );
+    const exported = JSON.parse(sql("select export_ledger_backup()"));
+    assert.equal(exported.statement_rows.length, 2);
+    assert.equal(exported.spending_accounts.length, 2);
+    // Restore the current schema payload in a rollback-only transaction; investments remain untouched.
+    sql(`begin;delete from statement_rows;delete from account_statements;delete from spending_accounts;
+      insert into spending_accounts select * from jsonb_populate_recordset(null::spending_accounts,${json(exported.spending_accounts)});
+      insert into account_statements select * from jsonb_populate_recordset(null::account_statements,${json(exported.account_statements)});
+      insert into statement_rows select * from jsonb_populate_recordset(null::statement_rows,${json(exported.statement_rows)});rollback;`);
+    assert.equal(sql("select count(*) from statement_rows"), "2");
     console.log(
-      "Spending PostgreSQL migration, precision, filters, aggregates, concurrency, RLS, inclusion defaults/overrides, reopening, deletion, and backup checks passed.",
+      "Spending PostgreSQL: empty guard, schema, exact totals, preview/atomic commit/retry, duplicate multiplicity, concurrency, undo isolation, RLS, backup and restore passed.",
     );
   } finally {
     if (started)

@@ -903,27 +903,31 @@ Transaction validation errors return `VALIDATION_ERROR`. Missing transactions re
 
 ## Spending API
 
-All `/spending/*` routes use the standard success/error envelope. GET requires an active viewer/admin; every mutation requires admin. Duplicate statement creation returns HTTP 409 / `CONFLICT`. Request/response record fields use the snake_case shared spending DTOs; query parameters use the names below. Money inputs and outputs are decimal strings, never JSON numbers.
+The `/spending` API uses the standard success/error envelope. GET requires active viewer/admin; all mutations require admin. Money is a decimal string. `statements` now means import/document batches. See [spending specification](spending.md).
 
 | Route | Purpose |
 | --- | --- |
-| `GET/POST /spending/accounts` | List/create accounts |
-| `PATCH/DELETE /spending/accounts/:id` | Edit/deactivate or delete an empty account |
-| `GET/POST /spending/statements` | Paginated list/create |
-| `GET/PATCH/DELETE /spending/statements/:id` | Detail, edit/status, delete with rows |
-| `GET /spending/rows` | Paginated rows plus full filtered totals/breakdowns |
-| `POST /spending/statements/:id/rows` | Create a row; row number assigned atomically |
-| `PATCH/DELETE /spending/rows/:id` | Edit/delete row |
-| `GET /spending/filter-options` | Distinct tags/suffixes; optional `accountId` |
-| `POST /spending/statements/:id/attachment-upload` | `{filename,size,sha256}` → signed POST `{url,fields,key}`, expires in 300 seconds |
-| `PUT /spending/statements/:id/attachment` | `{key}` → validate file and link its exact S3 version |
-| `GET /spending/statements/:id/attachment` | `{url}` for PDF viewing, expires in 300 seconds |
-| `DELETE /spending/statements/:id/attachment` | Unlink metadata, retaining object |
+| `GET/POST /spending/accounts` | List/create accounts; name, source_format, default_currency, optional identity_suffix, is_active |
+| `PATCH/DELETE /spending/accounts/:id` | Edit/deactivate; delete only unused accounts |
+| `GET/POST /spending/statements` | Paginated import history; create with account_id and optional document_only |
+| `GET /spending/statements/:id` | Batch details, preview/token, counts and source metadata |
+| `POST /spending/statements/:id/csv-upload` | filename/size/sha256 → signed POST and key |
+| `POST /spending/statements/:id/preview` | key plus optional encoding → validated server preview; no transactions created |
+| `POST /spending/statements/:id/commit` | token and choices → atomic, idempotent commit |
+| `POST /spending/statements/:id/undo` | optional confirm_edited boolean → remove this batch's rows, retain history/source |
+| `GET /spending/statements/:id/csv` | Exact-version source download URL |
+| `GET /spending/rows` | Paginated rows plus full filtered totals/monthly/tag summaries |
+| `POST /spending/rows` | Manual transaction without a batch |
+| `PATCH /spending/rows` | Bulk ids (1–200), optional classification and/or nullable tag |
+| `PATCH/DELETE /spending/rows/:id` | Edit/delete a transaction |
+| `GET /spending/filter-options` | Distinct tags, optional accountId |
+| `POST /spending/statements/:id/attachment-upload` | PDF filename/size/sha256 → signed upload |
+| `PUT/GET/DELETE /spending/statements/:id/attachment` | Verify/link PDF key; view URL; unlink retaining object |
 
-Rows accept `month=YYYY-MM` OR inclusive `from`/`to` dates, plus `statementMonth`, `statementId`, `accountId`, `suffixNumber`, `tag`, `untagged=true`, `transactionType`, `isSpending=true|false`, `currency`, `q`, `limit`, and `offset`. Tag and untagged are mutually exclusive. Filters combine with AND. Description search is a case-insensitive literal substring. Default limit is 50, maximum 200; order is transaction date then ID descending.
+Source formats: ccb_debit, ccb_credit, bnz. Encodings: utf-8, gb18030, utf-16le, utf-16be. Classifications: income, spending, refund, excluded, review. Manual/editable row fields: account_id, transaction_date, description, amount, classification, tag, notes. An existing row cannot move accounts or alter source identity. Income/refund require positive amounts; spending requires negative amounts.
 
-Rows return `{user,rows,pagination,totals,monthly,tags,entering_count}`. Pagination includes total/limit/offset/hasMore. Each aggregate has currency, count, spending_count, included_positive, included_negative, net_spending, and excluded_amount; monthly/tag groups also have a label. Only rows with is_spending=true affect spending totals, regardless of transaction type. Monetary values remain signed decimal strings. `entering_count` counts distinct entering statements represented by matching rows; totals cover entered data only. Empty results have empty aggregates, not fabricated zero currency totals.
+Commit choices contain exactly one entry per preview record: row_number, skip, classification, nullable tag, allow_duplicate. Invalid CSV records block commit. A stale token/changed duplicate count requires preview again. Repeat source hashes return CONFLICT. Batch list filters: accountId, status, limit, offset. History omits preview bodies; fetch detail when selected.
 
-Statements accept list filters `accountId`, `month=YYYY-MM`, `status`, `limit`, and `offset`; responses include statements and pagination. Detail includes row_count (no balance or reconciliation fields). Header edits cannot change account/currency after rows exist. PATCH validates the merged record; immutable row identity is not editable. Empty optional fields normalize to null. PDFs are limited to 10 MiB and are never parsed into transactions.
+Row filters: month=YYYY-MM OR inclusive from/to, accountId, statementId, classification, tag OR untagged=true, currency, q, limit, offset. Default limit 50, max 200. Literal description search, AND filters, transaction-date/ID descending order. Result: rows, pagination, totals, monthly, tags. Each aggregate has currency, income, gross_spending, refunds, net_spending, count, pending_count; breakdowns add label. Totals include every matched row regardless of pagination and keep currencies separate.
 
-Row create/PATCH accepts `is_spending` as an optional boolean; every row response includes it. Omitted on creation defaults to positive settlement amount; omitted on update preserves the saved choice even when the amount changes. Null/non-boolean flags and invalid isSpending filters are rejected. Statement balance inputs are no longer supported and are rejected. See [spending specification](spending.md).
+The old statement date/month/period/completion fields, original amount, transaction_type, is_spending and statement-scoped manual-create route are removed. PDF content is never parsed. CSV is limited to 2 MiB/5000 records/4 MiB preview; PDF to 10 MiB. Signed URLs expire in 300 seconds and previews in 24 hours.

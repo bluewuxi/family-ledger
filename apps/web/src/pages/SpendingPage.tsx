@@ -1,79 +1,62 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  getLocalDateString,
+  SPENDING_CLASSES,
+  SPENDING_CLASS_LABELS,
   SPENDING_CURRENCIES,
-  SPENDING_TYPES,
-  SPENDING_TYPE_LABELS,
-  type AccountStatement,
   type SpendingAccount,
-  type SpendingBreakdown,
   type SpendingQueryResult,
   type StatementRow,
 } from "@family-ledger/shared";
-import { spendingClient, allSpendingStatements } from "../lib/spendingClient";
-import { formatSpendingAmount as formatDisplayAmount } from "../lib/spendingFormat";
+import { spendingClient } from "../lib/spendingClient";
+import { formatSpendingAmount as money } from "../lib/spendingFormat";
 import { PaginationControls } from "../components/PaginationControls";
 import { SpendingAccountsDrawer } from "../components/spending/SpendingAccountsDrawer";
 import { SpendingStatementsDrawer } from "../components/spending/SpendingStatementsDrawer";
 import { SpendingRowDrawer } from "../components/spending/SpendingRowDrawer";
-
+import { SpendingCharts } from "../components/spending/SpendingCharts";
 export function SpendingPage() {
-  const [params, setParams] = useSearchParams();
-  const [accounts, setAccounts] = useState<SpendingAccount[]>([]),
-    [statements, setStatements] = useState<AccountStatement[]>([]),
-    [admin, setAdmin] = useState(false);
-  const [options, setOptions] = useState({
-    tags: [] as string[],
-    suffixes: [] as string[],
-  });
+  const [params, setParams] = useSearchParams(),
+    [accounts, setAccounts] = useState<SpendingAccount[]>([]),
+    [admin, setAdmin] = useState(false),
+    [tags, setTags] = useState<string[]>([]);
   const [result, setResult] = useState<SpendingQueryResult>(),
     [loading, setLoading] = useState(true),
+    [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0);
-  const [drawer, setDrawer] = useState<
-      "accounts" | "statements" | "row" | null
-    >(null),
-    [createStatement, setCreateStatement] = useState(false),
-    [selectedRow, setSelectedRow] = useState<StatementRow>(),
-    [selectedStatement, setSelectedStatement] = useState<string>();
-  const query = useMemo(() => {
-    const q = new URLSearchParams(params);
-    q.delete("tab");
-    if (
-      !q.has("month") &&
-      !q.has("from") &&
-      !q.has("to") &&
-      !q.has("statementId") &&
-      !q.has("allDates")
-    )
-      q.set("month", getLocalDateString().slice(0, 7));
-    q.delete("allDates");
-    q.set("limit", "50");
-    return q;
-  }, [params]);
-  const queryString = query.toString();
-  function filter(changes: Record<string, string>) {
+  const [drawer, setDrawer] = useState<"accounts" | "imports" | "row" | null>(
+      null,
+    ),
+    [row, setRow] = useState<StatementRow>(),
+    [selected, setSelected] = useState<string[]>([]),
+    [bulkClass, setBulkClass] = useState(""),
+    [bulkTag, setBulkTag] = useState("");
+  const q = new URLSearchParams(params);
+  q.delete("tab");
+  q.set("limit", "50");
+  const query = q.toString();
+  const refresh = () => setRevision((n) => n + 1);
+  function filter(values: Record<string, string>) {
     setParams((old) => {
-      const q = new URLSearchParams(old);
-      q.set("tab", "spending");
-      q.delete("offset");
-      Object.entries(changes).forEach(([k, v]) => {
-        if (v) q.set(k, v);
-        else q.delete(k);
+      const p = new URLSearchParams(old);
+      p.set("tab", "spending");
+      p.delete("offset");
+      Object.entries(values).forEach(([k, v]) => {
+        if (v) p.set(k, v);
+        else p.delete(k);
       });
-      return q;
+      return p;
     });
   }
-  const refresh = () => setRevision((n) => n + 1);
   useEffect(() => {
     let active = true;
-    void Promise.all([spendingClient.accounts(), allSpendingStatements()])
-      .then(([a, s]) => {
+    void spendingClient
+      .accounts()
+      .then((r) => {
         if (active) {
-          setAccounts(a.accounts);
-          setAdmin(a.user.role === "admin");
-          setStatements(s);
+          setAccounts(r.accounts);
+          setAdmin(r.user.role === "admin");
         }
       })
       .catch((e) => {
@@ -86,9 +69,9 @@ export function SpendingPage() {
   useEffect(() => {
     let active = true;
     void spendingClient
-      .options(query.get("accountId") ?? "")
-      .then((o) => {
-        if (active) setOptions(o);
+      .options(params.get("accountId") ?? "")
+      .then((r) => {
+        if (active) setTags(r.tags);
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -96,13 +79,14 @@ export function SpendingPage() {
     return () => {
       active = false;
     };
-  }, [query.get("accountId"), revision]);
+  }, [params.get("accountId"), revision]);
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError("");
+    setSelected([]);
     void spendingClient
-      .rows(queryString)
+      .rows(query)
       .then((r) => {
         if (active) setResult(r);
       })
@@ -118,75 +102,67 @@ export function SpendingPage() {
     return () => {
       active = false;
     };
-  }, [queryString, revision]);
-  async function addRow(id?: string) {
-    if (id && !statements.some((statement) => statement.id === id)) {
-      try {
-        const statement = await spendingClient.statement(id);
-        setStatements((old) => [
-          statement,
-          ...old.filter((item) => item.id !== id),
-        ]);
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "无法加载账单。");
-        return;
-      }
+  }, [query, revision]);
+  async function bulk(tagOnly: boolean) {
+    setBusy(true);
+    setError("");
+    try {
+      await spendingClient.bulkRows({
+        ids: selected,
+        ...(tagOnly ? { tag: bulkTag || null } : { classification: bulkClass }),
+      });
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "批量修改失败。");
+    } finally {
+      setBusy(false);
     }
-    setSelectedRow(undefined);
-    setSelectedStatement(id);
-    if (!id && !statements.length) {
-      setCreateStatement(true);
-      setDrawer("statements");
-    } else setDrawer("row");
   }
   return (
     <section className="spending-workspace">
       <div className="spending-toolbar">
-        <p>按交易日期查询已录入的消费，结算币种分别汇总。</p>
+        <p>银行交易、收入与消费。不同币种分别统计。</p>
         <div className="spending-actions">
+          <button
+            className="primary-button"
+            onClick={() => setDrawer("imports")}
+          >
+            {admin ? "导入 CSV / PDF" : "导入记录"}
+          </button>
           {admin && (
-            <button className="primary-button" onClick={() => addRow()}>
-              新增消费
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setRow(undefined);
+                setDrawer("row");
+              }}
+            >
+              手动新增
             </button>
           )}
           <button
             className="secondary-button"
-            onClick={() => {
-              setCreateStatement(false);
-              setDrawer("statements");
-            }}
-          >
-            账单管理
-          </button>
-          <button
-            className="secondary-button"
             onClick={() => setDrawer("accounts")}
           >
-            消费账户
+            收支账户
           </button>
         </div>
       </div>
       <div className="filter-bar spending-filters">
         <label>
-          消费月份
+          交易月份
           <input
             type="month"
-            value={query.get("month") ?? ""}
+            value={q.get("month") ?? ""}
             onChange={(e) =>
-              filter({
-                month: e.target.value,
-                from: "",
-                to: "",
-                allDates: e.target.value ? "" : "true",
-                statementId: "",
-              })
+              filter({ month: e.target.value, from: "", to: "" })
             }
           />
         </label>
         <label>
           账户
           <select
-            value={query.get("accountId") ?? ""}
+            value={q.get("accountId") ?? ""}
             onChange={(e) => filter({ accountId: e.target.value })}
           >
             <option value="">全部账户</option>
@@ -198,108 +174,71 @@ export function SpendingPage() {
           </select>
         </label>
         <label>
+          统计归类
+          <select
+            value={q.get("classification") ?? ""}
+            onChange={(e) => filter({ classification: e.target.value })}
+          >
+            <option value="">全部</option>
+            {SPENDING_CLASSES.map((c) => (
+              <option key={c} value={c}>
+                {SPENDING_CLASS_LABELS[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           标签
           <select
             value={
-              query.get("untagged") === "true"
+              q.get("untagged") === "true"
                 ? "__untagged"
-                : query.get("tag")
-                  ? `tag:${query.get("tag")}`
+                : q.get("tag")
+                  ? `tag:${q.get("tag")}`
                   : ""
             }
             onChange={(e) =>
               filter({
-                untagged: e.target.value === "__untagged" ? "true" : "",
                 tag: e.target.value.startsWith("tag:")
                   ? e.target.value.slice(4)
                   : "",
+                untagged: e.target.value === "__untagged" ? "true" : "",
               })
             }
           >
             <option value="">全部标签</option>
             <option value="__untagged">未分类</option>
-            {options.tags.map((t) => (
+            {tags.map((t) => (
               <option key={t} value={`tag:${t}`}>
                 {t}
               </option>
             ))}
           </select>
         </label>
-        <label>
-          卡号后四位
-          <select
-            value={query.get("suffixNumber") ?? ""}
-            onChange={(e) => filter({ suffixNumber: e.target.value })}
-          >
-            <option value="">全部卡号</option>
-            {options.suffixes.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
-      <label className="spending-inclusion-filter">
-        计入消费
-        <select
-          value={query.get("isSpending") ?? ""}
-          onChange={(e) => filter({ isSpending: e.target.value })}
-        >
-          <option value="">全部</option>
-          <option value="true">计入消费</option>
-          <option value="false">不计入消费</option>
-        </select>
-      </label>
       <details className="spending-more-filters">
-        <summary>更多筛选</summary>
+        <summary>日期范围、币种与搜索</summary>
         <div className="filter-bar spending-filters">
           <label>
-            交易开始日期
+            开始日期
             <input
               type="date"
-              value={query.get("from") ?? ""}
-              onChange={(e) =>
-                filter({ from: e.target.value, month: "", allDates: "true" })
-              }
+              value={q.get("from") ?? ""}
+              onChange={(e) => filter({ from: e.target.value, month: "" })}
             />
           </label>
           <label>
-            交易结束日期
+            结束日期
             <input
               type="date"
-              value={query.get("to") ?? ""}
-              onChange={(e) =>
-                filter({ to: e.target.value, month: "", allDates: "true" })
-              }
+              value={q.get("to") ?? ""}
+              onChange={(e) => filter({ to: e.target.value, month: "" })}
             />
           </label>
           <label>
-            账单月份
-            <input
-              type="month"
-              value={query.get("statementMonth") ?? ""}
-              onChange={(e) => filter({ statementMonth: e.target.value })}
-            />
-          </label>
-          <label>
-            交易类型
+            币种
             <select
-              value={query.get("transactionType") ?? ""}
-              onChange={(e) => filter({ transactionType: e.target.value })}
-            >
-              <option value="">全部类型</option>
-              {SPENDING_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {SPENDING_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            结算币种
-            <select
-              value={query.get("currency") ?? ""}
+              value={q.get("currency") ?? ""}
               onChange={(e) => filter({ currency: e.target.value })}
             >
               <option value="">全部币种</option>
@@ -311,7 +250,7 @@ export function SpendingPage() {
           <label>
             描述关键词
             <input
-              value={query.get("q") ?? ""}
+              value={q.get("q") ?? ""}
               onChange={(e) => filter({ q: e.target.value })}
             />
           </label>
@@ -320,25 +259,17 @@ export function SpendingPage() {
       <div className="spending-actions">
         <button
           className="secondary-button"
-          onClick={() =>
-            setParams({
-              tab: "spending",
-              month: getLocalDateString().slice(0, 7),
-            })
-          }
+          onClick={() => setParams({ tab: "spending" })}
         >
-          重置筛选
+          清除筛选
         </button>
-        {query.get("statementId") && (
-          <span>
-            正在查看指定账单{" "}
-            <button
-              className="spending-text-button"
-              onClick={() => filter({ statementId: "" })}
-            >
-              取消
-            </button>
-          </span>
+        {q.get("statementId") && (
+          <button
+            className="secondary-button"
+            onClick={() => filter({ statementId: "" })}
+          >
+            取消指定导入筛选
+          </button>
         )}
       </div>
       {error && (
@@ -347,116 +278,177 @@ export function SpendingPage() {
         </p>
       )}
       {loading ? (
-        <p role="status">正在查询消费…</p>
+        <p role="status">正在查询交易…</p>
       ) : (
-        <>
-          <div className="spending-totals" aria-live="polite">
-            {result?.totals.map((t) => (
-              <div className="spending-total-line" key={t.currency}>
-                <strong>{t.currency}</strong>
-                <span>
-                  计入支出 <b>{formatDisplayAmount(t.included_positive)}</b>
-                </span>
-                <span>
-                  计入抵扣 <b>{formatDisplayAmount(t.included_negative)}</b>
-                </span>
-                <span className="spending-net">
-                  净消费 <b>{formatDisplayAmount(t.net_spending)}</b>
-                </span>
-                {!/^0(?:\.0+)?$/.test(t.excluded_amount) && (
+        result && (
+          <>
+            <div className="spending-totals">
+              {result.totals.map((t) => (
+                <div className="spending-total-line" key={t.currency}>
+                  <strong>{t.currency}</strong>
                   <span>
-                    不计入消费（净额） {formatDisplayAmount(t.excluded_amount)}
+                    收入 <b>{money(t.income)}</b>
                   </span>
-                )}
-              </div>
-            ))}
-          </div>
-          <p className="spending-hint">
-            仅统计已开启“计入消费”的明细；计入的负金额会抵扣消费。交易类型不决定是否计入。
-            {result?.entering_count
-              ? `当前结果涉及 ${result.entering_count} 张录入中的账单，金额可能不完整。`
-              : ""}
-          </p>
-          {!!result?.rows.length && (
-            <details className="spending-breakdowns">
-              <summary>按月汇总 / 按标签汇总</summary>
-              <Breakdown title="按月汇总" rows={result.monthly} />
-              <Breakdown title="按标签汇总" rows={result.tags} />
-            </details>
-          )}
-          <div className="table-wrap">
-            <table className="spending-table">
-              <thead>
-                <tr>
-                  <th>交易日期</th>
-                  <th>交易描述</th>
-                  <th>标签</th>
-                  <th>卡号后四位</th>
-                  <th>原币金额</th>
-                  <th>结算金额</th>
-                  <th>计入消费</th>
-                  <th>类型</th>
-                  <th>账户</th>
-                  <th>账单月份</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result?.rows.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.transaction_date}</td>
-                    <td>
-                      <button
-                        className="spending-text-button"
-                        onClick={() => {
-                          setSelectedRow(r);
-                          setDrawer("row");
-                        }}
-                      >
-                        {r.description}
-                      </button>
-                    </td>
-                    <td>{r.tag ?? "未分类"}</td>
-                    <td>{r.suffix_number ?? "—"}</td>
-                    <td className="numeric-cell">
-                      {r.original_currency}{" "}
-                      {formatDisplayAmount(r.original_amount)}
-                    </td>
-                    <td className="numeric-cell">
-                      {r.currency} {formatDisplayAmount(r.settlement_amount)}
-                    </td>
-                    <td>{r.is_spending ? "是" : "否"}</td>
-                    <td>{SPENDING_TYPE_LABELS[r.transaction_type]}</td>
-                    <td>{r.account_name}</td>
-                    <td>{r.statement_month.slice(0, 7)}</td>
-                  </tr>
-                ))}
-                {!result?.rows.length && (
+                  <span>
+                    消费 <b>{money(t.gross_spending)}</b>
+                  </span>
+                  <span>
+                    退款 <b>{money(t.refunds)}</b>
+                  </span>
+                  <span>
+                    净消费 <b>{money(t.net_spending)}</b>
+                  </span>
+                  <button
+                    className="spending-text-button"
+                    onClick={() =>
+                      filter({ classification: "review", currency: t.currency })
+                    }
+                  >
+                    待确认 {t.pending_count} 条
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="spending-hint">
+              仅统计已录入并归类的交易。转账和待确认记录不计入收入或消费；退款按发生月份抵扣。导出日期范围不代表数据完整。
+            </p>
+            {!!result.rows.length && (
+              <SpendingCharts result={result} onFilter={filter} />
+            )}
+            {admin && (
+              <fieldset
+                disabled={busy}
+                className="spending-actions spending-bulk"
+              >
+                <span>已选 {selected.length} 条</span>
+                <select
+                  aria-label="批量统计归类"
+                  value={bulkClass}
+                  onChange={(e) => setBulkClass(e.target.value)}
+                >
+                  <option value="">选择归类</option>
+                  {SPENDING_CLASSES.map((c) => (
+                    <option key={c} value={c}>
+                      {SPENDING_CLASS_LABELS[c]}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="secondary-button"
+                  disabled={!selected.length || !bulkClass}
+                  onClick={() => void bulk(false)}
+                >
+                  应用归类
+                </button>
+                <input
+                  aria-label="批量标签"
+                  placeholder="标签（留空清除）"
+                  maxLength={80}
+                  value={bulkTag}
+                  onChange={(e) => setBulkTag(e.target.value)}
+                />
+                <button
+                  className="secondary-button"
+                  disabled={!selected.length}
+                  onClick={() => void bulk(true)}
+                >
+                  应用标签
+                </button>
+              </fieldset>
+            )}
+            <div className="table-wrap">
+              <table className="spending-table">
+                <thead>
                   <tr>
-                    <td colSpan={10}>没有符合筛选条件的消费明细。</td>
+                    {admin && (
+                      <th>
+                        <input
+                          type="checkbox"
+                          aria-label="选择本页全部交易"
+                          checked={
+                            !!result.rows.length &&
+                            selected.length === result.rows.length
+                          }
+                          onChange={(e) =>
+                            setSelected(
+                              e.target.checked
+                                ? result.rows.map((r) => r.id)
+                                : [],
+                            )
+                          }
+                        />
+                      </th>
+                    )}
+                    <th>日期</th>
+                    <th>账户</th>
+                    <th>描述</th>
+                    <th>金额</th>
+                    <th>统计归类</th>
+                    <th>标签</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {result && (
-            <>
-              <p className="spending-hint">
-                共 {result.pagination.total} 条明细
-              </p>
-              <PaginationControls
-                pagination={result.pagination}
-                loading={loading}
-                onPageChange={(offset) =>
-                  setParams((old) => {
-                    const q = new URLSearchParams(old);
-                    q.set("offset", String(offset));
-                    return q;
-                  })
-                }
-              />
-            </>
-          )}
-        </>
+                </thead>
+                <tbody>
+                  {result.rows.map((r) => (
+                    <tr key={r.id}>
+                      {admin && (
+                        <td>
+                          <input
+                            type="checkbox"
+                            aria-label={`选择 ${r.description}`}
+                            checked={selected.includes(r.id)}
+                            onChange={(e) =>
+                              setSelected((old) =>
+                                e.target.checked
+                                  ? [...old, r.id]
+                                  : old.filter((id) => id !== r.id),
+                              )
+                            }
+                          />
+                        </td>
+                      )}
+                      <td>{r.transaction_date}</td>
+                      <td>{r.account_name}</td>
+                      <td>
+                        <button
+                          className="spending-text-button"
+                          onClick={() => {
+                            setRow(r);
+                            setDrawer("row");
+                          }}
+                        >
+                          {r.description}
+                        </button>
+                      </td>
+                      <td className="numeric-cell">
+                        {r.currency} {money(r.amount)}
+                      </td>
+                      <td>{SPENDING_CLASS_LABELS[r.classification]}</td>
+                      <td>{r.tag ?? "未分类"}</td>
+                    </tr>
+                  ))}
+                  {!result.rows.length && (
+                    <tr>
+                      <td colSpan={admin ? 7 : 6}>
+                        没有符合条件的已录入交易。
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <PaginationControls
+              pagination={result.pagination}
+              loading={loading}
+              onPageChange={(offset) =>
+                setParams((old) => {
+                  const p = new URLSearchParams(old);
+                  p.set("offset", String(offset));
+                  return p;
+                })
+              }
+            />
+          </>
+        )
       )}
       {drawer === "accounts" && (
         <SpendingAccountsDrawer
@@ -466,14 +458,12 @@ export function SpendingPage() {
           onSaved={refresh}
         />
       )}
-      {drawer === "statements" && (
+      {drawer === "imports" && (
         <SpendingStatementsDrawer
           accounts={accounts}
           admin={admin}
-          create={createStatement}
           onClose={() => setDrawer(null)}
           onSaved={refresh}
-          onAddRow={(id) => addRow(id)}
           onViewRows={(id) => {
             setParams({ tab: "spending", statementId: id });
             setDrawer(null);
@@ -482,54 +472,14 @@ export function SpendingPage() {
       )}
       {drawer === "row" && (
         <SpendingRowDrawer
-          row={selectedRow}
-          statementId={selectedStatement}
-          statements={statements}
-          tags={options.tags}
+          row={row}
+          accounts={accounts}
+          tags={tags}
           admin={admin}
           onClose={() => setDrawer(null)}
           onSaved={refresh}
-          onCreateStatement={() => {
-            setCreateStatement(true);
-            setDrawer("statements");
-          }}
         />
       )}
-    </section>
-  );
-}
-function Breakdown({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: SpendingBreakdown[];
-}) {
-  return (
-    <section>
-      <h3>{title}</h3>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{title === "按月汇总" ? "月份" : "标签"}</th>
-              <th>币种</th>
-              <th>笔数</th>
-              <th>净消费</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i}>
-                <td>{r.label ?? "未分类"}</td>
-                <td>{r.currency}</td>
-                <td>{r.count}</td>
-                <td>{formatDisplayAmount(r.net_spending)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }

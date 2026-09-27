@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { normalizeQuery } from "../apps/api/src/services/spendingValidation";
+import { bankDate } from "../apps/api/src/services/spendingCsvParser";
 import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
 import { formatHoursMinutes } from "../apps/web/src/lib/timeFormat";
@@ -9,7 +10,11 @@ import { buildProfitChartData, buildTrendChartData, calculateTrendCumulativeMove
 void main();
 
 async function main(): Promise<void> {
-  // Spending dates are statement calendar dates, not portfolio cutoff dates.
+  // Spending dates use bank-specific calendar formats, never locale guessing or portfolio cutoffs.
+  assert.equal(bankDate("20260924", "ccb_debit"), "2026-09-24");
+  assert.equal(bankDate("20260924", "ccb_credit"), "2026-09-24");
+  assert.equal(bankDate("01/02/26", "bnz"), "2026-02-01");
+  assert.throws(() => bankDate("02/30/26", "bnz"));
   assert.equal(normalizeQuery({ month: "2026-06" }).from, "2026-06-01");
   assert.equal(normalizeQuery({ month: "2026-06" }).to, "2026-06-30");
   assert.equal(getAppBusinessDate("2026-05-27T21:59:59.000Z"), "2026-05-27");

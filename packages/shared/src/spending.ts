@@ -1,24 +1,32 @@
-export const SPENDING_TYPES = [
-  "purchase",
-  "refund",
-  "repayment",
-  "cashback",
-  "fee",
-  "interest",
-  "cash_advance",
-  "adjustment",
-] as const;
-export type SpendingType = (typeof SPENDING_TYPES)[number];
-export const SPENDING_TYPE_LABELS: Record<SpendingType, string> = {
-  purchase: "消费",
-  refund: "退款",
-  repayment: "还款",
-  cashback: "返现",
-  fee: "手续费",
-  interest: "利息",
-  cash_advance: "取现",
-  adjustment: "调整",
+export const SPENDING_FORMATS = ["ccb_debit", "ccb_credit", "bnz"] as const;
+export type SpendingFormat = (typeof SPENDING_FORMATS)[number];
+export const SPENDING_FORMAT_LABELS: Record<SpendingFormat, string> = {
+  ccb_debit: "建行借记卡",
+  ccb_credit: "建行信用卡",
+  bnz: "BNZ 账户",
 };
+export const SPENDING_CLASSES = [
+  "income",
+  "spending",
+  "refund",
+  "excluded",
+  "review",
+] as const;
+export type SpendingClass = (typeof SPENDING_CLASSES)[number];
+export const SPENDING_CLASS_LABELS: Record<SpendingClass, string> = {
+  income: "收入",
+  spending: "消费",
+  refund: "退款",
+  excluded: "转账/不计入",
+  review: "待确认",
+};
+export const SPENDING_ENCODINGS = [
+  "utf-8",
+  "gb18030",
+  "utf-16le",
+  "utf-16be",
+] as const;
+export type SpendingEncoding = (typeof SPENDING_ENCODINGS)[number];
 export const SPENDING_CURRENCIES = [
   "CNY",
   "NZD",
@@ -32,56 +40,80 @@ export const SPENDING_CURRENCIES = [
 export interface SpendingAccount {
   id: string;
   name: string;
-  institution: string;
+  source_format: SpendingFormat;
   default_currency: string;
+  identity_suffix: string | null;
   is_active: boolean;
 }
+export interface ParsedSpendingRow {
+  row_number: number;
+  transaction_date: string;
+  description: string;
+  amount: string;
+  classification: SpendingClass;
+  tag: string | null;
+  notes: string | null;
+  source_metadata: Record<string, string | string[]>;
+  fingerprint: string;
+}
+export interface SpendingPreviewRow extends ParsedSpendingRow {
+  duplicate_count: number;
+}
+export interface SpendingPreview {
+  encoding: SpendingEncoding;
+  parser_version: string;
+  rows: SpendingPreviewRow[];
+  errors: { row_number: number; message: string }[];
+  warnings: string[];
+}
+/** An import/document batch, retaining the existing table identity. */
 export interface AccountStatement {
   id: string;
   account_id: string;
-  month: string;
-  statement_date: string;
-  period_start: string;
-  period_end: string;
-  currency: string;
-  status: "entering" | "complete";
-  notes: string | null;
+  account_name: string;
+  status: "draft" | "preview" | "committed" | "undone" | "document";
+  created_at: string;
+  expires_at: string;
+  encoding: SpendingEncoding | null;
+  parser_version: string | null;
+  csv_file_key: string | null;
+  csv_file_version: string | null;
+  csv_file_name: string | null;
+  csv_sha256: string | null;
   source_file_key: string | null;
   source_file_version: string | null;
   source_file_name: string | null;
   source_file_size: number | null;
   file_sha256: string | null;
-  account_name: string;
   row_count: number;
+  edited_count: number;
+  imported_count: number;
+  skipped_count: number;
+  rejected_count: number;
+  date_from: string | null;
+  date_to: string | null;
+  preview: SpendingPreview | null;
+  preview_token: string | null;
 }
-export interface StatementRow {
+export interface StatementRow
+  extends Omit<ParsedSpendingRow, "row_number" | "fingerprint"> {
+  row_number: number | null;
+  fingerprint: string | null;
   id: string;
-  statement_id: string;
-  row_number: number;
-  suffix_number: string | null;
-  transaction_date: string;
-  posting_date: string;
-  description: string;
-  transaction_type: SpendingType;
-  is_spending: boolean;
-  original_currency: string;
-  original_amount: string;
-  settlement_amount: string;
-  tag: string | null;
-  notes: string | null;
-  currency: string;
+  statement_id: string | null;
   account_id: string;
   account_name: string;
-  statement_month: string;
+  currency: string;
+  updated_at: string;
 }
 export interface SpendingAggregate {
   currency: string;
-  included_positive: string;
-  included_negative: string;
+  income: string;
+  gross_spending: string;
+  refunds: string;
   net_spending: string;
-  excluded_amount: string;
-  spending_count: number;
   count: number;
+  pending_count: number;
 }
 export interface SpendingBreakdown extends SpendingAggregate {
   label: string | null;
@@ -97,35 +129,18 @@ export interface SpendingQueryResult {
   totals: SpendingAggregate[];
   monthly: SpendingBreakdown[];
   tags: SpendingBreakdown[];
-  entering_count: number;
 }
 export interface SpendingFilterOptions {
   tags: string[];
-  suffixes: string[];
 }
 export interface StatementListResult {
   statements: AccountStatement[];
   pagination: SpendingQueryResult["pagination"];
 }
-export interface SpendingQuery {
-  month?: string;
-  from?: string;
-  to?: string;
-  statementMonth?: string;
-  statementId?: string;
-  accountId?: string;
-  suffixNumber?: string;
-  tag?: string;
-  untagged?: string;
-  transactionType?: string;
-  isSpending?: string;
-  currency?: string;
-  q?: string;
-  limit?: string;
-  offset?: string;
-}
-
-/** UI default only; the API validates money before applying the same rule. */
-export function defaultSpendingInclusion(amount: string): boolean {
-  return /^\d+(?:\.\d+)?$/.test(amount) && /[1-9]/.test(amount);
+export interface SpendingImportDecision {
+  row_number: number;
+  skip: boolean;
+  classification: SpendingClass;
+  tag: string | null;
+  allow_duplicate: boolean;
 }

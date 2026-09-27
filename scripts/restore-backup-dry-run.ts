@@ -93,6 +93,7 @@ function validatePrimaryKeys(payload: LedgerBackupPayload): void {
 function validateInternalReferences(payload: LedgerBackupPayload): void {
   requireKnownValues(payload.tables.account_statements, "account_statements", "account_id", idSet(payload.tables.spending_accounts));
   requireKnownValues(payload.tables.statement_rows, "statement_rows", "statement_id", idSet(payload.tables.account_statements));
+  requireKnownValues(payload.tables.statement_rows, "statement_rows", "account_id", idSet(payload.tables.spending_accounts));
   const accounts = idSet(payload.tables.investment_accounts);
   const instruments = idSet(payload.tables.instruments);
   const transactions = idSet(payload.tables.transactions);

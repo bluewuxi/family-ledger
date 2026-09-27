@@ -7,6 +7,7 @@ import { parseJsonBody } from "../utils/requestBody";
 import { success, failure } from "../utils/response";
 import * as service from "../services/spendingService";
 import * as attachments from "../services/spendingAttachmentService";
+import * as imports from "../services/spendingImportService";
 
 export async function spendingRoute(
   event: APIGatewayProxyEventV2,
@@ -35,6 +36,10 @@ export async function spendingRoute(
       );
     if (method === "GET" && kind === "rows")
       return success({ user, ...(await service.queryRows(query)) });
+    if (method === "POST" && kind === "rows")
+      return success({ row: await service.saveRow(body(), user) }, 201);
+    if (method === "PATCH" && kind === "rows")
+      return success(await service.bulkRows(body(), user));
     if (method === "GET" && kind === "filter-options")
       return success(await service.filterOptions(query));
   }
@@ -45,23 +50,24 @@ export async function spendingRoute(
       return success({
         account: await service.saveSpendingAccount(body(), user, id),
       });
-    if (method === "PATCH" && kind === "statements")
-      return success({
-        statement: await service.saveStatement(body(), user, id),
-      });
     if (method === "PATCH" && kind === "rows")
       return success({
-        row: await service.saveRow(body(), user, undefined, id),
+        row: await service.saveRow(body(), user, id),
       });
-    if (
-      method === "DELETE" &&
-      (kind === "accounts" || kind === "statements" || kind === "rows")
-    )
+    if (method === "DELETE" && (kind === "accounts" || kind === "rows"))
       return success(await service.removeSpendingRecord(kind, id, user));
   }
   if (parts.length === 4 && kind === "statements" && id) {
-    if (method === "POST" && child === "rows")
-      return success({ row: await service.saveRow(body(), user, id) }, 201);
+    if (method === "POST" && child === "csv-upload")
+      return success(await imports.beginCsvUpload(id, body()));
+    if (method === "POST" && child === "preview")
+      return success({ statement: await imports.previewCsv(id, body(), user) });
+    if (method === "POST" && child === "commit")
+      return success({ statement: await imports.commitCsv(id, body(), user) });
+    if (method === "POST" && child === "undo")
+      return success(await imports.undoCsv(id, body(), user));
+    if (method === "GET" && child === "csv")
+      return success(await imports.viewCsv(id));
     if (method === "POST" && child === "attachment-upload")
       return success(await attachments.beginStatementUpload(id, body()));
     if (child === "attachment") {

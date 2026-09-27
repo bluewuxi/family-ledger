@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   GetObjectCommand,
+  CopyObjectCommand,
   HeadObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -20,6 +21,22 @@ const client = new S3Client({});
 export const attachmentDependencies = {
   getStatement,
   saveSpendingRecord,
+  copy: async (
+    Bucket: string,
+    Key: string,
+    source: string,
+    version: string,
+  ) => {
+    const result = await client.send(
+      new CopyObjectCommand({
+        Bucket,
+        Key,
+        CopySource: `${Bucket}/${source}?versionId=${encodeURIComponent(version)}`,
+      }),
+    );
+    if (!result.VersionId) invalid("PDF 存储必须启用版本管理。");
+    return result.VersionId;
+  },
   head: (Bucket: string, Key: string) =>
     client.send(new HeadObjectCommand({ Bucket, Key })),
   read: async (Bucket: string, Key: string, VersionId: string) => {
@@ -68,7 +85,11 @@ export function validatePdfBytes(
 }
 export function validateAttachmentKey(id: string, key: unknown): string {
   const value = textValue(key, "文件编号", 200)!;
-  if (!new RegExp(`^statements/${uuid(id)}/[0-9a-f-]{36}\\.pdf$`).test(value))
+  if (
+    !new RegExp(`^statements/pending/${uuid(id)}/[0-9a-f-]{36}\\.pdf$`).test(
+      value,
+    )
+  )
     invalid("文件不属于此账单。");
   return value;
 }
@@ -86,7 +107,7 @@ export async function beginStatementUpload(id: string, input: unknown) {
     invalid("PDF 最大为 10 MiB。");
   if (typeof body.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(body.sha256))
     invalid("文件校验值无效。");
-  const key = `statements/${id}/${randomUUID()}.pdf`;
+  const key = `statements/pending/${id}/${randomUUID()}.pdf`;
   const fields = {
     "Content-Type": "application/pdf",
     "x-amz-meta-sha256": body.sha256,
@@ -128,12 +149,19 @@ export async function finishStatementUpload(
       invalid("上传文件信息不完整。");
     const bytes = await deps.read(Bucket, key, head.VersionId);
     validatePdfBytes(bytes, hash);
+    const permanentKey = key.replace("statements/pending/", "statements/");
+    const permanentVersion = await deps.copy(
+      Bucket,
+      permanentKey,
+      key,
+      head.VersionId,
+    );
     await deps.saveSpendingRecord(
       "account_statements",
       id,
       {
-        source_file_key: key,
-        source_file_version: head.VersionId,
+        source_file_key: permanentKey,
+        source_file_version: permanentVersion,
         source_file_name: Buffer.from(encodedName, "base64").toString("utf8"),
         source_file_size: bytes.length,
         file_sha256: hash,

@@ -45,7 +45,7 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 3);
+  assert.equal(backupObject.payload.manifest.version, 4);
   const previous = structuredClone(backupObject.payload);
   previous.manifest.version = 2;
   const newTables = ["spending_accounts", "account_statements", "statement_rows"];
@@ -60,6 +60,17 @@ async function runSelfTests(): Promise<void> {
   assert.deepEqual(prepareLedgerRestoreRows(previous).statement_rows, []);
   assert.deepEqual(prepareLedgerRestoreRows(previous).account_statements, []);
   assert.deepEqual(prepareLedgerRestoreRows(previous).spending_accounts, []);
+  const asVersion3 = (value: LedgerBackupPayload) => {
+    const copy = structuredClone(value);
+    copy.manifest.version = 3;
+    const {payloadChecksumSha256: _p, fileChecksumSha256: _f, ...manifest} = copy.manifest;
+    copy.manifest.payloadChecksumSha256 = hash({manifest,tables:copy.tables});
+    copy.manifest.fileChecksumSha256 = hash({manifest:{...manifest,payloadChecksumSha256:copy.manifest.payloadChecksumSha256},tables:copy.tables});
+    return copy;
+  };
+  assert.deepEqual(prepareLedgerRestoreRows(asVersion3(backupObject.payload)).statement_rows, []);
+  const withLegacySpending = createLedgerBackupObject({environment:"test",generatedAt:"2026-09-26T00:00:00Z",rows:{...rows,spending_accounts:[{id:"old-account"}]}});
+  assert.throws(()=>prepareLedgerRestoreRows(asVersion3(withLegacySpending.payload)),/Legacy spending tables must be empty/);
   const legacySource = { ...rows, portfolio_snapshot_headers: undefined, portfolio_snapshots: [{
     id: "snapshot-id", snapshot_date: "2026-05-29", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7",
     notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z",

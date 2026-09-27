@@ -1,40 +1,69 @@
-# Spending statements specification
+# Daily income and spending
 
-## Purpose and scope
+Implemented in the working tree; release migration and live verification are pending. See [implementation plan](spending-import-plan.md).
 
-Track recorded spending from credit-card, debit-card, and bank statements. Statements are source documents, not balance-reconciliation records. Keep the three tables `spending_accounts`, `account_statements`, and `statement_rows`; no account-type distinction, budgets, balance fields, reported statement totals, reconciliation, CSV import, or PDF extraction.
+## Scope and model
 
-Statements retain account, month (derived from statement date), statement/period dates, settlement currency, entry status, notes, and optional private PDF metadata. Uniqueness remains `(account_id, statement_date)`. Rows retain dates, description, original/settlement amounts, optional suffix, tag, notes, and descriptive transaction type.
+Support exactly CCB debit, CCB credit, and BNZ account CSV exports. PDFs are optional source attachments and are never parsed. Investment account flows remain separate. No balances, reconciliation, budgets, FX conversion or investment integration.
 
-Manual entry uses positive purchase amounts and negative refunds/cashback for both credit and debit statements. Translate the bank's debit/credit presentation to that convention when entering rows; the PDF is retained as the original source, and no automatic sign conversion or extraction occurs.
+The three existing table names are retained with new shapes:
 
-## Authoritative inclusion rule
+- `spending_accounts`: name, source format, currency, optional account/card suffix and active state. Format/currency/identity are immutable after an import batch or transaction exists.
+- `account_statements`: an import/document batch, not a monthly statement. Stores source/version/hash, encoding, parser version, preview token, decisions, counts, observed transaction range and audit user/timestamps. States: draft, preview, committed, undone, document.
+- `statement_rows`: account, optional batch/record number, date, description, signed amount, classification, one tag, notes, immutable source metadata/fingerprint and edited flag. Manual transactions need no batch.
 
-Add `statement_rows.is_spending boolean NOT NULL`.
+`20260926090000_redesign_spending_imports.sql` transactionally checks and replaces only empty spending tables. No existing spending-data migration/backfill is supported. The migration fails if any related table has records. It locks the old tables before checking emptiness and refreshes PostgREST schema metadata at commit.
 
-- On creation, an omitted flag defaults to `settlement_amount > 0`. Explicit true/false always wins.
-- PATCH preserves the saved flag when omitted, even if the amount or transaction type changes. Null and non-boolean inputs are rejected.
-- Refund/cashback rows default to false because they are negative. Enable them explicitly to deduct their signed amounts. A positive transfer or cash withdrawal can be excluded manually.
-- Transaction type remains descriptive. Existing type/sign validation remains; `adjustment` can represent other positive, negative, or zero entries. Type never overrides the inclusion flag.
-- Net spending is the exact signed sum of included rows, independently grouped by settlement currency. Do not convert currencies or apply special rules for transaction types.
-- Summary fields: `included_positive` (included amounts > 0), `included_negative` (included amounts < 0), `net_spending` (all included amounts), `excluded_amount` (signed net of excluded rows), `count` (matching rows), and `spending_count` (included rows). All monetary values are decimal strings.
-- Monthly and tag breakdowns apply the same flag rule across the entire filtered dataset, not just the visible page. Row counts refer to matched rows. Saved rows count immediately; entering statements remain visibly identified.
-- Changing inclusion reopens a completed statement. Tag/notes-only edits do not.
+## Character encodings and dates
 
-## API
+Read bytes without altering the source file. Support UTF-8 with/without BOM, GB18030 (including common GBK/GB2312 exports), and UTF-16 LE/BE with/without BOM. BOM takes priority. Otherwise evaluate strict decoders and match known bank headers. Identical ASCII results prefer UTF-8. Different plausible interpretations require explicit encoding selection and a new preview. Invalid sequences, replacement characters, NULs and invalid CSV structure are rejected rather than repaired.
 
-Keep existing `/spending` endpoints and standard authorization. Row create/PATCH accepts optional `is_spending`; every row response returns a boolean. `GET /spending/rows` accepts `isSpending=true|false`; omitted means all rows. Invalid values are validation errors. The flag filter combines with date, statement month, account, tag, suffix, type, currency, and keyword filters using AND.
+CCB dates are `YYYYMMDD`; BNZ dates are `DD/MM/YY`, explicitly interpreted as 2000–2099. `01/02/26` is 1 February 2026. Invalid calendar dates are rejected. Store transaction dates as `YYYY-MM-DD` without timezone conversion. Posting/processed dates and CCB transaction times remain source metadata. Reporting uses transaction date, not posting date or a statement month.
 
-Statement create/edit/read no longer supports opening/closing balances, charges/credits totals, or reconciliation. Reject removed input fields rather than silently accepting values that will not be stored. Existing PDF behavior remains unchanged.
+Fixed parsers handle preambles, blank lines, quoted commas/newlines/quotes, trimmed headers and CCB card apostrophe prefixes. Observed trailing CCB debit fields are preserved with a warning. BNZ lacks a currency column, so the preview calls out its configured account currency. Validate source currency and optional identity suffix where present.
 
-## UI
+Limits: 2 MiB CSV, 5,000 transaction records, 32,000 characters per CSV record and 4 MiB decoded preview. Oversized exports must be split by date. Display record numbers refer to parsed CSV records, including preamble/blank records, not physical lines inside quoted multiline fields.
 
-Keep 日常收支 → 消费明细 and the existing manual entry drawers. Add a 计入消费 switch to row entry/edit/view and a visible yes/no column in the transaction table. New unsaved forms follow the sign of the entered settlement amount until the user manually sets the switch; after a manual choice, keep it through amount/type edits. Existing rows always start with the stored choice. 保存并继续 starts a fresh automatic choice for the next row.
+## Classification and exact totals
 
-Add 全部 / 计入消费 / 不计入消费 filtering, saved in URL query parameters. The default filter is 全部. Summary labels become 计入支出, 计入抵扣, 净消费, and 不计入消费（净额）. Explain that only switched-on rows affect spending and that included negative rows reduce it. Remove all balance inputs, balance columns, and reconciliation copy; statement lists show settlement currency instead.
+Normalised amounts are incoming/credit positive and outgoing/charge negative. CCB debit uses income minus expense; CCB credit booked amounts are negated; BNZ Amount stays unchanged. A credit-card credit is a liability reduction and is not automatically income.
 
-## Persistence, rollout, and verification
+One classification controls reporting:
 
-The original spending migration was revised before its first application and deployed to test on 2026-09-24 after a fresh backup. Database insertion supplies the conditional flag default when omitted, preserves explicit values, and rejects null on updates. Supporting views/RPCs include the flag and use it for all totals. Existing investment tables and calculations are unaffected. Version-3 backups automatically include the flag with full row records; legacy version-2 restores still initialize spending tables empty.
+- `income` / 收入: positive amount, included in income.
+- `spending` / 消费: negative amount, reported as positive gross spending.
+- `refund` / 退款: positive amount, reduces net spending in its transaction month.
+- `excluded` / 转账/不计入: either sign, outside income/spending.
+- `review` / 待确认: either sign, outside income/spending until reviewed.
 
-Verify positive/zero/negative defaults, both explicit overrides, omitted-field PATCH preservation across sign/type changes, null/string rejection, inclusion-triggered reopening, and tag-only preservation. Verify excluded positive transfers, opt-in negative refunds, included adjustments, mixed currencies, month/tag/suffix/flag filters, and full totals across pagination in isolated PostgreSQL. Typecheck, build, spending, database, backup, and time-policy checks passed for the test rollout, followed by authenticated API/PDF checks and a version-3 backup restore dry-run. Authenticated browser verification remains deferred at the user's request.
+Known CCB consumption and negative BNZ POS rows suggest spending. Explicit repayments/redemptions suggest excluded; clear interest/payroll descriptions suggest income; clear refunds suggest refund. Other movements remain review. These are suggestions and can be overridden in preview or later, individually or in bulk. No general tagging-rule editor.
+
+Money is PostgreSQL `numeric(20,6)` and decimal strings in API/backup JSON. SQL aggregates the full filtered dataset separately by account currency. Totals are income, gross spending, refunds, net spending, record count and pending count. Tag proportions use gross spending including 未分类; negative net values are not pie slices. Frontend numeric conversions are only for chart geometry/percentage presentation. Missing months are not claims of zero spending or complete coverage.
+
+## Import safety
+
+Choose account → upload → preview → review all records/errors/duplicates → confirm. Preview never inserts transactions. Malformed rows block the whole import; correct and upload again. Valid rows may be explicitly skipped.
+
+An account-scoped source hash prevents repeat committed files. Conservative fingerprints identify exact normalized source-record candidates while retaining bank metadata distinctions. This is candidate detection, not guaranteed matching of differently described bank exports. Possible overlapping rows default to skipped in the UI; explicitly keeping them records duplicate approval. Identical legitimate rows within a file remain separate.
+
+A preview token binds decisions to server-parsed content and an exact S3 version. Commit locks the account, rechecks duplicate counts, and atomically inserts the selected rows and updates the batch. Concurrent changes require a new preview. Retrying the same committed token and decisions returns the prior result. Changed decisions on a committed token are rejected. Source metadata remains immutable after edits.
+
+Undo removes only the selected batch's surviving transactions and preserves the batch/source files. It checks edited rows under the same lock; edited rows need explicit confirmation. Manual transactions and other batches are unaffected.
+
+## Files, permissions and retention
+
+All GETs require active viewer/admin; all writes require admin through Lambda. RLS and revoked direct writes provide defensive protection. Source files are private S3 objects with exact-version reads.
+
+Signed uploads/read URLs last five minutes. Uploads bind length, content type and SHA-256 metadata; server verifies actual bytes. CSV and PDF uploads use `statements/pending/`, with seven-day current/noncurrent expiry and one-day abandoned multipart cleanup. Import previews expire after 24 hours. Expired batch metadata remains as audit history; its staged CSV will become unavailable after lifecycle expiry.
+
+Confirmation copies the validated exact source version to a retained prefix. CSV copy precedes database commit; PDF copy precedes attachment linking. A storage failure does not create transactions or replace the old PDF. Confirmed copies, including unlinked replacements and copies left by a failed database commit, are deliberately retained; manual storage housekeeping must check database references before deletion. The API has no object-delete permission. DB backup contains metadata, not source bytes; retain S3 versions separately.
+
+## Verification and release
+
+`verify:spending`: synthetic bank layouts across encodings, strict decoding failures, CN/NZ dates, sign/classification rules, decimal validation, PDF validation, storage failures/version pinning and route authorization.
+
+`verify:spending-db`: isolated local PostgreSQL migration, empty-table guard, exact aggregates, duplicate multiplicity, atomic failure/retry/concurrent imports, manual entries, bulk edits, undo isolation, RLS and backup restoration. Never loads personal files or writes test/production data.
+
+Backup version 4 handles this schema and exports spending amounts as text. Older backups remain readable, but restoring any pre-v4 spending records is rejected; empty legacy spending tables need no conversion. Investment restore behavior stays intact.
+
+Before release run typecheck/build, spending/database/time-policy/backup checks, then authenticated UI checks at the required phone/tablet/desktop sizes. Applying this migration is a breaking API/schema cutover: stop old spending writes, verify emptiness, apply migration, deploy compatible API/jobs/web and storage lifecycle together, and verify before allowing personal imports.

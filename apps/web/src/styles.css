@@ -4547,3 +4547,23 @@ tr.editing-row td {
 
 .spending-inclusion-filter { display:grid; gap:7px; max-width:260px; margin:14px 0; }
 .spending-inclusion-filter select { min-height:44px; width:100%; }
+
+/* Imported household transactions: stack controls, keep data tables scrollable. */
+.spending-chart-stack { display: grid; gap: 24px; margin-block: 24px; }
+.spending-chart-section { min-width: 0; border-top: 1px solid var(--border-color, #d9dfdb); padding-top: 16px; }
+.spending-chart { min-width: 0; width: 100%; }
+.spending-tag-bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; width: 100%; text-align: left; padding: 12px 0; min-height: 44px; background: transparent; color: inherit; border: 0; cursor: pointer; }
+.spending-tag-track { display: block; width: 100%; height: 8px; background: #87978b22; border-radius: 4px; overflow: hidden; }
+.spending-tag-track > span { display: block; height: 100%; background: #357e70; border-radius: inherit; }
+.spending-source-details { overflow-wrap: anywhere; }
+.spending-source-details dd { margin: 4px 0 14px; }
+.spending-bulk { border: 0; padding: 12px 0; }
+.spending-bulk input, .spending-bulk select { min-height: 44px; max-width: 100%; }
+.spending-table input[type=checkbox] { min-width: 24px; min-height: 44px; cursor: pointer; }
+.spending-table select, .spending-table input:not([type=checkbox]) { min-height: 44px; }
+.spending-form input[type=file] { max-width: 100%; width: 100%; }
+@media (max-width: 600px) {
+ .spending-bulk > input, .spending-bulk > select, .spending-bulk > button { width: 100%; }
+ .spending-chart-section { width: 100%; overflow: hidden; }
+ .spending-tag-bar { font-size: 14px; }
+}

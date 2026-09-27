@@ -16,6 +16,7 @@
     "@aws-sdk/s3-request-presigner": "3.1052.0",
     "@family-ledger/shared": "workspace:*",
     "@supabase/supabase-js": "^2.48.1",
+    "csv-parse": "^7.0.3",
     "decimal.js": "^10.6.0"
   },
   "devDependencies": {

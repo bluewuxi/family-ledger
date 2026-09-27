@@ -255,14 +255,14 @@ RLS is enabled as a defensive layer.
 - Lambda API remains the primary business authorization layer.
 - Frontend must not write business tables directly.
 
-## Spending statements
+## Spending imports
 
-See [Spending statements specification](spending.md) for the design and acceptance criteria.
+See [daily income/spending specification](spending.md). The empty-table redesign migration is `20260926090000_redesign_spending_imports.sql`; the original deployed migration remains unchanged.
 
-Three shared-family tables store spending sources independently of investments: `spending_accounts`, `account_statements`, and `statement_rows`. Statements have no balance or reconciliation fields. A statement is unique by `(account_id, statement_date)` and has one settlement currency. Card suffix is optional four-character text; tags are optional free text.
+`spending_accounts` stores supported bank format, account currency and optional identity suffix. `account_statements` stores import/document batches, exact-version CSV/PDF references, encoding/parser version, server preview/token, commit decisions and audit counts. `statement_rows` stores account, nullable batch/record number, calendar transaction date, signed numeric(20,6) amount, classification, tag/notes, immutable source metadata/fingerprint and edited status.
 
-`statement_rows.is_spending` is the sole spending inclusion rule. On insert, omission defaults to `settlement_amount > 0`; explicit booleans override it. Updates preserve the saved choice unless explicitly changed. Included signed amounts determine net spending, including any explicitly included negative refund/cashback. Transaction type remains descriptive and never automatically overrides the flag. Inclusion edits reopen completed statements; tag/notes-only edits do not.
+Income/refund amounts are positive; spending is negative. Excluded/review rows do not enter income/spending totals. SQL aggregates exact decimal-string results over all filtered rows, independently by currency. There is no statement month, is_spending switch, original amount/currency, balance or reconciliation field.
 
-Money uses `numeric(20,6)` and decimal-string DTOs. Month/date filters use recorded calendar transaction dates; statement month uses statement date. Queries aggregate the entire filtered dataset in PostgreSQL, grouped separately by settlement currency. Positive included amounts, negative included amounts, net spending, excluded signed amounts, row count, and included-row count are returned for totals/month/tag groups. No FX conversion, balances, or portfolio integration is performed.
+A partial unique index prevents the same account/source hash from being committed twice. Account locks serialize import commits, undo and row edits. Preview tokens and duplicate-count rechecks prevent stale/concurrent imports; imported source identities remain immutable. Undo preserves source/audit metadata. Manual rows have null statement_id and row_number. An account's format/currency/identity is immutable after use.
 
-PDFs remain private version-pinned S3 objects with metadata only in Postgres. Backup/restore includes the complete new rows and their flags. Existing viewer/admin authorization and API-only writes remain unchanged.
+Backup version 4 includes the new shapes and exports row amounts as strings. Older backups with empty spending tables restore without conversion; nonempty legacy spending tables are rejected. Source bytes remain in separately retained S3 versions. Viewer/admin access and API-only writes remain enforced.

@@ -1,6 +1,9 @@
 import { useState } from "react";
 import {
   SPENDING_CURRENCIES,
+  SPENDING_FORMATS,
+  SPENDING_FORMAT_LABELS,
+  type SpendingFormat,
   type SpendingAccount,
 } from "@family-ledger/shared";
 import { Drawer } from "../Drawer";
@@ -20,7 +23,8 @@ export function SpendingAccountsDrawer({
   const [id, setId] = useState<string>(),
     [form, setForm] = useState({
       name: "",
-      institution: "",
+      source_format: "ccb_debit" as SpendingFormat,
+      identity_suffix: "",
       default_currency: "CNY",
       is_active: true,
     });
@@ -30,7 +34,8 @@ export function SpendingAccountsDrawer({
     setId(undefined);
     setForm({
       name: "",
-      institution: "",
+      source_format: "ccb_debit" as SpendingFormat,
+      identity_suffix: "",
       default_currency: "CNY",
       is_active: true,
     });
@@ -49,7 +54,7 @@ export function SpendingAccountsDrawer({
     }
   }
   async function remove() {
-    if (!id || !window.confirm("删除此消费账户？已有账单的账户无法删除。"))
+    if (!id || !window.confirm("删除此收支账户？已有账单的账户无法删除。"))
       return;
     setBusy(true);
     try {
@@ -65,7 +70,7 @@ export function SpendingAccountsDrawer({
   return (
     <Drawer
       open
-      title="消费账户"
+      title="收支账户"
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -79,18 +84,20 @@ export function SpendingAccountsDrawer({
               setId(a.id);
               setForm({
                 name: a.name,
-                institution: a.institution,
+                source_format: a.source_format,
+                identity_suffix: a.identity_suffix ?? "",
                 default_currency: a.default_currency,
                 is_active: a.is_active,
               });
             }}
           >
-            {a.name} · {a.institution} · {a.default_currency}
+            {a.name} · {SPENDING_FORMAT_LABELS[a.source_format]} ·{" "}
+            {a.default_currency}
             {!a.is_active ? " · 已停用" : ""}
           </button>
         ))}
       </div>
-      {!accounts.length && <p>暂无消费账户。</p>}
+      {!accounts.length && <p>暂无收支账户。</p>}
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -109,14 +116,33 @@ export function SpendingAccountsDrawer({
               />
             </label>
             <label>
-              银行
-              <input
-                value={form.institution}
-                maxLength={120}
+              银行格式
+              <select
+                value={form.source_format}
                 onChange={(e) =>
-                  setForm({ ...form, institution: e.target.value })
+                  setForm({
+                    ...form,
+                    source_format: e.target.value as SpendingFormat,
+                    default_currency: e.target.value === "bnz" ? "NZD" : "CNY",
+                  })
                 }
-              />
+              >
+                {SPENDING_FORMATS.map((f) => (
+                  <option key={f} value={f}>
+                    {SPENDING_FORMAT_LABELS[f]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              账号/卡号后四位（可选）
+              <input
+                value={form.identity_suffix}
+                maxLength={4}
+                onChange={(e) =>
+                  setForm({ ...form, identity_suffix: e.target.value })
+                }
+              />{" "}
             </label>
             <label>
               默认币种

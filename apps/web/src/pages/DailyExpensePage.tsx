@@ -29,14 +29,14 @@ export function DailyExpensePage() {
             })
           }
         >
-          消费明细
+          交易明细
         </button>
       </nav>
       {tab === "accounts" ? (
         <AccountPurposePage purpose="daily_expense" />
       ) : (
         <>
-          <h1>消费明细</h1>
+          <h1>交易明细</h1>
           <SpendingPage />
         </>
       )}

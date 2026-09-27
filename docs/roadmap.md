@@ -84,6 +84,8 @@
 
 ## Spending Queries and Statements
 
-- Implemented and deployed to test on 2026-09-24: 日常收支 tabs for account flows and spending, three-table spending schema, manual statement/transaction entry, text tags/card suffix filters, monthly and tag summaries, exact settlement-currency totals, and private version-pinned PDF attachments.
-- Saved rows count immediately; is_spending alone controls inclusion, with positive-amount defaults and explicit overrides. Negative refunds/cashback reduce net spending only when included. Balance/reconciliation fields are removed. Budget management, CSV import, PDF extraction, FX conversion, and portfolio integration are excluded.
-- Test migration, authenticated API/PDF smoke checks, and version-3 backup/restore dry-run passed. Authenticated browser acceptance remains deferred at the user's request. Production deployment and importing personal statements are outside this rollout.
+- Implemented locally, not deployed: [CSV import redesign](spending-import-plan.md) for CCB debit/credit and BNZ; automatic strict UTF-8/GB18030/UTF-16 detection; bank-specific dates; import previews, duplicates, atomic confirmation/retry and undo; simplified classification/manual rows; bulk tags; monthly and tag charts; retained CSV/PDF sources.
+- The versioned empty-table schema redesign requires no data backfill. Related tables must remain empty until release. Backups use version 4 with exact spending amount strings.
+- Local parser/storage tests, isolated PostgreSQL concurrency/undo/backup-restore checks, typecheck and build passed. Authenticated browser acceptance and live storage checks remain pending the coordinated schema/API/web release. No personal statements have been imported.
+- Test currently retains the 2026-09-24 manual statement implementation and version-3 schema. Its original deployment checks passed; the new release replaces its is_spending/statement-month model.
+- PDF extraction, budgets, FX conversion and investment integration remain out of scope.

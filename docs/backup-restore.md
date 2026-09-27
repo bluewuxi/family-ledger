@@ -1,6 +1,6 @@
 # Backup And Restore
 
-Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export UI. Version 2 introduced snapshot headers and account rows after the test cutover on 2026-09-23; version 3 adds spending tables and is the current test export format. Both version-2 and version-3 restores are supported. Test contains real family data; production has not been deployed. Restoring version-1 backups is outside the supported operational scope. Existing legacy conversion code is retained for the completed rollout, without additional compatibility work.
+Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export UI. Version 2 introduced snapshot headers and account rows after the test cutover on 2026-09-23; version 3 adds spending tables and is the current test export format. With the pending version-4 redesign, version-2 and version-3 restores require empty legacy spending tables. Test contains real family data; production has not been deployed. Restoring version-1 backups is outside the supported operational scope. Existing legacy conversion code is retained for the completed rollout, without additional compatibility work.
 
 ## Backup Scope
 
@@ -73,3 +73,11 @@ The test environment contains real family data. Rehearse restores in an isolated
 Version 3 adds `spending_accounts`, `account_statements`, and `statement_rows` to the allowlisted single-snapshot export and restore order. Version-2 files remain valid; restore validates their original checksums first and initializes the three missing tables as empty. Existing version-1 compatibility validation is retained. Test uses version 3 following the 2026-09-24 spending rollout; a deployed backup and its restore dry-run passed after deployment.
 
 Spending audit fields also reference external Supabase Auth users. PDF metadata is backed up, including the exact S3 object version, but PDF bytes are not in the database bundle. Retain the dedicated statement bucket and all object versions; replacement, unlinking, and statement deletion do not delete objects. Restoring into another storage environment requires copying those versions or remapping metadata explicitly.
+
+## Version 4 import redesign (pending release)
+
+The new implementation emits version 4 after `20260926090000_redesign_spending_imports.sql`. Spending table names remain unchanged, but batches replace dated statements and transactions have signed account-currency amounts plus one reporting classification. Exporter casts spending amounts to text before JSON serialization to preserve all 20 decimal digits through backup/restore.
+
+Pre-v4 backups are checksum-validated as originally saved. They can restore only when all legacy spending tables are empty; nonempty legacy spending records fail explicitly instead of being silently dropped or converted. Version-4 manual rows may have null statement_id; every row still references its spending account. CSV/PDF metadata includes exact retained S3 versions; source bytes are external to the bundle. Pending upload versions expire after seven days and are not permanent backup sources. Retained source copies survive undo and unlink.
+
+The isolated spending database verifier rehearses restoring current-schema rows, including maximum-precision money and manual rows, without touching investment records. Shared test still uses version 3 until the coordinated release; do not run a version-4 backup job against the old schema.

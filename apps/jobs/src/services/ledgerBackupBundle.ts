@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 3;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20260923090000_add_spending_statements";
+export const LEDGER_BACKUP_VERSION = 4;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20260926090000_redesign_spending_imports";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -21,7 +21,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -138,7 +138,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (payload.manifest.version !== 1 && payload.manifest.version !== 2 && payload.manifest.version !== LEDGER_BACKUP_VERSION) {
+  if (payload.manifest.version !== 1 && payload.manifest.version !== 2 && payload.manifest.version !== 3 && payload.manifest.version !== LEDGER_BACKUP_VERSION) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -162,7 +162,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
     throw new Error("Backup JSON serialization is unsupported.");
   }
 
-  const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name).filter((name) => payload.manifest.version === 3 || !["spending_accounts", "account_statements", "statement_rows"].includes(name));
+  const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name).filter((name) => payload.manifest.version >= 3 || !["spending_accounts", "account_statements", "statement_rows"].includes(name));
   const manifestTableNames = payload.manifest.tables.map((table) => table.name);
   const legacyTableNames = currentTableNames.map((name) => name === "portfolio_snapshot_headers" ? "portfolio_snapshots" : name);
   const acceptsLegacySnapshots = JSON.stringify(manifestTableNames) === JSON.stringify(legacyTableNames);
@@ -286,6 +286,9 @@ export function stableStringify(value: unknown): string {
 export function prepareLedgerRestoreRows(payload: LedgerBackupPayload): LedgerBackupRows {
   validateLedgerBackupPayload(payload);
   const source = payload.tables as unknown as Record<string, unknown[]>;
+  if (payload.manifest.version < 4 && ["spending_accounts", "account_statements", "statement_rows"].some(name => (source[name]?.length ?? 0) > 0)) {
+    throw new Error("Legacy spending tables must be empty; spending data conversion is not supported.");
+  }
   const rows = {} as LedgerBackupRows;
   for (const table of LEDGER_BACKUP_TABLES) {
     if (table.name === "portfolio_snapshot_headers" && !source[table.name]) {
