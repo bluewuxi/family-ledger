@@ -84,8 +84,8 @@
 
 ## Spending Queries and Statements
 
-- Implemented locally, not deployed: [CSV import redesign](spending-import-plan.md) for CCB debit/credit and BNZ; automatic strict UTF-8/GB18030/UTF-16 detection; bank-specific dates; import previews, duplicates, atomic confirmation/retry and undo; simplified classification/manual rows; bulk tags; monthly and tag charts; retained CSV/PDF sources.
+- Deployed to test on 2026-09-27 (#91): [CSV import redesign](spending-import-plan.md) for CCB debit/credit and BNZ; automatic strict UTF-8/GB18030/UTF-16 detection; bank-specific dates; import previews, duplicates, atomic confirmation/retry and undo; simplified classification/manual rows; bulk tags; monthly and tag charts; retained CSV/PDF sources.
 - The versioned empty-table schema redesign requires no data backfill. Related tables must remain empty until release. Backups use version 4 with exact spending amount strings.
-- Local parser/storage tests, isolated PostgreSQL concurrency/undo/backup-restore checks, typecheck and build passed. Authenticated browser acceptance and live storage checks remain pending the coordinated schema/API/web release. No personal statements have been imported.
-- Test currently retains the 2026-09-24 manual statement implementation and version-3 schema. Its original deployment checks passed; the new release replaces its is_spending/statement-month model.
+- Local parser/storage tests, isolated PostgreSQL concurrency/undo/backup-restore checks, typecheck and build passed. Deployment health, runtime config/current assets, schema and version-4 backup checks passed. Remaining UI/mobile and personal import acceptance are delegated to the user at their request. No personal statements have been imported.
+- Test now uses the redesigned schema and version-4 backups, replacing the 2026-09-24 is_spending/statement-month model.
 - PDF extraction, budgets, FX conversion and investment integration remain out of scope.

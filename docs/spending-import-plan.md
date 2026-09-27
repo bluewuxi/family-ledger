@@ -1,8 +1,8 @@
 # Daily income and spending redesign plan
 
-Status: implemented locally; release and authenticated browser acceptance pending. Updated 2026-09-27.
+Status: deployed to test on 2026-09-27 (#91); user will perform UI acceptance testing.
 
-This document records the implementation plan. `docs/spending.md` now specifies the new implementation; the deployed test environment remains on the previous schema until release.
+This document records the implementation plan. `docs/spending.md` now specifies the new implementation; the test environment now runs this schema and implementation.
 
 ## Scope and release assumption
 
@@ -106,3 +106,4 @@ Likely affected areas: `packages/shared`, spending API repositories/services/rou
 ## Out of scope
 
 PDF extraction/OCR, arbitrary CSV mappings, other bank formats, budgets, a tagging-rule editor, automatic FX conversion, investment integration, balance reconciliation, and migration of old spending records.
+
