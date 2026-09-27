@@ -342,7 +342,8 @@ export function SpendingStatementsDrawer({
               ))}
             </div>
           )}
-          <div className="table-wrap">
+          <p className="spending-hint">左右滚动表格可查看统计归类和标签；上下滚动可查看其余交易。</p>
+          <div className="table-wrap spending-preview-scroll" role="region" aria-label="导入交易预览，可横向滚动" tabIndex={0}>
             <table className="spending-table">
               <thead>
                 <tr>

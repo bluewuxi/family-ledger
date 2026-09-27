@@ -4567,3 +4567,11 @@ tr.editing-row td {
  .spending-chart-section { width: 100%; overflow: hidden; }
  .spending-tag-bar { font-size: 14px; }
 }
+/* Keep preview controls reachable without scrolling past all 50 rows. */
+.drawer-panel:has(.spending-preview-scroll) { width: min(100%, 1200px); min-width: 0; }
+.drawer-panel:has(.spending-preview-scroll) .drawer-body { min-width: 0; }
+.spending-preview-scroll { min-width: 0; max-width: 100%; max-height: 55vh; overflow: auto; scrollbar-gutter: stable; }
+.spending-preview-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--color-surface); }
+.spending-preview-scroll .spending-table { min-width: 1000px; }
+.spending-preview-scroll td:nth-child(3) { min-width: 240px; max-width: 340px; white-space: normal; overflow-wrap: anywhere; }
+.spending-preview-scroll td:nth-child(5), .spending-preview-scroll td:nth-child(6) { min-width: 160px; }
