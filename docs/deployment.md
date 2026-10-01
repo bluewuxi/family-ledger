@@ -336,7 +336,7 @@ Test rollout evidence: CloudFormation reached `UPDATE_COMPLETE`; the reviewed ch
 
 The pre-migration version-2 backup was generated at `2026-09-24T00:15:49.846Z`; the post-deployment version-3 backup at `2026-09-24T00:22:39.640Z`. Both passed restore dry-run validation. Production and personal-statement import were not part of this rollout.
 
-## CSV import redesign rollout (pending)
+## CSV import redesign rollout (completed 2026-09-27)
 
 The new code requires `20260926090000_redesign_spending_imports.sql`. This migration locks/checks all three spending tables are empty, then replaces their schema and RPCs in one transaction. It fails if any records exist. No backfill or old spending-data conversion is implemented. Existing investment tables are not altered. Preserve the applied original migration file.
 
@@ -346,10 +346,17 @@ New uploads use `statements/pending/`: current and noncurrent versions expire af
 
 Verify all three bank layouts and encodings with anonymous files, CN versus NZ date interpretation, permissions, exact-version storage, import retry/undo, classification/chart totals, version-4 backup restoration and authenticated mobile layouts. Released to test on 2026-09-27 under issue #91. The empty-table guard passed; schema/API/jobs/web and pending-object lifecycle were deployed. CloudFormation reached UPDATE_COMPLETE. Health, unauthenticated access rejection, runtime configuration and all current web entry assets passed. Fresh pre-release version-3 and post-release version-4 backups passed payload/checksum validation; investment account, instrument, transaction and monthly-review checksums were unchanged. Remaining UI/mobile and personal CSV import acceptance will be performed by the user, who requested skipping further UI checks. No personal files were imported.
 
-## Next spending release: fresh re-import required (2026-10-01)
+## Spending suffix/cancellation release: fresh re-import (completed 2026-10-01)
 
-User instruction: before deploying the suffix/cancellation changes, empty imported spending data so all CSVs can be imported again. This is a release prerequisite, not an automatic migration action; nothing has been cleared during implementation.
+The user-authorized reset and release completed in test under #96 (implementation commit fc17648). Before deployment, a fresh deployed-job backup was downloaded and checksum-validated; the API was temporarily paused and in-flight requests allowed to finish. The reset removed 941 imported rows and 5 import batches, retaining all 3 spending accounts. No manual rows or standalone PDF document batches were present. Protected account/investment table hashes were unchanged within the reset/migration transaction. This reset is complete; do not repeat it for a routine deployment.
 
 During the authorized deployment window, stop spending writes and capture a recoverable database backup. Record the import batch IDs, delete statement_rows linked to those CSV import batches, then delete their account_statements history (including pending/cancelled/undone batches). Preserve spending_accounts, manual rows with null statement_id, standalone PDF document batches, and all investment data. Perform the database cleanup transactionally and verify no CSV import batches or imported spending rows remain, then apply the additive migration and deploy matching API/jobs/web. Verify that previously used CSV hashes no longer block re-import.
 
 Original private S3 objects remain retained under the existing policy; do not delete source versions as part of this database reset. They will no longer be linked from cleared history. Do not run cleanup during local development or as an unrequested production action.
+
+Release verification: CloudFormation reached UPDATE_COMPLETE; API concurrency was restored. Schema/suffix fields/cancel RPC, empty imported rows/history, health, unauthenticated read/write rejection, runtime configuration and current web entry assets passed. Pre/post backups both passed version-4 checksum and restore dry-run validation; spending accounts, investment accounts, instruments, transactions and monthly reviews had identical pre/post checksums. Authenticated UI/mobile checks remain pending user login. Production was not changed.
+
+Recoverable backups from this release (private backup bucket):
+
+- Before reset: `backups/test/2026/10/01/family-ledger-test-2026-10-01T06-43-47-695Z.json.gz` (payload file checksum `817b73a883909794a84ba2c9371c6337a6680577271a338248ec677e8065ef37`).
+- After deployment: `backups/test/2026/10/01/family-ledger-test-2026-10-01T06-47-51-938Z.json.gz` (payload file checksum `c7843f708e2e152a2e40f7270b205fd27e2d98c44a3d92544ee619cea35b18d4`).

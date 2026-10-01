@@ -1,6 +1,6 @@
 # Daily income and spending
 
-The original CSV redesign is deployed to test. The 2026-10-01 suffix/cancellation enhancements are implemented locally; release and authenticated UI verification are pending. See [implementation plan](spending-import-plan.md).
+The CSV redesign and 2026-10-01 suffix/cancellation enhancements are deployed to test (#96). Automated release verification passed; authenticated mobile UI acceptance remains pending user login. See [implementation plan](spending-import-plan.md).
 
 ## Scope and model
 
