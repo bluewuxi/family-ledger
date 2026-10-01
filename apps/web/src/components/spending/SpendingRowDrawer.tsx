@@ -62,6 +62,12 @@ export function SpendingRowDrawer({
           {error}
         </p>
       )}
+      {row && <div className="spending-source-details">
+        <p>本方账号后四位：{row.account_number_last4 ?? "未提供"}</p>
+        <p>对方户名：{row.counterparty_name ?? "未提供"}</p>
+        <p>对方账号后四位：{row.counterparty_account_last4 ?? "未提供"}</p>
+        <p>资金方向：{!/[1-9]/.test(row.amount) ? "零金额，不判断方向" : row.amount.startsWith("-") ? "本方 → 对方（付款）" : "对方 → 本方（收款）"}</p>
+      </div>}
       <fieldset className="spending-form" disabled={busy || !admin}>
         <label>
           账户

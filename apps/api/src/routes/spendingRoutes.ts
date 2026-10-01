@@ -64,6 +64,8 @@ export async function spendingRoute(
       return success({ statement: await imports.previewCsv(id, body(), user) });
     if (method === "POST" && child === "commit")
       return success({ statement: await imports.commitCsv(id, body(), user) });
+    if (method === "POST" && child === "cancel")
+      return success({ statement: await imports.cancelCsv(id, user) });
     if (method === "POST" && child === "undo")
       return success(await imports.undoCsv(id, body(), user));
     if (method === "GET" && child === "csv")

@@ -1,6 +1,6 @@
 # Daily income and spending
 
-Implemented in the working tree; release migration and live verification are pending. See [implementation plan](spending-import-plan.md).
+The original CSV redesign is deployed to test. The 2026-10-01 suffix/cancellation enhancements are implemented locally; release and authenticated UI verification are pending. See [implementation plan](spending-import-plan.md).
 
 ## Scope and model
 
@@ -9,7 +9,7 @@ Support exactly CCB debit, CCB credit, and BNZ account CSV exports. PDFs are opt
 The three existing table names are retained with new shapes:
 
 - `spending_accounts`: name, source format, currency, optional account/card suffix and active state. Format/currency/identity are immutable after an import batch or transaction exists.
-- `account_statements`: an import/document batch, not a monthly statement. Stores source/version/hash, encoding, parser version, preview token, decisions, counts, observed transaction range and audit user/timestamps. States: draft, preview, committed, undone, document.
+- `account_statements`: an import/document batch, not a monthly statement. Stores source/version/hash, encoding, parser version, preview token, decisions, counts, observed transaction range and audit user/timestamps. States: draft, preview, committed, undone, document, cancelled.
 - `statement_rows`: account, optional batch/record number, date, description, signed amount, classification, one tag, notes, immutable source metadata/fingerprint and edited flag. Manual transactions need no batch.
 
 `20260926090000_redesign_spending_imports.sql` transactionally checks and replaces only empty spending tables. No existing spending-data migration/backfill is supported. The migration fails if any related table has records. It locks the old tables before checking emptiness and refreshes PostgREST schema metadata at commit.
@@ -20,7 +20,7 @@ Read bytes without altering the source file. Support UTF-8 with/without BOM, GB1
 
 CCB dates are `YYYYMMDD`; BNZ dates are `DD/MM/YY`, explicitly interpreted as 2000–2099. `01/02/26` is 1 February 2026. Invalid calendar dates are rejected. Store transaction dates as `YYYY-MM-DD` without timezone conversion. Posting/processed dates and CCB transaction times remain source metadata. Reporting uses transaction date, not posting date or a statement month.
 
-Fixed parsers handle preambles, blank lines, quoted commas/newlines/quotes, trimmed headers and CCB card apostrophe prefixes. Observed trailing CCB debit fields are preserved with a warning. BNZ lacks a currency column, so the preview calls out its configured account currency. Validate source currency and optional identity suffix where present.
+Fixed parsers handle preambles, blank lines, quoted commas/newlines/quotes, trimmed headers and CCB card apostrophe prefixes. Observed trailing CCB debit fields are preserved with a warning. BNZ lacks a currency column, so the preview calls out its configured account currency. Validate source currency and optional identity suffix for debit/BNZ accounts; CCB credit bills may contain multiple cards and do not enforce a single configured suffix.
 
 Limits: 2 MiB CSV, 5,000 transaction records, 32,000 characters per CSV record and 4 MiB decoded preview. Oversized exports must be split by date. Display record numbers refer to parsed CSV records, including preamble/blank records, not physical lines inside quoted multiline fields.
 
@@ -32,7 +32,7 @@ One classification controls reporting:
 
 - `income` / 收入: positive amount, included in income.
 - `spending` / 消费: negative amount, reported as positive gross spending.
-- `refund` / 退款: positive amount, reduces net spending in its transaction month.
+- `refund` / 退款/返现: positive amount, reduces net spending in its transaction month.
 - `excluded` / 转账/不计入: either sign, outside income/spending.
 - `review` / 待确认: either sign, outside income/spending until reviewed.
 
@@ -68,3 +68,15 @@ Backup version 4 handles this schema and exports spending amounts as text. Older
 
 Before release run typecheck/build, spending/database/time-policy/backup checks, then authenticated UI checks at the required phone/tablet/desktop sizes. Applying this migration is a breaking API/schema cutover: stop old spending writes, verify emptiness, apply migration, deploy compatible API/jobs/web and storage lifecycle together, and verify before allowing personal imports.
 Account format/currency/identity can be corrected when only draft/preview batches exist. Corrections expire those batches and clear previews; start a new import afterwards. Transactions and completed/document history continue to lock these fields.
+
+## Account suffixes, cancellation and pagination (2026-10-01)
+
+Each imported transaction has nullable own/counterparty account suffixes, exactly four digits. Credit exports provide the own card per row, debit exports provide the own account in the preamble and the counterparty in 对方账号, and BNZ provides both party account columns. Missing debit own account information falls back to the configured suffix; other unknown values remain null. No internal-account pairing is inferred from suffixes. Positive amounts indicate incoming funds, negative outgoing, and zero has no inferred direction.
+
+The structured metadata account columns are redacted to suffixes before persistence/API output; raw CSV/PDF sources remain private original files. Fingerprints retain the legacy algorithm using transient raw values before redaction. Literal description search and independent exact own/counterparty suffix filters affect rows, totals and charts together. Refund wording is 退款/返现; the stored refund classification value and calculations remain unchanged.
+
+Pending or expired draft/preview batches can be cancelled by admins. Cancellation is idempotent and serializes with commit on account then batch locks; late preview/commit/attachment writes cannot revive a cancelled batch. Existing files remain readable; pending objects keep their existing lifecycle. History shows imported/total, skipped, rejected and surviving counts. Unparsed totals are unknown; undo preserves historical imported counts. Pagination displays current/total pages and exact record counts, including 0/0 for empty results.
+
+The additive migration 20261001090000_spending_account_suffixes_and_cancellation.sql backfills known suffixes, sanitizes stored metadata/previews and invalidates pending approvals without changing fingerprints or edited flags. Version-4 backup restore also normalizes legacy suffix metadata and invalidates old pending approvals.
+
+CCB debit counterparty_name is stored separately from 对方户名 and displayed in preview, transaction list and details. Its description joins 摘要 and 交易地点 using ·, omitting empty parts. CCB debit descriptions containing 一户通 or 补款转入 default to excluded; 信用卡卡号还款 defaults to excluded with tag 还款, and 售汇 to excluded with tag 购汇. If both tagged rules match, repayment takes precedence. CCB credit descriptions containing both CCB and Rebate (case-insensitive) default to refund for positive normalized amounts. These are preview suggestions that can be overridden, not permanent classification rules; negative amounts cannot be refunds. Existing edited descriptions are not rewritten by the migration.

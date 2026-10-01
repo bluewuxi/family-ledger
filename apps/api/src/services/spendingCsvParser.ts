@@ -3,6 +3,8 @@ import { parse } from "csv-parse/sync";
 import Decimal from "decimal.js";
 import {
   SPENDING_ENCODINGS,
+  accountLast4,
+  sanitizeSpendingMetadata,
   type SpendingAccount,
   type SpendingClass,
   type SpendingEncoding,
@@ -13,7 +15,7 @@ import { amount, dateValue, invalid } from "./spendingValidation";
 
 export const CSV_MAX_BYTES = 2 * 1024 * 1024;
 export const CSV_MAX_ROWS = 5000;
-export const PARSER_VERSION = "bank-csv-1";
+export const PARSER_VERSION = "bank-csv-2";
 const headers: Record<SpendingFormat, string[]> = {
   ccb_debit: [
     "记账日",
@@ -137,6 +139,8 @@ function suggestion(
   value: string,
 ): SpendingClass {
   const a = new Decimal(value);
+  if (format === "ccb_debit" && /一户通|补款转入|信用卡卡号还款|售汇/.test(description)) return "excluded";
+  if (format === "ccb_credit" && a.gt(0) && /CCB/i.test(description) && /Rebate/i.test(description)) return "refund";
   if (/还款|理财产品赎回/.test(description)) return "excluded";
   if (a.gt(0) && /退款|退货|refund/i.test(description)) return "refund";
   if (
@@ -175,21 +179,17 @@ export function parseBankCsv(
     result.warnings.push(
       "BNZ 日期按日/月/年解析，两位年份对应 2000–2099；币种使用账户设置，请核对。",
     );
-  if (format === "ccb_debit" && account.identity_suffix) {
-    const identity = rows
-      .slice(0, start)
-      .flat()
-      .find((v) => /账.*号/.test(v));
-    if (identity && !identity.trim().endsWith(account.identity_suffix))
-      invalid("文件账号后四位与所选账户不符。");
-  }
+  const debitIdentity = format === "ccb_debit" ? rows.slice(0, start).flat().find((v) => /账.*号/.test(v)) : undefined;
+  const debitLast4 = accountLast4(debitIdentity) ?? account.identity_suffix;
+  if (format === "ccb_debit" && account.identity_suffix && debitIdentity && accountLast4(debitIdentity) !== account.identity_suffix)
+    invalid("文件账号后四位与所选账户不符。");
   for (let i = start + 1; i < rows.length; i++) {
     const raw = rows[i],
       r = raw.map((v) => v.trim()),
       row_number = i + 1;
     if (r.every((v) => !v)) continue;
     // CCB credit exports may mark a transaction with leading spaces/asterisks.
-    // Normalize only the first field; keep the original source metadata intact.
+    // Normalize only the first field; account columns are redacted after hashing.
     if (format === "ccb_credit") r[0] = r[0].replace(/^[\s*]+/u, "");
     if (result.rows.length + result.errors.length >= CSV_MAX_ROWS)
       invalid("一次最多导入 5000 条交易，请缩小导出日期范围。");
@@ -223,7 +223,8 @@ export function parseBankCsv(
         )
           invalid("收入/支出列须为非负金额且不能同时有金额。");
         value = amount(new Decimal(credit).minus(debit).toFixed());
-        description = [r[7], r[9]].filter(Boolean).join(" · ");
+        description = [r[7], r[10]].filter(Boolean).join(" · ");
+        if (r[9].length > 1000) invalid("对方户名过长。");
         type = r[7];
         if (r[2] && !/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(r[2]))
           invalid("交易时间无效。");
@@ -232,11 +233,7 @@ export function parseBankCsv(
         description = r[6];
         type = r[3];
         metadata.card_number = r[2].replace(/^'/, "");
-        if (
-          account.identity_suffix &&
-          !String(metadata.card_number).endsWith(account.identity_suffix)
-        )
-          invalid("卡号后四位与所选账户不符。");
+
       } else {
         value = amount(r[1]);
         description = [r[2], r[3], r[4], r[5]].filter(Boolean).join(" · ");
@@ -284,14 +281,17 @@ export function parseBankCsv(
         )
         .digest("hex");
       result.rows.push({
+        account_number_last4: format === "ccb_credit" ? accountLast4(r[2]) : format === "bnz" ? accountLast4(r[7]) : debitLast4,
+        counterparty_name: format === "ccb_debit" ? r[9] || null : null,
+        counterparty_account_last4: format === "ccb_debit" ? accountLast4(r[8]) : format === "bnz" ? accountLast4(r[8]) : null,
         row_number,
         transaction_date: date,
         description,
         amount: value,
         classification: suggestion(format, type, description, value),
-        tag: null,
+        tag: format === "ccb_debit" ? (/信用卡卡号还款/.test(description) ? "还款" : /售汇/.test(description) ? "购汇" : null) : null,
         notes: null,
-        source_metadata: metadata,
+        source_metadata: sanitizeSpendingMetadata(metadata),
         fingerprint,
         duplicate_count: 0,
       });

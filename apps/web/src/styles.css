@@ -1118,11 +1118,14 @@ textarea {
 
 .pagination-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   justify-content: flex-end;
   margin-top: 12px;
 }
+
+.pagination-controls button { min-height: 44px; }
 
 .pagination-controls span {
   color: var(--color-muted);
@@ -4530,7 +4533,7 @@ tr.editing-row td {
 .spending-table { min-width:1000px; }
 .spending-table td:nth-child(2) { min-width:180px; max-width:320px; white-space:normal; overflow-wrap:anywhere; }
 .spending-account-list { display:grid; gap:10px; }
-.spending-account-list button { min-height:44px; text-align:left; }
+.spending-account-list button { min-height:44px; text-align:left; white-space:normal; overflow-wrap:anywhere; }
 .spending-upload { display:inline-flex; align-items:center; position:relative; cursor:pointer; }
 .spending-upload input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer; }
 .spending-filename { overflow-wrap:anywhere; }

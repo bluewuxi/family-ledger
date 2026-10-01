@@ -1,9 +1,10 @@
+import { accountLast4, sanitizeSpendingMetadata } from "@family-ledger/shared";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
 export const LEDGER_BACKUP_VERSION = 4;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20260926090000_redesign_spending_imports";
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261001090000_spending_account_suffixes_and_cancellation";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -306,6 +307,36 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload): LedgerBa
     const purpose = account.purpose ?? "investment";
     if (!["investment", "daily_expense", "education"].includes(String(purpose))) throw new Error("Invalid account purpose in backup.");
     return { ...account, purpose };
+  });
+  const accounts = new Map(rows.spending_accounts.map(value => {
+    const account = value as Record<string, unknown>;
+    return [account.id, account] as const;
+  }));
+  const sanitizeRow = (value: unknown, account: Record<string, unknown> | undefined) => {
+    const row = value as Record<string, unknown>;
+    const metadata = (row.source_metadata ?? {}) as Record<string, string | string[]>;
+    const own = account?.source_format === "ccb_credit" ? accountLast4(metadata.card_number) ?? accountLast4(metadata["信用卡卡号"])
+      : account?.source_format === "bnz" ? accountLast4(metadata["This Party Account"])
+      : account?.source_format === "ccb_debit" ? accountLast4(account.identity_suffix) : null;
+    const other = account?.source_format === "ccb_debit" ? accountLast4(metadata["对方账号"])
+      : account?.source_format === "bnz" ? accountLast4(metadata["Other Party Account"]) : null;
+    return { ...row, account_number_last4: accountLast4(row.account_number_last4) ?? own,
+      counterparty_account_last4: accountLast4(row.counterparty_account_last4) ?? other,
+      counterparty_name: row.counterparty_name ?? (account?.source_format === "ccb_debit" && typeof metadata["对方户名"] === "string" ? metadata["对方户名"].trim() || null : null),
+      source_metadata: sanitizeSpendingMetadata(metadata) };
+  };
+  rows.statement_rows = rows.statement_rows.map(value => {
+    const row = value as Record<string, unknown>;
+    return sanitizeRow(row, accounts.get(row.account_id));
+  });
+  rows.account_statements = rows.account_statements.map(value => {
+    const batch = value as Record<string, unknown>;
+    const preview = batch.preview as { rows: unknown[]; errors: unknown[] } | null;
+    const oldPreview = preview && (batch.parser_version !== "bank-csv-2");
+    return { ...batch, cancelled_at: batch.cancelled_at ?? null,
+      total_count: batch.total_count ?? (preview ? preview.rows.length + preview.errors.length : ["committed", "undone"].includes(String(batch.status)) ? Number(batch.imported_count ?? 0) + Number(batch.skipped_count ?? 0) + Number(batch.rejected_count ?? 0) : null),
+      ...(oldPreview && ["draft", "preview"].includes(String(batch.status)) ? { preview_token: null, decisions: null } : {}),
+      preview: preview ? { ...preview, rows: preview.rows.map(row => sanitizeRow(row, accounts.get(batch.account_id))) } : null };
   });
   return rows;
 }

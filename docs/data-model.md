@@ -266,3 +266,8 @@ Income/refund amounts are positive; spending is negative. Excluded/review rows d
 A partial unique index prevents the same account/source hash from being committed twice. Account locks serialize import commits, undo and row edits. Preview tokens and duplicate-count rechecks prevent stale/concurrent imports; imported source identities remain immutable. Undo preserves source/audit metadata. Manual rows have null statement_id and row_number. An account's format/currency/identity is immutable after use.
 
 Backup version 4 includes the new shapes and exports row amounts as strings. Older backups with empty spending tables restore without conversion; nonempty legacy spending tables are rejected. Source bytes remain in separately retained S3 versions. Viewer/admin access and API-only writes remain enforced.
+### Spending suffix/cancellation additions (2026-10-01)
+
+The additive migration adds nullable four-digit statement_rows.account_number_last4 and counterparty_account_last4, indexed with account_id and immutable after import. Account statements add nullable total_count and cancelled_at, and the cancelled status. Total count includes valid and invalid parsed transaction records; it is independent of surviving rows after edits/deletion/undo. Known account-number metadata is suffix-only, while source-file objects retain original bytes. Existing pending approvals are invalidated; completed import linkage and fingerprints are preserved.
+
+statement_rows.counterparty_name is nullable source text (up to 1000 characters), populated from CCB debit 对方户名 and immutable after import. Historical known names are backfilled from metadata; descriptions are not retroactively changed.

@@ -81,6 +81,9 @@ export const spendingClient = {
         { token, choices },
       )
     ).statement,
+  cancel: async (id: string) => (await apiPost<{ statement: AccountStatement }>(
+    `${root}/statements/${id}/cancel`, {},
+  )).statement,
   undo: (id: string, confirm_edited: boolean) =>
     apiPost(`${root}/statements/${id}/undo`, { confirm_edited }),
   csvUrl: async (id: string) =>

@@ -1,5 +1,6 @@
+import { PaginationControls } from "../components/PaginationControls";
 import { type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CloudDownload, Eye, Filter, RefreshCw } from "lucide-react";
+import { CloudDownload, Eye, Filter, RefreshCw } from "lucide-react";
 import type {
   AuthenticatedUser,
   CurrencyCode,
@@ -95,8 +96,8 @@ interface LogFilters {
 
 const pageSize = 20;
 const backupPageSize = 10;
-const emptyPagination: Pagination = { limit: pageSize, offset: 0, hasMore: false };
-const emptyBackupPagination: Pagination = { limit: backupPageSize, offset: 0, hasMore: false };
+const emptyPagination: Pagination = { limit: pageSize, offset: 0, hasMore: false, total: 0 };
+const emptyBackupPagination: Pagination = { limit: backupPageSize, offset: 0, hasMore: false, total: 0 };
 const emptyBackupSummary: DataMaintenanceBackupSummary = { latestRun: null, latestSucceededRun: null };
 
 export function DataMaintenancePage() {
@@ -902,41 +903,6 @@ function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
     <tr>
       <td colSpan={colSpan}>{label}</td>
     </tr>
-  );
-}
-
-function PaginationControls({
-  pagination,
-  loading,
-  onPageChange
-}: {
-  pagination: Pagination;
-  loading: boolean;
-  onPageChange: (offset: number) => void;
-}) {
-  const page = Math.floor(pagination.offset / pagination.limit) + 1;
-  return (
-    <div className="pagination-controls">
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={loading || pagination.offset === 0}
-        onClick={() => onPageChange(Math.max(0, pagination.offset - pagination.limit))}
-      >
-        <ChevronLeft size={16} aria-hidden="true" />
-        上一页
-      </button>
-      <span>第 {page} 页</span>
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={loading || !pagination.hasMore}
-        onClick={() => onPageChange(pagination.offset + pagination.limit)}
-      >
-        <ChevronRight size={16} aria-hidden="true" />
-        下一页
-      </button>
-    </div>
   );
 }
 

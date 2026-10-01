@@ -914,13 +914,14 @@ The `/spending` API uses the standard success/error envelope. GET requires activ
 | `POST /spending/statements/:id/csv-upload` | filename/size/sha256 → signed POST and key |
 | `POST /spending/statements/:id/preview` | key plus optional encoding → validated server preview; no transactions created |
 | `POST /spending/statements/:id/commit` | token and choices → atomic, idempotent commit |
+| `POST /spending/statements/:id/cancel` | Cancel draft/preview (including expired); idempotent, retains history; returns statement |
 | `POST /spending/statements/:id/undo` | optional confirm_edited boolean → remove this batch's rows, retain history/source |
 | `GET /spending/statements/:id/csv` | Exact-version source download URL |
 | `GET /spending/rows` | Paginated rows plus full filtered totals/monthly/tag summaries |
 | `POST /spending/rows` | Manual transaction without a batch |
 | `PATCH /spending/rows` | Bulk ids (1–200), optional classification and/or nullable tag |
 | `PATCH/DELETE /spending/rows/:id` | Edit/delete a transaction |
-| `GET /spending/filter-options` | Distinct tags, optional accountId |
+| `GET /spending/filter-options` | Distinct tags, accountNumberLast4 and counterpartyAccountLast4 arrays; optional accountId |
 | `POST /spending/statements/:id/attachment-upload` | PDF filename/size/sha256 → signed upload |
 | `PUT/GET/DELETE /spending/statements/:id/attachment` | Verify/link PDF key; view URL; unlink retaining object |
 
@@ -928,6 +929,11 @@ Source formats: ccb_debit, ccb_credit, bnz. Encodings: utf-8, gb18030, utf-16le,
 
 Commit choices contain exactly one entry per preview record: row_number, skip, classification, nullable tag, allow_duplicate. Invalid CSV records block commit. A stale token/changed duplicate count requires preview again. Repeat source hashes return CONFLICT. Batch list filters: accountId, status, limit, offset. History omits preview bodies; fetch detail when selected.
 
-Row filters: month=YYYY-MM OR inclusive from/to, accountId, statementId, classification, tag OR untagged=true, currency, q, limit, offset. Default limit 50, max 200. Literal description search, AND filters, transaction-date/ID descending order. Result: rows, pagination, totals, monthly, tags. Each aggregate has currency, income, gross_spending, refunds, net_spending, count, pending_count; breakdowns add label. Totals include every matched row regardless of pagination and keep currencies separate.
+Row filters: month=YYYY-MM OR inclusive from/to, accountId, statementId, classification, tag OR untagged=true, currency, accountNumberLast4, counterpartyAccountLast4, q, limit, offset. Suffix filters require exactly four digits. Default limit 50, max 200. Literal description search, AND filters, transaction-date/ID descending order. Result: rows, pagination, totals, monthly, tags. Each aggregate has currency, income, gross_spending, refunds, net_spending, count, pending_count; breakdowns add label. Totals include every matched row regardless of pagination and keep currencies separate.
 
 The old statement date/month/period/completion fields, original amount, transaction_type, is_spending and statement-scoped manual-create route are removed. PDF content is never parsed. CSV is limited to 2 MiB/5000 records/4 MiB preview; PDF to 10 MiB. Signed URLs expire in 300 seconds and previews in 24 hours.
+Spending import additions (2026-10-01): rows/previews expose nullable account_number_last4 and counterparty_account_last4; both are immutable source identity. Known account metadata fields expose suffixes only. Batch DTOs include nullable total_count (valid rows plus rejected rows; null before parsing) and cancelled_at (UTC). imported_count is historical; row_count counts surviving rows. Cancellation clears preview approval and prevents CSV/PDF writes, preview and commit; existing sources remain readable.
+
+Paginated transaction and data-maintenance responses now include pagination.total, the exact count after all filters. Existing limit/offset/hasMore remain unchanged.
+
+Spending rows/previews also expose nullable counterparty_name, extracted from CCB debit 对方户名 as immutable source identity. Debit descriptions combine 摘要 and 交易地点. Bank-specific rebate/repayment/FX suggestions populate classification/tag before preview; commit choices still determine final classification/tag.

@@ -81,6 +81,26 @@ async function main() {
   assert.equal(debit.rows[0].classification, "income");
   assert.equal(debit.rows[1].amount, "-15");
   assert.equal(debit.rows[1].classification, "review");
+  assert.equal(debit.rows[1].description, "转账支取 · 测试银行");
+  assert.equal(debit.rows[1].counterparty_name, "测试账户");
+  for (const [summary, tag] of [["一户通", null], ["补款转入", null], ["信用卡卡号还款", "还款"], ["售汇", "购汇"], ["一户通 信用卡卡号还款", "还款"]] as const) {
+    const special = parseBankCsv(Buffer.from(fixtures.ccb_debit.replace("转账支取", summary)), account("ccb_debit")).rows[1];
+    assert.equal(special.classification, "excluded", summary);
+    assert.equal(special.tag, tag, summary);
+  }
+  const locationRule = parseBankCsv(Buffer.from(fixtures.ccb_debit.replace("测试银行", "售汇")), account("ccb_debit")).rows[1];
+  assert.equal(locationRule.tag, "购汇");
+  const nameOnly = parseBankCsv(Buffer.from(fixtures.ccb_debit.replace("测试账户", "售汇")), account("ccb_debit")).rows[1];
+  assert.equal(nameOnly.tag, null);
+  for (const label of ["CCB Rebate", "ccb promotional REBATE", "Rebate from CCB"]) {
+    const cashback = parseBankCsv(Buffer.from(fixtures.ccb_credit.replace("手机银行 转账还款", label)), account("ccb_credit")).rows[1];
+    assert.equal(cashback.classification, "refund");
+    assert.equal(cashback.counterparty_name, null);
+  }
+  for (const label of ["CCB", "Rebate"]) {
+    const notCashback = parseBankCsv(Buffer.from(fixtures.ccb_credit.replace("手机银行 转账还款", label)), account("ccb_credit")).rows[1];
+    assert.equal(notCashback.classification, "review");
+  }
   assert.equal(debit.rows[2].classification, "excluded");
   assert.equal(debit.warnings.length, 1);
   assert.deepEqual(debit.rows[2].source_metadata.extra_fields, [
@@ -111,7 +131,7 @@ async function main() {
       assert.equal(marked.rows[0].fingerprint, credit.rows[0].fingerprint);
       assert.equal(marked.rows[0].amount, credit.rows[0].amount);
       assert.equal(marked.rows[0].source_metadata["交易日"], `${prefix}20260924`);
-      assert.equal(marked.rows[0].source_metadata.card_number, "********1234");
+      assert.equal(marked.rows[0].source_metadata.card_number, "1234");
     }
   }
   for (const invalidDate of ["*20260229", "*2026*0924", "*20260924*", "*"]) {
@@ -122,8 +142,31 @@ async function main() {
     assert.equal(marked.errors.length, 1);
     assert.equal(marked.rows.length, 2);
   }
+  const multi = parseBankCsv(Buffer.from(fixtures.ccb_credit.replace("********1234", "6222333344440001")), { ...account("ccb_credit"), identity_suffix: "9999" });
+  assert.equal(multi.errors.length, 0);
+  assert.equal(multi.rows[0].account_number_last4, "0001");
+  assert.equal(multi.rows[1].account_number_last4, "1234");
+  assert.equal(multi.rows[0].counterparty_account_last4, null);
+  assert(!JSON.stringify(multi).includes("6222333344440001"));
+  assert.equal(multi.rows[0].source_metadata["信用卡卡号"], "0001");
+  // Fingerprint remains the legacy source identity, calculated before metadata redaction.
+  assert.equal(multi.rows[0].fingerprint, createHash("sha256").update(JSON.stringify([
+    "ccb_credit", "2026-09-24", "2026-09-25", "CNY", "-23.1", ["6222333344440001", "消费", "测试商店, 分店"]
+  ])).digest("hex"));
+  assert.equal(normalizeQuery({ accountNumberLast4: "0001", counterpartyAccountLast4: "1234", q: "商店%" }).q, "商店%");
+  assert.throws(() => normalizeQuery({ accountNumberLast4: "12345" }));
   const bnz = parseBankCsv(Buffer.from(fixtures.bnz), account("bnz"));
   assert.equal(bnz.rows[0].classification, "spending");
+  assert.equal(bnz.rows[0].account_number_last4, "1234");
+  assert.equal(bnz.rows[0].source_metadata["This Party Account"], "1234");
+  assert.equal(debit.rows[0].account_number_last4, "1234");
+  const parsedOther = parseBankCsv(Buffer.from(fixtures.bnz.replaceAll(",---,", ",03-9999-7654321-002,")), account("bnz"));
+  assert.equal(parsedOther.rows[0].counterparty_account_last4, "1002");
+  assert(!JSON.stringify(parsedOther).includes("03-9999-7654321-002"));
+  assert.equal(debit.rows[1].counterparty_account_last4, "9876");
+  assert.equal(debit.rows[1].source_metadata["对方账号"], "9876");
+  assert.equal(parseBankCsv(Buffer.from(fixtures.ccb_debit.replace("账　　号：********1234", "账户信息缺失")), account("ccb_debit")).rows[0].account_number_last4, "1234");
+  assert.equal(parseBankCsv(Buffer.from(fixtures.ccb_credit.replaceAll("********1234", "***123")), account("ccb_credit")).rows[0].account_number_last4, null);
   assert.equal(bnz.rows[1].classification, "income");
   assert.equal(bnz.rows[2].classification, "review");
   const identical = fixtures.bnz + fixtures.bnz.split("\r\n")[1] + "\r\n";
@@ -169,7 +212,7 @@ async function main() {
       ...account("ccb_credit"),
       identity_suffix: "9999",
     }).errors.length,
-    3,
+    0,
   );
   assert.throws(() =>
     parseBankCsv(Buffer.from(fixtures.ccb_debit), {
@@ -407,6 +450,11 @@ async function main() {
     await finishStatementUpload(id, { key: pdfKey }, actor, pdfDeps);
     assert.equal(attached?.source_file_version, "pdf-permanent-version");
     assert.equal(attached?.source_file_key, pdfKey.replace("/pending/", "/"));
+    batch = { ...batch, status: "cancelled", preview_token: null };
+    const noRead = { ...deps, head: async () => { throw new Error("Must not read cancelled upload"); } };
+    await assert.rejects(() => previewCsv(id, { key }, actor, noRead), /导入已结束/);
+    await assert.rejects(() => commitCsv(id, { token: id, choices: cs }, actor, deps), /预览已变化/);
+    await assert.rejects(() => finishStatementUpload(id, { key: pdfKey }, actor, pdfDeps), /已取消/);
   } finally {
     if (priorBucket === undefined) delete process.env.STATEMENT_BUCKET_NAME;
     else process.env.STATEMENT_BUCKET_NAME = priorBucket;

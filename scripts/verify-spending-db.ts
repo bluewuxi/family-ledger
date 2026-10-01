@@ -122,6 +122,27 @@ async function main() {
     sql("delete from spending_accounts");
     sql(redesign);
     sql(readFileSync("supabase/migrations/20260927060000_allow_spending_draft_account_corrections.sql", "utf8"));
+    // Exercise additive migration against a completed legacy import and an outstanding approval.
+    sql(`insert into spending_accounts(id,name,source_format,default_currency) values('00000000-0000-4000-8000-000000000081','Legacy','ccb_credit','CNY');
+      insert into account_statements(id,account_id,status,csv_file_key,csv_file_version,csv_sha256,imported_count,preview,preview_token) values
+      ('00000000-0000-4000-8000-000000000082','00000000-0000-4000-8000-000000000081','committed','source','v1',repeat('a',64),1,'{"rows":[{"source_metadata":{"card_number":"6222333344440001","信用卡卡号":"6222333344440001"}}],"errors":[]}',gen_random_uuid()),
+      ('00000000-0000-4000-8000-000000000083','00000000-0000-4000-8000-000000000081','preview','source','v1',repeat('b',64),0,'{"rows":[],"errors":[]}',gen_random_uuid());
+      insert into statement_rows(account_id,statement_id,row_number,transaction_date,description,amount,classification,source_metadata,fingerprint) values
+      ('00000000-0000-4000-8000-000000000081','00000000-0000-4000-8000-000000000082',2,'2026-09-24','Legacy',-1,'spending','{"card_number":"6222333344440001","信用卡卡号":"6222333344440001"}',repeat('c',64));`);
+    sql(`insert into spending_accounts(id,name,source_format,default_currency,identity_suffix) values ('00000000-0000-4000-8000-000000000084','Debit legacy','ccb_debit','CNY','0012');
+      insert into statement_rows(account_id,transaction_date,description,amount,classification,source_metadata) values ('00000000-0000-4000-8000-000000000084','2026-09-24','Original description',-1,'spending','{"对方账号":"6222333344440056","对方户名":"  测试对方  "}');`);
+    sql(readFileSync("supabase/migrations/20261001090000_spending_account_suffixes_and_cancellation.sql", "utf8"));
+    assert.equal(sql("select account_number_last4 || ':' || counterparty_account_last4 || ':' || counterparty_name from statement_rows where description='Original description'"), "0012:0056:测试对方");
+    assert(!sql("select source_metadata from statement_rows").includes("6222333344440056"));
+    sql("delete from statement_rows where description='Original description'");
+    assert.equal(sql("select account_number_last4 from statement_rows"), "0001");
+    assert.equal(sql("select edited from statement_rows"), "f");
+    assert.equal(sql("select fingerprint from statement_rows"), "c".repeat(64));
+    assert(!sql("select source_metadata from statement_rows").includes("6222333344440001"));
+    assert(!sql("select preview from account_statements").includes("6222333344440001"));
+    assert.equal(sql("select preview_token is null from account_statements where status='preview'"), "t");
+    assert.equal(sql("select total_count from spending_statement_details where status='committed'"), "1");
+    sql("delete from statement_rows;delete from account_statements;delete from spending_accounts");
     sql(`begin;
       insert into spending_accounts(id,name,source_format,default_currency) values('00000000-0000-4000-8000-000000000091','Correction','ccb_debit','NZD');
       insert into account_statements(account_id,preview_token) values('00000000-0000-4000-8000-000000000091',gen_random_uuid());
@@ -146,6 +167,9 @@ async function main() {
       date = "2026-09-24",
     ) => ({
       row_number,
+      account_number_last4: row_number === 2 ? "0001" : "1234",
+      counterparty_account_last4: row_number === 2 ? "0002" : null,
+      counterparty_name: row_number === 2 ? "测试对方" : null,
       amount,
       classification,
       fingerprint,
@@ -179,7 +203,7 @@ async function main() {
       const payload = {
         preview: {
           encoding: "utf-8",
-          parser_version: "bank-csv-1",
+          parser_version: "bank-csv-2",
           rows: rs,
           errors: [],
           warnings: [],
@@ -233,7 +257,21 @@ async function main() {
           `select query_spending_rows(${json({ limit: 2, offset: 0, ...filters })})`,
         ),
       );
+    assert.equal(q({ accountNumberLast4: "0001", counterpartyAccountLast4: "0002", q: "EXAMP" }).pagination.total, 1);
+    assert.equal(q({ accountNumberLast4: "0001" }).totals[0].gross_spending, "20.000000");
+    assert.equal(q({ accountNumberLast4: "0001" }).rows[0].counterparty_name, "测试对方");
+    assert.equal(q({ q: "%" }).pagination.total, 0);
+    assert.equal(q({ q: "_" }).pagination.total, 0);
+    const opts = JSON.parse(sql(`select spending_filter_options('${a}')`));
+    assert.deepEqual(opts.accountNumberLast4, ["0001", "1234"]);
+    assert.deepEqual(opts.counterpartyAccountLast4, ["0002"]);
+    assert.deepEqual(JSON.parse(sql(`select spending_filter_options('${nz}')`)).accountNumberLast4, []);
+    assert.equal(sql(`select total_count from spending_statement_details where id='${b.id}'`), "6");
     const report = q();
+    assert.equal(q({ offset: 4 }).pagination.hasMore, false);
+    assert.equal(q({ offset: 6 }).rows.length, 0);
+    assert.equal(q({ offset: 6 }).pagination.total, 6);
+    assert.equal(q({ q: "absent" }).pagination.total, 0);
     assert.equal(report.rows.length, 2);
     assert.equal(report.pagination.total, 6);
     assert.equal(report.pagination.hasMore, true);
@@ -356,6 +394,26 @@ async function main() {
       `update account_statements set expires_at=now()-interval '1 hour' where id='${expired.id}'`,
     );
     assert.throws(() => sql(command(expired)));
+    const pending = create([makeRow(2, "-1", "spending", "f".repeat(64))], "6".repeat(64));
+    const cancel = (id: string) => `select cancel_spending_import('${id}','${actor}')`;
+    assert.equal(sql(cancel(pending.id)), pending.id);
+    assert.equal(sql(cancel(pending.id)), pending.id);
+    assert.throws(() => sql(command(pending)));
+    assert.throws(() => sql(`select set_spending_preview('${pending.id}','{}','${actor}')`));
+    assert.throws(() => sql(`update account_statements set source_file_key='late.pdf' where id='${pending.id}'`));
+    assert.equal(sql(cancel(expired.id)), expired.id);
+    const draft = sql(`insert into account_statements(account_id) values('${a}') returning id`);
+    assert.equal(sql(cancel(draft)), draft);
+    assert.throws(() => sql(cancel(b.id)));
+    const race = create([makeRow(2, "-1", "spending", "9".repeat(64))], "7".repeat(64));
+    const competing = await Promise.allSettled([
+      run(exe("psql"), [...args, "-c", command(race)], { windowsHide: true }),
+      run(exe("psql"), [...args, "-c", cancel(race.id)], { windowsHide: true }),
+    ]);
+    assert.equal(competing.filter(r => r.status === "fulfilled").length, 1);
+    const status = sql(`select status from account_statements where id='${race.id}'`);
+    assert.equal(sql(`select count(*) from statement_rows where statement_id='${race.id}'`), status === "committed" ? "1" : "0");
+    if (status === "committed") sql(`select undo_spending_import('${race.id}','${actor}',false)`);
     sql("grant usage on schema public to authenticated");
     assert.equal(
       sql(
@@ -377,6 +435,7 @@ async function main() {
     assert.throws(() =>
       sql("set role authenticated;select query_spending_rows('{}')"),
     );
+    assert.throws(() => sql(`set role authenticated;select cancel_spending_import('${pending.id}','${actor}')`));
     const exported = JSON.parse(sql("select export_ledger_backup()"));
     assert.equal(exported.statement_rows.length, 2);
     assert.equal(exported.spending_accounts.length, 2);
@@ -387,7 +446,7 @@ async function main() {
       insert into statement_rows select * from jsonb_populate_recordset(null::statement_rows,${json(exported.statement_rows)});rollback;`);
     assert.equal(sql("select count(*) from statement_rows"), "2");
     console.log(
-      "Spending PostgreSQL: empty guard, schema, exact totals, preview/atomic commit/retry, duplicate multiplicity, concurrency, undo isolation, RLS, backup and restore passed.",
+      "Spending PostgreSQL: legacy redaction/backfill, suffix/name fields, exact filtered totals, preview/atomic commit/retry, cancellation races, undo isolation, RLS, backup and restore passed.",
     );
   } finally {
     if (started)

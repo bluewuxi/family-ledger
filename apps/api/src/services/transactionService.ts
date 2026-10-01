@@ -30,6 +30,7 @@ import {
   findGeneratedCashLegByParentId,
   findTransactionById,
   listTransactions,
+  listTransactionPage,
   updateTransaction
 } from "../repositories/transactionRepository";
 import {
@@ -53,7 +54,8 @@ export async function getTransactions(
     return {
       items,
       pagination: {
-        limit: items.length,
+        limit: Math.max(1, items.length),
+        total: items.length,
         offset: 0,
         hasMore: false
       }
@@ -69,7 +71,7 @@ export async function getTransactions(
   const transactionTypes = optionalTransactionTypes(query.transactionTypes);
   validateTransactionTypeFilters(transactionType, transactionTypes);
 
-  const rows = await listTransactions({
+  const rows = await listTransactionPage({
     purpose: optionalAccountPurpose(query.purpose),
     from,
     to,
@@ -84,11 +86,12 @@ export async function getTransactions(
   });
 
   return {
-    items: rows.slice(0, pagination.limit),
+    items: rows.items,
     pagination: {
       limit: pagination.limit,
       offset: pagination.offset,
-      hasMore: rows.length > pagination.limit
+      total: rows.total,
+      hasMore: pagination.offset + pagination.limit < rows.total
     }
   };
 }

@@ -14,7 +14,7 @@ type SpendingTable =
   | "account_statements"
   | "statement_rows";
 const batchColumns: string =
-  "id,account_id,account_name,status,created_at,expires_at,encoding,parser_version,csv_file_key,csv_file_version,csv_file_name,csv_sha256,source_file_key,source_file_version,source_file_name,source_file_size,file_sha256,row_count,edited_count,imported_count,skipped_count,rejected_count,date_from,date_to,preview_token";
+  "id,account_id,account_name,status,created_at,expires_at,encoding,parser_version,csv_file_key,csv_file_version,csv_file_name,csv_sha256,source_file_key,source_file_version,source_file_name,source_file_size,file_sha256,row_count,total_count,cancelled_at,edited_count,imported_count,skipped_count,rejected_count,date_from,date_to,preview_token";
 export function checkSpendingError(error: { code?: string } | null): void {
   if (!error) return;
   if (error.code === "23505")

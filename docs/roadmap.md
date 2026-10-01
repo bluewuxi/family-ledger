@@ -84,6 +84,9 @@
 
 ## Spending Queries and Statements
 
+- Implemented locally (2026-10-01, not deployed): own/counterparty suffix fields and filters, multi-card CCB imports, debit counterparty names/summary-location descriptions, rebate/repayment/FX suggestions, metadata redaction, pending import cancellation, import counts, 退款/返现 wording, and exact total-page pagination.
+- User release requirement: before the next deployment, clear imported spending transactions and CSV import history for a fresh re-import. Preserve account configuration, manual rows and investment data. No cleanup has been executed; see docs/deployment.md.
+
 - Deployed to test on 2026-09-27 (#91): [CSV import redesign](spending-import-plan.md) for CCB debit/credit and BNZ; automatic strict UTF-8/GB18030/UTF-16 detection; bank-specific dates; import previews, duplicates, atomic confirmation/retry and undo; simplified classification/manual rows; bulk tags; monthly and tag charts; retained CSV/PDF sources.
 - The versioned empty-table schema redesign requires no data backfill. Related tables must remain empty until release. Backups use version 4 with exact spending amount strings.
 - Local parser/storage tests, isolated PostgreSQL concurrency/undo/backup-restore checks, typecheck and build passed. Deployment health, runtime config/current assets, schema and version-4 backup checks passed. Remaining UI/mobile and personal import acceptance are delegated to the user at their request. No personal statements have been imported.

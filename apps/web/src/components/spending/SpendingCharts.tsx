@@ -84,7 +84,7 @@ export function SpendingCharts({
                     onClick={(entry) => drillDown(entry, "spending")}
                   />
                   <Bar
-                    name="退款"
+                    name="退款/返现"
                     dataKey="refunds"
                     fill="#728aa8"
                     cursor="pointer"
@@ -102,7 +102,7 @@ export function SpendingCharts({
                       <th>月份</th>
                       <th>收入</th>
                       <th>消费</th>
-                      <th>退款</th>
+                      <th>退款/返现</th>
                       <th>净消费</th>
                     </tr>
                   </thead>
@@ -138,7 +138,7 @@ export function SpendingCharts({
             <h3>标签占比 · {total.currency}</h3>
             <p className="spending-hint">
               分母为当前筛选内的消费总额 {money(total.gross_spending)}
-              ，包含未分类；退款单独统计。
+              ，包含未分类；退款/返现单独统计。
             </p>
             {tags.map((r) => {
               const ratio =

@@ -16,11 +16,15 @@ import { spendingClient } from "../../lib/spendingClient";
 import { formatLocalDateTimeNote } from "../../lib/timeFormat";
 const statusLabels = {
   draft: "待上传",
+  cancelled: "已取消",
   preview: "待确认",
   committed: "已导入",
   undone: "已撤销",
   document: "PDF 附件",
 };
+function importCounts(batch: AccountStatement) {
+  return `已导入 ${batch.imported_count} / ${batch.total_count === null ? "总记录待解析" : "总记录 " + batch.total_count}，跳过 ${batch.skipped_count} 条，错误 ${batch.rejected_count} 条，目前保留 ${batch.row_count} 条。`;
+}
 export function SpendingStatementsDrawer({
   accounts,
   admin,
@@ -47,7 +51,8 @@ export function SpendingStatementsDrawer({
     [choices, setChoices] = useState<SpendingImportDecision[]>([]),
     [page, setPage] = useState(0),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [message, setMessage] = useState("");
   useEffect(() => {
     let active = true;
     void spendingClient
@@ -82,6 +87,7 @@ export function SpendingStatementsDrawer({
   async function act(work: () => Promise<void>) {
     setBusy(true);
     setError("");
+    setMessage("");
     try {
       await work();
     } catch (e) {
@@ -135,6 +141,7 @@ export function SpendingStatementsDrawer({
           {error}
         </p>
       )}
+      {message && <p role="status">{message}</p>}
       <fieldset disabled={busy} className="spending-form">
         {admin && (
           <>
@@ -222,10 +229,17 @@ export function SpendingStatementsDrawer({
               创建于 {formatLocalDateTimeNote(batch.created_at, "—")}
             </p>
             <p>
-              已导入 {batch.imported_count} 条，跳过 {batch.skipped_count}{" "}
-              条，目前保留 {batch.row_count} 条。
+              {importCounts(batch)}
             </p>
             <div className="spending-actions">
+              {admin && ["draft", "preview"].includes(batch.status) && (
+                <button className="secondary-button" onClick={() => void act(async () => {
+                  if (!window.confirm("取消这次导入？导入历史会保留。")) return;
+                  select(await spendingClient.cancel(batch.id));
+                  setKey(""); setFile(undefined); setChoices([]);
+                  setMessage("导入已取消。"); refreshed();
+                })}>取消导入</button>
+              )}
               {batch.csv_file_key && (
                 <button
                   className="secondary-button"
@@ -277,7 +291,7 @@ export function SpendingStatementsDrawer({
             </div>
           </>
         )}
-        {admin && (
+        {admin && batch?.status !== "cancelled" && (
           <label>
             添加 PDF 附件（可单独保存，不解析内容）
             <input
@@ -300,7 +314,7 @@ export function SpendingStatementsDrawer({
             />
           </label>
         )}
-        {admin && batch?.source_file_key && (
+        {admin && batch?.status !== "cancelled" && batch?.source_file_key && (
           <button
             className="secondary-button"
             onClick={() =>
@@ -349,6 +363,8 @@ export function SpendingStatementsDrawer({
                 <tr>
                   <th>导入</th>
                   <th>日期 / 原始行</th>
+                  <th>本方账号后四位</th>
+                  <th>对方户名</th>
                   <th>描述</th>
                   <th>金额</th>
                   <th>统计归类</th>
@@ -386,6 +402,8 @@ export function SpendingStatementsDrawer({
                           {r.transaction_date}
                           <br />第 {r.row_number} 行
                         </td>
+                        <td>{r.account_number_last4 ?? "—"}</td>
+                        <td>{r.counterparty_name ?? "—"}</td>
                         <td>{r.description}</td>
                         <td>{r.amount}</td>
                         <td>
@@ -430,24 +448,8 @@ export function SpendingStatementsDrawer({
               </tbody>
             </table>
           </div>
-          <div className="spending-actions">
-            <button
-              className="secondary-button"
-              disabled={!page}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              上一页
-            </button>
-            <span>第 {page + 1} 页</span>
-            <button
-              className="secondary-button"
-              disabled={(page + 1) * 50 >= batch.preview.rows.length}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              下一页
-            </button>
-          </div>
-          {admin && (
+          <PaginationControls pagination={{ limit: 50, offset: page * 50, total: batch.preview.rows.length, hasMore: (page + 1) * 50 < batch.preview.rows.length }} loading={busy} onPageChange={offset => setPage(offset / 50)} />
+          {admin && batch.status === "preview" && (
             <button
               className="primary-button"
               disabled={
@@ -459,13 +461,13 @@ export function SpendingStatementsDrawer({
               }
               onClick={() =>
                 void act(async () => {
-                  select(
-                    await spendingClient.commit(
+                  const committed = await spendingClient.commit(
                       batch.id,
                       batch.preview_token!,
                       choices,
-                    ),
-                  );
+                    );
+                  select(committed);
+                  setMessage(`导入完成。${importCounts(committed)}`);
                   refreshed();
                 })
               }
@@ -489,6 +491,7 @@ export function SpendingStatementsDrawer({
             {b.account_name} ·{" "}
             {b.csv_file_name ?? b.source_file_name ?? "待上传"} ·{" "}
             {statusLabels[b.status]}
+            <br />{importCounts(b)}
             <br />
             {formatLocalDateTimeNote(b.created_at, "—")}
           </button>

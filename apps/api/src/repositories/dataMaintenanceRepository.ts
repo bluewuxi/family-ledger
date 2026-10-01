@@ -83,15 +83,16 @@ export async function listExchangeRates(input: {
   provider?: string;
   limit: number;
   offset: number;
-}): Promise<ExchangeRateRecord[]> {
+}): Promise<{ items: ExchangeRateRecord[]; total: number }> {
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("exchange_rates")
-    .select(exchangeRateSelect)
+    .select(exchangeRateSelect, { count: "exact" })
     .not("from_currency", "eq", "USD")
     .order("rate_date", { ascending: false })
     .order("created_at", { ascending: false })
-    .range(input.offset, input.offset + input.limit);
+    .order("id", { ascending: false })
+    .range(input.offset, input.offset + input.limit - 1);
 
   if (input.fromCurrency) {
     query = query.eq("from_currency", input.fromCurrency);
@@ -109,13 +110,13 @@ export async function listExchangeRates(input: {
     query = query.ilike("provider", `%${input.provider}%`);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
 
   if (error) {
     throw new Error("Failed to list exchange rates.");
   }
 
-  return (data as unknown as ExchangeRateRow[]).map(mapExchangeRateRow);
+  return { items: (data as unknown as ExchangeRateRow[]).map(mapExchangeRateRow), total: count ?? 0 };
 }
 
 export async function listInstrumentPrices(input: {
@@ -125,14 +126,15 @@ export async function listInstrumentPrices(input: {
   to?: string;
   limit: number;
   offset: number;
-}): Promise<InstrumentPriceListRecord[]> {
+}): Promise<{ items: InstrumentPriceListRecord[]; total: number }> {
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("instrument_prices")
-    .select(instrumentPriceSelect)
+    .select(instrumentPriceSelect, { count: "exact" })
     .order("price_date", { ascending: false })
     .order("created_at", { ascending: false })
-    .range(input.offset, input.offset + input.limit);
+    .order("id", { ascending: false })
+    .range(input.offset, input.offset + input.limit - 1);
 
   if (input.instrumentId) {
     query = query.eq("instrument_id", input.instrumentId);
@@ -147,13 +149,13 @@ export async function listInstrumentPrices(input: {
     query = query.ilike("provider", `%${input.provider}%`);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
 
   if (error) {
     throw new Error("Failed to list instrument prices.");
   }
 
-  return (data as unknown as InstrumentPriceRow[]).map(mapInstrumentPriceRow);
+  return { items: (data as unknown as InstrumentPriceRow[]).map(mapInstrumentPriceRow), total: count ?? 0 };
 }
 
 export async function listJobRuns(input: {
@@ -162,13 +164,14 @@ export async function listJobRuns(input: {
   triggerSource?: JobTriggerSource;
   limit: number;
   offset: number;
-}): Promise<JobRun[]> {
+}): Promise<{ items: JobRun[]; total: number }> {
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("job_runs")
-    .select(jobRunSelect)
+    .select(jobRunSelect, { count: "exact" })
     .order("job_started_at", { ascending: false })
-    .range(input.offset, input.offset + input.limit);
+    .order("id", { ascending: false })
+    .range(input.offset, input.offset + input.limit - 1);
 
   if (input.jobName) {
     query = query.eq("job_name", input.jobName);
@@ -180,13 +183,13 @@ export async function listJobRuns(input: {
     query = query.eq("trigger_source", input.triggerSource);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
 
   if (error) {
     throw new Error("Failed to list job runs.");
   }
 
-  return (data as unknown as JobRunRow[]).map(mapJobRunRow);
+  return { items: (data as unknown as JobRunRow[]).map(mapJobRunRow), total: count ?? 0 };
 }
 
 export async function listDataProviderRuns(jobRunId: string): Promise<DataProviderRun[]> {

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { Pagination } from "@family-ledger/shared";
 
 interface PaginationControlsProps {
@@ -7,23 +8,28 @@ interface PaginationControlsProps {
 }
 
 export function PaginationControls({ pagination, loading, onPageChange }: PaginationControlsProps) {
-  const page = Math.floor(pagination.offset / pagination.limit) + 1;
+  const pages = Math.ceil(pagination.total / pagination.limit);
+  const page = pages ? Math.min(pages, Math.floor(pagination.offset / pagination.limit) + 1) : 0;
+  const lastOffset = Math.max(0, (pages - 1) * pagination.limit);
+  useEffect(() => {
+    if (!loading && pagination.offset > lastOffset) onPageChange(lastOffset);
+  }, [loading, pagination.offset, lastOffset, onPageChange]);
 
   return (
     <div className="pagination-controls">
       <button
         className="secondary-button"
         type="button"
-        disabled={loading || pagination.offset === 0}
+        disabled={loading || !pagination.total || pagination.offset === 0}
         onClick={() => onPageChange(Math.max(0, pagination.offset - pagination.limit))}
       >
         上一页
       </button>
-      <span>第 {page} 页</span>
+      <span>第 {page} / {pages} 页 · 共 {pagination.total} 条</span>
       <button
         className="secondary-button"
         type="button"
-        disabled={loading || !pagination.hasMore}
+        disabled={loading || !pagination.hasMore || !pagination.total}
         onClick={() => onPageChange(pagination.offset + pagination.limit)}
       >
         下一页

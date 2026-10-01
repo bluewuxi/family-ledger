@@ -94,7 +94,7 @@ export function validateAttachmentKey(id: string, key: unknown): string {
   return value;
 }
 export async function beginStatementUpload(id: string, input: unknown) {
-  await getStatement(uuid(id));
+  if ((await getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。");
   const body = record(input),
     name = textValue(body.filename, "文件名", 180)!;
   if (!name.toLowerCase().endsWith(".pdf")) invalid("仅支持 PDF 文件。");
@@ -131,7 +131,7 @@ export async function finishStatementUpload(
   user: AuthenticatedUser,
   deps = attachmentDependencies,
 ) {
-  await deps.getStatement(uuid(id));
+  if ((await deps.getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。");
   const key = validateAttachmentKey(id, record(input).key),
     Bucket = bucket();
   try {
@@ -196,7 +196,7 @@ export async function removeStatementAttachment(
   id: string,
   user: AuthenticatedUser,
 ) {
-  await getStatement(uuid(id));
+  if ((await getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。");
   await saveSpendingRecord(
     "account_statements",
     id,

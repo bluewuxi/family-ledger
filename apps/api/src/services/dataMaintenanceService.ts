@@ -47,7 +47,7 @@ export async function getDataMaintenanceFxRates(
     limit: pagination.limit,
     offset: pagination.offset
   });
-  return toPaginatedResult(rows, pagination.limit, pagination.offset);
+  return toPaginatedResult(rows.items, rows.total, pagination.limit, pagination.offset);
 }
 
 export async function getDataMaintenanceInstrumentPrices(
@@ -66,7 +66,7 @@ export async function getDataMaintenanceInstrumentPrices(
     limit: pagination.limit,
     offset: pagination.offset
   });
-  return toPaginatedResult(rows, pagination.limit, pagination.offset);
+  return toPaginatedResult(rows.items, rows.total, pagination.limit, pagination.offset);
 }
 
 export async function getDataMaintenanceJobRuns(query: Record<string, string | undefined>): Promise<PaginatedResult<JobRun>> {
@@ -78,7 +78,7 @@ export async function getDataMaintenanceJobRuns(query: Record<string, string | u
     limit: pagination.limit,
     offset: pagination.offset
   });
-  return toPaginatedResult(rows.map(sanitizeJobRunForDataMaintenance), pagination.limit, pagination.offset);
+  return toPaginatedResult(rows.items.map(sanitizeJobRunForDataMaintenance), rows.total, pagination.limit, pagination.offset);
 }
 
 export async function getDataMaintenanceProviderRuns(jobRunId: string): Promise<DataProviderRun[]> {
@@ -109,13 +109,13 @@ export async function getDataMaintenanceBackupRuns(
       offset: 0
     })
   ]);
-  const result = toPaginatedResult(rows.map(toBackupRunDto), pagination.limit, pagination.offset);
+  const result = toPaginatedResult(rows.items.map(toBackupRunDto), rows.total, pagination.limit, pagination.offset);
 
   return {
     ...result,
     summary: {
-      latestRun: latestRows[0] ? toBackupRunDto(latestRows[0]) : null,
-      latestSucceededRun: latestSucceededRows[0] ? toBackupRunDto(latestSucceededRows[0]) : null
+      latestRun: latestRows.items[0] ? toBackupRunDto(latestRows.items[0]) : null,
+      latestSucceededRun: latestSucceededRows.items[0] ? toBackupRunDto(latestSucceededRows.items[0]) : null
     }
   };
 }
@@ -343,13 +343,14 @@ function parsePagination(query: Record<string, string | undefined>): { limit: nu
   };
 }
 
-function toPaginatedResult<T>(rows: T[], limit: number, offset: number): PaginatedResult<T> {
+function toPaginatedResult<T>(rows: T[], total: number, limit: number, offset: number): PaginatedResult<T> {
   return {
     items: rows.slice(0, limit),
     pagination: {
       limit,
       offset,
-      hasMore: rows.length > limit
+      total,
+      hasMore: offset + limit < total
     }
   };
 }

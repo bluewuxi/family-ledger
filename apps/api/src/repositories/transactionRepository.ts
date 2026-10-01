@@ -72,12 +72,12 @@ export class TransactionConstraintError extends Error {
   }
 }
 
-export async function listTransactions(input: TransactionListFilters = {}): Promise<InvestmentTransaction[]> {
+async function transactionQuery(input: TransactionListFilters, exactCount = false) {
   const supabase = await getSupabaseAdmin();
   let query = supabase
     .from("transactions")
     .select((input.excludeCashInstruments ? transactionSelectWithInnerInstrument : transactionSelect)
-      + (input.purpose ? ", investment_accounts!inner(purpose)" : ""))
+      + (input.purpose ? ", investment_accounts!inner(purpose)" : ""), exactCount ? { count: "exact" } : {})
     .order("trade_date", { ascending: false })
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
@@ -108,6 +108,18 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
   if (input.excludeCashInstruments) {
     query = query.neq("instruments.asset_type", "cash");
   }
+  return { query };
+}
+
+export async function listTransactionPage(input: TransactionListFilters & { limit: number; offset: number }) {
+  const { query } = await transactionQuery(input, true);
+  const { data, error, count } = await query.range(input.offset, input.offset + input.limit - 1);
+  if (error) throw new Error("Failed to list transactions.");
+  return { items: (data as unknown as InvestmentTransactionRow[]).map(mapTransactionRow), total: count ?? 0 };
+}
+
+export async function listTransactions(input: TransactionListFilters = {}): Promise<InvestmentTransaction[]> {
+  let { query } = await transactionQuery(input);
   if (input.limit !== undefined && input.offset !== undefined) {
     query = query.range(input.offset, input.offset + input.limit);
   }

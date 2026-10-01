@@ -93,7 +93,7 @@ export async function listStatements(
 ) {
   if (
     query.status &&
-    !["draft", "preview", "committed", "undone", "document"].includes(
+    !["draft", "preview", "committed", "undone", "document", "cancelled"].includes(
       query.status,
     )
   )

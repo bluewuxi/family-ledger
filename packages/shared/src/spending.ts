@@ -16,7 +16,7 @@ export type SpendingClass = (typeof SPENDING_CLASSES)[number];
 export const SPENDING_CLASS_LABELS: Record<SpendingClass, string> = {
   income: "收入",
   spending: "消费",
-  refund: "退款",
+  refund: "退款/返现",
   excluded: "转账/不计入",
   review: "待确认",
 };
@@ -46,6 +46,9 @@ export interface SpendingAccount {
   is_active: boolean;
 }
 export interface ParsedSpendingRow {
+  account_number_last4: string | null;
+  counterparty_account_last4: string | null;
+  counterparty_name: string | null;
   row_number: number;
   transaction_date: string;
   description: string;
@@ -71,7 +74,7 @@ export interface AccountStatement {
   id: string;
   account_id: string;
   account_name: string;
-  status: "draft" | "preview" | "committed" | "undone" | "document";
+  status: "draft" | "preview" | "committed" | "undone" | "document" | "cancelled";
   created_at: string;
   expires_at: string;
   encoding: SpendingEncoding | null;
@@ -85,6 +88,8 @@ export interface AccountStatement {
   source_file_name: string | null;
   source_file_size: number | null;
   file_sha256: string | null;
+  cancelled_at: string | null;
+  total_count: number | null;
   row_count: number;
   edited_count: number;
   imported_count: number;
@@ -131,6 +136,8 @@ export interface SpendingQueryResult {
   tags: SpendingBreakdown[];
 }
 export interface SpendingFilterOptions {
+  accountNumberLast4: string[];
+  counterpartyAccountLast4: string[];
   tags: string[];
 }
 export interface StatementListResult {
@@ -143,4 +150,21 @@ export interface SpendingImportDecision {
   classification: SpendingClass;
   tag: string | null;
   allow_duplicate: boolean;
+}
+
+/** Extract only an identifiable trailing four digits; never infer missing digits. */
+export function accountLast4(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/[\s-]/g, "");
+  return normalized.match(/([0-9]{4})$/)?.[1] ?? null;
+}
+
+export function sanitizeSpendingMetadata(
+  metadata: Record<string, string | string[]>,
+): Record<string, string | string[]> {
+  const result = { ...metadata };
+  for (const key of ["信用卡卡号", "card_number", "对方账号", "This Party Account", "Other Party Account"]) {
+    if (key in result) result[key] = accountLast4(result[key]) ?? "";
+  }
+  return result;
 }

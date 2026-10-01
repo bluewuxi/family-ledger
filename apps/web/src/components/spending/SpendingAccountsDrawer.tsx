@@ -144,6 +144,9 @@ export function SpendingAccountsDrawer({
                 }
               />{" "}
             </label>
+            {form.source_format === "ccb_credit" && (
+              <p className="spending-hint">同一信用卡账单可包含多张卡，交易尾号按 CSV 每行读取，不限制为此处的卡号。</p>
+            )}
             <label>
               默认币种
               <select

@@ -46,6 +46,22 @@ async function runSelfTests(): Promise<void> {
 
   validateLedgerBackupPayload(backupObject.payload);
   assert.equal(backupObject.payload.manifest.version, 4);
+  const privateMetadata = { card_number: "6222333344440001", "信用卡卡号": "6222333344440001" };
+  const spendingBackup = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-01T00:00:00Z", rows: {
+    ...rows,
+    spending_accounts: [{ id: "credit", source_format: "ccb_credit" }, { id: "bnz", source_format: "bnz" }],
+    statement_rows: [{ account_id: "credit", source_metadata: privateMetadata, fingerprint: "unchanged" },
+      { account_id: "bnz", source_metadata: { "This Party Account": "02-0000-1234567-001", "Other Party Account": "03-9999-7654321-002" } }],
+    account_statements: [{ account_id: "credit", status: "preview", preview_token: "old", parser_version: "bank-csv-1", preview: { rows: [{ source_metadata: privateMetadata }], errors: [] } }]
+  } });
+  const cleanSpending = prepareLedgerRestoreRows(spendingBackup.payload);
+  assert(!JSON.stringify(cleanSpending).includes("6222333344440001"));
+  assert.equal((cleanSpending.statement_rows[0] as Record<string, unknown>).account_number_last4, "0001");
+  assert.equal((cleanSpending.statement_rows[0] as Record<string, unknown>).fingerprint, "unchanged");
+  assert.equal((cleanSpending.statement_rows[1] as Record<string, unknown>).account_number_last4, "7001");
+  assert.equal((cleanSpending.statement_rows[1] as Record<string, unknown>).counterparty_account_last4, "1002");
+  assert.equal((cleanSpending.account_statements[0] as Record<string, unknown>).preview_token, null);
+  assert.equal((cleanSpending.account_statements[0] as Record<string, unknown>).total_count, 1);
   const previous = structuredClone(backupObject.payload);
   previous.manifest.version = 2;
   const newTables = ["spending_accounts", "account_statements", "statement_rows"];

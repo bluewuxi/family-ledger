@@ -79,7 +79,7 @@ export function normalizeRow(
     (c === "spending" && !new Decimal(a).lt(0)) ||
     (["income", "refund"].includes(c) && !new Decimal(a).gt(0))
   )
-    invalid("消费须为负数，收入和退款须为正数。");
+    invalid("消费须为负数，收入和退款/返现须为正数。");
   return {
     account_id: uuid(input.account_id),
     transaction_date: dateValue(input.transaction_date),
@@ -149,6 +149,12 @@ export function normalizeQuery(
     if (!["true", "false"].includes(input.untagged))
       invalid("未分类筛选无效。");
     out.untagged = input.untagged;
+  }
+  for (const key of ["accountNumberLast4", "counterpartyAccountLast4"]) {
+    if (input[key]) {
+      if (!/^[0-9]{4}$/.test(input[key]!)) invalid("账号后四位须为四个数字。");
+      out[key] = input[key]!;
+    }
   }
   if (input.q?.trim()) out.q = textValue(input.q, "关键词", 200)!;
   return out;

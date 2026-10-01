@@ -116,6 +116,8 @@ export async function previewCsv(
     key = textValue(body.key, "文件编号", 240)!;
   if (!new RegExp(`^statements/pending/${id}/[0-9a-f-]{36}\\.csv$`).test(key))
     invalid("文件不属于此导入。");
+  if (!["draft", "preview"].includes(batch.status) || new Date(batch.expires_at).getTime() < Date.now())
+    invalid("导入已结束或过期，请新建导入。");
   const head = await deps.head(bucket(), key);
   if (
     !head.VersionId ||
@@ -276,4 +278,10 @@ export async function viewCsv(id: string) {
       { expiresIn: 300 },
     ),
   };
+}
+
+export async function cancelCsv(id: string, user: AuthenticatedUser) {
+  await repo.getStatement(uuid(id));
+  await repo.spendingRpc("cancel_spending_import", { batch_id: id, actor_id: user.id });
+  return repo.getStatement(id);
 }

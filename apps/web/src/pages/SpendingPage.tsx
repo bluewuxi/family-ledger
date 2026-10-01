@@ -5,6 +5,7 @@ import {
   SPENDING_CLASS_LABELS,
   SPENDING_CURRENCIES,
   type SpendingAccount,
+  type SpendingFilterOptions,
   type SpendingQueryResult,
   type StatementRow,
 } from "@family-ledger/shared";
@@ -19,7 +20,8 @@ export function SpendingPage() {
   const [params, setParams] = useSearchParams(),
     [accounts, setAccounts] = useState<SpendingAccount[]>([]),
     [admin, setAdmin] = useState(false),
-    [tags, setTags] = useState<string[]>([]);
+    [tags, setTags] = useState<string[]>([]),
+    [options, setOptions] = useState<SpendingFilterOptions>({ tags: [], accountNumberLast4: [], counterpartyAccountLast4: [] });
   const [result, setResult] = useState<SpendingQueryResult>(),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -71,7 +73,7 @@ export function SpendingPage() {
     void spendingClient
       .options(params.get("accountId") ?? "")
       .then((r) => {
-        if (active) setTags(r.tags);
+        if (active) { setTags(r.tags); setOptions(r); }
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -163,7 +165,7 @@ export function SpendingPage() {
           账户
           <select
             value={q.get("accountId") ?? ""}
-            onChange={(e) => filter({ accountId: e.target.value })}
+            onChange={(e) => filter({ accountId: e.target.value, accountNumberLast4: "", counterpartyAccountLast4: "" })}
           >
             <option value="">全部账户</option>
             {accounts.map((a) => (
@@ -215,9 +217,24 @@ export function SpendingPage() {
             ))}
           </select>
         </label>
+        {([ ["accountNumberLast4", "本方账号后四位"], ["counterpartyAccountLast4", "对方账号后四位"] ] as const).map(([key, label]) => (
+          <label key={key}>{label}
+            <select value={q.get(key) ?? ""} onChange={e => filter({ [key]: e.target.value })}>
+              <option value="">全部</option>
+              {options[key].map(suffix => <option key={suffix} value={suffix}>{suffix}</option>)}
+            </select>
+          </label>
+        ))}
+          <label>
+            描述关键词
+            <input
+              value={q.get("q") ?? ""}
+              onChange={(e) => filter({ q: e.target.value })}
+            />
+          </label>
       </div>
       <details className="spending-more-filters">
-        <summary>日期范围、币种与搜索</summary>
+        <summary>日期范围与币种</summary>
         <div className="filter-bar spending-filters">
           <label>
             开始日期
@@ -247,13 +264,7 @@ export function SpendingPage() {
               ))}
             </select>
           </label>
-          <label>
-            描述关键词
-            <input
-              value={q.get("q") ?? ""}
-              onChange={(e) => filter({ q: e.target.value })}
-            />
-          </label>
+
         </div>
       </details>
       <div className="spending-actions">
@@ -293,7 +304,7 @@ export function SpendingPage() {
                     消费 <b>{money(t.gross_spending)}</b>
                   </span>
                   <span>
-                    退款 <b>{money(t.refunds)}</b>
+                    退款/返现 <b>{money(t.refunds)}</b>
                   </span>
                   <span>
                     净消费 <b>{money(t.net_spending)}</b>
@@ -310,7 +321,7 @@ export function SpendingPage() {
               ))}
             </div>
             <p className="spending-hint">
-              仅统计已录入并归类的交易。转账和待确认记录不计入收入或消费；退款按发生月份抵扣。导出日期范围不代表数据完整。
+              仅统计已录入并归类的交易。转账和待确认记录不计入收入或消费；退款/返现按发生月份抵扣。导出日期范围不代表数据完整。
             </p>
             {!!result.rows.length && (
               <SpendingCharts result={result} onFilter={filter} />
@@ -381,6 +392,8 @@ export function SpendingPage() {
                     )}
                     <th>日期</th>
                     <th>账户</th>
+                    <th>本方账号后四位</th>
+                    <th>对方户名</th>
                     <th>描述</th>
                     <th>金额</th>
                     <th>统计归类</th>
@@ -408,6 +421,8 @@ export function SpendingPage() {
                       )}
                       <td>{r.transaction_date}</td>
                       <td>{r.account_name}</td>
+                      <td>{r.account_number_last4 ?? "—"}</td>
+                      <td>{r.counterparty_name ?? "—"}</td>
                       <td>
                         <button
                           className="spending-text-button"
@@ -428,7 +443,7 @@ export function SpendingPage() {
                   ))}
                   {!result.rows.length && (
                     <tr>
-                      <td colSpan={admin ? 7 : 6}>
+                      <td colSpan={admin ? 9 : 8}>
                         没有符合条件的已录入交易。
                       </td>
                     </tr>
