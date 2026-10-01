@@ -51,7 +51,7 @@ No general-purpose column-mapping screen.
 | Source | Required handling |
 | --- | --- |
 | CCB debit | Skip account preamble; recognise the 11-column header; YYYYMMDD dates; separate income/expense fields; retain transaction time; preserve and flag the observed additional trailing fields on redemption rows. |
-| CCB credit | Skip title/blank rows; trim headers/type values; YYYYMMDD transaction/posting dates; remove only the known card-number apostrophe prefix; normalise amount sign; read booked currency. |
+| CCB credit | Skip title/blank rows; trim headers/type values; remove leading whitespace and `*` markers from the first transaction-date field while retaining raw source metadata; validate YYYYMMDD transaction/posting dates; remove only the known card-number apostrophe prefix; normalise amount sign; read booked currency. |
 | BNZ | Recognise 14-column header; explicit DD/MM/YY date policy with a bounded century rule and preview; preserve Payee/Particulars/Code/Reference separately; use configured account currency because the CSV has no currency column. |
 
 Use a real CSV parser for quoted commas, embedded newlines, escaped quotes and line endings. Preserve identifiers as text and amounts as decimal strings. Validate source currency/account identity against the selected account where present. Preserve source calendar dates without viewer-timezone conversion; monthly reports use transaction dates.

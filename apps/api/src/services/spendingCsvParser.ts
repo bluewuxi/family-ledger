@@ -188,6 +188,9 @@ export function parseBankCsv(
       r = raw.map((v) => v.trim()),
       row_number = i + 1;
     if (r.every((v) => !v)) continue;
+    // CCB credit exports may mark a transaction with leading spaces/asterisks.
+    // Normalize only the first field; keep the original source metadata intact.
+    if (format === "ccb_credit") r[0] = r[0].replace(/^[\s*]+/u, "");
     if (result.rows.length + result.errors.length >= CSV_MAX_ROWS)
       invalid("一次最多导入 5000 条交易，请缩小导出日期范围。");
     try {

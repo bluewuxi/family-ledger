@@ -95,6 +95,33 @@ async function main() {
   assert.equal(credit.rows[0].classification, "spending");
   assert.equal(credit.rows[1].classification, "excluded");
   assert.equal(credit.rows[2].classification, "refund");
+  for (const prefix of ["*", "  *", "\t * \t", "　**　"]) {
+    for (const encoding of ["utf8", "gb18030", "utf16-le", "utf16-be"]) {
+      const marked = parseBankCsv(
+        iconv.encode(
+          fixtures.ccb_credit.replace("20260924,", `${prefix}20260924,`),
+          encoding,
+          { addBOM: true },
+        ),
+        account("ccb_credit"),
+      );
+      assert.equal(marked.errors.length, 0, `${prefix}/${encoding}`);
+      assert.equal(marked.rows.length, credit.rows.length);
+      assert.equal(marked.rows[0].transaction_date, "2026-09-24");
+      assert.equal(marked.rows[0].fingerprint, credit.rows[0].fingerprint);
+      assert.equal(marked.rows[0].amount, credit.rows[0].amount);
+      assert.equal(marked.rows[0].source_metadata["交易日"], `${prefix}20260924`);
+      assert.equal(marked.rows[0].source_metadata.card_number, "********1234");
+    }
+  }
+  for (const invalidDate of ["*20260229", "*2026*0924", "*20260924*", "*"]) {
+    const marked = parseBankCsv(
+      Buffer.from(fixtures.ccb_credit.replace("20260924,", `${invalidDate},`)),
+      account("ccb_credit"),
+    );
+    assert.equal(marked.errors.length, 1);
+    assert.equal(marked.rows.length, 2);
+  }
   const bnz = parseBankCsv(Buffer.from(fixtures.bnz), account("bnz"));
   assert.equal(bnz.rows[0].classification, "spending");
   assert.equal(bnz.rows[1].classification, "income");
