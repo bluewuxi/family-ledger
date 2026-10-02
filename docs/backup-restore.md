@@ -1,6 +1,6 @@
 # Backup And Restore
 
-Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export. The current implementation emits format version 5 after the Kernel price-estimation migration is applied. The shared test environment continues to emit version 4 until that migration and matching jobs code are deployed. Production has not been deployed.
+Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export. The current implementation emits format version 5 after the Kernel price-estimation migration is applied. The shared test environment has emitted version 5 since the 2026-10-02 Kernel market-data release under issue #97. Production has not been deployed.
 
 Version history:
 

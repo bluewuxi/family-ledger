@@ -362,3 +362,11 @@ Recoverable backups from this release (private backup bucket):
 
 - Before reset: `backups/test/2026/10/01/family-ledger-test-2026-10-01T06-43-47-695Z.json.gz` (payload file checksum `817b73a883909794a84ba2c9371c6337a6680577271a338248ec677e8065ef37`).
 - After deployment: `backups/test/2026/10/01/family-ledger-test-2026-10-01T06-47-51-938Z.json.gz` (payload file checksum `c7843f708e2e152a2e40f7270b205fd27e2d98c44a3d92544ee619cea35b18d4`).
+
+### Test Kernel market-data release (2026-10-02)
+
+The Kernel S&P 500 (Unhedged) market-data source was released to test under issue #97. The additive migration created the disabled `KERNEL_SP500_UNHEDGED` NZD PIE instrument, the anchor table, estimated-price provenance, the atomic anchor RPC, and updated backup and price-selection functions before the matching API/jobs code was deployed. CloudFormation reached `UPDATE_COMPLETE`, the API and price-job Lambda updates succeeded, and the web runtime configuration and health endpoint passed.
+
+An administrator saved the first exact anchor through the deployed `数据源` UI: Kernel unit price `6.67` on `2026-09-30`, matched to the confirmed raw `USF.NZ` close `23.7959995270` NZD. The first anchor enabled automatic updates. Atomic rebaselining wrote the `2026-10-01` estimated Kernel price `6.6422506514` NZD from the confirmed `USF.NZ` close, and a fresh manual price batch logged a successful `Kernel Estimate (USF.NZ)` source run. Responsive UI verification was skipped at the user's request. Production was not changed.
+
+The recoverable pre-migration version-4 backup is `backups/test/2026/10/02/family-ledger-test-2026-10-02T03-06-57-162Z.json.gz`. The post-release version-5 backup is `backups/test/2026/10/02/family-ledger-test-2026-10-02T03-14-42-537Z.json.gz`; checksum validation and restore dry-run passed with one Kernel anchor, one exact Kernel price, and one estimated Kernel price.

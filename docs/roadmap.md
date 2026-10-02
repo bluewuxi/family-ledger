@@ -45,7 +45,7 @@
 - FundRock PIE unit price maintenance handler (implemented: scheduled Lambda handler ingests latest public FundRock unit prices for seeded Foundation Series PIE funds)
 - Market-data source registry (implemented: code-backed definitions for Frankfurter, Yahoo Finance, Eastmoney, FundRock, and Kernel estimate, with capabilities, acquisition methods, configuration types, statuses, and canonical run names)
 - Stock/ETF price providers (implemented: enabled database-configured Yahoo Finance and Eastmoney instruments use best-effort public market data)
-- Kernel S&P 500 (Unhedged) estimator (implemented in code: append-only exact anchors, raw `USF.NZ` proxy closes, atomic rebaselining, estimate precedence and badges; deployment remains pending)
+- Kernel S&P 500 (Unhedged) estimator (implemented and released to test on 2026-10-02: append-only exact anchors, raw `USF.NZ` proxy closes, atomic rebaselining, estimate precedence, and badges)
 - Scheduled execution policy (implemented: EventBridge Scheduler runs FX, price, and snapshot jobs after the `06:00 Asia/Shanghai` business-day cutoff with retry attempts `2` and maximum event age `1 hour`; US/global close cadence has priority over NZ PIE publication timing)
 - Historical close policy (implemented: stock/ETF price ingestion skips same-day provider rows fetched before exchange close-confirmation cutoffs; FundRock/NZ PIE snapshots use the latest published lagged unit price without treating normal provider lag as stale)
 - Retry/job logging hardening (implemented with durable job/provider run status and best-effort failure finalization)
