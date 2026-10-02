@@ -5,6 +5,7 @@ import {
   type PriceRecord
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
+import { readAllRows } from "./readAllRows";
 
 interface HeldInstrumentPriceKey {
   instrumentId: string;
@@ -29,6 +30,17 @@ interface PriceRow {
 
 interface PriceForDateRow extends PriceRow {
   as_of_date: string;
+}
+
+// Mutation planning needs alternate providers/dates after removing an owned price.
+export async function listPricesForTransactionWrite(instrumentIds: string[], toDate: string): Promise<Array<PriceRecord & { sourceTransactionId: string | null }>> {
+  if (instrumentIds.length === 0) return [];
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await readAllRows(supabase.from("instrument_prices").select(priceSelect)
+    .in("instrument_id", uniqueValues(instrumentIds)).lte("price_date", toDate)
+    .order("id").returns<PriceRow[]>());
+  if (error) throw new Error("Failed to load transaction valuation prices.");
+  return data.map(row => ({ ...mapPriceRow(row), sourceTransactionId: row.source_transaction_id }));
 }
 
 export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): Promise<PriceRecord[]> {

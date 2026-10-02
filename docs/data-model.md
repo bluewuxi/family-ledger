@@ -166,6 +166,8 @@ Portfolio snapshots are durable but repairable daily valuation records generated
 
 - `portfolio_snapshot_headers` stores one family-level header row per `snapshot_date`; `portfolio_snapshots` derives its totals from account rows.
 - `portfolio_account_snapshots` stores one row per account for the same snapshot date.
+- Account `market_value_usd` is a signed net value, including cash liabilities. Historical buy settlement and lagged fund prices can make it negative; snapshot rebuilds preserve that value rather than clamping it or rejecting the write.
+- `ledger_write_state` stores one monotonic revision for transaction planning. Statement triggers advance it when transactions, accounts, instruments, prices, FX, or snapshots change. The service-only `commit_transaction_write` RPC locks and compares this revision, then atomically writes the parent transaction, linked cash leg, owned price, and all affected snapshots. A stale plan fails without writing; business calculations remain in the API/shared services.
 - `investment_accounts.purpose` is exactly one of `investment`, `daily_expense`, or `education`. Existing and omitted values default to `investment`; changing purpose changes historical report membership without rewriting snapshots.
 - Snapshot valuation is canonicalized in USD because market data storage is USD-centered.
 - Each snapshot stores `usd_to_nzd_rate` and `usd_to_cny_rate` used at generation time so historical display values remain stable when later FX data changes.

@@ -8,6 +8,8 @@ import type {
   TransactionType,
   UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
+import type { CreateInstrumentPriceInput, PortfolioSnapshotValuation } from "@family-ledger/shared";
+import { ApiRequestError } from "../utils/apiError";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 import { readAllRows } from "./readAllRows";
 
@@ -342,7 +344,7 @@ function mapTransactionRow(row: InvestmentTransactionRow): InvestmentTransaction
   };
 }
 
-function toTransactionRow(input: CreateInvestmentTransactionInput) {
+export function toTransactionRow(input: CreateInvestmentTransactionInput) {
   return {
     account_id: input.accountId,
     instrument_id: input.instrumentId,
@@ -362,6 +364,69 @@ function toTransactionRow(input: CreateInvestmentTransactionInput) {
     settlement_amount: input.settlementAmount ?? null,
     notes: input.notes ?? null
   };
+}
+
+export async function getTransactionWriteRevision(): Promise<string> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase.rpc("get_ledger_write_revision");
+  if (error || typeof data !== "string") {
+    throw new ApiRequestError("INTERNAL_ERROR", "无法读取交易校验数据，本次操作未保存，请稍后重试。", 500);
+  }
+  return data;
+}
+
+export async function commitTransactionWrite(input: {
+  operation: "create" | "update" | "delete";
+  id: string;
+  revision: string;
+  userId: string;
+  transaction: CreateInvestmentTransactionInput | null;
+  cashLeg: CreateInvestmentTransactionInput | null;
+  price: CreateInstrumentPriceInput | null;
+  snapshots: PortfolioSnapshotValuation[];
+  updateDerivedData: boolean;
+}): Promise<InvestmentTransaction | null> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase.rpc("commit_transaction_write", {
+    operation: input.operation,
+    transaction_id: input.id,
+    expected_revision: input.revision,
+    actor_id: input.userId,
+    parent_row: input.transaction ? toTransactionRow(input.transaction) : null,
+    cash_row: input.cashLeg ? toTransactionRow(input.cashLeg) : null,
+    price_row: input.price,
+    snapshot_values: input.snapshots,
+    update_derived_data: input.updateDerivedData
+  });
+  if (error) {
+    const stage = ["transaction", "cash", "price", "snapshot"].includes(error.details) ? error.details : null;
+    console.error("Atomic transaction write failed", { operation: input.operation, code: error.code, stage });
+    if (!/^[0-9A-Z]{5}$/.test(error.code) || error.code.startsWith("08")) {
+      throw new ApiRequestError("INTERNAL_ERROR", "未能确认交易保存结果，请先刷新交易记录，确认是否已保存后再操作，避免重复提交。", 500);
+    }
+    if (["40001", "40P01"].includes(error.code)) {
+      throw new ApiRequestError("CONFLICT", "账户或行情数据已发生变化，本次操作未保存，请刷新后重试。", 409);
+    }
+    if (error.code === "P0002") throw new TransactionNotFoundError();
+    if (error.code === "42501") {
+      throw new ApiRequestError("FORBIDDEN", "需要有效的管理员权限，本次操作未保存。", 403);
+    }
+    if (error.details === "snapshot") {
+      throw new ApiRequestError("INTERNAL_ERROR", "历史资产快照保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试或联系管理员。", 500);
+    }
+    if (error.details === "price") {
+      throw new ApiRequestError("INTERNAL_ERROR", "历史价格保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500);
+    }
+    if (error.code === "23503") throw new TransactionReferenceError();
+    if (["23514", "22P02"].includes(error.code)) {
+      throw new ApiRequestError("VALIDATION_ERROR", "交易或关联现金流水不符合数据规则，本次操作已全部回滚，请检查输入。", 400);
+    }
+    if (stage === "cash") {
+      throw new ApiRequestError("INTERNAL_ERROR", "关联现金流水保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500);
+    }
+    throw new ApiRequestError("INTERNAL_ERROR", "交易保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500);
+  }
+  return data ? mapTransactionRow(data as InvestmentTransactionRow) : null;
 }
 
 function toTransactionUpdateRow(input: UpdateInvestmentTransactionInput) {

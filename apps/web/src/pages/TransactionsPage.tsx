@@ -339,6 +339,7 @@ export function TransactionsPage() {
   }
 
   function startCreate(accountId: string) {
+    setError(null);
     setCreateMenuOpen(false);
     const account = accounts.find((item) => item.id === accountId);
     const isBankAccount = account?.accountType === "bank";
@@ -352,6 +353,7 @@ export function TransactionsPage() {
   }
 
   function startDetail(transaction: InvestmentTransaction) {
+    setError(null);
     setEditingTransactionId(transaction.id);
     setDrawerMode(isAdmin && transaction.transactionSource !== "generated_cash_leg" ? "modify" : "view");
     setForm({
@@ -481,7 +483,7 @@ export function TransactionsPage() {
         </div>
       </header>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error && !drawerOpen ? <p className="form-error" role="alert">{error}</p> : null}
 
       {!isAdmin && !loading && user ? (
         <p className="readonly-note">当前角色为 viewer，可查看交易记录。新增、编辑和删除仅限 admin。</p>
@@ -629,7 +631,9 @@ export function TransactionsPage() {
         subtitle="现金类交易请选择对应币种的现金标的"
         onClose={closeDrawer}
         footer={
-          drawerMode === "view" ? (
+          <>
+          {error ? <p className="form-error transaction-save-error" role="alert">{error}</p> : null}
+          {drawerMode === "view" ? (
             <button className="secondary-button" type="button" onClick={closeDrawer}>
               <X size={17} aria-hidden="true" />
               <span>关闭</span>
@@ -650,7 +654,8 @@ export function TransactionsPage() {
                 <span>取消</span>
               </button>
             </>
-          )
+          )}
+          </>
         }
       >
         <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={handleSubmit}>

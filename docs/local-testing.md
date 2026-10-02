@@ -234,6 +234,8 @@ The in-process Kernel check uses synthetic Yahoo chart payloads with separate ra
 
 `scripts/verify-snapshot-atomicity.sql` is an integration check for an **empty, disposable local PostgreSQL database**. Run it with `psql -v ON_ERROR_STOP=1 -f scripts/verify-snapshot-atomicity.sql` and explicit local connection arguments. It creates minimal schema/roles, applies the real migration twice, and verifies retries, rollback after account-write failure, empty-account replacement, and RPC execution permissions. Do not run this fixture against test or production business data.
 
+`corepack pnpm verify:signed-snapshots-db` creates a disposable loopback PostgreSQL cluster. It verifies signed net account values and uses the real transaction-write migration to test successful create/update/delete, cash/price/late-snapshot rollback, stale revisions, note-only updates, cascaded delete rollback, and service-role-only RPC access. It never connects to the test ledger.
+
 After making code changes, run:
 
 ```powershell
@@ -261,7 +263,7 @@ Only after reviewing the dry-run output, rewrite all missing or mismatched deriv
 corepack pnpm fix:snapshot-audit
 ```
 
-Snapshot repair recalculates from transactions, stored `instrument_prices`, and stored valuation FX only; it does not use dashboard quote cache rows. It does not write an affected-row backup because snapshots are rebuildable derived records.
+Snapshot repair recalculates from transactions, stored `instrument_prices`, and stored valuation FX only; it does not use dashboard quote cache rows. It does not write an affected-row backup because snapshots are rebuildable derived records. All audit inputs are paginated beyond Supabase's default row cap. Pass `--from YYYY-MM-DD` to restrict audit/repair to affected snapshot dates while retaining earlier transaction, price, and FX inputs.
 
 Historical market-close repair is dry-run by default:
 

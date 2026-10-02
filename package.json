@@ -47,6 +47,7 @@
     "verify:kernel-price-estimation": "tsx scripts/verify-kernel-price-estimation.ts",
     "verify:kernel-price-estimation-db": "tsx scripts/verify-kernel-price-estimation-db.ts",
     "verify:portfolio-snapshots": "tsx scripts/verify-portfolio-snapshot-calculation.ts",
+    "verify:signed-snapshots-db": "tsx scripts/verify-signed-snapshots-db.ts",
     "verify:account-purposes": "tsx scripts/verify-account-purposes.ts",
     "verify:time-policy": "tsx scripts/verify-time-policy.ts",
     "verify:market-close-repair": "tsx scripts/verify-market-close-repair.ts",

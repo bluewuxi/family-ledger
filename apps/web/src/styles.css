@@ -1205,6 +1205,14 @@ textarea {
   padding: 14px 20px;
 }
 
+.drawer-footer .transaction-save-error {
+  flex-basis: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
 .drawer-form.account-form,
 .drawer-form.instrument-form,
 .drawer-form.transaction-form {

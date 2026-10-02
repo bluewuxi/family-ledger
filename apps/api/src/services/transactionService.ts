@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { randomUUID } from "node:crypto";
 import {
   ADJUSTMENT_DIRECTIONS,
   CURRENCY_CODES,
@@ -26,15 +27,11 @@ import {
   TransactionNotFoundError,
   TransactionConstraintError,
   TransactionReferenceError,
-  createTransaction,
-  deleteGeneratedCashLegByParentId,
-  deleteTransaction,
-  findGeneratedCashLegByParentId,
+  getTransactionWriteRevision,
   findTransactionById,
   listTransactions,
   listGeneratedCashLegs,
-  listTransactionPage,
-  updateTransaction
+  listTransactionPage
 } from "../repositories/transactionRepository";
 import {
   deletePriceBySourceTransactionId,
@@ -42,7 +39,7 @@ import {
   insertInstrumentPriceIfNotExists
 } from "../repositories/priceRepository";
 import { ApiRequestError } from "../utils/apiError";
-import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
+import { writeTransactionAtomically } from "./atomicTransactionWriteService";
 import { optionalAccountPurpose } from "./accountPurpose";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -113,6 +110,7 @@ export async function createInvestmentTransaction(
   body: unknown,
   user: AuthenticatedUser
 ): Promise<InvestmentTransaction> {
+  const revision = await getTransactionWriteRevision();
   const record = asRecord(body);
   const input = parseCreateTransactionInput(record);
   const validated = await validateTransaction(input, "grossAmount" in record);
@@ -120,14 +118,13 @@ export async function createInvestmentTransaction(
   try {
     const settlementInput = await withAutomaticSettlement(validated);
     await assertSufficientTradeBalance(settlementInput);
-    const transaction = await createTransaction(settlementInput, user.id);
-    await syncGeneratedCashLeg(transaction, user.id);
-    await reconcileTransactionPrice(transaction);
-    await recalculateSnapshotsFrom(transaction.tradeDate);
+    const transaction = await writeTransactionAtomically({ operation: "create", id: randomUUID(), userId: user.id,
+      revision, transaction: settlementInput, updateDerivedData: true });
+    if (!transaction) throw new Error("Atomic transaction result was missing.");
     return transaction;
   } catch (error) {
     if (error instanceof TransactionReferenceError) {
-      throw new ApiRequestError("VALIDATION_ERROR", "Transaction account or instrument was not found.", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400);
     }
 
     if (error instanceof TransactionConstraintError) {
@@ -220,6 +217,7 @@ export async function updateInvestmentTransaction(
   body: unknown,
   user: AuthenticatedUser
 ): Promise<InvestmentTransaction> {
+  const revision = await getTransactionWriteRevision();
   assertUuid(id, "Transaction");
   const record = asRecord(body);
   const patch = parseUpdateTransactionInput(record);
@@ -243,6 +241,8 @@ export async function updateInvestmentTransaction(
     fee: patch.fee ?? existing.fee,
     tax: patch.tax ?? existing.tax,
     currency: patch.currency ?? existing.currency,
+    settlementCurrency: existing.settlementCurrency,
+    settlementAmount: existing.settlementAmount,
     adjustmentDirection:
       patch.adjustmentDirection !== undefined ? patch.adjustmentDirection : existing.adjustmentDirection,
     notes: patch.notes !== undefined ? patch.notes : existing.notes
@@ -257,14 +257,9 @@ export async function updateInvestmentTransaction(
       await assertSufficientTradeBalance(updateInput, id);
     }
 
-    const transaction = await updateTransaction(id, updateInput, user.id);
-
-    if (shouldUpdateDerivedData) {
-      await syncGeneratedCashLeg(transaction, user.id);
-      await reconcileTransactionPrice(transaction);
-      await recalculateSnapshotsFrom(minDate(existing.tradeDate, transaction.tradeDate));
-    }
-
+    const transaction = await writeTransactionAtomically({ operation: "update", id, userId: user.id,
+      revision, transaction: updateInput, existing, updateDerivedData: shouldUpdateDerivedData });
+    if (!transaction) throw new Error("Atomic transaction result was missing.");
     return transaction;
   } catch (error) {
     if (error instanceof TransactionNotFoundError) {
@@ -272,7 +267,7 @@ export async function updateInvestmentTransaction(
     }
 
     if (error instanceof TransactionReferenceError) {
-      throw new ApiRequestError("VALIDATION_ERROR", "Transaction account or instrument was not found.", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400);
     }
 
     if (error instanceof TransactionConstraintError) {
@@ -283,7 +278,8 @@ export async function updateInvestmentTransaction(
   }
 }
 
-export async function deleteInvestmentTransaction(id: string): Promise<void> {
+export async function deleteInvestmentTransaction(id: string, user: AuthenticatedUser): Promise<void> {
+  const revision = await getTransactionWriteRevision();
   assertUuid(id, "Transaction");
   const existing = await findTransactionById(id);
 
@@ -294,9 +290,8 @@ export async function deleteInvestmentTransaction(id: string): Promise<void> {
   rejectGeneratedCashLegMutation(existing);
 
   try {
-    await deleteGeneratedCashLegByParentId(id);
-    await deleteTransaction(id);
-    await recalculateSnapshotsFrom(existing.tradeDate);
+    await writeTransactionAtomically({ operation: "delete", id, userId: user.id, revision,
+      transaction: null, existing, updateDerivedData: true });
   } catch (error) {
     if (error instanceof TransactionNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
@@ -411,45 +406,6 @@ function getHoldingQuantity(holdings: HoldingSummary[], accountId: string, instr
   return new Decimal(holding?.quantity ?? "0");
 }
 
-async function syncGeneratedCashLeg(parent: InvestmentTransaction, userId: string): Promise<void> {
-  const existingCashLeg = await findGeneratedCashLegByParentId(parent.id);
-
-  if (!usesAutomaticSettlement(parent.transactionType)) {
-    if (existingCashLeg) {
-      await deleteGeneratedCashLegByParentId(parent.id);
-    }
-    return;
-  }
-
-  if (!parent.settlementCurrency || !parent.settlementAmount) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Settlement cash amount could not be calculated.", 400);
-  }
-
-  if (isZeroDividendSettlement(parent)) {
-    if (existingCashLeg) {
-      await deleteGeneratedCashLegByParentId(parent.id);
-    }
-    return;
-  }
-
-  const cashInstrument = await findCashInstrument(parent.settlementCurrency);
-  const cashInput = buildGeneratedCashLegInput(parent, cashInstrument);
-
-  if (!cashInput) {
-    if (existingCashLeg) {
-      await deleteGeneratedCashLegByParentId(parent.id);
-    }
-    return;
-  }
-
-  if (existingCashLeg) {
-    await updateTransaction(existingCashLeg.id, cashInput, userId);
-    return;
-  }
-
-  await createTransaction(cashInput, userId);
-}
-
 export function buildGeneratedCashLegInput(
   parent: InvestmentTransaction,
   cashInstrument: Instrument
@@ -538,10 +494,6 @@ function usesAutomaticSettlement(transactionType: TransactionType): boolean {
   return transactionType === "buy" || transactionType === "sell" || transactionType === "dividend";
 }
 
-function isZeroDividendSettlement(transaction: InvestmentTransaction): boolean {
-  return transaction.transactionType === "dividend" && new Decimal(transaction.settlementAmount ?? "0").isZero();
-}
-
 function generatedCashLegNotes(transactionType: TransactionType): string {
   if (transactionType === "buy") {
     return "\u81ea\u52a8\u73b0\u91d1\u6d41\u6c34\uff1a\u4e70\u5165\u7ed3\u7b97";
@@ -625,10 +577,6 @@ function isValuationImpactingPatch(input: UpdateInvestmentTransactionInput): boo
     "currency",
     "adjustmentDirection"
   ].some((field) => field in input);
-}
-
-function minDate(left: string, right: string): string {
-  return left < right ? left : right;
 }
 
 function hasTransactionListQuery(query: Record<string, string | undefined>): boolean {

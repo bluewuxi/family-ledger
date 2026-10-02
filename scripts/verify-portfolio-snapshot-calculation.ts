@@ -76,6 +76,22 @@ assert.equal(complete.accounts.find((row) => row.accountId === "account-b")?.mar
 assert.equal(holdings.find((holding) => holding.instrumentId === "usd-security")?.instrumentShortName, "usd-security");
 assert.deepEqual(complete.warnings, []);
 
+// Historical cash liabilities can exceed the marked value of the investment.
+// Snapshot persistence must retain this signed net value without clamping it.
+const signedHoldings = calculateHoldings([
+  transaction("signed-buy", "account-a", "usd-security", "buy", "2026-05-20", "2", "50", "100", "USD"),
+  transaction("signed-cash", "account-a", "usd-cash", "withdrawal", "2026-05-20", null, null, "100", "USD")
+], accounts, instruments);
+const signedSnapshot = calculatePortfolioSnapshotValuation({
+  snapshotDate,
+  holdings: signedHoldings,
+  accounts,
+  prices: [price("signed-price", "usd-security", snapshotDate, "49", "USD")],
+  fxRates: rates
+});
+assert.equal(signedSnapshot.accounts.find((row) => row.accountId === "account-a")?.marketValueUsd, "-2.000000");
+assert.equal(signedSnapshot.marketValueUsd, "-2.000000");
+
 const missingLatest = calculatePortfolioSnapshotValuation({
   snapshotDate,
   holdings,

@@ -2,6 +2,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { createClient } from "@supabase/supabase-js";
 import Decimal from "decimal.js";
 import { config as loadDotenv } from "dotenv";
+import { readAllRows } from "../apps/api/src/repositories/readAllRows";
 import {
   calculateHoldings,
   calculatePortfolioSnapshotValuation,
@@ -19,6 +20,8 @@ import {
 loadDotenv({ path: ".env.test", quiet: true });
 
 const shouldFix = process.argv.includes("--fix");
+const fromIndex = process.argv.indexOf("--from");
+const auditFrom = fromIndex >= 0 ? process.argv[fromIndex + 1] : undefined;
 
 interface SnapshotRow {
   id: string;
@@ -61,6 +64,9 @@ interface TimingWarning {
 void main();
 
 async function main(): Promise<void> {
+  if (fromIndex >= 0 && (!auditFrom || !/^\d{4}-\d{2}-\d{2}$/.test(auditFrom))) {
+    throw new Error("--from requires a YYYY-MM-DD date.");
+  }
   const supabase = createClient(requiredEnv("SUPABASE_URL"), await resolveServiceRoleKey(), {
     auth: {
       persistSession: false,
@@ -100,7 +106,7 @@ async function main(): Promise<void> {
     ].join(", ")
   );
 
-  for (const snapshotDate of expectedSnapshotDates) {
+  for (const snapshotDate of expectedSnapshotDates.filter(date => !auditFrom || date >= auditFrom)) {
     if (!existingSnapshotDates.has(snapshotDate)) {
       mismatches.push({ snapshotDate, detail: "missing portfolio snapshot" });
 
@@ -113,7 +119,7 @@ async function main(): Promise<void> {
     }
   }
 
-  for (const snapshot of snapshots) {
+  for (const snapshot of snapshots.filter(row => !auditFrom || row.snapshot_date >= auditFrom)) {
     const valuation = calculateExpectedValuation(snapshot.snapshot_date, {
       accounts,
       instruments,
@@ -385,7 +391,7 @@ async function readTable<T>(
   select: string,
   mapRow: (row: Record<string, unknown>) => T
 ): Promise<T[]> {
-  const { data, error } = await supabase.from(table).select(select).returns<Record<string, unknown>[]>();
+  const { data, error } = await readAllRows(supabase.from(table).select(select).order("id").returns<Record<string, unknown>[]>());
 
   if (error) {
     throw new Error(`Failed to read ${table}: ${error.message}`);
@@ -395,11 +401,11 @@ async function readTable<T>(
 }
 
 async function readSnapshots(supabase: ReturnType<typeof createClient>): Promise<SnapshotRow[]> {
-  const { data, error } = await supabase
+  const { data, error } = await readAllRows(supabase
     .from("portfolio_snapshots")
     .select(snapshotSelect)
     .order("snapshot_date", { ascending: true })
-    .returns<SnapshotRow[]>();
+    .returns<SnapshotRow[]>());
 
   if (error) {
     throw new Error(`Failed to read portfolio_snapshots: ${error.message}`);
@@ -416,11 +422,12 @@ async function readAccountSnapshots(
     return [];
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await readAllRows(supabase
     .from("portfolio_account_snapshots")
     .select(accountSnapshotSelect)
     .in("portfolio_snapshot_id", snapshotIds)
-    .returns<AccountSnapshotRow[]>();
+    .order("snapshot_date").order("account_id")
+    .returns<AccountSnapshotRow[]>());
 
   if (error) {
     throw new Error(`Failed to read portfolio_account_snapshots: ${error.message}`);

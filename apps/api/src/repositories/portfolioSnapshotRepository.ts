@@ -202,6 +202,7 @@ export async function upsertPortfolioSnapshot(
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation });
   if (error || typeof data !== "string") {
+    console.error("Portfolio snapshot write failed", { snapshotDate: valuation.snapshotDate, code: error?.code });
     throw new Error("Failed to atomically write portfolio snapshot.");
   }
   return { snapshotId: data, accountsWritten: valuation.accounts.length };

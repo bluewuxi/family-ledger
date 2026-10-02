@@ -156,6 +156,12 @@ The response includes a `triggerRequestId`. Actual inserted/skipped counts are r
 
 `rateDate` is optional and currently applies to FX retrieval. When omitted, the FX job retrieves the latest provider rate date.
 
+### Atomic Transaction Writes
+
+Transaction create, update, and delete prepare their financial results before writing. One service-role-only RPC commits the manual transaction, generated cash leg, owned historical price, and all affected existing snapshots together. Any database failure rolls back the entire operation. Note-only updates preserve financial fields and derived records. Lambda still verifies the access token, requires `admin`, and performs authoritative request, settlement, and balance validation.
+
+A revision guard returns `409 CONFLICT` when accounts, instruments, transactions, prices, FX, or snapshots change during preparation; refresh before retrying. Known database failures return safe Chinese reasons identifying cash/price/snapshot failure and confirming rollback. Failures during preparation confirm that nothing was saved. Connection failures with an unknown commit outcome ask the user to refresh and check existing records before retrying. The transaction drawer displays the API reason next to its save controls, including on phones; page-level errors remain visible when the drawer is closed. Database internals remain private.
+
 ### Kernel Estimate Anchor API
 
 `POST /data-maintenance/data-sources/kernel-estimate/anchors` is admin-only and returns `201`. The request contains an exact Kernel unit price and calendar date:

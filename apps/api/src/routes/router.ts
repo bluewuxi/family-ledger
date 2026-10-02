@@ -317,8 +317,8 @@ const dynamicRoutes: Array<{
     method: "DELETE",
     pattern: /^\/transactions\/(?<id>[^/]+)$/,
     handler: async (event, params) => {
-      await requireRole(event, "admin");
-      await deleteInvestmentTransaction(params.id);
+      const user = await requireRole(event, "admin");
+      await deleteInvestmentTransaction(params.id, user);
       return success({ deleted: true });
     }
   },

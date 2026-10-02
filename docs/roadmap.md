@@ -24,6 +24,7 @@
 - Account CRUD (implemented, including non-confidential trading info and SSM-backed trading password reveal/update)
 - Instrument CRUD (implemented)
 - Transaction CRUD (implemented; all-account filters, sortable transaction/settlement date, instrument and type headers, server pagination, buy/sell price display, and numeric detail normalization)
+- Atomic transaction mutations (implemented: parent, linked cash settlement, owned historical price, and affected snapshots commit together; revision conflicts reject stale calculations, and failures expose safe Chinese reasons)
 - Admin-only write APIs
 - Viewer read APIs
 
