@@ -310,12 +310,17 @@ function formatNullableSignedAmount(value: string | null): string {
   return value === null ? "--" : formatSignedDisplayAmount(value);
 }
 
-function formatPriceRecord(price: HoldingDetailSummary["priceContext"]["latestPrice"]): string {
+function formatPriceRecord(price: HoldingDetailSummary["priceContext"]["latestPrice"]): ReactNode {
   if (!price) {
     return "--";
   }
 
-  return `${price.currency} ${formatDisplayPrice(price.closePrice)} (${price.priceDate})`;
+  return (
+    <>
+      {price.currency} {formatDisplayPrice(price.closePrice)} ({price.priceDate})
+      {price.isEstimated ? <span className="estimate-badge">估算</span> : null}
+    </>
+  );
 }
 
 function formatPriceMovement(

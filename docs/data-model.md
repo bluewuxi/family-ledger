@@ -21,6 +21,7 @@ Business tables do not use `user_id` as an ownership field. Where useful, they u
 - `transactions`: shared investment transaction records.
 - `currencies`: supported currency reference data.
 - `instrument_prices`: shared provider-supplied historical prices for instruments.
+- `kernel_price_anchors`: append-only Kernel unit-price anchors with their exact-date proxy closes and creator audit fields.
 - `exchange_rates`: shared provider-supplied FX rates for valuation and future tax-assist separation.
 - `job_runs`: scheduled/batch job execution audit records.
 - `data_provider_runs`: per-provider audit records under a job run.
@@ -52,7 +53,7 @@ Price source fields configure scheduled price ingestion, dashboard quote lookup,
 - `source_url`
 - `source_checked_at`
 
-Latest close price fetching is implemented for the configured scheduled providers, while manual price sources remain configuration-only.
+Latest close price fetching is implemented for the configured scheduled sources. Stable source metadata lives in the shared code-backed registry; database instrument columns remain named `price_source` for compatibility.
 
 Instrument master records are maintained through the Lambda API. `name` remains the full legal/provider-facing name; `short_name` is the compact display label used in dense tables and dashboard activity cards. `short_name` is required, nonblank, and limited to 32 characters. For asset types other than `other`, `symbol` and `exchange` are required. If an instrument has transaction records or stored price history, it is retained and cannot be hard-deleted through the API.
 
@@ -92,7 +93,7 @@ Valuation FX records use `rate_type = 'valuation'` and must target `USD`. Tax-sp
 
 The FX job derives provider target currencies from distinct account base currencies and instrument currencies, skips `USD` provider requests, and no longer persists `USD -> USD` rows. USD is treated as rate `1` inside valuation code only. The job can also fetch a provider rate for a supplied historical `rateDate`; otherwise it retrieves the latest available provider rate date.
 
-`instrument_prices` stores provider-supplied calendar-date instrument close prices or published unit prices in the instrument price currency. `price_date` and `rate_date` are provider-supplied dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
+`instrument_prices` stores provider-supplied calendar-date instrument close prices, published unit prices, or explicit proxy estimates in the instrument price currency. `is_estimated` distinguishes estimates from exact values and defaults to false. `price_date` and `rate_date` are provider/exchange dates. `fetched_at`, `job_started_at`, and `job_finished_at` are UTC timestamps and must not be treated as the provider price/rate date.
 
 When an admin creates a past-date buy or sell transaction and no `instrument_prices` row exists for that instrument, date, and currency, the API writes a `manual` price row using the transaction price before recalculating affected snapshots. Transaction-generated rows carry `source_transaction_id`; editing the transaction reconciles its owned row, and deleting the transaction removes it through the foreign key cascade. Independently maintained and provider prices keep this field null and are never removed by transaction lifecycle handling. This is an intentional consistency trade-off: a transaction price is not guaranteed to equal the official close, but using it as a best-effort historical price keeps derived snapshots internally consistent and avoids turning affected aggregate values unavailable until an operator replaces it with a better market-data record.
 
@@ -104,10 +105,19 @@ The stock/ETF price job also ingests best-effort latest daily prices for enabled
 
 - `yahoo_finance`: enabled instruments with `price_source = 'yahoo_finance'` and a non-empty `price_source_symbol`.
 - `eastmoney`: enabled instruments with `price_source = 'eastmoney'`, a non-empty `price_source_symbol`, and a supported China exchange.
+- `kernel_estimate`: the fixed `KERNEL_SP500_UNHEDGED` NZD PIE target using `USF.NZ` on `NZX` as its proxy. It remains disabled until the first anchor is saved.
+
+`kernel_price_anchors` stores the exact Kernel unit price, anchor date, exact-date raw `USF.NZ` close and currency, proxy fetch time, creator, and creation time. Identical payload retries are unique and idempotent; same-date corrections are new revisions. For each confirmed proxy date `T`, the newest applicable anchor is selected by anchor date and then creation time, and the estimate is calculated with decimal arithmetic:
+
+```text
+estimated price = anchor Kernel price × USF close at T ÷ anchor USF close
+```
+
+The result is rounded once to `numeric(28,10)` with half-up rounding. Exact anchor dates contain an unbadged `Kernel Anchor` price and no estimate row. Other generated rows use provider `Kernel Estimate (USF.NZ)`, carry `is_estimated = true`, and use the proxy exchange date as `price_date`. Fees, tracking, cash holdings, and different distribution dates can make the estimate diverge from the published Kernel unit price, so periodic and post-distribution anchors are recommended.
 
 These providers are treated as unofficial market-data sources for a small family ledger. They do not introduce API keys or paid provider secrets. Provider responses are validated before insert, and failures are recorded in `data_provider_runs`, but this is not a guaranteed market-data feed or historical backfill pipeline.
 
-Scheduled price ingestion skips same-day stock/ETF prices fetched before the relevant exchange close-confirmation cutoff, so `instrument_prices` does not persist live intraday quotes as historical closes. Dashboard-only live or delayed quotes remain in `dashboard_instrument_quotes`.
+Yahoo daily-bar parsing uses the exchange timezone and raw `quote.close`, never adjusted close. Scheduled price ingestion skips same-day stock/ETF prices fetched before the relevant exchange close-confirmation cutoff, including `17:15 Pacific/Auckland` for NZX, so `instrument_prices` does not persist live intraday quotes as historical closes. Dashboard-only live or delayed quotes remain in `dashboard_instrument_quotes`.
 
 `job_runs` and `data_provider_runs` only track ingestion attempts and counts. They are audit records for completed or attempted jobs and are not themselves valuation snapshots.
 
@@ -171,7 +181,7 @@ Snapshot generation uses as-of data:
 - Latest instrument price where `price_date <= snapshot_date`.
 - Previous instrument close before that latest price date for latest-price movement.
 - Latest valuation FX where `rate_date <= snapshot_date`, plus historical valuation FX needed to derive transaction-date USD cost basis.
-- If multiple price or FX providers have records on the selected date, valuation picks one deterministic provider record for that date, preferring `manual` records and then provider name order.
+- Price selection uses the newest eligible date. Within one date it prefers `manual`, then another exact price, then an estimated price, with provider name and timestamps as deterministic tie-breakers. FX records use deterministic provider ordering.
 - Dashboard quote cache rows are never used for snapshot valuation or repair.
 
 For NZ PIE/FundRock instruments, an older latest unit price is an accepted provider lag unless there is no usable historical price at all. Snapshot warnings should not classify the normal Foundation Series publication lag as a missing or stale price.
@@ -223,8 +233,9 @@ Seeded instruments:
 - FS_NASDAQ_100
 - FS_TOTAL_WORLD
 - FS_US_500
+- KERNEL_SP500_UNHEDGED
 
-The three seeded Foundation Series PIE instruments are configured for the FundRock unit price job through `price_source = 'custom'`, enabled price updates, and stable `price_source_symbol` values. Seed data does not include transactions, current prices, FX rates, or portfolio snapshots. Holdings are calculated from transactions rather than seeded or persisted separately; dashboard values require separately stored price and FX records.
+The three seeded Foundation Series PIE instruments are configured for the FundRock unit price job through `price_source = 'custom'`, enabled price updates, and stable `price_source_symbol` values. `KERNEL_SP500_UNHEDGED` is seeded with `price_source = 'kernel_estimate'`, `USF.NZ`/`NZX` proxy metadata, and automatic updates disabled. Seed data does not include anchors, transactions, current prices, FX rates, or portfolio snapshots. Holdings are calculated from transactions rather than seeded or persisted separately; dashboard values require separately stored price and FX records.
 
 ## Financial Values
 
@@ -237,6 +248,7 @@ The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints
 - instruments: unique by `market_region, exchange, symbol`
 - instrument prices: unique by `instrument_id, provider, price_date`
 - exchange rates: unique by `from_currency, to_currency, rate_type, provider, rate_date`
+- Kernel anchor retries: unique by target, anchor date, Kernel price, proxy close, currency, and proxy date; same-date revisions with changed values remain append-only
 - valuation exchange rates: constrained to `to_currency = 'USD'`
 - portfolio snapshots: unique by `snapshot_date`
 - portfolio account snapshots: unique by `snapshot_date, account_id`

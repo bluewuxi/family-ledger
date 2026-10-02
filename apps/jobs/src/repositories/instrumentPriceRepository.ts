@@ -30,6 +30,7 @@ interface PriceRow {
   provider: string;
   source_symbol: string | null;
   is_adjusted: boolean;
+  is_estimated: boolean;
   fetched_at: string | null;
   created_at: string;
   updated_at: string;
@@ -114,6 +115,7 @@ const priceSelect = [
   "provider",
   "source_symbol",
   "is_adjusted",
+  "is_estimated",
   "fetched_at",
   "created_at",
   "updated_at"
@@ -145,6 +147,7 @@ function mapInstrumentPriceRow(row: PriceRow): InstrumentPriceRecord {
     provider: row.provider,
     sourceSymbol: row.source_symbol,
     isAdjusted: row.is_adjusted,
+    isEstimated: row.is_estimated,
     fetchedAt: row.fetched_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -160,6 +163,7 @@ function toInstrumentPriceInsertRow(input: CreateInstrumentPriceInput) {
     provider: input.provider,
     source_symbol: input.sourceSymbol ?? null,
     is_adjusted: input.isAdjusted ?? false,
+    is_estimated: input.isEstimated ?? false,
     fetched_at: input.fetchedAt ?? null
   };
 }

@@ -82,6 +82,37 @@ async function main(): Promise<void> {
       ),
     /unknown source symbol/
   );
+  const oneYahooInstrument = priceEnabledInstruments("yahoo_finance").slice(0, 1);
+  assert.deepEqual(
+    toInstrumentPriceInputs(oneYahooInstrument, [], "Yahoo Finance", "2026-05-23T01:00:00.000Z", ["AMD"]),
+    []
+  );
+
+  let zeroWorkProviderCalled = false;
+  const zeroWorkRun = await ingestLatestInstrumentPrices({
+    fetchedAt: "2026-05-23T01:00:00.000Z",
+    now: fixedNow(),
+    providerConfigs: [providerConfig("kernel_estimate", {
+      name: "Kernel Estimate (USF.NZ)",
+      async fetchLatestPrices() {
+        zeroWorkProviderCalled = true;
+        throw new Error("Zero-work provider must not be called.");
+      }
+    }, ["USF.NZ"])],
+    jobRunRepository: createFakeJobRunRepository([]),
+    instrumentPriceRepository: {
+      async listPriceEnabledInstrumentsBySource() {
+        return [];
+      },
+      async insertInstrumentPriceIfNotExists() {
+        throw new Error("Zero-work run must not insert a price.");
+      }
+    }
+  });
+  assert.equal(zeroWorkProviderCalled, false);
+  assert.equal(zeroWorkRun.providerFailures.length, 0);
+  assert.equal(zeroWorkRun.recordsInserted, 0);
+  assert.equal(zeroWorkRun.recordsSkipped, 0);
 
   const calls: string[] = [];
   const insertedInputs: CreateInstrumentPriceInput[] = [];

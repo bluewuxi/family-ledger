@@ -218,6 +218,20 @@ corepack pnpm verify:monthly-summary
 corepack pnpm verify:time-policy
 ```
 
+Market-data source and Kernel estimate checks:
+
+```powershell
+corepack pnpm verify:market-data
+corepack pnpm verify:yahoo-finance-provider
+corepack pnpm verify:stock-etf-price-ingestion
+corepack pnpm verify:kernel-price-estimation
+corepack pnpm verify:kernel-price-estimation-db
+corepack pnpm verify:time-policy
+corepack pnpm verify:backup
+```
+
+The in-process Kernel check uses synthetic Yahoo chart payloads and anchors. It verifies source statuses, NZST/NZDT exchange dates, intraday fallback, post-cutoff acceptance, raw rather than adjusted closes, decimal rounding, newest same-date anchor revisions, exact-price precedence, and provider output without contacting Kernel or Yahoo Finance. The database check starts an isolated loopback PostgreSQL cluster, applies the real migration, and verifies append-only permissions, retries, corrections, concurrent revisions, first-anchor enablement, later disabled-state preservation, SQL price precedence, and version-5 anchor serialization.
+
 `scripts/verify-snapshot-atomicity.sql` is an integration check for an **empty, disposable local PostgreSQL database**. Run it with `psql -v ON_ERROR_STOP=1 -f scripts/verify-snapshot-atomicity.sql` and explicit local connection arguments. It creates minimal schema/roles, applies the real migration twice, and verifies retries, rollback after account-write failure, empty-account replacement, and RPC execution permissions. Do not run this fixture against test or production business data.
 
 After making code changes, run:

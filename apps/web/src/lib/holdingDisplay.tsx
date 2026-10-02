@@ -31,6 +31,7 @@ export function formatHoldingLatestPrice(holding: ValuedHoldingSummary): ReactNo
   return (
     <>
       <span>{formatDisplayPrice(holding.latestPrice)}</span>
+      {holding.latestPriceIsEstimated ? <span className="estimate-badge">估算</span> : null}
       {holding.latestPriceDate ? (
         <>
           <br />

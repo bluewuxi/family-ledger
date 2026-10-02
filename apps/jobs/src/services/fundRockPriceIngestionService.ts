@@ -206,6 +206,7 @@ export function toProviderInstruments(instruments: PriceEnabledInstrument[]): In
     }
 
     return {
+      instrumentId: instrument.id,
       sourceSymbol,
       providerInstrumentName,
       currency: instrument.currency

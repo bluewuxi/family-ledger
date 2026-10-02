@@ -320,6 +320,26 @@ values
     null
   ),
   (
+    'KERNEL_SP500_UNHEDGED',
+    'Kernel 标普500（非对冲）',
+    'Kernel S&P 500 (Unhedged) Fund',
+    'Kernel S&P 500 (Unhedged) Fund is a New Zealand PIE fund whose unit price is estimated between manual anchors using the raw NZX close of Smart US 500 ETF (USF).',
+    'NZ',
+    'KERNEL',
+    'NZD',
+    'pie_fund',
+    null,
+    'Kernel',
+    'kernel_estimate',
+    'USF.NZ',
+    'NZX',
+    false,
+    3,
+    'https://kernelwealth.co.nz/funds/sp-500-unhedged',
+    now(),
+    'Estimated from USF.NZ daily movement between exact Kernel unit-price anchors.'
+  ),
+  (
     'CASH_CNY',
     'CNY现金',
     'CNY Cash',
@@ -411,7 +431,10 @@ do update set
   price_source = excluded.price_source,
   price_source_symbol = excluded.price_source_symbol,
   price_source_exchange = excluded.price_source_exchange,
-  price_update_enabled = excluded.price_update_enabled,
+  price_update_enabled = case
+    when excluded.price_source = 'kernel_estimate' then instruments.price_update_enabled
+    else excluded.price_update_enabled
+  end,
   price_update_priority = excluded.price_update_priority,
   source_url = excluded.source_url,
   source_checked_at = excluded.source_checked_at,

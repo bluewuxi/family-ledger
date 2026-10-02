@@ -11,6 +11,7 @@ const RESTORE_ORDER = [
   "user_roles",
   "investment_accounts",
   "instruments",
+  "kernel_price_anchors",
   "exchange_rates",
   "transactions",
   "instrument_prices",
@@ -105,6 +106,7 @@ function validateInternalReferences(payload: LedgerBackupPayload): void {
   requireKnownValues(payload.tables.instruments, "instruments", "currency", currencies);
   requireKnownValues(payload.tables.transactions, "transactions", "account_id", accounts);
   requireKnownValues(payload.tables.transactions, "transactions", "instrument_id", instruments);
+  requireKnownValues(payload.tables.kernel_price_anchors, "kernel_price_anchors", "instrument_id", instruments);
   requireKnownValues(payload.tables.transactions, "transactions", "currency", currencies);
   requireKnownValues(payload.tables.exchange_rates, "exchange_rates", "from_currency", currencies);
   requireKnownValues(payload.tables.exchange_rates, "exchange_rates", "to_currency", currencies);
@@ -132,6 +134,7 @@ function collectExternalUserIds(payload: LedgerBackupPayload): Set<string> {
   collectValues(payload.tables.investment_accounts, "updated_by_user_id", userIds);
   collectValues(payload.tables.instruments, "created_by_user_id", userIds);
   collectValues(payload.tables.instruments, "updated_by_user_id", userIds);
+  collectValues(payload.tables.kernel_price_anchors, "created_by_user_id", userIds);
   collectValues(payload.tables.transactions, "created_by_user_id", userIds);
   collectValues(payload.tables.transactions, "updated_by_user_id", userIds);
   collectValues(payload.tables.monthly_reviews, "completed_by_user_id", userIds);

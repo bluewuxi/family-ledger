@@ -16,7 +16,7 @@ async function main(): Promise<void> {
         ok: true,
         status: 200,
         async json() {
-          return yahooChartResponse(symbol, symbol.endsWith(".HK") ? "HKD" : "USD", 1_779_408_000, 123.45);
+          return yahooChartResponse(symbol, symbol.endsWith(".HK") ? "HKD" : "USD", 1_779_451_200, 123.45);
         }
       };
     }
@@ -38,11 +38,11 @@ async function main(): Promise<void> {
     { sourceSymbol: "1810.HK", priceDate: "2026-05-22", closePrice: "123.45", currency: "HKD" }
   ]);
 
-  await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "CNY", 1_779_408_000, 123.45)), /expected USD/);
-  await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "USD", 1_779_408_000, null, null)), /missing close price/);
-  await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "USD", 1_779_408_000, 0)), /must be positive/);
+  await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "CNY", 1_779_451_200, 123.45)), /expected USD/);
+  await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "USD", 1_779_451_200, null, null)), /no confirmed daily close/);
+  await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "USD", 1_779_451_200, 0)), /must be positive/);
   await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "USD", "bad", 123.45)), /timestamp is invalid/);
-  await assert.rejects(providerWithResponse(yahooChartResponse("QQQM", "USD", 1_779_408_000, 123.45)), /returned QQQM/);
+  await assert.rejects(providerWithResponse(yahooChartResponse("QQQM", "USD", 1_779_451_200, 123.45)), /returned QQQM/);
   await assert.rejects(
     new YahooFinanceInstrumentPriceProvider({
       fetchFn: async () => ({ ok: false, status: 503, async json() { return {}; } })
@@ -62,7 +62,6 @@ async function main(): Promise<void> {
 
   console.log("Yahoo Finance provider verification: success");
 }
-
 async function providerWithResponse(response: unknown): Promise<void> {
   const provider = new YahooFinanceInstrumentPriceProvider({
     fetchFn: async () => ({ ok: true, status: 200, async json() { return response; } })
@@ -85,7 +84,11 @@ function yahooChartResponse(
     chart: {
       result: [
         {
-          meta: { symbol, currency },
+          meta: {
+            symbol,
+            currency,
+            exchangeTimezoneName: symbol.endsWith(".HK") ? "Asia/Hong_Kong" : "America/New_York"
+          },
           timestamp: [1_779_321_600, timestamp],
           indicators: {
             quote: [

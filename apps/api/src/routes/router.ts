@@ -22,6 +22,11 @@ import {
   getDataMaintenanceProviderRuns,
   triggerDataMaintenanceRetrieval
 } from "../services/dataMaintenanceService";
+import {
+  createKernelPriceAnchor,
+  getKernelPriceAnchors,
+  getMarketDataSources
+} from "../services/marketDataSourceService";
 import { getManagedUsers, updateManagedUser } from "../services/managedUserService";
 import { getMonthlySummary } from "../services/monthlySummaryService";
 import { getMonthlyReview, updateMonthlyReview } from "../services/monthlyReviewService";
@@ -180,6 +185,19 @@ const routes: Record<string, RouteHandler> = {
     const user = await requireRole(event, "viewer");
     const result = await getDataMaintenanceFxRates(event.queryStringParameters ?? {});
     return success({ user, fxRates: result.items, pagination: result.pagination });
+  },
+  "GET /data-maintenance/data-sources": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ user, dataSources: await getMarketDataSources() });
+  },
+  "GET /data-maintenance/data-sources/kernel-estimate/anchors": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ user, anchors: await getKernelPriceAnchors() });
+  },
+  "POST /data-maintenance/data-sources/kernel-estimate/anchors": async (event) => {
+    const user = await requireRole(event, "admin");
+    const anchor = await createKernelPriceAnchor(parseJsonBody(event), user);
+    return success({ user, anchor }, 201);
   },
   "GET /data-maintenance/instrument-prices": async (event) => {
     const user = await requireRole(event, "viewer");

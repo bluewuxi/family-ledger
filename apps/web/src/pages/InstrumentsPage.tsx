@@ -444,7 +444,7 @@ export function InstrumentsPage() {
           </label>
 
           <label>
-            提供方
+            产品管理方
             <input
               value={form.provider}
               onChange={(event) => setForm({ ...form, provider: event.target.value })}

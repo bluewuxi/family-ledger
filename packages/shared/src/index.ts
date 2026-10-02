@@ -133,6 +133,27 @@ export type JobTriggerSource = (typeof JOB_TRIGGER_SOURCES)[number];
 export const DATA_KINDS = ["exchange_rates", "instrument_prices"] as const;
 export type DataKind = (typeof DATA_KINDS)[number];
 
+export const MARKET_DATA_SOURCE_KEYS = [
+  "frankfurter",
+  "yahoo_finance",
+  "eastmoney",
+  "fundrock",
+  "kernel_estimate"
+] as const;
+export type MarketDataSourceKey = (typeof MARKET_DATA_SOURCE_KEYS)[number];
+
+export const MARKET_DATA_CAPABILITIES = ["exchange_rates", "instrument_prices", "dashboard_quotes"] as const;
+export type MarketDataCapability = (typeof MARKET_DATA_CAPABILITIES)[number];
+
+export const MARKET_DATA_ACQUISITION_METHODS = ["public_api", "public_web_page", "proxy_estimate"] as const;
+export type MarketDataAcquisitionMethod = (typeof MARKET_DATA_ACQUISITION_METHODS)[number];
+
+export const MARKET_DATA_CONFIGURATION_TYPES = ["none", "instrument_targets", "kernel_anchor"] as const;
+export type MarketDataConfigurationType = (typeof MARKET_DATA_CONFIGURATION_TYPES)[number];
+
+export const MARKET_DATA_SOURCE_STATUSES = ["needs_configuration", "ready", "inactive"] as const;
+export type MarketDataSourceStatus = (typeof MARKET_DATA_SOURCE_STATUSES)[number];
+
 export const MARKET_REGIONS = ["US", "HK", "CN", "NZ", "UK", "MULTI", "OTHER"] as const;
 export type MarketRegion = (typeof MARKET_REGIONS)[number];
 
@@ -176,7 +197,8 @@ export const PRICE_SOURCES = [
   "eastmoney",
   "sina",
   "investnow_manual",
-  "custom"
+  "custom",
+  "kernel_estimate"
 ] as const;
 export type PriceSource = (typeof PRICE_SOURCES)[number];
 export const INSTRUMENT_SHORT_NAME_MAX_LENGTH = 32;
@@ -190,8 +212,69 @@ export const PRICE_SOURCE_LABELS: Record<PriceSource, string> = {
   eastmoney: "\u4e1c\u65b9\u8d22\u5bcc",
   sina: "\u65b0\u6d6a\u8d22\u7ecf",
   investnow_manual: "InvestNow",
-  custom: "\u81ea\u5b9a\u4e49"
+  custom: "\u81ea\u5b9a\u4e49",
+  kernel_estimate: "Kernel \u4f30\u7b97"
 };
+
+export interface MarketDataSourceDefinition {
+  key: MarketDataSourceKey;
+  name: string;
+  runProviderName: string;
+  capabilities: MarketDataCapability[];
+  acquisitionMethod: MarketDataAcquisitionMethod;
+  configurationType: MarketDataConfigurationType;
+  priceSource?: PriceSource;
+  sourceSymbols?: string[];
+}
+
+export const MARKET_DATA_SOURCE_DEFINITIONS: MarketDataSourceDefinition[] = [
+  {
+    key: "frankfurter",
+    name: "Frankfurter",
+    runProviderName: "Frankfurter",
+    capabilities: ["exchange_rates"],
+    acquisitionMethod: "public_api",
+    configurationType: "none"
+  },
+  {
+    key: "yahoo_finance",
+    name: "Yahoo Finance",
+    runProviderName: "Yahoo Finance",
+    capabilities: ["instrument_prices", "dashboard_quotes"],
+    acquisitionMethod: "public_api",
+    configurationType: "instrument_targets",
+    priceSource: "yahoo_finance"
+  },
+  {
+    key: "eastmoney",
+    name: "Eastmoney",
+    runProviderName: "Eastmoney",
+    capabilities: ["instrument_prices", "dashboard_quotes"],
+    acquisitionMethod: "public_api",
+    configurationType: "instrument_targets",
+    priceSource: "eastmoney"
+  },
+  {
+    key: "fundrock",
+    name: "FundRock",
+    runProviderName: "FundRock",
+    capabilities: ["instrument_prices"],
+    acquisitionMethod: "public_web_page",
+    configurationType: "instrument_targets",
+    priceSource: "custom",
+    sourceSymbols: ["FS_NASDAQ_100", "FS_TOTAL_WORLD", "FS_US_500"]
+  },
+  {
+    key: "kernel_estimate",
+    name: "Kernel S&P 500 (Unhedged) Estimate",
+    runProviderName: "Kernel Estimate (USF.NZ)",
+    capabilities: ["instrument_prices"],
+    acquisitionMethod: "proxy_estimate",
+    configurationType: "kernel_anchor",
+    priceSource: "kernel_estimate",
+    sourceSymbols: ["USF.NZ"]
+  }
+];
 
 export const TRANSACTION_TYPES = [
   "opening_position",
@@ -894,6 +977,7 @@ export interface ValuedHoldingSummary extends HoldingSummary {
   unrealizedGain: string | null;
   latestPrice: string | null;
   latestPriceDate: string | null;
+  latestPriceIsEstimated: boolean;
   valuationWarnings: DashboardWarning[];
 }
 
@@ -1002,6 +1086,7 @@ export interface PriceRecord {
   source: string | null;
   sourceSymbol: string | null;
   isAdjusted: boolean;
+  isEstimated: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1026,6 +1111,7 @@ export interface InstrumentPriceRecord {
   provider: string;
   sourceSymbol: string | null;
   isAdjusted: boolean;
+  isEstimated: boolean;
   fetchedAt: string | null;
   sourceTransactionId?: string | null;
   createdAt: string;
@@ -1040,6 +1126,7 @@ export interface CreateInstrumentPriceInput {
   provider: string;
   sourceSymbol?: string | null;
   isAdjusted?: boolean;
+  isEstimated?: boolean;
   fetchedAt?: string | null;
   sourceTransactionId?: string | null;
 }
@@ -1106,11 +1193,17 @@ export function selectPreferredExchangeRateRecord(records: ExchangeRateRecord[])
 
 function comparePriceRecordsForValuation(left: PriceRecord, right: PriceRecord): number {
   return (
-    providerPreference(left.source).localeCompare(providerPreference(right.source)) ||
+    priceProviderPreference(left.source).localeCompare(priceProviderPreference(right.source)) ||
+    Number(Boolean(left.isEstimated)) - Number(Boolean(right.isEstimated)) ||
+    (left.source ?? "").localeCompare(right.source ?? "") ||
     right.updatedAt.localeCompare(left.updatedAt) ||
     right.createdAt.localeCompare(left.createdAt) ||
     left.id.localeCompare(right.id)
   );
+}
+
+function priceProviderPreference(provider: string | null): string {
+  return provider === "manual" ? "00:manual" : "10:exact-or-estimated";
 }
 
 function compareExchangeRateRecordsForValuation(left: ExchangeRateRecord, right: ExchangeRateRecord): number {
@@ -1179,6 +1272,37 @@ export interface DataProviderRun {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MarketDataSourceSummary {
+  key: MarketDataSourceKey;
+  name: string;
+  capabilities: MarketDataCapability[];
+  acquisitionMethod: MarketDataAcquisitionMethod;
+  configurationType: MarketDataConfigurationType;
+  status: MarketDataSourceStatus;
+  configuredTargetCount: number | null;
+  latestBatchRun: DataProviderRun | null;
+  latestAnchorDate: string | null;
+}
+
+export interface KernelPriceAnchor {
+  id: string;
+  instrumentId: string;
+  anchorDate: string;
+  kernelUnitPrice: string;
+  proxySymbol: string;
+  proxyCurrency: CurrencyCode;
+  proxyClose: string;
+  proxyPriceDate: string;
+  proxyFetchedAt: string;
+  createdByUserId: string;
+  createdAt: string;
+}
+
+export interface CreateKernelPriceAnchorInput {
+  anchorDate: string;
+  kernelUnitPrice: string;
 }
 
 export interface DataMaintenanceBackupRun {
@@ -1805,11 +1929,20 @@ function formatFlexibleDecimal(amount: Decimal, decimalPlaces: number): string {
 }
 
 export interface ApiError {
-  code: "UNAUTHORIZED" | "FORBIDDEN" | "VALIDATION_ERROR" | "NOT_FOUND" | "INTERNAL_ERROR" | "CONFLICT";
+  code:
+    | "UNAUTHORIZED"
+    | "FORBIDDEN"
+    | "VALIDATION_ERROR"
+    | "NOT_FOUND"
+    | "INTERNAL_ERROR"
+    | "CONFLICT"
+    | "DATA_SOURCE_DATE_UNAVAILABLE"
+    | "DATA_SOURCE_UNAVAILABLE";
   message: string;
 }
 
 export * from "./spending";
+export * from "./yahooFinanceDailyBars";
 
 export type ApiResponse<T> =
   | {

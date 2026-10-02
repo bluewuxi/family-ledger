@@ -1,5 +1,5 @@
 import { PaginationControls } from "../components/PaginationControls";
-import { type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { CloudDownload, Eye, Filter, RefreshCw } from "lucide-react";
 import type {
   AuthenticatedUser,
@@ -11,10 +11,12 @@ import type {
   ExchangeRateRecord,
   Instrument,
   InstrumentPriceRecord,
+  KernelPriceAnchor,
   JobRun,
   JobRunStatus,
   JobTriggerSource,
-  Pagination
+  Pagination,
+  MarketDataSourceSummary
 } from "@family-ledger/shared";
 import { CURRENCY_CODES, JOB_RUN_STATUSES, JOB_TRIGGER_SOURCES } from "@family-ledger/shared";
 import { PageTitle } from "../components/PageTitle";
@@ -24,7 +26,22 @@ import { formatDisplayPrice } from "../lib/numberFormat";
 import { isInteractiveRowTarget } from "../lib/tableInteraction";
 import { formatLocalDateTime } from "../lib/timeFormat";
 
-type DataMaintenanceTab = "fx" | "prices" | "logs" | "backups" | "restore";
+type DataMaintenanceTab = "sources" | "fx" | "prices" | "logs" | "backups" | "restore";
+
+interface DataSourcesResponse {
+  user: AuthenticatedUser;
+  dataSources: MarketDataSourceSummary[];
+}
+
+interface KernelAnchorsResponse {
+  user: AuthenticatedUser;
+  anchors: KernelPriceAnchor[];
+}
+
+interface KernelAnchorResponse {
+  user: AuthenticatedUser;
+  anchor: KernelPriceAnchor;
+}
 
 interface FxRatesResponse {
   user: AuthenticatedUser;
@@ -102,7 +119,13 @@ const emptyBackupSummary: DataMaintenanceBackupSummary = { latestRun: null, late
 
 export function DataMaintenancePage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [activeTab, setActiveTab] = useState<DataMaintenanceTab>("fx");
+  const [activeTab, setActiveTab] = useState<DataMaintenanceTab>("sources");
+  const [dataSources, setDataSources] = useState<MarketDataSourceSummary[]>([]);
+  const [kernelAnchors, setKernelAnchors] = useState<KernelPriceAnchor[]>([]);
+  const [kernelDrawerOpen, setKernelDrawerOpen] = useState(false);
+  const [anchorDate, setAnchorDate] = useState("");
+  const [kernelUnitPrice, setKernelUnitPrice] = useState("");
+  const [savingAnchor, setSavingAnchor] = useState(false);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [fxRates, setFxRates] = useState<ExchangeRateRecord[]>([]);
   const [prices, setPrices] = useState<InstrumentPriceListRecord[]>([]);
@@ -144,14 +167,13 @@ export function DataMaintenancePage() {
     setError(null);
 
     try {
-      const [instrumentData, fxData] = await Promise.all([
+      const [instrumentData, sourceData] = await Promise.all([
         apiGet<InstrumentsResponse>("/instruments"),
-        apiGet<FxRatesResponse>(`/data-maintenance/fx-rates?${toQuery({ limit: pageSize, offset: 0, toCurrency: "USD" })}`)
+        apiGet<DataSourcesResponse>("/data-maintenance/data-sources")
       ]);
       setInstruments(instrumentData.instruments);
-      setUser(fxData.user);
-      setFxRates(fxData.fxRates);
-      setFxPagination(fxData.pagination);
+      setUser(sourceData.user);
+      setDataSources(sourceData.dataSources);
     } catch (requestError) {
       setError(toErrorMessage(requestError));
     } finally {
@@ -160,7 +182,9 @@ export function DataMaintenancePage() {
   }
 
   async function loadActiveTab(offset: number) {
-    if (activeTab === "fx") {
+    if (activeTab === "sources") {
+      await loadDataSources();
+    } else if (activeTab === "fx") {
       await loadFxRates(offset);
     } else if (activeTab === "prices") {
       await loadPrices(offset);
@@ -170,6 +194,65 @@ export function DataMaintenancePage() {
       await loadBackupRuns(offset);
     } else {
       setError(null);
+    }
+  }
+
+  async function loadDataSources() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiGet<DataSourcesResponse>("/data-maintenance/data-sources");
+      setUser(data.user);
+      setDataSources(data.dataSources);
+    } catch (requestError) {
+      setError(toErrorMessage(requestError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openKernelSource() {
+    setError(null);
+    setNotice(null);
+    try {
+      const data = await apiGet<KernelAnchorsResponse>("/data-maintenance/data-sources/kernel-estimate/anchors");
+      setUser(data.user);
+      setKernelAnchors(data.anchors);
+      setKernelDrawerOpen(true);
+    } catch (requestError) {
+      setError(toErrorMessage(requestError));
+    }
+  }
+
+  async function submitKernelAnchor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingAnchor(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiPost<KernelAnchorResponse>("/data-maintenance/data-sources/kernel-estimate/anchors", {
+        anchorDate,
+        kernelUnitPrice
+      });
+      const [sourceData, anchorData] = await Promise.all([
+        apiGet<DataSourcesResponse>("/data-maintenance/data-sources"),
+        apiGet<KernelAnchorsResponse>("/data-maintenance/data-sources/kernel-estimate/anchors")
+      ]);
+      setDataSources(sourceData.dataSources);
+      setKernelAnchors(anchorData.anchors);
+      setAnchorDate("");
+      setKernelUnitPrice("");
+      setNotice("锚点已保存并记录该日的准确价格；相关估算价格已重新计算。");
+    } catch (requestError) {
+      if (requestError instanceof ApiClientError && requestError.code === "DATA_SOURCE_DATE_UNAVAILABLE") {
+        setError("所选日期没有已确认的 USF.NZ 收盘价，请选择 NZX 交易日。");
+      } else if (requestError instanceof ApiClientError && requestError.code === "DATA_SOURCE_UNAVAILABLE") {
+        setError("USF.NZ 数据源暂时不可用，请稍后重试。");
+      } else {
+        setError(toErrorMessage(requestError));
+      }
+    } finally {
+      setSavingAnchor(false);
     }
   }
 
@@ -307,7 +390,7 @@ export function DataMaintenancePage() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/data-maintenance">数据维护</PageTitle>
-          <p>查看汇率、价格、任务日志、数据备份和数据恢复说明。写入由 Lambda API 和计划任务负责。</p>
+          <p>查看数据源、汇率、价格、任务日志、数据备份和数据恢复说明。写入由 Lambda API 和计划任务负责。</p>
         </div>
         <button className="secondary-button" type="button" onClick={() => void loadActiveTab(0)} disabled={loading || triggeringKind !== null}>
           <RefreshCw size={16} aria-hidden="true" />
@@ -319,6 +402,9 @@ export function DataMaintenancePage() {
       {notice ? <p className="form-success">{notice}</p> : null}
 
       <div className="tabs" role="tablist" aria-label="数据维护分类">
+        <button className={activeTab === "sources" ? "active" : undefined} type="button" onClick={() => setActiveTab("sources")}>
+          数据源
+        </button>
         <button className={activeTab === "fx" ? "active" : undefined} type="button" onClick={() => setActiveTab("fx")}>
           汇率
         </button>
@@ -336,14 +422,69 @@ export function DataMaintenancePage() {
         </button>
       </div>
 
+      {activeTab === "sources" ? renderSourcesTab() : null}
       {activeTab === "fx" ? renderFxTab() : null}
       {activeTab === "prices" ? renderPricesTab() : null}
       {activeTab === "logs" ? renderLogsTab() : null}
       {activeTab === "backups" ? renderBackupsTab() : null}
       {activeTab === "restore" ? renderRestoreTab() : null}
+      {renderKernelDrawer()}
       {renderJobRunDrawer()}
     </section>
   );
+
+  function renderSourcesTab() {
+    return (
+      <section className="data-maintenance-panel">
+        <div className="settings-section-header">
+          <div>
+            <h2>市场数据源</h2>
+            <p>集中查看汇率、收盘价和估算价格的数据来源及配置状态。</p>
+          </div>
+        </div>
+        <DataMaintenanceTable title="已接入数据源">
+          <table className="data-maintenance-source-table">
+            <thead>
+              <tr>
+                <th>数据源</th>
+                <th>数据类型</th>
+                <th>获取方式</th>
+                <th>状态</th>
+                <th className="numeric-cell">已配置标的</th>
+                <th>最近批处理</th>
+                <th>最新锚点</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <EmptyRow colSpan={8} label="正在加载数据源..." />
+              ) : dataSources.length === 0 ? (
+                <EmptyRow colSpan={8} label="暂无数据源。" />
+              ) : dataSources.map((source) => (
+                <tr key={source.key}>
+                  <td>{source.name}</td>
+                  <td>{formatCapabilities(source.capabilities)}</td>
+                  <td>{formatAcquisitionMethod(source.acquisitionMethod)}</td>
+                  <td><span className={`status-badge source-status-${source.status}`}>{formatSourceStatus(source.status)}</span></td>
+                  <td className="numeric-cell">{source.configuredTargetCount ?? "-"}</td>
+                  <td>{source.latestBatchRun ? `${formatStatus(source.latestBatchRun.status)} · ${formatDateTime(source.latestBatchRun.providerStartedAt)}` : "-"}</td>
+                  <td>{source.latestAnchorDate ?? "-"}</td>
+                  <td>
+                    {source.key === "kernel_estimate" ? (
+                      <button className="secondary-button compact-button" type="button" onClick={() => void openKernelSource()}>
+                        {isAdmin ? "新增锚点" : "查看"}
+                      </button>
+                    ) : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DataMaintenanceTable>
+      </section>
+    );
+  }
 
   function renderFxTab() {
     return (
@@ -399,7 +540,7 @@ export function DataMaintenancePage() {
             </select>
           </label>
           <label>
-            来源
+            数据源
             <input value={fxFilters.provider} onChange={(event) => setFxFilters({ ...fxFilters, provider: event.target.value })} placeholder="Frankfurter" />
           </label>
           <button className="secondary-button" type="submit" disabled={loading}>
@@ -416,7 +557,7 @@ export function DataMaintenancePage() {
                 <th>币种</th>
                 <th className="numeric-cell">汇率</th>
                 <th>用途</th>
-                <th>来源</th>
+                <th>数据源</th>
                 <th>抓取时间</th>
               </tr>
             </thead>
@@ -487,7 +628,7 @@ export function DataMaintenancePage() {
             </select>
           </label>
           <label>
-            来源
+            数据源
             <input value={priceFilters.provider} onChange={(event) => setPriceFilters({ ...priceFilters, provider: event.target.value })} />
           </label>
           <button className="secondary-button" type="submit" disabled={loading}>
@@ -504,8 +645,8 @@ export function DataMaintenancePage() {
                 <th>标的</th>
                 <th className="numeric-cell">价格</th>
                 <th>币种</th>
-                <th>来源</th>
-                <th>来源代码</th>
+                <th>数据源</th>
+                <th>数据源代码</th>
                 <th>抓取时间</th>
               </tr>
             </thead>
@@ -521,7 +662,10 @@ export function DataMaintenancePage() {
                     <td>{formatInstrumentLabel(price)}</td>
                     <td className="numeric-cell">{formatDisplayPrice(price.closePrice)}</td>
                     <td>{price.currency}</td>
-                    <td>{price.provider}</td>
+                    <td>
+                      {price.provider}
+                      {price.isEstimated ? <span className="estimate-badge">估算</span> : null}
+                    </td>
                     <td>{price.sourceSymbol ?? "-"}</td>
                     <td>{formatDateTime(price.fetchedAt)}</td>
                   </tr>
@@ -632,6 +776,87 @@ export function DataMaintenancePage() {
     }
   }
 
+  function renderKernelDrawer() {
+    const latestAnchor = kernelAnchors[0] ?? null;
+    const kernelSource = dataSources.find((source) => source.key === "kernel_estimate") ?? null;
+    return (
+      <Drawer
+        open={kernelDrawerOpen}
+        title="Kernel 价格估算"
+        subtitle="S&P 500（非对冲）基金"
+        onClose={() => setKernelDrawerOpen(false)}
+        footer={
+          <button className="secondary-button" type="button" onClick={() => setKernelDrawerOpen(false)}>
+            关闭
+          </button>
+        }
+      >
+        <div className="detail-drawer-content kernel-source-drawer">
+          <section className="detail-section">
+            <h3>估算方法</h3>
+            <dl className="detail-grid">
+              <div><dt>目标基金</dt><dd>Kernel S&P 500 (Unhedged)</dd></div>
+              <div><dt>代理标的</dt><dd>USF.NZ（NZD）</dd></div>
+              <div><dt>当前状态</dt><dd>{kernelSource ? formatSourceStatus(kernelSource.status) : "-"}</dd></div>
+              <div><dt>最新锚点</dt><dd>{latestAnchor?.anchorDate ?? "尚未配置"}</dd></div>
+              <div><dt>最新准确价格</dt><dd>{latestAnchor ? formatDisplayPrice(latestAnchor.kernelUnitPrice) : "-"}</dd></div>
+            </dl>
+            <p className="form-hint">估算价格 = 锚点基金价格 × 当日 USF.NZ 收盘价 ÷ 锚点日 USF.NZ 收盘价。</p>
+            <p className="form-hint">该结果属于估算，可能因费用、现金和分红日期差异产生偏差。建议每季度及基金分红后新增锚点。</p>
+          </section>
+
+          {isAdmin ? (
+            <section className="detail-section">
+              <h3>新增锚点</h3>
+              {error ? <p className="form-error">{error}</p> : null}
+              {notice ? <p className="form-success">{notice}</p> : null}
+              <form className="kernel-anchor-form" onSubmit={(event) => void submitKernelAnchor(event)}>
+                <label>
+                  锚点日期
+                  <input type="date" required value={anchorDate} onChange={(event) => setAnchorDate(event.target.value)} />
+                </label>
+                <label>
+                  Kernel 单位价格（NZD）
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    required
+                    pattern="[0-9]+(?:\.[0-9]{1,10})?"
+                    value={kernelUnitPrice}
+                    onChange={(event) => setKernelUnitPrice(event.target.value)}
+                    placeholder="例如 6.67"
+                  />
+                </label>
+                <button className="primary-button" type="submit" disabled={savingAnchor}>
+                  {savingAnchor ? "保存中..." : "新增锚点"}
+                </button>
+              </form>
+            </section>
+          ) : <p className="readonly-note">当前角色为 viewer，可查看锚点记录；新增锚点仅限 admin。</p>}
+
+          <section className="detail-section">
+            <h3>锚点历史</h3>
+            <div className="table-wrap">
+              <table className="kernel-anchor-table">
+                <thead><tr><th>锚点日期</th><th className="numeric-cell">Kernel 价格</th><th className="numeric-cell">USF.NZ 收盘价</th><th>创建时间</th></tr></thead>
+                <tbody>
+                  {kernelAnchors.length === 0 ? <EmptyRow colSpan={4} label="暂无锚点。" /> : kernelAnchors.map((anchor) => (
+                    <tr key={anchor.id}>
+                      <td>{anchor.anchorDate}</td>
+                      <td className="numeric-cell">{formatDisplayPrice(anchor.kernelUnitPrice)}</td>
+                      <td className="numeric-cell">{formatDisplayPrice(anchor.proxyClose)}</td>
+                      <td>{formatDateTime(anchor.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </Drawer>
+    );
+  }
+
   function renderJobRunDrawer() {
     if (!selectedJobRun) {
       return null;
@@ -692,12 +917,12 @@ export function DataMaintenancePage() {
           </section>
 
           <section className="detail-section">
-            <h3>提供方日志</h3>
+            <h3>数据源日志</h3>
             <div className="table-wrap">
               <table className="data-maintenance-provider-table">
                 <thead>
                   <tr>
-                    <th>提供方</th>
+                    <th>数据源</th>
                     <th>数据类型</th>
                     <th>状态</th>
                     <th>开始时间</th>
@@ -708,7 +933,7 @@ export function DataMaintenancePage() {
                 </thead>
                 <tbody>
                   {providerRuns.length === 0 ? (
-                    <EmptyRow colSpan={7} label="暂无提供方日志。" />
+                    <EmptyRow colSpan={7} label="暂无数据源日志。" />
                   ) : (
                     providerRuns.map((run) => (
                       <tr key={run.id}>
@@ -923,6 +1148,26 @@ function formatInstrument(instrument: Instrument): string {
 function formatInstrumentLabel(price: InstrumentPriceListRecord): string {
   const symbol = price.instrumentSymbol ?? price.sourceSymbol;
   return symbol ? `${symbol} ${price.instrumentName}` : price.instrumentName || price.instrumentId;
+}
+
+function formatCapabilities(capabilities: MarketDataSourceSummary["capabilities"]): string {
+  return capabilities.map((capability) => {
+    if (capability === "exchange_rates") return "汇率";
+    if (capability === "dashboard_quotes") return "实时行情";
+    return "价格";
+  }).join("、");
+}
+
+function formatAcquisitionMethod(method: MarketDataSourceSummary["acquisitionMethod"]): string {
+  if (method === "public_api") return "公开 API";
+  if (method === "public_web_page") return "公开网页";
+  return "代理估算";
+}
+
+function formatSourceStatus(status: MarketDataSourceSummary["status"]): string {
+  if (status === "ready") return "已就绪";
+  if (status === "inactive") return "未启用";
+  return "待配置";
 }
 
 function formatStatus(status: JobRunStatus): string {

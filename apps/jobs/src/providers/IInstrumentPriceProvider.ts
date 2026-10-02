@@ -6,6 +6,7 @@ export interface FetchLatestInstrumentPricesInput {
 }
 
 export interface InstrumentPriceProviderInstrument {
+  instrumentId: string;
   sourceSymbol: string;
   providerInstrumentName: string;
   currency: CurrencyCode;
@@ -17,12 +18,14 @@ export interface InstrumentPriceProviderPrice {
   priceDate: string;
   closePrice: string;
   currency: CurrencyCode;
+  isEstimated?: boolean;
 }
 
 export interface InstrumentPriceProviderResult {
   provider: string;
   fetchedAt: string;
   prices: InstrumentPriceProviderPrice[];
+  skippedSourceSymbols?: string[];
 }
 
 export interface IInstrumentPriceProvider {

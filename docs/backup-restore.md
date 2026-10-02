@@ -1,21 +1,34 @@
 # Backup And Restore
 
-Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export UI. Version 2 introduced snapshot headers and account rows after the test cutover on 2026-09-23; version 3 adds spending tables and is the current test export format. With the pending version-4 redesign, version-2 and version-3 restores require empty legacy spending tables. Test contains real family data; production has not been deployed. Restoring version-1 backups is outside the supported operational scope. Existing legacy conversion code is retained for the completed rollout, without additional compatibility work.
+Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export. The current implementation emits format version 5 after the Kernel price-estimation migration is applied. The shared test environment continues to emit version 4 until that migration and matching jobs code are deployed. Production has not been deployed.
+
+Version history:
+
+- Version 2 introduced snapshot headers and account rows after the 2026-09-23 snapshot cutover.
+- Version 3 added spending tables.
+- Version 4 introduced the redesigned spending-import schema and exact string serialization for spending amounts.
+- Version 5 adds `kernel_price_anchors` and `instrument_prices.is_estimated`.
+
+Restore validation checks a backup with the rules for its original version before adding defaults for newer schema fields. Version 2 through version 4 checksums therefore remain valid. Older backups normalize to an empty `kernel_price_anchors` table and `is_estimated = false` only after their original checksums pass. Version-1 restore compatibility remains outside the supported operational scope.
 
 ## Backup Scope
 
 The scheduled backup exports only the explicit public-table allowlist used by `public.export_ledger_backup()` and `LEDGER_BACKUP_TABLES`:
 
-- Profiles, roles, accounts, instruments, transactions, currencies, prices, FX rates, snapshots, dashboard quote cache, monthly review notes/status, and job audit tables.
-- Supabase Auth internals, sessions, password hashes, frontend assets, SSM parameters, service keys, and decrypted trading account passwords are excluded.
+- Profiles, roles, accounts, instruments, transactions, currencies, prices, FX rates, Kernel price anchors, snapshot headers and account rows, dashboard quote cache, monthly review notes/status, spending tables, and job audit tables.
+- Supabase Auth internals, sessions, password hashes, frontend assets, SSM parameters, service keys, Kernel credentials or cookies, statement file bytes, and decrypted trading account passwords are excluded.
 
-The manifest declares Supabase Auth users as external dependencies. Rows such as `profiles`, `user_roles`, and audit user ids require matching Auth user UUIDs during restore, or an explicit operator remapping step before loading data.
+The manifest declares Supabase Auth users as external dependencies. Rows such as `profiles`, `user_roles`, `kernel_price_anchors.created_by_user_id`, spending audit fields, and job audit fields require matching Auth user UUIDs during restore, or an explicit operator remapping step before loading data.
 
 ## Consistency
 
-The backup Lambda calls the database RPC `public.export_ledger_backup()`. PostgreSQL evaluates the function call as one SQL statement, so all exported tables are read from one statement snapshot. The RPC orders each table by its stable key (`id`, or `code` for `currencies`) before returning JSON.
+The backup Lambda calls `public.export_ledger_backup()`. PostgreSQL evaluates the function call as one SQL statement, so every exported table is read from one statement snapshot. The RPC orders each table by its stable key before returning JSON.
 
-The Lambda still checks for active batch jobs before export and again before S3 write. It blocks recent `started` runs for the known batch jobs and ignores stale rows older than one hour while logging them for investigation.
+The Lambda checks for active batch jobs before export and again before S3 write. It blocks recent `started` runs for known market-data and snapshot jobs and ignores stale rows older than one hour while logging them for investigation.
+
+## Exact Numeric Values
+
+Version 4 serializes spending amounts as strings. Version 5 also serializes Kernel anchor prices and proxy closes as strings. These values must stay strings throughout verification and restore so JavaScript cannot truncate PostgreSQL `numeric` precision. Existing numeric values from older tables retain their established backup representation.
 
 ## Storage
 
@@ -31,19 +44,20 @@ Lambda IAM is limited to `s3:PutObject` for `backups/{env}/*`. Local operators w
 
 ## Checksums
 
-Backup JSON is serialized with stable JSON rules:
+Backup JSON uses stable serialization:
 
-- Tables appear in the allowlist order.
+- Tables appear in allowlist order.
 - Rows appear in database RPC order.
 - Object keys are sorted before hashing and file serialization.
-- `null`, dates, timestamps, and numeric JSON values are preserved as returned by Postgres/PostgREST.
-- SHA-256 is used for per-table checksums, the payload checksum, and S3 metadata content checksum.
+- SHA-256 protects every table, the combined payload, and the S3 content-checksum metadata.
 
 Use:
 
 ```powershell
 corepack pnpm verify:backup -- --file <backup.json.gz>
 ```
+
+The verifier validates the manifest version, original table list, row counts, per-table checksums, payload checksum, migration high-water mark, and version-specific numeric representations before any normalization.
 
 ## Restore Dry Run
 
@@ -53,31 +67,24 @@ Before any real restore, run:
 corepack pnpm restore:backup:dry-run -- --file <backup.json.gz>
 ```
 
-The dry run validates manifest checksums, table presence, duplicate primary keys, internal foreign-key references, restore order, and the count of required external Supabase Auth user ids.
+The dry run validates checksums, table presence, duplicate primary keys, internal foreign-key relationships, restore order, and required external Supabase Auth user ids. In version 5, `kernel_price_anchors` is restored after instruments and before `instrument_prices`; each anchor must reference the seeded Kernel target and an external creator id.
 
 ## Restore Procedure
 
-For an empty isolated rehearsal database, using a post-cutover version-2 backup:
+For an empty isolated rehearsal database:
 
-1. Apply all Supabase migrations through at least the backup manifest's `migrationHighWaterMark`, including `20260922091000_cut_over_derived_portfolio_snapshots`.
-2. Recreate Supabase Auth users with matching UUIDs where possible. If UUIDs cannot match, prepare a reviewed user-id remapping for `profiles`, `user_roles`, audit fields, and `job_runs.triggered_by_user_id`.
-3. Run `verify:backup` and `restore:backup:dry-run`.
-4. Use `restore:backup:dry-run -- --file <backup.json.gz> --output-tables <new-normalized-file.json>` to obtain validated table rows, then load them in the dry-run restore order. Restore headers and account rows; never insert into the derived `portfolio_snapshots` view.
-5. Recreate or reset SSM trading-password parameters separately; backups do not contain decrypted trading passwords.
-6. Run normal app validation, including holdings, dashboard, market data, snapshots, typecheck, and build.
+1. Apply all Supabase migrations through at least the manifest's `migrationHighWaterMark`. Version 5 requires `20261002090000_add_kernel_price_estimation.sql`.
+2. Recreate Supabase Auth users with matching UUIDs where possible. Otherwise prepare a reviewed mapping for profiles, roles, anchor creators, spending audit fields, and job trigger users.
+3. Run `verify:backup` and `restore:backup:dry-run` against the untouched backup file.
+4. Generate normalized rows with `restore:backup:dry-run -- --file <backup.json.gz> --output-tables <normalized-file.json>` and load them in the reported order. Restore snapshot headers and account rows; never insert into the derived `portfolio_snapshots` view.
+5. Preserve or remap retained statement S3 object versions separately. Database backups contain metadata, not PDF or CSV bytes.
+6. Recreate or reset SSM trading-password parameters separately; backups do not contain decrypted values.
+7. Run holdings, dashboard, market-data, Kernel estimation, snapshot, backup, typecheck, and build checks.
 
-The test environment contains real family data. Rehearse restores in an isolated database, not in the live test database. No production release has been performed.
+The test environment contains real family data. Rehearse restores only in an isolated database. Applying migrations or restoring data to test or production requires a separate authorized deployment operation.
 
-## Version 3 spending extension
+## Spending Compatibility
 
-Version 3 adds `spending_accounts`, `account_statements`, and `statement_rows` to the allowlisted single-snapshot export and restore order. Version-2 files remain valid; restore validates their original checksums first and initializes the three missing tables as empty. Existing version-1 compatibility validation is retained. Test uses version 3 following the 2026-09-24 spending rollout; a deployed backup and its restore dry-run passed after deployment.
+Pre-version-4 backups are validated as originally saved. They restore only when legacy spending tables are empty; nonempty legacy records fail explicitly instead of being silently converted or discarded. Version-4 and version-5 spending rows use the redesigned schema, including nullable `statement_id` for manual rows and exact string amounts.
 
-Spending audit fields also reference external Supabase Auth users. PDF metadata is backed up, including the exact S3 object version, but PDF bytes are not in the database bundle. Retain the dedicated statement bucket and all object versions; replacement, unlinking, and statement deletion do not delete objects. Restoring into another storage environment requires copying those versions or remapping metadata explicitly.
-
-## Version 4 import redesign (pending release)
-
-The new implementation emits version 4 after `20260926090000_redesign_spending_imports.sql`. Spending table names remain unchanged, but batches replace dated statements and transactions have signed account-currency amounts plus one reporting classification. Exporter casts spending amounts to text before JSON serialization to preserve all 20 decimal digits through backup/restore.
-
-Pre-v4 backups are checksum-validated as originally saved. They can restore only when all legacy spending tables are empty; nonempty legacy spending records fail explicitly instead of being silently dropped or converted. Version-4 manual rows may have null statement_id; every row still references its spending account. CSV/PDF metadata includes exact retained S3 versions; source bytes are external to the bundle. Pending upload versions expire after seven days and are not permanent backup sources. Retained source copies survive undo and unlink.
-
-The isolated spending database verifier rehearses restoring current-schema rows, including maximum-precision money and manual rows, without touching investment records. Shared test still uses version 3 until the coordinated release; do not run a version-4 backup job against the old schema.
+CSV and PDF metadata includes exact retained S3 versions. Pending upload versions expire after seven days and are not permanent backup sources. Retained source copies survive undo and unlink, but the source bytes remain outside the ledger bundle.

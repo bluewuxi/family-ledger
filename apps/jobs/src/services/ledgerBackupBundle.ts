@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 4;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261001090000_spending_account_suffixes_and_cancellation";
+export const LEDGER_BACKUP_VERSION = 5;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261002090000_add_kernel_price_estimation";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -22,7 +22,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -57,7 +57,12 @@ export function createLedgerBackupObject(input: {
   rows: LedgerBackupRows;
 }): LedgerBackupObject {
   const legacy = Array.isArray(input.rows.portfolio_snapshots);
-  const tableDefinitions = LEDGER_BACKUP_TABLES.filter((table) => !legacy || !["spending_accounts", "account_statements", "statement_rows"].includes(table.name)).map((table) =>
+  const tableDefinitions = LEDGER_BACKUP_TABLES.filter((table) => !legacy || ![
+    "spending_accounts",
+    "account_statements",
+    "statement_rows",
+    "kernel_price_anchors"
+  ].includes(table.name)).map((table) =>
     legacy && table.name === "portfolio_snapshot_headers" ? { name: "portfolio_snapshots" as const, orderColumn: "id" } : table);
   const payloadRows = Object.fromEntries(tableDefinitions.map((table) => [table.name, input.rows[table.name]])) as LedgerBackupRows;
   const tables = tableDefinitions.map((table) => {
@@ -92,6 +97,7 @@ export function createLedgerBackupObject(input: {
         "investment_accounts.updated_by_user_id",
         "instruments.created_by_user_id",
         "instruments.updated_by_user_id",
+        "kernel_price_anchors.created_by_user_id",
         "transactions.created_by_user_id",
         "transactions.updated_by_user_id",
         "monthly_reviews.completed_by_user_id",
@@ -139,7 +145,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (payload.manifest.version !== 1 && payload.manifest.version !== 2 && payload.manifest.version !== 3 && payload.manifest.version !== LEDGER_BACKUP_VERSION) {
+  if (![1, 2, 3, 4, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -163,7 +169,9 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
     throw new Error("Backup JSON serialization is unsupported.");
   }
 
-  const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name).filter((name) => payload.manifest.version >= 3 || !["spending_accounts", "account_statements", "statement_rows"].includes(name));
+  const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name)
+    .filter((name) => payload.manifest.version >= 3 || !["spending_accounts", "account_statements", "statement_rows"].includes(name))
+    .filter((name) => payload.manifest.version >= 5 || name !== "kernel_price_anchors");
   const manifestTableNames = payload.manifest.tables.map((table) => table.name);
   const legacyTableNames = currentTableNames.map((name) => name === "portfolio_snapshot_headers" ? "portfolio_snapshots" : name);
   const acceptsLegacySnapshots = JSON.stringify(manifestTableNames) === JSON.stringify(legacyTableNames);
@@ -307,6 +315,10 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload): LedgerBa
     const purpose = account.purpose ?? "investment";
     if (!["investment", "daily_expense", "education"].includes(String(purpose))) throw new Error("Invalid account purpose in backup.");
     return { ...account, purpose };
+  });
+  rows.instrument_prices = rows.instrument_prices.map((value) => {
+    const price = value as Record<string, unknown>;
+    return { ...price, is_estimated: price.is_estimated ?? false };
   });
   const accounts = new Map(rows.spending_accounts.map(value => {
     const account = value as Record<string, unknown>;

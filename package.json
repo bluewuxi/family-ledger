@@ -43,6 +43,8 @@
     "verify:yahoo-finance-provider": "tsx scripts/verify-yahoo-finance-provider.ts",
     "verify:eastmoney-provider": "tsx scripts/verify-eastmoney-provider.ts",
     "verify:stock-etf-price-ingestion": "tsx scripts/verify-stock-etf-price-ingestion.ts",
+    "verify:kernel-price-estimation": "tsx scripts/verify-kernel-price-estimation.ts",
+    "verify:kernel-price-estimation-db": "tsx scripts/verify-kernel-price-estimation-db.ts",
     "verify:portfolio-snapshots": "tsx scripts/verify-portfolio-snapshot-calculation.ts",
     "verify:account-purposes": "tsx scripts/verify-account-purposes.ts",
     "verify:time-policy": "tsx scripts/verify-time-policy.ts",

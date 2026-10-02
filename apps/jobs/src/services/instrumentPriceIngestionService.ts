@@ -15,6 +15,7 @@ import type {
   InstrumentPriceProviderPrice
 } from "../providers/IInstrumentPriceProvider";
 import { YahooFinanceInstrumentPriceProvider } from "../providers/YahooFinanceInstrumentPriceProvider";
+import { KernelEstimatedInstrumentPriceProvider } from "../providers/KernelEstimatedInstrumentPriceProvider";
 import {
   insertInstrumentPriceIfNotExists as defaultInsertInstrumentPriceIfNotExists,
   listPriceEnabledInstrumentsBySource as defaultListPriceEnabledInstrumentsBySource,
@@ -218,6 +219,11 @@ export function defaultInstrumentPriceProviderConfigs(): InstrumentPriceProvider
       sourceSymbols: Object.keys(FUNDROCK_FOUNDATION_SERIES_FUNDS),
       provider: new FundRockPieUnitPriceProvider(),
       providerInstrumentNames: FUNDROCK_FOUNDATION_SERIES_FUNDS
+    },
+    {
+      priceSource: "kernel_estimate",
+      sourceSymbols: ["USF.NZ"],
+      provider: new KernelEstimatedInstrumentPriceProvider()
     }
   ];
 }
@@ -227,6 +233,7 @@ export function toProviderInstruments(
   providerInstrumentNames: Record<string, string> = {}
 ): InstrumentPriceProviderInstrument[] {
   return instruments.map((instrument) => ({
+    instrumentId: instrument.id,
     sourceSymbol: instrument.priceSourceSymbol,
     providerInstrumentName: providerInstrumentNames[instrument.priceSourceSymbol] ?? instrument.name,
     currency: instrument.currency,
@@ -238,10 +245,22 @@ export function toInstrumentPriceInputs(
   instruments: PriceEnabledInstrument[],
   providerPrices: InstrumentPriceProviderPrice[],
   provider: string,
-  fetchedAt: string
+  fetchedAt: string,
+  skippedSourceSymbols: string[] = []
 ): CreateInstrumentPriceInput[] {
   const instrumentsBySourceSymbol = new Map(instruments.map((instrument) => [instrument.priceSourceSymbol, instrument]));
-  const returnedSourceSymbols = new Set(providerPrices.map((price) => price.sourceSymbol));
+  const returnedSourceSymbols = new Set([
+    ...providerPrices.map((price) => price.sourceSymbol),
+    ...skippedSourceSymbols
+  ]);
+  for (const sourceSymbol of skippedSourceSymbols) {
+    if (!instrumentsBySourceSymbol.has(sourceSymbol)) {
+      throw new Error(`${provider} skipped an unknown source symbol ${sourceSymbol}.`);
+    }
+    if (providerPrices.some((price) => price.sourceSymbol === sourceSymbol)) {
+      throw new Error(`${provider} both returned and skipped source symbol ${sourceSymbol}.`);
+    }
+  }
   const missingSourceSymbols = instruments
     .map((instrument) => instrument.priceSourceSymbol)
     .filter((sourceSymbol) => !returnedSourceSymbols.has(sourceSymbol));
@@ -281,6 +300,7 @@ export function toInstrumentPriceInputs(
         provider,
         sourceSymbol: price.sourceSymbol,
         isAdjusted: false,
+        isEstimated: price.isEstimated ?? false,
         fetchedAt
       }
     ];
@@ -347,15 +367,18 @@ async function runProvider(input: {
       priceSource: providerConfig.priceSource,
       sourceSymbols: providerConfig.sourceSymbols
     });
-    const providerResult = await providerConfig.provider.fetchLatestPrices({
-      instruments: toProviderInstruments(instruments, providerConfig.providerInstrumentNames),
-      fetchedAt
-    });
+    const providerResult = instruments.length === 0
+      ? { provider: providerConfig.provider.name, fetchedAt, prices: [] }
+      : await providerConfig.provider.fetchLatestPrices({
+          instruments: toProviderInstruments(instruments, providerConfig.providerInstrumentNames),
+          fetchedAt
+        });
     const priceInputs = toInstrumentPriceInputs(
       instruments,
       providerResult.prices,
       providerConfig.provider.name,
-      providerResult.fetchedAt
+      providerResult.fetchedAt,
+      providerResult.skippedSourceSymbols
     );
     const recordsSkippedByClosePolicy = countUnconfirmedMarketClosePrices(
       instruments,
@@ -364,7 +387,7 @@ async function runProvider(input: {
     );
     const instrumentPrices: InstrumentPriceRecord[] = [];
     let recordsInserted = 0;
-    let recordsSkipped = recordsSkippedByClosePolicy;
+    let recordsSkipped = recordsSkippedByClosePolicy + (providerResult.skippedSourceSymbols?.length ?? 0);
 
     if (recordsSkippedByClosePolicy > 0) {
       console.log("Skipped unconfirmed market close prices.", {

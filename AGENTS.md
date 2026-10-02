@@ -176,6 +176,12 @@ Do not add a more complex role system unless explicitly requested.
 
 ## Language And UI
 
+Write all new or updated repository content in English, including specification documents, implementation plans saved in the repository, README files, project instructions, and code comments.
+
+Use Chinese only where required, such as user-facing UI strings, Chinese product names, exact UI label references in documentation, and source data or quotations that must retain their original language. Keep the surrounding explanations in English.
+
+Conversational plans and progress updates may be in Chinese; this does not change the English requirement for repository files.
+
 The user-facing app must be in Simplified Chinese.
 
 Use Chinese labels such as:

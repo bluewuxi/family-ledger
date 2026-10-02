@@ -29,6 +29,8 @@ Stable error codes:
 - `FORBIDDEN`
 - `VALIDATION_ERROR`
 - `NOT_FOUND`
+- `DATA_SOURCE_DATE_UNAVAILABLE`
+- `DATA_SOURCE_UNAVAILABLE`
 - `INTERNAL_ERROR`
 
 ## Public
@@ -51,6 +53,8 @@ These endpoints require a valid Supabase Bearer token and an active `viewer` or 
 - `GET /portfolio-snapshots`
 - `GET /reports/monthly-summary`
 - `GET /reports/monthly-review`
+- `GET /data-maintenance/data-sources`
+- `GET /data-maintenance/data-sources/kernel-estimate/anchors`
 - `GET /data-maintenance/fx-rates`
 - `GET /data-maintenance/instrument-prices`
 - `GET /data-maintenance/job-runs`
@@ -68,6 +72,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 - `PATCH /users/:id`
 - `PATCH /settings/trading-password-gate`
 - `PATCH /reports/monthly-review`
+- `POST /data-maintenance/data-sources/kernel-estimate/anchors`
 
 `GET /accounts` returns real account data from `investment_accounts`.
 `GET /instruments` returns real instrument master data from `instruments`.
@@ -95,6 +100,10 @@ Response data:
 ```
 
 ### Data Maintenance Read API
+
+`GET /data-maintenance/data-sources` returns the code-backed source registry enriched with configured-target counts, the latest canonical batch run, Kernel's latest anchor date, and one of `needs_configuration`, `ready`, or `inactive`. It lists only implemented sources.
+
+`GET /data-maintenance/data-sources/kernel-estimate/anchors` returns the append-only Kernel anchor history. Decimal fields remain strings.
 
 `GET /data-maintenance/fx-rates` supports `fromCurrency`, `toCurrency`, `from`, `to`, `provider`, `limit`, and `offset` filters. Existing stored `USD/USD` rows are not returned.
 
@@ -146,6 +155,21 @@ Allowed `kind` values:
 The response includes a `triggerRequestId`. Actual inserted/skipped counts are recorded later in `job_runs` and `data_provider_runs`.
 
 `rateDate` is optional and currently applies to FX retrieval. When omitted, the FX job retrieves the latest provider rate date.
+
+### Kernel Estimate Anchor API
+
+`POST /data-maintenance/data-sources/kernel-estimate/anchors` is admin-only and returns `201`. The request contains an exact Kernel unit price and calendar date:
+
+```json
+{
+  "anchorDate": "2026-09-30",
+  "kernelUnitPrice": "1.2345678901"
+}
+```
+
+The API requires an exact confirmed `USF.NZ` close for the date, saves the anchor through a service-role-only atomic database function, replaces Kernel estimate rows from that date through the latest confirmed proxy close, and recalculates affected snapshots. An identical retry is idempotent. A same-date correction appends another revision; the newest-created revision wins. The first anchor enables automatic updates, while later anchors preserve an administrator's manual disabled state.
+
+The endpoint returns `DATA_SOURCE_DATE_UNAVAILABLE` when the date has no exact confirmed proxy close and `DATA_SOURCE_UNAVAILABLE` when Yahoo Finance cannot provide usable proxy data. It never accepts, stores, or replays Kernel login credentials.
 
 ### User Preferences API
 
@@ -309,6 +333,7 @@ It returns aggregate valued totals plus one non-zero row for each account and in
       "unrealizedGain": "87.75",
       "latestPrice": "21.00",
       "latestPriceDate": "2026-05-23",
+      "latestPriceIsEstimated": false,
       "reportingCurrency": "NZD",
       "warnings": [],
       "valuationWarnings": []

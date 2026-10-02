@@ -3164,6 +3164,76 @@ tr.editing-row td {
   min-width: 920px;
 }
 
+.data-maintenance-source-table {
+  min-width: 1080px;
+}
+
+.kernel-anchor-table {
+  min-width: 680px;
+}
+
+.kernel-anchor-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.kernel-anchor-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.kernel-anchor-form input,
+.kernel-anchor-form button,
+.compact-button {
+  min-height: 44px;
+}
+
+.status-badge,
+.estimate-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.estimate-badge {
+  margin-inline-start: 6px;
+  color: var(--color-brand-brown);
+  background: var(--color-panel-soft);
+}
+
+.source-status-ready {
+  color: var(--color-positive);
+  background: var(--color-panel-soft);
+}
+
+.source-status-needs_configuration {
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+}
+
+.source-status-inactive {
+  color: var(--color-muted);
+  background: var(--color-panel-soft);
+}
+
+@media (max-width: 720px) {
+  .kernel-anchor-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kernel-anchor-form > * {
+    width: 100%;
+  }
+}
+
 .detail-drawer-content {
   display: grid;
   gap: 22px;

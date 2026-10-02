@@ -275,6 +275,7 @@ function createClosedValuedHolding(
     unrealizedGain: "0.00",
     latestPrice: latestPrice?.closePrice ?? null,
     latestPriceDate: latestPrice?.priceDate ?? null,
+    latestPriceIsEstimated: latestPrice?.isEstimated ?? false,
     warnings: [],
     valuationWarnings: []
   };

@@ -31,11 +31,12 @@ const marketCloseRulesByExchange = new Map<string, MarketCloseRule>([
   ["HKEX", { timeZone: "Asia/Hong_Kong", cutoffHour: 16, cutoffMinute: 15, label: "HKEX 16:15 Asia/Hong_Kong" }],
   ["NASDAQ", { timeZone: "America/New_York", cutoffHour: 16, cutoffMinute: 15, label: "US 16:15 America/New_York" }],
   ["NYSE", { timeZone: "America/New_York", cutoffHour: 16, cutoffMinute: 15, label: "US 16:15 America/New_York" }],
-  ["NYSE_ARCA", { timeZone: "America/New_York", cutoffHour: 16, cutoffMinute: 15, label: "US 16:15 America/New_York" }]
+  ["NYSE_ARCA", { timeZone: "America/New_York", cutoffHour: 16, cutoffMinute: 15, label: "US 16:15 America/New_York" }],
+  ["NZX", { timeZone: "Pacific/Auckland", cutoffHour: 17, cutoffMinute: 15, label: "NZX 17:15 Pacific/Auckland" }]
 ]);
 
 export function getUnconfirmedMarketCloseReason(input: MarketCloseConfirmationInput): string | null {
-  if (input.priceSource !== "yahoo_finance" && input.priceSource !== "eastmoney") {
+  if (input.priceSource !== "yahoo_finance" && input.priceSource !== "eastmoney" && input.priceSource !== "kernel_estimate") {
     return null;
   }
 

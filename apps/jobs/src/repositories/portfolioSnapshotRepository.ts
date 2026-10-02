@@ -85,6 +85,7 @@ interface PriceRow {
   provider: string;
   source_symbol: string | null;
   is_adjusted: boolean;
+  is_estimated: boolean;
   fetched_at: string | null;
   created_at: string;
   updated_at: string;
@@ -286,6 +287,7 @@ const priceSelect = [
   "provider",
   "source_symbol",
   "is_adjusted",
+  "is_estimated",
   "fetched_at",
   "created_at",
   "updated_at"
@@ -404,6 +406,7 @@ function mapPriceRow(row: PriceRow): PriceRecord {
     source: row.provider,
     sourceSymbol: row.source_symbol,
     isAdjusted: row.is_adjusted,
+    isEstimated: row.is_estimated,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

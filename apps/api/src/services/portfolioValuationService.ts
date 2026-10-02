@@ -189,6 +189,7 @@ function calculateValuedHoldings(
         rowUnrealizedGainUsd && displayRate ? formatMoney(rowUnrealizedGainUsd.times(displayRate)) : null,
       latestPrice: latestPrice?.closePrice ?? null,
       latestPriceDate: latestPrice?.priceDate ?? null,
+      latestPriceIsEstimated: latestPrice?.isEstimated ?? false,
       valuationWarnings: rowWarnings
     });
   }
@@ -244,6 +245,7 @@ function dashboardQuoteToPriceRecord(quote: DashboardQuoteRecord): PriceRecord {
     source: quote.provider,
     sourceSymbol: quote.sourceSymbol,
     isAdjusted: false,
+    isEstimated: false,
     createdAt: quote.createdAt,
     updatedAt: quote.updatedAt
   };

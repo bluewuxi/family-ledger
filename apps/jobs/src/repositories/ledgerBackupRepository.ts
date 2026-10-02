@@ -9,6 +9,7 @@ export const LEDGER_BACKUP_TABLES = [
   { name: "currencies", orderColumn: "code" },
   { name: "investment_accounts", orderColumn: "id" },
   { name: "instruments", orderColumn: "id" },
+  { name: "kernel_price_anchors", orderColumn: "id" },
   { name: "transactions", orderColumn: "id" },
   { name: "exchange_rates", orderColumn: "id" },
   { name: "instrument_prices", orderColumn: "id" },
