@@ -302,3 +302,21 @@ Actual storage checks require STATEMENT_BUCKET_NAME, its deployed lifecycle/CORS
 The user requested skipping remaining authenticated UI/mobile checks for this release (2026-09-27) and will perform acceptance testing in test. Local desktop transaction view and manual-entry form opened successfully; mobile and populated chart/preview checks are not claimed.
 
 Spending suffix/cancellation changes: run verify:spending, verify:spending-db, verify:backup, verify:time-policy, typecheck and build. Database verification uses an isolated local PostgreSQL instance with synthetic records, including legacy migration and cancel/commit concurrency. Authenticated UI acceptance must cover 320x740, 393x852, 430x932, 768x1024 and desktop after the user logs in: own/counterparty filters, literal description search, preview/history counts, cancellation, zero/last-page pagination, and horizontal table scrolling.
+
+
+### Transaction table regression checks
+
+Run `corepack pnpm verify:transaction-table` to check numeric DTO normalization,
+legacy numeric buy/sell balance inputs, all sort query directions, combined filters,
+pagination beyond 200 records, empty results, and separately fetched linked cash rows.
+This uses the real Supabase query builder with mocked HTTP responses and requires no
+credentials or database writes. Verify header toggles, account creation selection,
+page navigation, and drawer rendering manually after login at the required mobile
+and desktop sizes.
+
+Authenticated transaction-page verification on 2026-10-03 covered 320×740,
+393×852, 430×932, 768×1024, and 1440×1000. Buy and sell drawers opened without
+numeric errors; header sorting (including keyboard activation), account filters,
+page sizes/navigation, and linked cash expansion worked against the local API.
+An instrument-field column span caused mobile drawer overflow and was corrected
+at the existing 820px form breakpoint. No transactions were saved or deleted.

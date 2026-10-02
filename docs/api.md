@@ -962,3 +962,18 @@ Spending import additions (2026-10-01): rows/previews expose nullable account_nu
 Paginated transaction and data-maintenance responses now include pagination.total, the exact count after all filters. Existing limit/offset/hasMore remain unchanged.
 
 Spending rows/previews also expose nullable counterparty_name, extracted from CCB debit 对方户名 as immutable source identity. Debit descriptions combine 摘要 and 交易地点. Bank-specific rebate/repayment/FX suggestions populate classification/tag before preview; commit choices still determine final classification/tag.
+
+### Transaction table queries
+
+The transaction page defaults to all accounts and requests server-side filters before pagination.
+`GET /transactions` accepts `sortBy=tradeDate|settlementDate|instrument|transactionType`
+and `sortDirection=asc|desc` (defaults: trade date descending). Instrument order uses
+the instrument short name; type order uses the stable transaction type value.
+Missing settlement dates sort last in either direction. Trade date, creation time,
+and ID provide descending tie-breakers.
+Existing date, account, instrument, type, limit, and offset filters remain supported.
+The table uses page sizes 20, 50 (default), and 100, with
+`excludeGeneratedCashLegs=true&includeLinkedCashLegs=true`.
+The optional `linkedCashLegs` response array contains generated cash rows for returned
+parents only; these rows do not affect pagination totals. Other callers retain their
+existing defaults. Transaction numeric DTO fields are decimal strings, preserving nulls.

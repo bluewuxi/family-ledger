@@ -1,5 +1,7 @@
 import type {
   AccountPurpose,
+  TransactionSortBy,
+  TransactionSortDirection,
   CreateInvestmentTransactionInput,
   InvestmentTransaction,
   TransactionSource,
@@ -10,6 +12,8 @@ import { getSupabaseAdmin } from "../db/supabaseServer";
 import { readAllRows } from "./readAllRows";
 
 export interface TransactionListFilters {
+  sortBy?: TransactionSortBy;
+  sortDirection?: TransactionSortDirection;
   purpose?: AccountPurpose;
   from?: string;
   to?: string;
@@ -36,17 +40,17 @@ interface InvestmentTransactionRow {
   transaction_type: InvestmentTransaction["transactionType"];
   trade_date: string;
   settlement_date: string | null;
-  quantity: string | null;
-  price: string | null;
-  gross_amount: string | null;
-  fee: string;
-  tax: string;
+  quantity: string | number | null;
+  price: string | number | null;
+  gross_amount: string | number | null;
+  fee: string | number;
+  tax: string | number;
   currency: InvestmentTransaction["currency"];
   adjustment_direction: InvestmentTransaction["adjustmentDirection"];
   transaction_source: TransactionSource;
   linked_transaction_id: string | null;
   settlement_currency: InvestmentTransaction["settlementCurrency"];
-  settlement_amount: string | null;
+  settlement_amount: string | number | null;
   notes: string | null;
   created_by_user_id: string | null;
   updated_by_user_id: string | null;
@@ -77,9 +81,11 @@ async function transactionQuery(input: TransactionListFilters, exactCount = fals
   let query = supabase
     .from("transactions")
     .select((input.excludeCashInstruments ? transactionSelectWithInnerInstrument : transactionSelect)
-      + (input.purpose ? ", investment_accounts!inner(purpose)" : ""), exactCount ? { count: "exact" } : {})
-    .order("trade_date", { ascending: false })
-    .order("created_at", { ascending: false })
+      + (input.purpose ? ", investment_accounts!inner(purpose)" : ""), exactCount ? { count: "exact" } : {});
+  const sortColumn = { tradeDate: "trade_date", settlementDate: "settlement_date", instrument: "instruments(short_name)", transactionType: "transaction_type" }[input.sortBy ?? "tradeDate"];
+  query = query.order(sortColumn, { ascending: input.sortDirection === "asc", nullsFirst: false });
+  if (input.sortBy && input.sortBy !== "tradeDate") query = query.order("trade_date", { ascending: false });
+  query = query.order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
   if (input.purpose) query = query.eq("investment_accounts.purpose", input.purpose);
@@ -317,17 +323,17 @@ function mapTransactionRow(row: InvestmentTransactionRow): InvestmentTransaction
     transactionType: row.transaction_type,
     tradeDate: row.trade_date,
     settlementDate: row.settlement_date,
-    quantity: row.quantity,
-    price: row.price,
-    grossAmount: row.gross_amount,
-    fee: row.fee,
-    tax: row.tax,
+    quantity: row.quantity == null ? null : String(row.quantity),
+    price: row.price == null ? null : String(row.price),
+    grossAmount: row.gross_amount == null ? null : String(row.gross_amount),
+    fee: String(row.fee),
+    tax: String(row.tax),
     currency: row.currency,
     adjustmentDirection: row.adjustment_direction,
     transactionSource: row.transaction_source,
     linkedTransactionId: row.linked_transaction_id,
     settlementCurrency: row.settlement_currency,
-    settlementAmount: row.settlement_amount,
+    settlementAmount: row.settlement_amount == null ? null : String(row.settlement_amount),
     notes: row.notes,
     createdByUserId: row.created_by_user_id,
     updatedByUserId: row.updated_by_user_id,
@@ -378,4 +384,13 @@ function toTransactionUpdateRow(input: UpdateInvestmentTransactionInput) {
     ...(input.settlementAmount !== undefined ? { settlement_amount: input.settlementAmount } : {}),
     ...(input.notes !== undefined ? { notes: input.notes } : {})
   };
+}
+
+export async function listGeneratedCashLegs(parentIds: string[]): Promise<InvestmentTransaction[]> {
+  if (parentIds.length === 0) return [];
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase.from("transactions").select(transactionSelect)
+    .eq("transaction_source", "generated_cash_leg").in("linked_transaction_id", parentIds);
+  if (error) throw new Error("Failed to list linked cash transactions.");
+  return (data as unknown as InvestmentTransactionRow[]).map(mapTransactionRow);
 }

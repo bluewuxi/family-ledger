@@ -1,4 +1,4 @@
-import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Eraser, Eye, Filter, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ADJUSTMENT_DIRECTIONS,
@@ -14,18 +14,17 @@ import {
   type InvestmentAccount,
   type InvestmentTransaction,
   type TransactionType,
+  type TransactionsResponse,
+  type TransactionSortBy,
+  type TransactionSortDirection,
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
 import { PageTitle } from "../components/PageTitle";
 import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
+import { addDecimalStrings, compareDecimalStrings, multiplyDecimalStrings, normalizeDecimalString, toScaledBigInt, fromScaledBigInt } from "../lib/transactionDecimal";
 import { formatDisplayAmount } from "../lib/numberFormat";
 import { isInteractiveRowTarget, isRowActivationKey } from "../lib/tableInteraction";
-
-interface TransactionsResponse {
-  user: AuthenticatedUser;
-  transactions: InvestmentTransaction[];
-}
 
 interface AccountsResponse {
   user: AuthenticatedUser;
@@ -72,7 +71,7 @@ interface TransactionFilters {
 type DrawerMode = "create" | "view" | "modify";
 
 const today = getLocalDateString();
-const transactionFetchLimit = 200;
+
 const emptyFilters: TransactionFilters = { from: "", to: "", accountId: "", instrumentId: "", transactionType: "" };
 const editableTransactionTypes = TRANSACTION_TYPES.filter((transactionType) => transactionType !== "tax");
 const bankCashTransactionTypes: TransactionType[] = ["opening_balance", "deposit", "withdrawal", "interest", "adjustment"];
@@ -83,6 +82,16 @@ export function TransactionsPage() {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [holdingsSummary, setHoldingsSummary] = useState<HoldingsValuationSummary | null>(null);
+  const requestSequence = useRef(0);
+  const createMenuRef = useRef<HTMLDivElement>(null);
+  const [appliedFilters, setAppliedFilters] = useState<TransactionFilters>(emptyFilters);
+  const [pageSize, setPageSize] = useState(50);
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [sortBy, setSortBy] = useState<TransactionSortBy>("tradeDate");
+  const [sortDirection, setSortDirection] = useState<TransactionSortDirection>("desc");
+  const [cashLegs, setCashLegs] = useState<InvestmentTransaction[]>([]);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [filters, setFilters] = useState<TransactionFilters>(emptyFilters);
   const [form, setForm] = useState<TransactionFormState>(() => emptyForm());
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
@@ -133,7 +142,7 @@ export function TransactionsPage() {
       ? findCashBalance(holdingsSummary, selectedAccount.id, bankCashInstrument.id)
       : null;
   const transactionTypeOptions = getTransactionTypeOptions(isBankCashAccount, form.transactionType);
-  const hasSelectedAccount = Boolean(filters.accountId);
+
   const drawerTitle = `${drawerMode === "create" ? "新增交易记录" : drawerMode === "modify" ? "编辑交易记录" : "交易记录详情"}${
     selectedAccount ? ` - ${selectedAccount.name}` : ""
   }`;
@@ -141,19 +150,33 @@ export function TransactionsPage() {
   const linkedCashLegs = useMemo(
     () =>
       new Map(
-        transactions
+        cashLegs
           .filter((transaction) => transaction.transactionSource === "generated_cash_leg" && transaction.linkedTransactionId)
           .map((transaction) => [transaction.linkedTransactionId as string, transaction])
       ),
-    [transactions]
+    [cashLegs]
   );
-  const visibleTransactions = useMemo(
-    () =>
-      transactions
-        .filter((transaction) => transaction.transactionSource !== "generated_cash_leg")
-        .filter((transaction) => transactionMatchesFilters(transaction, filters)),
-    [filters, transactions]
-  );
+  const visibleTransactions = transactions;
+
+  useEffect(() => {
+    if (!createMenuOpen) return;
+    const closeOnOutside = (event: globalThis.MouseEvent) => {
+      if (!createMenuRef.current?.contains(event.target as Node)) setCreateMenuOpen(false);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCreateMenuOpen(false);
+        createMenuRef.current?.querySelector("button")?.focus();
+      }
+    };
+    createMenuRef.current?.querySelector<HTMLButtonElement>(".transaction-account-menu button")?.focus();
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [createMenuOpen]);
 
   useEffect(() => {
     void loadPageData();
@@ -184,17 +207,18 @@ export function TransactionsPage() {
     }));
   }, [bankCashInstrument, form.instrumentId, form.transactionType, isBankCashAccount]);
 
-  async function loadPageData(nextFilters = filters) {
+  async function loadPageData(nextFilters = appliedFilters, nextOffset = offset, nextLimit = pageSize, nextSortBy = sortBy, nextDirection = sortDirection) {
+    const requestId = ++requestSequence.current;
     setLoading(true);
     setError(null);
 
     try {
-      const transactionRequest = nextFilters.accountId
-        ? apiGet<TransactionsResponse>(
-            `/transactions?${toQuery({ accountId: nextFilters.accountId, limit: transactionFetchLimit, offset: 0 })}`
-          )
-        : null;
-      const holdingsRequest = nextFilters.accountId ? apiGet<HoldingsResponse>("/holdings") : null;
+      const transactionRequest = apiGet<TransactionsResponse>(
+        `/transactions?${toQuery({ ...nextFilters, limit: nextLimit, offset: nextOffset,
+          sortBy: nextSortBy, sortDirection: nextDirection,
+          excludeGeneratedCashLegs: "true", includeLinkedCashLegs: "true" })}`
+      );
+      const holdingsRequest = apiGet<HoldingsResponse>("/holdings");
       const [transactionData, accountData, instrumentData, holdingsData] = await Promise.all([
         transactionRequest,
         apiGet<AccountsResponse>("/accounts"),
@@ -202,22 +226,30 @@ export function TransactionsPage() {
         holdingsRequest
       ]);
 
-      if (transactionData) {
-        setUser(transactionData.user);
-        setTransactions(transactionData.transactions);
-      } else {
-        setUser(accountData.user);
-        setTransactions([]);
+      if (requestId !== requestSequence.current) return;
+      if (nextOffset > 0 && transactionData.pagination.total <= nextOffset) {
+        const lastOffset = Math.max(0, Math.ceil(transactionData.pagination.total / nextLimit) - 1) * nextLimit;
+        await loadPageData(nextFilters, lastOffset, nextLimit, nextSortBy, nextDirection);
+        return;
       }
+      setAppliedFilters(nextFilters);
+      setOffset(nextOffset);
+      setPageSize(nextLimit);
+      setSortBy(nextSortBy);
+      setSortDirection(nextDirection);
+      setTotal(transactionData.pagination.total);
+      setUser(transactionData.user);
+      setTransactions(transactionData.transactions);
+      setCashLegs(transactionData.linkedCashLegs ?? []);
 
       setAccounts(accountData.accounts);
       setInstruments(instrumentData.instruments);
       setHoldingsSummary(holdingsData);
       setExpandedTransactionIds(new Set());
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      if (requestId === requestSequence.current) setError(toErrorMessage(requestError));
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
   }
 
@@ -306,15 +338,16 @@ export function TransactionsPage() {
     }
   }
 
-  function startCreate() {
-    const account = accounts.find((item) => item.id === filters.accountId);
+  function startCreate(accountId: string) {
+    setCreateMenuOpen(false);
+    const account = accounts.find((item) => item.id === accountId);
     const isBankAccount = account?.accountType === "bank";
     const matchingCashInstruments = account ? getBankCashInstruments(account, instruments) : [];
     const matchingCashInstrument = matchingCashInstruments.length === 1 ? matchingCashInstruments[0] : null;
 
     setEditingTransactionId(null);
     setDrawerMode("create");
-    setForm(emptyForm(filters.accountId, isBankAccount ? "opening_balance" : "buy", matchingCashInstrument?.id ?? ""));
+    setForm(emptyForm(accountId, isBankAccount ? "opening_balance" : "buy", matchingCashInstrument?.id ?? ""));
     setDrawerOpen(true);
   }
 
@@ -367,18 +400,23 @@ export function TransactionsPage() {
 
   function submitFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void loadPageData();
+    void loadPageData(filters, 0);
   }
 
   function clearFilters() {
     setFilters(emptyFilters);
-    void loadPageData(emptyFilters);
+    void loadPageData(emptyFilters, 0);
   }
 
-  function changeAccountFilter(accountId: string) {
-    const nextFilters = { ...filters, accountId };
-    setFilters(nextFilters);
-    void loadPageData(nextFilters);
+  function sortHeader(key: TransactionSortBy, label: string) {
+    const active = sortBy === key;
+    return <th aria-sort={active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}>
+      <button type="button" className="transaction-sort-header" disabled={loading || saving}
+        onClick={() => void loadPageData(appliedFilters, 0, pageSize, key, active && sortDirection === "asc" ? "desc" : "asc")}>
+        {label}<span className={active && sortDirection === "asc" ? "active-sort-arrow" : ""}>↑</span>
+        <span className={active && sortDirection === "desc" ? "active-sort-arrow" : ""}>↓</span>
+      </button>
+    </th>;
   }
 
   function toggleLinkedCashLeg(transactionId: string) {
@@ -425,24 +463,18 @@ export function TransactionsPage() {
           <p>记录买卖、股息和现金变动。买入和卖出的成交总额由系统按数量和价格计算。</p>
         </div>
         <div className="header-actions">
-          <label className="header-account-select">
-            <span>账户</span>
-            <select value={filters.accountId} onChange={(event) => changeAccountFilter(event.target.value)} required>
-              <option value="">请选择账户</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </label>
           {isAdmin ? (
-            <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving || !hasSelectedAccount}>
-              <Plus size={17} aria-hidden="true" />
-              <span>新增</span>
-            </button>
+            <div className="transaction-create-menu" ref={createMenuRef}>
+              <button className="primary-button" type="button" aria-expanded={createMenuOpen}
+                onClick={() => setCreateMenuOpen(!createMenuOpen)} disabled={loading || saving || accounts.length === 0}>
+                <Plus size={17} aria-hidden="true" /><span>新增交易</span><ChevronDown size={17} aria-hidden="true" />
+              </button>
+              {createMenuOpen ? <div className="transaction-account-menu">
+                {accounts.map((account) => <button type="button" key={account.id} onClick={() => startCreate(account.id)}>{account.name}</button>)}
+              </div> : null}
+            </div>
           ) : null}
-          <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving || !hasSelectedAccount}>
+          <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
             <span>刷新</span>
           </button>
@@ -455,11 +487,13 @@ export function TransactionsPage() {
         <p className="readonly-note">当前角色为 viewer，可查看交易记录。新增、编辑和删除仅限 admin。</p>
       ) : null}
 
-      {!loading && !hasSelectedAccount ? (
-        <p className="selection-hint">请先选择账户，再查看或新增交易记录。</p>
-      ) : null}
-
       <form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
+        <label>账户
+          <select value={filters.accountId} onChange={(event) => setFilters({ ...filters, accountId: event.target.value })}>
+            <option value="">全部账户</option>
+            {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+          </select>
+        </label>
         <label>
           开始日期
           <input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} />
@@ -494,11 +528,11 @@ export function TransactionsPage() {
           </select>
         </label>
         <div className="filter-actions">
-          <button className="secondary-button" type="submit" disabled={loading || !hasSelectedAccount}>
+          <button className="secondary-button" type="submit" disabled={loading}>
             <Filter size={17} aria-hidden="true" />
             <span>筛选</span>
           </button>
-          <button className="secondary-button" type="button" onClick={clearFilters} disabled={loading || !hasSelectedAccount}>
+          <button className="secondary-button" type="button" onClick={clearFilters} disabled={loading}>
             <Eraser size={17} aria-hidden="true" />
             <span>清空</span>
           </button>
@@ -510,11 +544,13 @@ export function TransactionsPage() {
           <thead>
             <tr>
               <th className="transaction-expand-column"></th>
-              <th>日期</th>
+              {sortHeader("tradeDate", "交易日期")}
+              {sortHeader("settlementDate", "结算日期")}
               <th>账户</th>
-              <th>标的</th>
-              <th>类型</th>
+              {sortHeader("instrument", "标的")}
+              {sortHeader("transactionType", "类型")}
               <th className="numeric-cell">数量</th>
+              <th className="numeric-cell">成交价</th>
               <th className="numeric-cell">金额/费用</th>
               <th>币种</th>
               <th>结算</th>
@@ -525,15 +561,11 @@ export function TransactionsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={11}>正在加载交易记录...</td>
-              </tr>
-            ) : !filters.accountId ? (
-              <tr>
-                <td colSpan={11}>请先选择账户查看交易记录。</td>
+                <td colSpan={13}>正在加载交易记录...</td>
               </tr>
             ) : visibleTransactions.length === 0 ? (
               <tr>
-                <td colSpan={11}>暂无符合筛选条件的交易记录。</td>
+                <td colSpan={13}>暂无符合筛选条件的交易记录。</td>
               </tr>
             ) : (
               visibleTransactions.map((transaction) => {
@@ -577,6 +609,18 @@ export function TransactionsPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="transaction-pagination">
+        <span>共 {total} 条 · 第 {Math.floor(offset / pageSize) + 1} / {Math.max(1, Math.ceil(total / pageSize))} 页</span>
+        <label>每页 <select value={pageSize} disabled={loading || saving}
+          onChange={(event) => void loadPageData(appliedFilters, 0, Number(event.target.value))}>
+          {[20, 50, 100].map((size) => <option key={size} value={size}>{size} 条</option>)}
+        </select></label>
+        <button type="button" className="secondary-button" disabled={loading || saving || offset === 0}
+          onClick={() => void loadPageData(appliedFilters, Math.max(0, offset - pageSize))}>上一页</button>
+        <button type="button" className="secondary-button" disabled={loading || saving || offset + pageSize >= total}
+          onClick={() => void loadPageData(appliedFilters, offset + pageSize)}>下一页</button>
       </div>
 
       <Drawer
@@ -973,70 +1017,6 @@ function calculateComparableBuyAmount(form: TransactionFormState): string | null
   return fromScaledBigInt(total, 6);
 }
 
-function multiplyDecimalStrings(left: string, right: string, outputScale: number): string | null {
-  const normalizedLeft = normalizeDecimalString(left);
-  const normalizedRight = normalizeDecimalString(right);
-
-  if (!normalizedLeft || !normalizedRight) {
-    return null;
-  }
-
-  const leftScale = decimalScale(normalizedLeft);
-  const rightScale = decimalScale(normalizedRight);
-  const product = toScaledBigInt(normalizedLeft, leftScale) * toScaledBigInt(normalizedRight, rightScale);
-  const productScale = leftScale + rightScale;
-
-  if (productScale <= outputScale) {
-    return fromScaledBigInt(product * 10n ** BigInt(outputScale - productScale), outputScale);
-  }
-
-  const divisor = 10n ** BigInt(productScale - outputScale);
-  const quotient = product / divisor;
-  const remainder = product % divisor;
-  const rounded = remainder * 2n >= divisor ? quotient + 1n : quotient;
-
-  return fromScaledBigInt(rounded, outputScale);
-}
-
-function compareDecimalStrings(left: string, right: string, scale: number): number {
-  const leftAmount = toScaledBigInt(normalizeDecimalString(left) ?? "0", scale);
-  const rightAmount = toScaledBigInt(normalizeDecimalString(right) ?? "0", scale);
-
-  if (leftAmount === rightAmount) {
-    return 0;
-  }
-  return leftAmount > rightAmount ? 1 : -1;
-}
-
-function addDecimalStrings(left: string, right: string, scale: number): string {
-  const total =
-    toScaledBigInt(normalizeDecimalString(left) ?? "0", scale) +
-    toScaledBigInt(normalizeDecimalString(right) ?? "0", scale);
-  return fromScaledBigInt(total, scale);
-}
-
-function normalizeDecimalString(value: string): string | null {
-  const normalized = value.trim();
-  return /^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(normalized) ? normalized : null;
-}
-
-function decimalScale(value: string): number {
-  return value.split(".")[1]?.length ?? 0;
-}
-
-function toScaledBigInt(value: string, scale: number): bigint {
-  const [integerPart, decimalPart = ""] = value.split(".");
-  const paddedDecimal = decimalPart.padEnd(scale, "0").slice(0, scale);
-  return BigInt(`${integerPart}${paddedDecimal}`);
-}
-
-function fromScaledBigInt(value: bigint, scale: number): string {
-  const raw = value.toString().padStart(scale + 1, "0");
-  const integerPart = raw.slice(0, -scale);
-  const decimalPart = raw.slice(-scale).replace(/0+$/u, "");
-  return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
-}
-
 function formatDisplayQuantity(value: string | number | null | undefined): string {
   const normalized = String(value ?? "").trim();
   const numericValue = Number(normalized);
@@ -1110,6 +1090,7 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
         ) : null}
       </td>
       <td>{transaction.tradeDate}</td>
+      <td>{transaction.settlementDate ?? "—"}</td>
       <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
       <td>
         <span className={isChildRow ? "transaction-child-indent" : undefined}>
@@ -1122,6 +1103,7 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
         </span>
       </td>
       <td className="numeric-cell">{transaction.quantity ?? "-"}</td>
+      <td className="numeric-cell">{transaction.transactionType === "buy" || transaction.transactionType === "sell" ? transaction.price ?? "—" : "—"}</td>
       <td className="numeric-cell">{displayAmount(transaction)}</td>
       <td>{transaction.currency}</td>
       <td>{formatSettlement(transaction)}</td>
@@ -1177,15 +1159,6 @@ function handleTransactionRowKeyDown(
 
   event.preventDefault();
   onDetail(transaction);
-}
-
-function transactionMatchesFilters(transaction: InvestmentTransaction, filters: TransactionFilters): boolean {
-  return (
-    (!filters.from || transaction.tradeDate >= filters.from) &&
-    (!filters.to || transaction.tradeDate <= filters.to) &&
-    (!filters.instrumentId || transaction.instrumentId === filters.instrumentId) &&
-    (!filters.transactionType || transaction.transactionType === filters.transactionType)
-  );
 }
 
 function isCompatibleInstrument(transactionType: TransactionType, instrument: Instrument): boolean {

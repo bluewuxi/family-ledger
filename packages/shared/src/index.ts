@@ -1955,3 +1955,28 @@ export type ApiResponse<T> =
       success: false;
       error: ApiError;
     };
+
+export type TransactionSortBy = "tradeDate" | "settlementDate" | "instrument" | "transactionType";
+export type TransactionSortDirection = "asc" | "desc";
+export interface TransactionListQuery {
+  purpose?: AccountPurpose;
+  transactionTypes?: TransactionType[];
+  excludeCashInstruments?: boolean;
+  from?: string;
+  to?: string;
+  accountId?: string;
+  instrumentId?: string;
+  transactionType?: TransactionType;
+  sortBy?: TransactionSortBy;
+  sortDirection?: TransactionSortDirection;
+  includeLinkedCashLegs?: boolean;
+  excludeGeneratedCashLegs?: boolean;
+  limit?: number;
+  offset?: number;
+}
+export interface TransactionsResponse {
+  user: AuthenticatedUser;
+  transactions: InvestmentTransaction[];
+  pagination: Pagination;
+  linkedCashLegs?: InvestmentTransaction[];
+}

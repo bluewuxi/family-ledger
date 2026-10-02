@@ -15,6 +15,8 @@ import {
   type InvestmentTransaction,
   type PaginatedResult,
   type TransactionType,
+  type TransactionSortBy,
+  type TransactionSortDirection,
   type UpdateInvestmentTransactionInput
 } from "@family-ledger/shared";
 import { findAccountById, listAccounts } from "../repositories/accountRepository";
@@ -30,6 +32,7 @@ import {
   findGeneratedCashLegByParentId,
   findTransactionById,
   listTransactions,
+  listGeneratedCashLegs,
   listTransactionPage,
   updateTransaction
 } from "../repositories/transactionRepository";
@@ -48,7 +51,7 @@ const defaultLimit = 50;
 
 export async function getTransactions(
   query: Record<string, string | undefined> = {}
-): Promise<PaginatedResult<InvestmentTransaction>> {
+): Promise<PaginatedResult<InvestmentTransaction> & { linkedCashLegs?: InvestmentTransaction[] }> {
   if (!hasTransactionListQuery(query)) {
     const items = await listTransactions();
     return {
@@ -71,7 +74,16 @@ export async function getTransactions(
   const transactionTypes = optionalTransactionTypes(query.transactionTypes);
   validateTransactionTypeFilters(transactionType, transactionTypes);
 
+  const sortBy = query.sortBy ?? "tradeDate";
+  const sortDirection = query.sortDirection ?? "desc";
+  if (!["tradeDate", "settlementDate", "instrument", "transactionType"].includes(sortBy)
+    || !["asc", "desc"].includes(sortDirection)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Invalid transaction sorting.", 400);
+  }
+  const includeLinkedCashLegs = optionalBoolean("includeLinkedCashLegs", query.includeLinkedCashLegs);
   const rows = await listTransactionPage({
+    sortBy: sortBy as TransactionSortBy,
+    sortDirection: sortDirection as TransactionSortDirection,
     purpose: optionalAccountPurpose(query.purpose),
     from,
     to,
@@ -87,6 +99,7 @@ export async function getTransactions(
 
   return {
     items: rows.items,
+    ...(includeLinkedCashLegs ? { linkedCashLegs: await listGeneratedCashLegs(rows.items.map((row) => row.id)) } : {}),
     pagination: {
       limit: pagination.limit,
       offset: pagination.offset,
@@ -620,6 +633,9 @@ function minDate(left: string, right: string): string {
 
 function hasTransactionListQuery(query: Record<string, string | undefined>): boolean {
   return [
+    "sortBy",
+    "sortDirection",
+    "includeLinkedCashLegs",
     "purpose",
     "from",
     "to",
