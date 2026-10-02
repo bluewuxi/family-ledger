@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import {
   fetchYahooFinanceDailyBars,
+  getKernelValuationDateForNzxSession,
   type KernelPriceAnchor,
   type YahooFinanceFetch
 } from "@family-ledger/shared";
@@ -29,36 +30,44 @@ export class KernelEstimatedInstrumentPriceProvider implements IInstrumentPriceP
       if (instrument.currency !== "NZD" || instrument.sourceSymbol !== "USF.NZ" || instrument.sourceExchange !== "NZX") {
         throw new Error(`Kernel estimate instrument ${instrument.instrumentId} has invalid proxy configuration.`);
       }
+      const instrumentAnchors = anchors
+        .filter((candidate) => candidate.instrumentId === instrument.instrumentId)
+        .sort((left, right) => right.proxyPriceDate.localeCompare(left.proxyPriceDate)
+          || right.anchorDate.localeCompare(left.anchorDate)
+          || right.createdAt.localeCompare(left.createdAt));
+      const latestAnchor = instrumentAnchors[0];
+      if (!latestAnchor) throw new Error(`Kernel estimate instrument ${instrument.instrumentId} has no applicable price anchor.`);
+
       const yahoo = await fetchYahooFinanceDailyBars(
         {
           sourceSymbol: instrument.sourceSymbol,
           expectedCurrency: "NZD",
           expectedExchangeTimeZone: "Pacific/Auckland",
           fetchedAt: input.fetchedAt,
-          confirmationCutoff: { timeZone: "Pacific/Auckland", hour: 17, minute: 15 }
+          fromDate: latestAnchor.anchorDate,
+          requiredPriceField: "open",
+          confirmationCutoff: { timeZone: "Pacific/Auckland", hour: 10, minute: 5 }
         },
         this.options
       );
       const latestBar = yahoo.bars.at(-1);
-      if (!latestBar) throw new Error("Yahoo Finance returned no confirmed USF.NZ close.");
-      if (anchors.some((candidate) =>
-        candidate.instrumentId === instrument.instrumentId && candidate.anchorDate === latestBar.priceDate
-      )) {
+      if (!latestBar) throw new Error("Yahoo Finance returned no confirmed USF.NZ bar.");
+      if (!latestBar.openPrice) throw new Error("Yahoo Finance returned a confirmed USF.NZ bar without an opening price.");
+      const valuationDate = getKernelValuationDateForNzxSession(latestBar.priceDate);
+      if (instrumentAnchors.some((candidate) => candidate.anchorDate === valuationDate)) {
         skippedSourceSymbols.push(instrument.sourceSymbol);
         continue;
       }
-      const anchor = anchors
-        .filter((candidate) => candidate.instrumentId === instrument.instrumentId && candidate.anchorDate <= latestBar.priceDate)
-        .sort((left, right) => right.anchorDate.localeCompare(left.anchorDate) || right.createdAt.localeCompare(left.createdAt))[0];
+      const anchor = instrumentAnchors.find((candidate) => candidate.proxyPriceDate <= latestBar.priceDate);
       if (!anchor) throw new Error(`Kernel estimate instrument ${instrument.instrumentId} has no applicable price anchor.`);
       const estimate = new Decimal(anchor.kernelUnitPrice)
-        .times(latestBar.closePrice)
+        .times(latestBar.openPrice)
         .dividedBy(anchor.proxyClose)
         .toDecimalPlaces(10, Decimal.ROUND_HALF_UP);
       if (!estimate.isFinite() || estimate.lte(0)) throw new Error("Kernel estimate calculation produced an invalid price.");
       prices.push({
         sourceSymbol: instrument.sourceSymbol,
-        priceDate: latestBar.priceDate,
+        priceDate: valuationDate,
         closePrice: estimate.toFixed(10),
         currency: instrument.currency,
         isEstimated: true

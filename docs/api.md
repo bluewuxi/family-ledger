@@ -167,9 +167,9 @@ The response includes a `triggerRequestId`. Actual inserted/skipped counts are r
 }
 ```
 
-The API requires an exact confirmed `USF.NZ` close for the date, saves the anchor through a service-role-only atomic database function, replaces Kernel estimate rows from that date through the latest confirmed proxy close, and recalculates affected snapshots. An identical retry is idempotent. A same-date correction appends another revision; the newest-created revision wins. The first anchor enables automatic updates, while later anchors preserve an administrator's manual disabled state.
+The request date is Kernel's US-market valuation date. The API loads `USF.NZ` daily bars, selects the corresponding raw NZX-session open after the Kernel date, verifies that the proxy session maps back to that valuation date, and saves both dates through a service-role-only atomic database function. It replaces Kernel estimate rows through the latest confirmed proxy session and recalculates affected snapshots. Generated prices retain the mapped Kernel/global valuation date; anchor applicability uses the stored proxy date. An identical retry is idempotent. A same-date correction appends another revision; the newest-created revision wins. The first anchor enables automatic updates, while later anchors preserve an administrator's manual disabled state.
 
-The endpoint returns `DATA_SOURCE_DATE_UNAVAILABLE` when the date has no exact confirmed proxy close and `DATA_SOURCE_UNAVAILABLE` when Yahoo Finance cannot provide usable proxy data. It never accepts, stores, or replays Kernel login credentials.
+The endpoint returns `DATA_SOURCE_DATE_UNAVAILABLE` when no confirmed later `USF.NZ` session open is available for the supplied Kernel date and `DATA_SOURCE_UNAVAILABLE` when Yahoo Finance cannot provide usable proxy data. It never accepts, stores, or replays Kernel login credentials.
 
 ### User Preferences API
 

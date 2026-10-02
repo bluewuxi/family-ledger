@@ -55,11 +55,35 @@ async function main(): Promise<void> {
 
     sql(minimalPreMigrationSchema());
     sql(readFileSync("supabase/migrations/20261002090000_add_kernel_price_estimation.sql", "utf8"));
-
     const actor = "00000000-0000-4000-8000-000000000099";
     sql(`insert into auth.users(id) values ('${actor}')`);
     const instrumentId = sql("select id from instruments where symbol = 'KERNEL_SP500_UNHEDGED'");
     assert.match(instrumentId, /^[0-9a-f-]{36}$/u);
+    const legacyAnchorId = sql(`insert into kernel_price_anchors (
+      instrument_id, anchor_date, kernel_unit_price, proxy_symbol, proxy_currency, proxy_close,
+      proxy_price_date, proxy_fetched_at, created_by_user_id
+    ) values (
+      '${instrumentId}', '2026-09-29', 1.9, 'USF.NZ', 'NZD', 11.5,
+      '2026-09-29', '2026-09-30T05:15:00Z', '${actor}'
+    ) returning id`);
+    sql(readFileSync("supabase/migrations/20261002120000_align_kernel_proxy_dates.sql", "utf8"));
+    assert.equal(sql(`select count(*) from kernel_price_anchors where id = '${legacyAnchorId}'`), "1");
+    assert.equal(
+      sql("select convalidated from pg_constraint where conname = 'kernel_price_anchors_proxy_date_after_anchor_check'"),
+      "f"
+    );
+    assert.throws(() => saveAnchorSql(sql, {
+      instrumentId,
+      actor,
+      anchorDate: "2026-09-30",
+      proxyPriceDate: "2026-09-30",
+      kernelPrice: "2.0000000000",
+      proxyClose: "12.0000000000",
+      fetchedAt: "2026-10-01T05:15:00Z",
+      estimates: []
+    }), /Proxy price date must be after/u);
+    sql(`delete from kernel_price_anchors where id = '${legacyAnchorId}'`);
+
     assert.equal(sql(`select price_update_enabled from instruments where id = '${instrumentId}'`), "f");
     assert.equal(sql("select has_table_privilege('service_role', 'public.kernel_price_anchors', 'SELECT')"), "t");
     assert.equal(sql("select has_table_privilege('service_role', 'public.kernel_price_anchors', 'INSERT,UPDATE,DELETE')"), "f");
@@ -76,12 +100,14 @@ async function main(): Promise<void> {
       instrumentId,
       actor,
       anchorDate: "2026-09-30",
+      proxyPriceDate: "2026-10-01",
       kernelPrice: "2.0000000000",
       proxyClose: "12.0000000000",
       fetchedAt: "2026-10-01T05:15:00Z",
       estimates: [{ price_date: "2026-10-01", close_price: "2.1000000000", fetched_at: "2026-10-02T05:15:00Z" }]
     });
     assert.match(firstId, /^[0-9a-f-]{36}$/u);
+    assert.equal(sql(`select proxy_price_date from kernel_price_anchors where id = '${firstId}'`), "2026-10-01");
     assert.equal(sql(`select price_update_enabled from instruments where id = '${instrumentId}'`), "t");
     assert.equal(sql(`select count(*) from instrument_prices where instrument_id = '${instrumentId}' and provider = 'Kernel Estimate (USF.NZ)' and price_date = '2026-09-30'`), "0");
     assert.equal(sql(`select close_price || ':' || is_estimated from instrument_prices where instrument_id = '${instrumentId}' and provider = 'Kernel Anchor' and price_date = '2026-09-30'`), "2.0000000000:false");
@@ -91,6 +117,7 @@ async function main(): Promise<void> {
       instrumentId,
       actor,
       anchorDate: "2026-09-30",
+      proxyPriceDate: "2026-10-01",
       kernelPrice: "2.0000000000",
       proxyClose: "12.0000000000",
       fetchedAt: "2026-10-03T05:15:00Z",
@@ -104,6 +131,7 @@ async function main(): Promise<void> {
       instrumentId,
       actor,
       anchorDate: "2026-09-30",
+      proxyPriceDate: "2026-10-01",
       kernelPrice: "2.2000000000",
       proxyClose: "12.0000000000",
       fetchedAt: "2026-10-04T05:15:00Z",
@@ -116,6 +144,7 @@ async function main(): Promise<void> {
       instrumentId,
       actor,
       anchorDate: "2026-09-30",
+      proxyPriceDate: "2026-10-01",
       kernelPrice: "2.0000000000",
       proxyClose: "12.0000000000",
       fetchedAt: "2026-10-05T05:15:00Z",
@@ -125,16 +154,23 @@ async function main(): Promise<void> {
     assert.equal(sql(`select close_price from instrument_prices where instrument_id = '${instrumentId}' and provider = 'Kernel Estimate (USF.NZ)' and price_date = '2026-10-01'`), "2.3100000000");
 
     sql(`update instruments set price_update_enabled = false where id = '${instrumentId}'`);
+    sql(`insert into instrument_prices (
+      instrument_id, price_date, close_price, currency, provider, source_symbol, is_adjusted, is_estimated
+    ) values (
+      '${instrumentId}', '2026-10-05', 9.9, 'NZD', 'Kernel Estimate (USF.NZ)', 'USF.NZ', false, true
+    )`);
     saveAnchorSql(sql, {
       instrumentId,
       actor,
       anchorDate: "2026-10-02",
+      proxyPriceDate: "2026-10-05",
       kernelPrice: "2.4000000000",
       proxyClose: "13.0000000000",
       fetchedAt: "2026-10-03T05:15:00Z",
       estimates: []
     });
     assert.equal(sql(`select price_update_enabled from instruments where id = '${instrumentId}'`), "f");
+    assert.equal(sql(`select count(*) from instrument_prices where instrument_id = '${instrumentId}' and provider = 'Kernel Estimate (USF.NZ)' and price_date = '2026-10-05'`), "0");
 
     sql(`insert into instrument_prices (instrument_id, price_date, close_price, currency, provider, source_symbol, is_adjusted, is_estimated)
       values ('${instrumentId}', '2026-10-01', 2.3, 'NZD', 'Another Exact Source', 'USF.NZ', false, false)`);
@@ -147,6 +183,7 @@ async function main(): Promise<void> {
       instrumentId,
       actor,
       anchorDate: "2026-10-03",
+      proxyPriceDate: "2026-10-05",
       kernelPrice: "2.5000000000",
       proxyClose: "14.0000000000",
       fetchedAt: "2026-10-04T05:15:00Z",
@@ -156,6 +193,7 @@ async function main(): Promise<void> {
       instrumentId,
       actor,
       anchorDate: "2026-10-03",
+      proxyPriceDate: "2026-10-05",
       kernelPrice: "2.6000000000",
       proxyClose: "14.0000000000",
       fetchedAt: "2026-10-04T05:15:01Z",
@@ -189,6 +227,7 @@ interface AnchorInput {
   instrumentId: string;
   actor: string;
   anchorDate: string;
+  proxyPriceDate: string;
   kernelPrice: string;
   proxyClose: string;
   fetchedAt: string;
@@ -203,7 +242,7 @@ function anchorCall(input: AnchorInput): string {
   const estimates = JSON.stringify(input.estimates).replace(/'/gu, "''");
   return `select (save_kernel_price_anchor(
     '${input.instrumentId}', '${input.anchorDate}', ${input.kernelPrice}, 'USF.NZ', 'NZD', ${input.proxyClose},
-    '${input.anchorDate}', '${input.fetchedAt}', '${input.actor}', '${estimates}'::jsonb
+    '${input.proxyPriceDate}', '${input.fetchedAt}', '${input.actor}', '${estimates}'::jsonb
   )).id`;
 }
 

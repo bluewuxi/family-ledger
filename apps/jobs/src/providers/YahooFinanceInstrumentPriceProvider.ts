@@ -44,7 +44,7 @@ export class YahooFinanceInstrumentPriceProvider implements IInstrumentPriceProv
         this.options
       );
       const latest = result.bars.at(-1);
-      if (!latest) throw new Error(`Yahoo Finance response is missing close price for ${instrument.sourceSymbol}.`);
+      if (!latest?.closePrice) throw new Error(`Yahoo Finance response is missing close price for ${instrument.sourceSymbol}.`);
       prices.push({
         sourceSymbol: instrument.sourceSymbol,
         priceDate: latest.priceDate,

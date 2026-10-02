@@ -323,7 +323,7 @@ values
     'KERNEL_SP500_UNHEDGED',
     'Kernel 标普500（非对冲）',
     'Kernel S&P 500 (Unhedged) Fund',
-    'Kernel S&P 500 (Unhedged) Fund is a New Zealand PIE fund whose unit price is estimated between manual anchors using the raw NZX close of Smart US 500 ETF (USF).',
+    'Kernel S&P 500 (Unhedged) Fund is a New Zealand PIE fund whose unit price is estimated between manual anchors using the raw opening price from the next NZX trading session of Smart US 500 ETF (USF).',
     'NZ',
     'KERNEL',
     'NZD',
@@ -337,7 +337,7 @@ values
     3,
     'https://kernelwealth.co.nz/funds/sp-500-unhedged',
     now(),
-    'Estimated from USF.NZ daily movement between exact Kernel unit-price anchors.'
+    'Estimated from USF.NZ raw opening-price movement. Each Kernel valuation date is paired with the first later confirmed NZX trading session.'
   ),
   (
     'CASH_CNY',

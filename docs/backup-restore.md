@@ -28,7 +28,7 @@ The Lambda checks for active batch jobs before export and again before S3 write.
 
 ## Exact Numeric Values
 
-Version 4 serializes spending amounts as strings. Version 5 also serializes Kernel anchor prices and proxy closes as strings. These values must stay strings throughout verification and restore so JavaScript cannot truncate PostgreSQL `numeric` precision. Existing numeric values from older tables retain their established backup representation.
+Version 4 serializes spending amounts as strings. Version 5 also serializes Kernel anchor prices and proxy values as strings. The legacy `proxy_close` column now carries the aligned `USF.NZ` raw opening value. These values must stay strings throughout verification and restore so JavaScript cannot truncate PostgreSQL `numeric` precision. Existing numeric values from older tables retain their established backup representation.
 
 ## Storage
 
@@ -73,7 +73,7 @@ The dry run validates checksums, table presence, duplicate primary keys, interna
 
 For an empty isolated rehearsal database:
 
-1. Apply all Supabase migrations through at least the manifest's `migrationHighWaterMark`. Version 5 requires `20261002090000_add_kernel_price_estimation.sql`.
+1. Apply all Supabase migrations through at least the manifest's `migrationHighWaterMark`. Version 5 requires `20261002090000_add_kernel_price_estimation.sql`; current deployments must also apply `20261002120000_align_kernel_proxy_dates.sql` before accepting new Kernel anchors.
 2. Recreate Supabase Auth users with matching UUIDs where possible. Otherwise prepare a reviewed mapping for profiles, roles, anchor creators, spending audit fields, and job trigger users.
 3. Run `verify:backup` and `restore:backup:dry-run` against the untouched backup file.
 4. Generate normalized rows with `restore:backup:dry-run -- --file <backup.json.gz> --output-tables <normalized-file.json>` and load them in the reported order. Restore snapshot headers and account rows; never insert into the derived `portfolio_snapshots` view.

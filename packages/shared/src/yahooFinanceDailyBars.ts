@@ -3,7 +3,8 @@ import type { CurrencyCode } from "./index";
 
 export interface YahooFinanceDailyBar {
   priceDate: string;
-  closePrice: string;
+  openPrice?: string;
+  closePrice?: string;
 }
 
 export interface YahooFinanceDailyBarsResult {
@@ -19,6 +20,7 @@ export interface FetchYahooFinanceDailyBarsInput {
   expectedCurrency: CurrencyCode;
   fetchedAt: string;
   fromDate?: string;
+  requiredPriceField?: "close" | "open";
   expectedExchangeTimeZone?: string;
   confirmationCutoff?: {
     timeZone: string;
@@ -94,18 +96,24 @@ export function parseYahooFinanceDailyBars(
   const indicators = asRecord(firstResult.indicators, `Yahoo Finance indicators for ${input.sourceSymbol}`);
   const quote = asArray(indicators.quote, `Yahoo Finance quote for ${input.sourceSymbol}`);
   const firstQuote = asRecord(quote[0], `Yahoo Finance quote item for ${input.sourceSymbol}`);
-  const closes = asArray(firstQuote.close, `Yahoo Finance close prices for ${input.sourceSymbol}`);
+  const opens = optionalArray(firstQuote.open);
+  const closes = optionalArray(firstQuote.close);
+  const requiredPriceField = input.requiredPriceField ?? "close";
+  if (requiredPriceField === "open" && !opens) {
+    throw new Error(`Yahoo Finance open prices for ${input.sourceSymbol} must be a non-empty array.`);
+  }
+  if (requiredPriceField === "close" && !closes) {
+    throw new Error(`Yahoo Finance close prices for ${input.sourceSymbol} must be a non-empty array.`);
+  }
   const fetchedAt = new Date(input.fetchedAt);
   if (Number.isNaN(fetchedAt.getTime())) {
     throw new Error("Yahoo Finance fetch time is invalid.");
   }
 
   const barsByDate = new Map<string, YahooFinanceDailyBar>();
-  const count = Math.min(timestamps.length, closes.length);
+  const count = Math.min(timestamps.length, Math.max(opens?.length ?? 0, closes?.length ?? 0));
   for (let index = 0; index < count; index += 1) {
     const timestamp = timestamps[index];
-    const close = closes[index];
-    if (close === null || close === undefined) continue;
     if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
       throw new Error(`Yahoo Finance timestamp is invalid for ${input.sourceSymbol}.`);
     }
@@ -113,13 +121,28 @@ export function parseYahooFinanceDailyBars(
     const priceDate = dateInTimeZone(new Date(timestamp * 1000), exchangeTimeZone);
     if (input.fromDate && priceDate < input.fromDate) continue;
     if (input.confirmationCutoff && !isConfirmedBar(priceDate, fetchedAt, input.confirmationCutoff)) continue;
-    const closePrice = positiveDecimal(close, `Yahoo Finance close price for ${input.sourceSymbol}`);
-    barsByDate.set(priceDate, { priceDate, closePrice });
+    const open = opens?.[index];
+    const close = closes?.[index];
+    const openPrice = open === null || open === undefined
+      ? undefined
+      : positiveDecimal(open, `Yahoo Finance open price for ${input.sourceSymbol}`);
+    const closePrice = close === null || close === undefined
+      ? undefined
+      : positiveDecimal(close, `Yahoo Finance close price for ${input.sourceSymbol}`);
+    const existing = barsByDate.get(priceDate);
+    const merged: YahooFinanceDailyBar = {
+      priceDate,
+      ...((existing?.openPrice ?? openPrice) ? { openPrice: existing?.openPrice ?? openPrice } : {}),
+      ...((closePrice ?? existing?.closePrice) ? { closePrice: closePrice ?? existing?.closePrice } : {})
+    };
+    barsByDate.set(priceDate, merged);
   }
 
-  const bars = [...barsByDate.values()].sort((left, right) => left.priceDate.localeCompare(right.priceDate));
+  const bars = [...barsByDate.values()]
+    .filter((bar) => requiredPriceField === "open" ? Boolean(bar.openPrice) : Boolean(bar.closePrice))
+    .sort((left, right) => left.priceDate.localeCompare(right.priceDate));
   if (bars.length === 0) {
-    throw new Error(`Yahoo Finance returned no confirmed daily close for ${input.sourceSymbol}.`);
+    throw new Error(`Yahoo Finance returned no confirmed daily ${requiredPriceField} for ${input.sourceSymbol}.`);
   }
 
   return { sourceSymbol: input.sourceSymbol, currency, exchangeTimeZone, fetchedAt: input.fetchedAt, bars };
@@ -202,4 +225,8 @@ function asRecord(value: unknown, field: string): Record<string, unknown> {
 function asArray(value: unknown, field: string): unknown[] {
   if (!Array.isArray(value) || value.length === 0) throw new Error(`${field} must be a non-empty array.`);
   return value;
+}
+
+function optionalArray(value: unknown): unknown[] | null {
+  return Array.isArray(value) && value.length > 0 ? value : null;
 }

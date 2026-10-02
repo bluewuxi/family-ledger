@@ -1293,6 +1293,7 @@ export interface KernelPriceAnchor {
   kernelUnitPrice: string;
   proxySymbol: string;
   proxyCurrency: CurrencyCode;
+  /** Legacy field name retained for backup/API compatibility; stores the raw proxy opening price. */
   proxyClose: string;
   proxyPriceDate: string;
   proxyFetchedAt: string;
@@ -1942,6 +1943,7 @@ export interface ApiError {
 }
 
 export * from "./spending";
+export * from "./kernelPriceEstimation";
 export * from "./yahooFinanceDailyBars";
 
 export type ApiResponse<T> =

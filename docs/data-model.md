@@ -21,7 +21,7 @@ Business tables do not use `user_id` as an ownership field. Where useful, they u
 - `transactions`: shared investment transaction records.
 - `currencies`: supported currency reference data.
 - `instrument_prices`: shared provider-supplied historical prices for instruments.
-- `kernel_price_anchors`: append-only Kernel unit-price anchors with their exact-date proxy closes and creator audit fields.
+- `kernel_price_anchors`: append-only Kernel unit-price anchors with their following-session `USF.NZ` raw opening values and creator audit fields.
 - `exchange_rates`: shared provider-supplied FX rates for valuation and future tax-assist separation.
 - `job_runs`: scheduled/batch job execution audit records.
 - `data_provider_runs`: per-provider audit records under a job run.
@@ -107,17 +107,19 @@ The stock/ETF price job also ingests best-effort latest daily prices for enabled
 - `eastmoney`: enabled instruments with `price_source = 'eastmoney'`, a non-empty `price_source_symbol`, and a supported China exchange.
 - `kernel_estimate`: the fixed `KERNEL_SP500_UNHEDGED` NZD PIE target using `USF.NZ` on `NZX` as its proxy. It remains disabled until the first anchor is saved.
 
-`kernel_price_anchors` stores the exact Kernel unit price, anchor date, exact-date raw `USF.NZ` close and currency, proxy fetch time, creator, and creation time. Identical payload retries are unique and idempotent; same-date corrections are new revisions. For each confirmed proxy date `T`, the newest applicable anchor is selected by anchor date and then creation time, and the estimate is calculated with decimal arithmetic:
+`kernel_price_anchors` stores the exact Kernel unit price, Kernel valuation date, the first later NZX-session raw `USF.NZ` open and currency, proxy fetch time, creator, and creation time. Kernel's date reflects a US close that occurs on the following New Zealand morning, so the proxy date must be strictly later than the Kernel date. The legacy database and DTO field name `proxy_close` / `proxyClose` is retained for backup compatibility but carries the opening value. Identical payload retries are unique and idempotent; same-date corrections are new revisions. For each confirmed proxy date `T`, the newest applicable anchor is selected by `proxy_price_date` and then creation time, and the estimate is calculated with decimal arithmetic:
 
 ```text
-estimated price = anchor Kernel price × USF close at T ÷ anchor USF close
+estimated price = anchor Kernel price × USF raw open at T ÷ anchor USF raw open
 ```
 
-The result is rounded once to `numeric(28,10)` with half-up rounding. Exact anchor dates contain an unbadged `Kernel Anchor` price and no estimate row. Other generated rows use provider `Kernel Estimate (USF.NZ)`, carry `is_estimated = true`, and use the proxy exchange date as `price_date`. Fees, tracking, cash holdings, and different distribution dates can make the estimate diverge from the published Kernel unit price, so periodic and post-distribution anchors are recommended.
+The result is rounded once to `numeric(28,10)` with half-up rounding. Exact Kernel anchor dates contain an unbadged `Kernel Anchor` price. Generated rows use provider `Kernel Estimate (USF.NZ)` and carry `is_estimated = true`. Their `price_date` is the Kernel/global valuation date corresponding to the proxy session: Tuesday through Friday NZX sessions map to the preceding calendar day, while Monday maps to Friday. The separate `proxy_price_date` remains the later NZX session date. Exact anchor dates are omitted from generated estimates. Fees, tracking, cash holdings, FX fixing times, distributions, and weekend or holiday news can make the estimate diverge from the published Kernel unit price, so periodic and post-distribution anchors are recommended.
 
-These providers are treated as unofficial market-data sources for a small family ledger. They do not introduce API keys or paid provider secrets. Provider responses are validated before insert, and failures are recorded in `data_provider_runs`, but this is not a guaranteed market-data feed or historical backfill pipeline.
+These providers are treated as best-effort market-data sources for a small family ledger. They do not introduce API keys or paid provider secrets. Provider responses are validated before insert, and failures are recorded in `data_provider_runs`, but this is not a guaranteed market-data feed or historical backfill pipeline. Official USF NTA announcements validate the Kernel-to-NZX date offset but are not an automated input until NZX permits the intended use through a documented or licensed feed.
 
-Yahoo daily-bar parsing uses the exchange timezone and raw `quote.close`, never adjusted close. Scheduled price ingestion skips same-day stock/ETF prices fetched before the relevant exchange close-confirmation cutoff, including `17:15 Pacific/Auckland` for NZX, so `instrument_prices` does not persist live intraday quotes as historical closes. Dashboard-only live or delayed quotes remain in `dashboard_instrument_quotes`.
+The alignment follows [Kernel's unit-pricing description](https://intercom.help/kernelwealth/en/articles/11392379-your-investment-s-unit-price-how-it-s-calculated-and-updated) and the [NZX opening-auction schedule](https://www.nzx.com/learning/issuer-participant-resources/nzx-trading/anatomy-of-a-trading-day). The future NTA-source decision must follow [NZX data-licensing guidance](https://www.nzx.com/services/products-tools/data-connectivity/nzx-market-data/data-licensing).
+
+Yahoo daily-bar parsing uses the exchange timezone and raw quote fields, never adjusted close. Standard scheduled price ingestion uses `quote.close` and skips same-day rows before the relevant exchange close-confirmation cutoff, including `17:15 Pacific/Auckland` for NZX. Kernel estimation requests `quote.open` and accepts the same-day NZX opening bar only from `10:05 Pacific/Auckland`. Dashboard-only live or delayed quotes remain in `dashboard_instrument_quotes`.
 
 `job_runs` and `data_provider_runs` only track ingestion attempts and counts. They are audit records for completed or attempted jobs and are not themselves valuation snapshots.
 
@@ -248,7 +250,7 @@ The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints
 - instruments: unique by `market_region, exchange, symbol`
 - instrument prices: unique by `instrument_id, provider, price_date`
 - exchange rates: unique by `from_currency, to_currency, rate_type, provider, rate_date`
-- Kernel anchor retries: unique by target, anchor date, Kernel price, proxy close, currency, and proxy date; same-date revisions with changed values remain append-only
+- Kernel anchor retries: unique by target, anchor date, Kernel price, proxy opening value, currency, and proxy date; same-date revisions with changed values remain append-only
 - valuation exchange rates: constrained to `to_currency = 'USD'`
 - portfolio snapshots: unique by `snapshot_date`
 - portfolio account snapshots: unique by `snapshot_date, account_id`
