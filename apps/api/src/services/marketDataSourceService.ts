@@ -160,7 +160,9 @@ export function calculateKernelEstimates(
   return bars.flatMap((bar) => {
     const valuationDate = getKernelValuationDateForNzxSession(bar.priceDate);
     if (exactDates.has(valuationDate)) return [];
-    const anchor = orderedAnchors.find((candidate) => candidate.proxyPriceDate <= bar.priceDate);
+    const anchor = orderedAnchors.find((candidate) =>
+      candidate.anchorDate <= valuationDate && candidate.proxyPriceDate <= bar.priceDate
+    );
     if (!anchor) return [];
     if (!bar.openPrice) throw new Error("Yahoo Finance returned a confirmed USF.NZ bar without an opening price.");
     const result = new Decimal(anchor.kernelUnitPrice)

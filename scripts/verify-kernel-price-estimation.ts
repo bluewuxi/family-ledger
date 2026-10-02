@@ -131,6 +131,14 @@ async function main(): Promise<void> {
     )[0]?.closePrice,
     "5.5000000000"
   );
+  assert.deepEqual(
+    calculateKernelEstimates(
+      [{ priceDate: "2026-09-30", openPrice: "9", closePrice: "99" }],
+      [anchor("legacy", "2026-09-30", "99", "9", "2026-09-30", "2026-10-03T00:00:00Z")],
+      "now"
+    ),
+    []
+  );
   assert.equal(
     calculateKernelEstimates(
       [{ priceDate: "2026-10-02", openPrice: "1.00000000005", closePrice: "999" }],

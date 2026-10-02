@@ -58,7 +58,9 @@ export class KernelEstimatedInstrumentPriceProvider implements IInstrumentPriceP
         skippedSourceSymbols.push(instrument.sourceSymbol);
         continue;
       }
-      const anchor = instrumentAnchors.find((candidate) => candidate.proxyPriceDate <= latestBar.priceDate);
+      const anchor = instrumentAnchors.find((candidate) =>
+        candidate.anchorDate <= valuationDate && candidate.proxyPriceDate <= latestBar.priceDate
+      );
       if (!anchor) throw new Error(`Kernel estimate instrument ${instrument.instrumentId} has no applicable price anchor.`);
       const estimate = new Decimal(anchor.kernelUnitPrice)
         .times(latestBar.openPrice)
