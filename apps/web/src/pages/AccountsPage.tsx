@@ -401,7 +401,7 @@ export function AccountsPage() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/accounts">账户管理</PageTitle>
-          <p>维护投资、日常收支和教育储备账户。可在保存账户时一并录入期初资产。</p>
+          <p>维护投资与日常收支账户，可一并录入期初资产。教育资金池在教育储备页面独立管理。</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (
@@ -611,7 +611,7 @@ export function AccountsPage() {
               onChange={(event) => setForm({ ...form, purpose: event.target.value as AccountPurpose })}
               disabled={isDrawerReadOnly}
             >
-              {ACCOUNT_PURPOSES.map((purpose) => (
+              {ACCOUNT_PURPOSES.filter(purpose => purpose !== "education").map((purpose) => (
                 <option key={purpose} value={purpose}>{ACCOUNT_PURPOSE_LABELS[purpose]}</option>
               ))}
             </select>

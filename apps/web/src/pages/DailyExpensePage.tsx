@@ -1,11 +1,14 @@
 import { useSearchParams } from "react-router-dom";
 import { AccountPurposePage } from "./AccountPurposePage";
 import { SpendingPage } from "./SpendingPage";
+import { CashflowScope } from "../components/cashflow/CashflowScope";
+import { PageTitle } from "../components/PageTitle";
 export function DailyExpensePage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "spending" ? "spending" : "accounts";
   return (
     <>
+      <header className="page-header"><PageTitle route="/daily-expense">日常收支</PageTitle><CashflowScope value="daily_expense" /></header>
       <nav className="spending-tabs" aria-label="日常收支视图">
         <button
           aria-current={tab === "accounts" ? "page" : undefined}
@@ -33,10 +36,10 @@ export function DailyExpensePage() {
         </button>
       </nav>
       {tab === "accounts" ? (
-        <AccountPurposePage purpose="daily_expense" />
+        <AccountPurposePage purpose="daily_expense" embedded />
       ) : (
         <>
-          <h1>交易明细</h1>
+          <h2>交易明细</h2>
           <SpendingPage />
         </>
       )}

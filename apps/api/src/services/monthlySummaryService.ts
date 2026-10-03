@@ -61,9 +61,9 @@ export async function getMonthlySummary(input: {
   const { monthStart, monthEnd, previousDay } = getMonthBoundaries(month);
   const valuationEnd = getMonthlyValuationEnd(month);
   const [startSnapshots, endSnapshots, transactions] = await Promise.all([
-    listPortfolioSnapshots({ from: earliestDate, to: previousDay, currency, order: "desc", limit: 1 }),
-    listPortfolioSnapshots({ from: monthStart, to: valuationEnd, currency, order: "desc", limit: 1 }),
-    listTransactions({ from: monthStart, to: valuationEnd })
+    listPortfolioSnapshots({ from: earliestDate, to: previousDay, currency, order: "desc", limit: 1, purpose: "investment" }),
+    listPortfolioSnapshots({ from: monthStart, to: valuationEnd, currency, order: "desc", limit: 1, purpose: "investment" }),
+    listTransactions({ from: monthStart, to: valuationEnd, purpose: "investment" })
   ]);
   const startSnapshot = requireMonthlySnapshotDate(startSnapshots[0] ?? null, previousDay);
   const endSnapshot = requireMonthlySnapshotDate(endSnapshots[0] ?? null, valuationEnd);

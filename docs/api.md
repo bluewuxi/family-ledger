@@ -1,5 +1,17 @@
 # API
 
+## Education reserve and shared cashflow reports
+
+- `GET /education-reserve`: viewer/admin; returns `user`, logical `fund`, lifetime native-currency `totals`, filtered `periodTotals`, expense references, paginated `entries`, and pagination. Filters: `from`, `to`, `currency`, `category`, `limit` (1–200, default 50), and `offset`. Dates are calendar strings. Fund `cutoverAt` indicates migration readiness.
+- `POST /education-reserve/entries`: admin; create a manual record.
+- `PATCH /education-reserve/entries/:id`: admin; replace editable fields using the current integer `version`.
+- `DELETE /education-reserve/entries/:id`: admin; JSON body `{ "version": 1 }` guards against stale deletion.
+- `GET /cashflows`: viewer/admin; filters `domain=all|daily_expense|education`, dates, currency, optional education category, limit, and offset. Returns one server-paginated stable activity stream and separate per-domain/per-currency totals. This stream contains bank statement rows and education entries; legacy daily account transfers remain in the account-flow page and are not added to consumption totals.
+
+Entry fields: `entryDate`, `entryType`, `currency`, positive exact decimal string `amount`, nullable `expenseCategory`, `relatedExpenseId`, `targetCurrency`, `targetAmount`, and `notes`. Types: `opening_balance`, `contribution`, `expense`, `refund`, `withdrawal`, `exchange`. Expense/refund categories: `tuition`, `accommodation`, `living_allowance`, `other`. Exchanges require a different target currency and a positive target amount; other types cannot supply target fields. Only refunds may reference an expense. Unavailable/stale records return `NOT_FOUND`/`CONFLICT`; invalid relationships return `VALIDATION_ERROR`.
+
+Default account/transaction listings hide legacy education accounts. Old education rows remain available for historical inspection but cannot be changed through account, transaction, or linked settlement write paths. New education-purpose bank/investment accounts cannot be created. Investment holdings and monthly investment summaries filter investment-purpose accounts; default portfolio snapshot API output does likewise. Education records never write investment business tables.
+
 The Lambda API returns a consistent JSON shape.
 
 Success:

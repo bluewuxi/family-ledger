@@ -14,6 +14,8 @@ const RESTORE_ORDER = [
   "kernel_price_anchors",
   "exchange_rates",
   "transactions",
+  "education_reserve_funds",
+  "education_reserve_entries",
   "instrument_prices",
   "portfolio_snapshot_headers",
   "portfolio_account_snapshots",
@@ -92,6 +94,10 @@ function validatePrimaryKeys(payload: LedgerBackupPayload): void {
 }
 
 function validateInternalReferences(payload: LedgerBackupPayload): void {
+  requireKnownValues(payload.tables.education_reserve_funds, "education_reserve_funds", "legacy_account_id", idSet(payload.tables.investment_accounts));
+  requireKnownValues(payload.tables.education_reserve_entries, "education_reserve_entries", "fund_id", idSet(payload.tables.education_reserve_funds));
+  requireKnownValues(payload.tables.education_reserve_entries, "education_reserve_entries", "legacy_transaction_id", idSet(payload.tables.transactions));
+  requireKnownValues(payload.tables.education_reserve_entries, "education_reserve_entries", "related_expense_id", idSet(payload.tables.education_reserve_entries));
   requireKnownValues(payload.tables.account_statements, "account_statements", "account_id", idSet(payload.tables.spending_accounts));
   requireKnownValues(payload.tables.statement_rows, "statement_rows", "statement_id", idSet(payload.tables.account_statements));
   requireKnownValues(payload.tables.statement_rows, "statement_rows", "account_id", idSet(payload.tables.spending_accounts));
@@ -123,7 +129,7 @@ function validateInternalReferences(payload: LedgerBackupPayload): void {
 
 function collectExternalUserIds(payload: LedgerBackupPayload): Set<string> {
   const userIds = new Set<string>();
-  for (const table of ["spending_accounts", "account_statements", "statement_rows"] as const) {
+  for (const table of ["spending_accounts", "account_statements", "statement_rows", "education_reserve_funds", "education_reserve_entries"] as const) {
     collectValues(payload.tables[table], "created_by_user_id", userIds);
     collectValues(payload.tables[table], "updated_by_user_id", userIds);
   }

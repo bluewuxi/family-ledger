@@ -1,5 +1,17 @@
 # Deployment
 
+## Education reserve release procedure
+
+The 2026-10-04 education release uses additive migration `20261004090000_add_education_reserve.sql`. Existing education accounts start with an inactive logical fund; fresh empty installations initialize an active fund. No old accounts, transactions, or snapshots are deleted.
+
+1. Inspect test data and create a complete version-5 pre-migration backup with checksum/restore dry-run verification. Retain a private reviewed seven-record mapping under ignored `tmp/education-reserve/`.
+2. Apply the additive schema using `corepack pnpm apply:education-reserve-schema:test`. This includes the expanded atomic backup export; existing education writes remain unchanged while the fund is inactive.
+3. Validate and review the implementation, create the GitHub issue, commit to `test` referencing it, and push. Deploy API, jobs (including version-6 backup handling), and web using the normal change-set/infra/web workflow. Verify runtime config and assets.
+4. Run `corepack pnpm migrate:education-reserve:test -- --backup <verified-backup.json.gz> --mapping <private-mapping.json>` for a dry run; add `--apply` for atomic cutover. The script compares protected rows to the backup and again under its account/transaction lock. Changes since backup require a new backup/review. Reruns on an active fund verify provenance and create no duplicates.
+5. Reconcile seven migrated records and exact native balances/spending, verify protected account/transaction/daily/snapshot rows are unchanged, take a version-6 post-cutover backup, and verify restoration. Check endpoint health and unauthorized access boundaries. Close the issue after successful deployment verification.
+
+Restore both reserve tables with deferred self-reference checks in one transaction; do not disable legacy guards in normal operation. Reverting application code does not undo education cutover. Before any rollback, preserve new entries and reconcile them; never delete them or re-enable legacy writes without a reviewed recovery plan. Authenticated mobile acceptance remains pending until the user logs in and confirms readiness.
+
 Production deployment uses SAM/CloudFormation templates under `infra/aws` when explicitly run.
 
 ## Frontend

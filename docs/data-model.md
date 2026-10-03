@@ -1,5 +1,15 @@
 # Data Model
 
+## Education reserve
+
+`education_reserve_funds` represents one logical multi-currency education fund, with no bank-account identities. Its singleton key is constrained to `education`. `legacy_account_id` retains migration provenance; `cutover_at` activates the new write path and database guards on legacy education accounts/transactions.
+
+`education_reserve_entries` stores dated manual contributions, opening balances, education expenses, refunds, withdrawals, and exchanges. Amounts and optional exchange target amounts are positive PostgreSQL `numeric(20,6)` values; API/backup DTOs return exact strings. Expenses/refunds have tuition, accommodation, living-allowance, or other categories. Exchanges are one row with two currency effects. Versions reject stale edits. Linked refunds must match fund, currency, category, and date ordering, and cannot exceed the original expense; fund-row locking serializes these checks. Standalone historical refunds are identifiable. Negative balances are allowed and displayed with a warning.
+
+Balances are derived with exact decimals: opening + contributions + refunds - expenses - withdrawals - exchange out + exchange in. Education spending is expenses minus refunds. Date/category filters change period summaries, not current balances or lifetime spending. Education funds do not enter investment holdings, snapshots, investment monthly summaries, or daily bank-statement rows. The purpose-filtered combined cashflow report shows separate daily/education totals and omits internal transfers from consumption.
+
+Backup version 6 includes both reserve tables and exports both amount fields as strings. Versions 1–5 remain supported according to their existing restrictions. Restore accounts/transactions before reserve funds/entries, inside one transaction with deferred self-reference checks. On restoration into an occupied database, clear reserve entries/funds before legacy transactions/accounts to remove references and active legacy-write guards. Older backups need the empty singleton fund initialized before reviewed education migration; they do not contain new education history.
+
 `金财屋` / `Family Ledger` is a single-family shared ledger. Core business data is shared by the family, not owned by individual users.
 
 Users are accessors/operators only. User-specific tables are limited to:
@@ -168,7 +178,7 @@ Portfolio snapshots are durable but repairable daily valuation records generated
 - `portfolio_account_snapshots` stores one row per account for the same snapshot date.
 - Account `market_value_usd` is a signed net value, including cash liabilities. Historical buy settlement and lagged fund prices can make it negative; snapshot rebuilds preserve that value rather than clamping it or rejecting the write.
 - `ledger_write_state` stores one monotonic revision for transaction planning. Statement triggers advance it when transactions, accounts, instruments, prices, FX, or snapshots change. The service-only `commit_transaction_write` RPC locks and compares this revision, then atomically writes the parent transaction, linked cash leg, owned price, and all affected snapshots. A stale plan fails without writing; business calculations remain in the API/shared services.
-- `investment_accounts.purpose` is exactly one of `investment`, `daily_expense`, or `education`. Existing and omitted values default to `investment`; changing purpose changes historical report membership without rewriting snapshots.
+- `investment_accounts.purpose` is exactly one of `investment`, `daily_expense`, or legacy `education`. Existing and omitted values default to `investment`; changing investment/daily purpose changes historical report membership without rewriting snapshots. New education funds use the independent reserve tables below. After reserve cutover, education-purpose account/transaction mutation and assignment are blocked by the API and database guards; legacy rows and snapshots are retained for audit.
 - Snapshot valuation is canonicalized in USD because market data storage is USD-centered.
 - Each snapshot stores `usd_to_nzd_rate` and `usd_to_cny_rate` used at generation time so historical display values remain stable when later FX data changes.
 - API reads can display stored USD canonical amounts as `USD`, `NZD`, or `CNY`.

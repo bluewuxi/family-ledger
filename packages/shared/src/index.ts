@@ -1943,6 +1943,7 @@ export interface ApiError {
 }
 
 export * from "./spending";
+export * from "./educationReserve";
 export * from "./kernelPriceEstimation";
 export * from "./yahooFinanceDailyBars";
 

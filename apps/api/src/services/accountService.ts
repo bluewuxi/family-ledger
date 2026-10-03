@@ -26,7 +26,7 @@ import { createTradingPasswordPlaceholder, deleteTradingPasswordParameter } from
 import { ApiRequestError } from "../utils/apiError";
 
 export async function getAccounts(): Promise<InvestmentAccount[]> {
-  return listAccounts();
+  return (await listAccounts()).filter(account => account.purpose !== "education");
 }
 
 export async function createInvestmentAccount(
@@ -34,6 +34,7 @@ export async function createInvestmentAccount(
   user: AuthenticatedUser
 ): Promise<InvestmentAccount> {
   const input = parseCreateAccountInput(body);
+  rejectEducationAccount(input.purpose);
   const account = await createAccount(input, user.id);
 
   try {
@@ -61,6 +62,8 @@ export async function updateInvestmentAccount(
 ): Promise<InvestmentAccount> {
   assertUuid(id);
   const input = parseUpdateAccountInput(body);
+  rejectEducationAccount((await findAccountById(id))?.purpose);
+  rejectEducationAccount(input.purpose);
 
   try {
     return await updateAccount(id, input, user.id);
@@ -78,6 +81,7 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
 
   try {
     const account = await findAccountById(id);
+    rejectEducationAccount(account?.purpose);
 
     if (!account) {
       await deleteTradingPasswordParameter(id);
@@ -101,6 +105,10 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
 
     throw error;
   }
+}
+
+function rejectEducationAccount(purpose: AccountPurpose | undefined): void {
+  if (purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在教育储备页面管理，旧账户仅供历史核查。", 400);
 }
 
 export function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {

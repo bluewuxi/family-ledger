@@ -4590,6 +4590,20 @@ tr.editing-row td {
 
 /* Spending workspace: compact summaries, readable tables, and stacked mobile forms. */
 .spending-tabs { display:flex; gap:8px; border-bottom:1px solid var(--color-border); margin-bottom:24px; }
+.cashflow-scope { display:grid; gap:8px; min-width:180px; max-width:100%; }
+.cashflow-scope select,.cashflow-filters input,.cashflow-filters select { min-height:44px; width:100%; min-width:0; }
+.education-totals { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:24px; margin:24px 0; }
+.education-total { border-block:1px solid var(--color-border); padding:16px 0; }
+.education-total p { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.education-total strong { font-size:20px; overflow-wrap:anywhere; }
+.cashflow-table { min-width:850px; }
+.cashflow-table td:last-child { white-space:normal; overflow-wrap:anywhere; min-width:220px; max-width:380px; }
+@media(max-width:600px) {
+ .cashflow-scope { width:100%; }
+ .cashflow-filters { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+ .cashflow-filters label { width:100%; min-width:0; }
+ .education-totals { grid-template-columns:minmax(0,1fr); }
+}
 .spending-tabs button { min-height:44px; padding:10px 18px; border:0; background:transparent; color:inherit; cursor:pointer; }
 .spending-tabs button[aria-current] { border-bottom:3px solid var(--color-brand-brown); font-weight:700; }
 .spending-toolbar { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:20px; }

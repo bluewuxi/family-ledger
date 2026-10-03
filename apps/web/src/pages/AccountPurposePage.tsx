@@ -7,7 +7,7 @@ import { loadAccountPurposeOverview } from "../lib/accountPurposeClient";
 import { formatDisplayAmount } from "../lib/numberFormat";
 import { usePreferences } from "../lib/preferencesContext";
 
-export function AccountPurposePage({ purpose }: { purpose: "daily_expense" | "education" }) {
+export function AccountPurposePage({ purpose, embedded = false }: { purpose: "daily_expense" | "education"; embedded?: boolean }) {
   const navigate = useNavigate();
   const { preferences } = usePreferences();
   const [overview, setOverview] = useState<AccountPurposeOverview | null>(null);
@@ -33,7 +33,7 @@ export function AccountPurposePage({ purpose }: { purpose: "daily_expense" | "ed
   const accounts = overview?.balances.map((item) => item.account) ?? [];
   return <section>
     <header className="page-header">
-      <div><PageTitle route={`/${purpose === "education" ? "education" : "daily-expense"}`}>{label}</PageTitle><p>查看账户余额和手动录入的入金、出金记录。</p></div>
+      <div>{embedded ? <h2>账户收支</h2> : <PageTitle route={`/${purpose === "education" ? "education" : "daily-expense"}`}>{label}</PageTitle>}<p>查看账户余额和手动录入的入金、出金记录。</p></div>
       <button className="primary-button" type="button" onClick={() => navigate("/transactions")}>{isAdmin ? "管理交易" : "查看交易"}</button>
     </header>
     <div className="filter-bar">

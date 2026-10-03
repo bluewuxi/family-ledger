@@ -1,5 +1,11 @@
 # Local Testing
 
+## Education reserve acceptance
+
+Run `corepack pnpm verify:education-reserve`, `corepack pnpm verify:education-reserve-db`, `corepack pnpm verify:backup`, and existing spending/account-purpose/time checks before typecheck/build. The PostgreSQL verification creates an isolated temporary local database without using project credentials; it covers concurrent refunds, stale updates, legacy guards, exact values, RLS, combined reports, and rollback-only backup restoration.
+
+For browser acceptance, keep auth bypass disabled. Start the local API and web app at `http://127.0.0.1:5181`; ask the user to log in and confirm `/education` is ready before accessing authenticated pages. Verify 320x740, 393x852, 430x932, 768x1024, and desktop layouts, including filters, currency totals, manual entry drawer, pagination, daily spending filters, and `/cashflows` purpose selection. Recording test payments against the connected test database requires an explicit test-data decision; responsive inspection itself is read-only.
+
 Use this runbook when starting the app locally for browser testing against the configured test Supabase project.
 
 ## Prerequisites

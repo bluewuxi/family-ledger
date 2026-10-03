@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import {
   SPENDING_CLASSES,
   SPENDING_CLASS_LABELS,
-  SPENDING_CURRENCIES,
   type SpendingAccount,
   type SpendingFilterOptions,
   type SpendingQueryResult,
@@ -16,6 +15,7 @@ import { SpendingAccountsDrawer } from "../components/spending/SpendingAccountsD
 import { SpendingStatementsDrawer } from "../components/spending/SpendingStatementsDrawer";
 import { SpendingRowDrawer } from "../components/spending/SpendingRowDrawer";
 import { SpendingCharts } from "../components/spending/SpendingCharts";
+import { CashflowFilters } from "../components/cashflow/CashflowFilters";
 export function SpendingPage() {
   const [params, setParams] = useSearchParams(),
     [accounts, setAccounts] = useState<SpendingAccount[]>([]),
@@ -235,37 +235,7 @@ export function SpendingPage() {
       </div>
       <details className="spending-more-filters">
         <summary>日期范围与币种</summary>
-        <div className="filter-bar spending-filters">
-          <label>
-            开始日期
-            <input
-              type="date"
-              value={q.get("from") ?? ""}
-              onChange={(e) => filter({ from: e.target.value, month: "" })}
-            />
-          </label>
-          <label>
-            结束日期
-            <input
-              type="date"
-              value={q.get("to") ?? ""}
-              onChange={(e) => filter({ to: e.target.value, month: "" })}
-            />
-          </label>
-          <label>
-            币种
-            <select
-              value={q.get("currency") ?? ""}
-              onChange={(e) => filter({ currency: e.target.value })}
-            >
-              <option value="">全部币种</option>
-              {SPENDING_CURRENCIES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-
-        </div>
+        <CashflowFilters params={q} change={(key, value) => filter({ [key]: value, ...(["from", "to"].includes(key) ? { month: "" } : {}) })} />
       </details>
       <div className="spending-actions">
         <button

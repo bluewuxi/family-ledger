@@ -11,6 +11,8 @@ export const LEDGER_BACKUP_TABLES = [
   { name: "instruments", orderColumn: "id" },
   { name: "kernel_price_anchors", orderColumn: "id" },
   { name: "transactions", orderColumn: "id" },
+  { name: "education_reserve_funds", orderColumn: "id" },
+  { name: "education_reserve_entries", orderColumn: "id" },
   { name: "exchange_rates", orderColumn: "id" },
   { name: "instrument_prices", orderColumn: "id" },
   { name: "portfolio_snapshot_headers", orderColumn: "id" },

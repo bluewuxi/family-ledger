@@ -50,7 +50,7 @@ export async function getTransactions(
   query: Record<string, string | undefined> = {}
 ): Promise<PaginatedResult<InvestmentTransaction> & { linkedCashLegs?: InvestmentTransaction[] }> {
   if (!hasTransactionListQuery(query)) {
-    const items = await listTransactions();
+    const items = await listTransactions({ excludeEducation: true });
     return {
       items,
       pagination: {
@@ -79,6 +79,7 @@ export async function getTransactions(
   }
   const includeLinkedCashLegs = optionalBoolean("includeLinkedCashLegs", query.includeLinkedCashLegs);
   const rows = await listTransactionPage({
+    excludeEducation: query.purpose !== "education",
     sortBy: sortBy as TransactionSortBy,
     sortDirection: sortDirection as TransactionSortDirection,
     purpose: optionalAccountPurpose(query.purpose),
@@ -227,6 +228,7 @@ export async function updateInvestmentTransaction(
     throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
   }
   rejectGeneratedCashLegMutation(existing);
+  await rejectLegacyEducationTransaction(existing.accountId);
   rejectTransactionTypeChange(patch, existing);
 
   const candidate: CreateInvestmentTransactionInput = {
@@ -288,6 +290,7 @@ export async function deleteInvestmentTransaction(id: string, user: Authenticate
   }
 
   rejectGeneratedCashLegMutation(existing);
+  await rejectLegacyEducationTransaction(existing.accountId);
 
   try {
     await writeTransactionAtomically({ operation: "delete", id, userId: user.id, revision,
@@ -298,6 +301,12 @@ export async function deleteInvestmentTransaction(id: string, user: Authenticate
     }
 
     throw error;
+  }
+}
+
+async function rejectLegacyEducationTransaction(accountId: string): Promise<void> {
+  if ((await findAccountById(accountId))?.purpose === "education") {
+    throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在教育储备页面管理，旧流水仅供历史核查。", 400);
   }
 }
 
@@ -317,6 +326,8 @@ async function withAutomaticSettlement(
   if (!account) {
     throw new ApiRequestError("VALIDATION_ERROR", "Transaction account was not found.", 400);
   }
+
+  if (account.purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在教育储备页面管理。", 400);
 
   const settlementCurrency = account.baseCurrency;
   const tradeAmount = calculateSettlementCashAmount(input);
@@ -808,6 +819,8 @@ async function validateTransaction(
   if (!instrument) {
     throw new ApiRequestError("VALIDATION_ERROR", "Transaction instrument was not found.", 400);
   }
+
+  if (account.purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在教育储备页面管理。", 400);
 
   if (input.currency !== instrument.currency) {
     throw new ApiRequestError("VALIDATION_ERROR", "Transaction currency must match instrument currency.", 400);

@@ -26,13 +26,14 @@ import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { listValuationRatesForHoldings } from "./valuationMarketDataService";
 import { ApiRequestError } from "../utils/apiError";
 
-export async function getHoldings(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<HoldingsValuationSummary> {
+export async function getHoldings(input: { currency?: string; user?: AuthenticatedUser; purpose?: AccountPurpose } = {}): Promise<HoldingsValuationSummary> {
   const reportingCurrency = await resolveReportingCurrency(input);
-  const [transactions, accounts, instruments] = await Promise.all([
-    listTransactions(),
+  const [transactions, allAccounts, instruments] = await Promise.all([
+    listTransactions({ purpose: input.purpose ?? "investment" }),
     listAccounts(),
     listInstruments()
   ]);
+  const accounts = allAccounts.filter(account => account.purpose === (input.purpose ?? "investment"));
   const preliminaryHoldings = calculateHoldings(transactions, accounts, instruments);
   const securityInstruments = uniqueBy(
     preliminaryHoldings
@@ -76,7 +77,7 @@ export async function getAccountPurposeOverview(input: {
     throw new ApiRequestError("VALIDATION_ERROR", "from cannot be after to.", 400);
   }
   const [summary, accounts, transactions] = await Promise.all([
-    getHoldings({ currency: input.currency, user: input.user }),
+    getHoldings({ currency: input.currency, user: input.user, purpose }),
     listAccounts(),
     listTransactions()
   ]);

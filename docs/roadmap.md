@@ -33,6 +33,7 @@
 - Holdings calculation (implemented: native-currency quantity, cash balance, average-cost carrying value, opening entries, and valued holding rows)
 - Portfolio summary (implemented: reporting-currency dashboard cards using stored prices, FX rates, and dashboard quote cache where available)
 - Account purposes (implemented: investment, daily expense, and education accounts; investment-only dashboard and dedicated flow pages)
+- Education logical fund and shared cashflow UI (implemented locally; test release pending): [implementation plan](education-reserve-unification-plan.md); manual multi-currency reserve, dedicated remaining/used summaries, independent domain totals, additive schema and reviewed legacy cutover.
 - Derived portfolio snapshots (implemented and deployed to test; separate cutover completed on 2026-09-23 after fresh backup and exact parity verification)
 - Dashboard account allocation and holding allocation (implemented)
 - Holding detail page (implemented: account/instrument drill-down with valuation, transactions, dividend summary, linked cash-leg context, and price context)

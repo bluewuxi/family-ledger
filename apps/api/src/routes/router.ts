@@ -46,6 +46,8 @@ import { getPortfolioSnapshotsResponse } from "../services/portfolioSnapshotServ
 import { getProfilePreferences, updateProfilePreferences } from "../services/profileService";
 import { ApiAuthError, requireRole } from "../auth/auth";
 import { spendingRoute } from "./spendingRoutes";
+import { educationReserveRoute } from "./educationReserveRoutes";
+import { getCashflowReport } from "../services/educationReserveService";
 import { ApiRequestError } from "../utils/apiError";
 import { parseJsonBody } from "../utils/requestBody";
 import { failure, preflight, success } from "../utils/response";
@@ -144,7 +146,7 @@ const routes: Record<string, RouteHandler> = {
     return success({
       user,
       ...await getPortfolioSnapshotsResponse({
-        purpose: event.queryStringParameters?.purpose,
+        purpose: event.queryStringParameters?.purpose ?? "investment",
         from: event.queryStringParameters?.from,
         to: event.queryStringParameters?.to,
         currency: event.queryStringParameters?.currency,
@@ -338,6 +340,11 @@ export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
       return preflight();
     }
 
+    if (event.rawPath === "/education-reserve" || event.rawPath.startsWith("/education-reserve/")) return await educationReserveRoute(event);
+    if (event.rawPath === "/cashflows" && event.requestContext.http.method === "GET") {
+      const user = await requireRole(event, "viewer");
+      return success({ user, ...await getCashflowReport(event.queryStringParameters ?? {}) });
+    }
     if (event.rawPath.startsWith("/spending/")) return await spendingRoute(event);
     const handler = resolveRoute(event);
 

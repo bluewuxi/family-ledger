@@ -45,7 +45,18 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 5);
+  assert.equal(backupObject.payload.manifest.version, 6);
+  const version5 = structuredClone(backupObject.payload);
+  version5.manifest.version = 5;
+  const educationTables = ["education_reserve_funds", "education_reserve_entries"];
+  version5.manifest.tables = version5.manifest.tables.filter(t => !educationTables.includes(t.name));
+  version5.manifest.tableOrder = version5.manifest.tableOrder.filter(t => !educationTables.includes(t));
+  for (const name of educationTables) delete (version5.tables as unknown as Record<string, unknown>)[name];
+  const { payloadChecksumSha256: _v5p, fileChecksumSha256: _v5f, ...v5manifest } = version5.manifest;
+  const v5hash = (value: unknown) => createHash("sha256").update(stableStringify(value)).digest("hex");
+  version5.manifest.payloadChecksumSha256 = v5hash({ manifest: v5manifest, tables: version5.tables });
+  version5.manifest.fileChecksumSha256 = v5hash({ manifest: { ...v5manifest, payloadChecksumSha256: version5.manifest.payloadChecksumSha256 }, tables: version5.tables });
+  assert.deepEqual(prepareLedgerRestoreRows(version5).education_reserve_entries, []);
   const privateMetadata = { card_number: "6222333344440001", "信用卡卡号": "6222333344440001" };
   const spendingBackup = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-01T00:00:00Z", rows: {
     ...rows,
@@ -64,7 +75,7 @@ async function runSelfTests(): Promise<void> {
   assert.equal((cleanSpending.account_statements[0] as Record<string, unknown>).total_count, 1);
   const previous = structuredClone(backupObject.payload);
   previous.manifest.version = 2;
-  const newTables = ["spending_accounts", "account_statements", "statement_rows", "kernel_price_anchors"];
+  const newTables = ["spending_accounts", "account_statements", "statement_rows", "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"];
   previous.manifest.tables = previous.manifest.tables.filter((table) => !newTables.includes(table.name));
   previous.manifest.tableOrder = previous.manifest.tableOrder.filter((name) => !newTables.includes(name));
   for (const name of newTables) delete (previous.tables as unknown as Record<string, unknown>)[name];
@@ -79,9 +90,12 @@ async function runSelfTests(): Promise<void> {
   const asVersion3 = (value: LedgerBackupPayload) => {
     const copy = structuredClone(value);
     copy.manifest.version = 3;
-    copy.manifest.tables = copy.manifest.tables.filter((table) => table.name !== "kernel_price_anchors");
-    copy.manifest.tableOrder = copy.manifest.tableOrder.filter((name) => name !== "kernel_price_anchors");
+    const removed = ["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"];
+    copy.manifest.tables = copy.manifest.tables.filter((table) => !removed.includes(table.name));
+    copy.manifest.tableOrder = copy.manifest.tableOrder.filter((name) => !removed.includes(name));
     delete (copy.tables as unknown as Record<string, unknown>).kernel_price_anchors;
+    delete (copy.tables as unknown as Record<string, unknown>).education_reserve_funds;
+    delete (copy.tables as unknown as Record<string, unknown>).education_reserve_entries;
     const {payloadChecksumSha256: _p, fileChecksumSha256: _f, ...manifest} = copy.manifest;
     copy.manifest.payloadChecksumSha256 = hash({manifest,tables:copy.tables});
     copy.manifest.fileChecksumSha256 = hash({manifest:{...manifest,payloadChecksumSha256:copy.manifest.payloadChecksumSha256},tables:copy.tables});
@@ -90,9 +104,11 @@ async function runSelfTests(): Promise<void> {
   assert.deepEqual(prepareLedgerRestoreRows(asVersion3(backupObject.payload)).statement_rows, []);
   const version4 = structuredClone(backupObject.payload);
   version4.manifest.version = 4;
-  version4.manifest.tables = version4.manifest.tables.filter((table) => table.name !== "kernel_price_anchors");
-  version4.manifest.tableOrder = version4.manifest.tableOrder.filter((name) => name !== "kernel_price_anchors");
+  version4.manifest.tables = version4.manifest.tables.filter((table) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"].includes(table.name));
+  version4.manifest.tableOrder = version4.manifest.tableOrder.filter((name) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"].includes(name));
   delete (version4.tables as unknown as Record<string, unknown>).kernel_price_anchors;
+  delete (version4.tables as unknown as Record<string, unknown>).education_reserve_funds;
+  delete (version4.tables as unknown as Record<string, unknown>).education_reserve_entries;
   version4.tables.instrument_prices = [{ id: "legacy-price", close_price: "1.23" }];
   const version4Prices = version4.manifest.tables.find((table) => table.name === "instrument_prices");
   assert(version4Prices);

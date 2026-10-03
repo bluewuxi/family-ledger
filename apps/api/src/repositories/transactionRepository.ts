@@ -14,6 +14,7 @@ import { getSupabaseAdmin } from "../db/supabaseServer";
 import { readAllRows } from "./readAllRows";
 
 export interface TransactionListFilters {
+  excludeEducation?: boolean;
   sortBy?: TransactionSortBy;
   sortDirection?: TransactionSortDirection;
   purpose?: AccountPurpose;
@@ -83,7 +84,7 @@ async function transactionQuery(input: TransactionListFilters, exactCount = fals
   let query = supabase
     .from("transactions")
     .select((input.excludeCashInstruments ? transactionSelectWithInnerInstrument : transactionSelect)
-      + (input.purpose ? ", investment_accounts!inner(purpose)" : ""), exactCount ? { count: "exact" } : {});
+      + (input.purpose || input.excludeEducation ? ", investment_accounts!inner(purpose)" : ""), exactCount ? { count: "exact" } : {});
   const sortColumn = { tradeDate: "trade_date", settlementDate: "settlement_date", instrument: "instruments(short_name)", transactionType: "transaction_type" }[input.sortBy ?? "tradeDate"];
   query = query.order(sortColumn, { ascending: input.sortDirection === "asc", nullsFirst: false });
   if (input.sortBy && input.sortBy !== "tradeDate") query = query.order("trade_date", { ascending: false });
@@ -91,6 +92,7 @@ async function transactionQuery(input: TransactionListFilters, exactCount = fals
     .order("id", { ascending: false });
 
   if (input.purpose) query = query.eq("investment_accounts.purpose", input.purpose);
+  if (input.excludeEducation) query = query.neq("investment_accounts.purpose", "education");
 
   if (input.from) {
     query = query.gte("trade_date", input.from);
