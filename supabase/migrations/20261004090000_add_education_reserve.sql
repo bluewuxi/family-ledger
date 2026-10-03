@@ -172,4 +172,3 @@ grant execute on function public.export_ledger_backup(uuid) to service_role;
 
 notify pgrst,'reload schema';
 commit;
-

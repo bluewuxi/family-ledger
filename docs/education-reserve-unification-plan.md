@@ -1,6 +1,6 @@
 # Education Reserve and Shared Cashflow UI Plan
 
-Status: implemented locally; validation passed and test release authorized. Database cutover and authenticated mobile acceptance are pending.
+Status: deployed to test on 2026-10-04 under issue #101. Database cutover, backup restoration checks, and authenticated responsive acceptance passed.
 
 ## Product rules
 
