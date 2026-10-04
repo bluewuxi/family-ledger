@@ -184,8 +184,12 @@ export function parseBankCsv(
   if (format === "ccb_debit" && account.identity_suffix && debitIdentity && accountLast4(debitIdentity) !== account.identity_suffix)
     invalid("文件账号后四位与所选账户不符。");
   for (let i = start + 1; i < rows.length; i++) {
-    const raw = rows[i],
-      r = raw.map((v) => v.trim()),
+    // Credit exports can contain unquoted commas in the final description column.
+    const source = rows[i];
+    const raw = account.source_format === "ccb_credit" && source.length > 7
+      ? [...source.slice(0, 6), source.slice(6).join(",")]
+      : source;
+    const r = raw.map((v) => v.trim()),
       row_number = i + 1;
     if (r.every((v) => !v)) continue;
     // CCB credit exports may mark a transaction with leading spaces/asterisks.

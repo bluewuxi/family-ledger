@@ -970,6 +970,8 @@ The `/spending` API uses the standard success/error envelope. GET requires activ
 
 Source formats: ccb_debit, ccb_credit, bnz. Encodings: utf-8, gb18030, utf-16le, utf-16be. Classifications: income, spending, refund, excluded, review. Manual/editable row fields: account_id, transaction_date, description, amount, classification, tag, notes. An existing row cannot move accounts or alter source identity. Income/refund require positive amounts; spending requires negative amounts.
 
+CCB credit imports keep the first six columns fixed and join all remaining CSV fields with commas into the seventh column (transaction description). Quoted descriptions remain supported; records with fewer than seven columns are rejected.
+
 Commit choices contain exactly one entry per preview record: row_number, skip, classification, nullable tag, allow_duplicate. Invalid CSV records block commit. A stale token/changed duplicate count requires preview again. Repeat source hashes return CONFLICT. Batch list filters: accountId, status, limit, offset. History omits preview bodies; fetch detail when selected.
 
 Row filters: month=YYYY-MM OR inclusive from/to, accountId, statementId, classification, tag OR untagged=true, currency, accountNumberLast4, counterpartyAccountLast4, q, limit, offset. Suffix filters require exactly four digits. Default limit 50, max 200. Literal description search, AND filters, transaction-date/ID descending order. Result: rows, pagination, totals, monthly, tags. Each aggregate has currency, income, gross_spending, refunds, net_spending, count, pending_count; breakdowns add label. Totals include every matched row regardless of pagination and keep currencies separate.

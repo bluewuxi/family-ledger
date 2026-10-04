@@ -115,6 +115,18 @@ async function main() {
   assert.equal(credit.rows[0].classification, "spending");
   assert.equal(credit.rows[1].classification, "excluded");
   assert.equal(credit.rows[2].classification, "refund");
+  for (const description of ["ShamianaManaw/Manawa Bay,Aukland AirpoNZ", "Store, Branch, Auckland,"]) {
+    const unquoted = parseBankCsv(Buffer.from(fixtures.ccb_credit.replace('"测试商店, 分店"', description)), account("ccb_credit"));
+    const quoted = parseBankCsv(Buffer.from(fixtures.ccb_credit.replace('"测试商店, 分店"', `"${description}"`)), account("ccb_credit"));
+    assert.equal(unquoted.errors.length, 0);
+    assert.equal(unquoted.rows[0].description, description);
+    assert.equal(unquoted.rows[0].source_metadata["交易描述"], description);
+    assert.equal(unquoted.rows[0].fingerprint, quoted.rows[0].fingerprint);
+    assert.equal(unquoted.rows[0].amount, "-23.1");
+  }
+  const shortCredit = parseBankCsv(Buffer.from(fixtures.ccb_credit.replace(',"测试商店, 分店"', '')), account("ccb_credit"));
+  assert.equal(shortCredit.errors.length, 1);
+  assert.equal(shortCredit.errors[0].message, "列数与银行格式不符。");
   for (const prefix of ["*", "  *", "\t * \t", "　**　"]) {
     for (const encoding of ["utf8", "gb18030", "utf16-le", "utf16-be"]) {
       const marked = parseBankCsv(
