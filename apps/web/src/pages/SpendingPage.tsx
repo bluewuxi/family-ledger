@@ -15,8 +15,12 @@ import { SpendingAccountsDrawer } from "../components/spending/SpendingAccountsD
 import { SpendingStatementsDrawer } from "../components/spending/SpendingStatementsDrawer";
 import { SpendingRowDrawer } from "../components/spending/SpendingRowDrawer";
 import { SpendingCharts } from "../components/spending/SpendingCharts";
-import { CashflowFilters } from "../components/cashflow/CashflowFilters";
+import { familyCashflowFilters } from "../lib/familyCashflowNavigation";
+import { useCashflowQuery } from "../lib/useCashflowQuery";
+import { DatePresets } from "../components/cashflow/DatePresets";
+import { SPENDING_CURRENCIES } from "@family-ledger/shared";
 export function SpendingPage() {
+  const filters = useCashflowQuery("spending");
   const [params, setParams] = useSearchParams(),
     [accounts, setAccounts] = useState<SpendingAccount[]>([]),
     [admin, setAdmin] = useState(false),
@@ -34,8 +38,7 @@ export function SpendingPage() {
     [selected, setSelected] = useState<string[]>([]),
     [bulkClass, setBulkClass] = useState(""),
     [bulkTag, setBulkTag] = useState("");
-  const q = new URLSearchParams(params);
-  q.delete("tab");
+  const q = familyCashflowFilters("spending", params);
   q.set("limit", "50");
   const query = q.toString();
   const refresh = () => setRevision((n) => n + 1);
@@ -71,7 +74,7 @@ export function SpendingPage() {
   useEffect(() => {
     let active = true;
     void spendingClient
-      .options(params.get("accountId") ?? "")
+      .options(filters.draft.get("accountId") ?? "")
       .then((r) => {
         if (active) { setTags(r.tags); setOptions(r); }
       })
@@ -81,7 +84,7 @@ export function SpendingPage() {
     return () => {
       active = false;
     };
-  }, [params.get("accountId"), revision]);
+  }, [filters.draft.get("accountId"), revision]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -150,22 +153,13 @@ export function SpendingPage() {
           </button>
         </div>
       </div>
-      <div className="filter-bar spending-filters">
-        <label>
-          交易月份
-          <input
-            type="month"
-            value={q.get("month") ?? ""}
-            onChange={(e) =>
-              filter({ month: e.target.value, from: "", to: "" })
-            }
-          />
-        </label>
+<form onSubmit={event => { event.preventDefault(); filters.apply(); }}><DatePresets onChange={filters.change} /><div className="filter-bar"><label>开始日期<input type="date" value={filters.draft.get("from") ?? ""} onChange={e => filters.change({from:e.target.value,month:""})} /></label><label>结束日期<input type="date" value={filters.draft.get("to") ?? ""} onChange={e => filters.change({to:e.target.value,month:""})} /></label></div>      <div className="filter-bar spending-filters">
+
         <label>
           账户
           <select
-            value={q.get("accountId") ?? ""}
-            onChange={(e) => filter({ accountId: e.target.value, accountNumberLast4: "", counterpartyAccountLast4: "" })}
+            value={filters.draft.get("accountId") ?? ""}
+            onChange={(e) => filters.change({ accountId: e.target.value, accountNumberLast4: "", counterpartyAccountLast4: "" })}
           >
             <option value="">全部账户</option>
             {accounts.map((a) => (
@@ -178,8 +172,8 @@ export function SpendingPage() {
         <label>
           统计归类
           <select
-            value={q.get("classification") ?? ""}
-            onChange={(e) => filter({ classification: e.target.value })}
+            value={filters.draft.get("classification") ?? ""}
+            onChange={(e) => filters.change({ classification: e.target.value })}
           >
             <option value="">全部</option>
             {SPENDING_CLASSES.map((c) => (
@@ -193,14 +187,14 @@ export function SpendingPage() {
           标签
           <select
             value={
-              q.get("untagged") === "true"
+              filters.draft.get("untagged") === "true"
                 ? "__untagged"
-                : q.get("tag")
-                  ? `tag:${q.get("tag")}`
+                : filters.draft.get("tag")
+                  ? `tag:${filters.draft.get("tag")}`
                   : ""
             }
             onChange={(e) =>
-              filter({
+              filters.change({
                 tag: e.target.value.startsWith("tag:")
                   ? e.target.value.slice(4)
                   : "",
@@ -217,42 +211,27 @@ export function SpendingPage() {
             ))}
           </select>
         </label>
+          <label>
+            描述关键词
+            <input
+              value={filters.draft.get("q") ?? ""}
+              onChange={(e) => filters.change({ q: e.target.value })}
+            />
+          </label>
+      </div>
+      <details className="spending-more-filters"><summary>更多筛选（{["currency", "accountNumberLast4", "counterpartyAccountLast4", "statementId"].filter(key => q.has(key)).length}）</summary><div className="filter-bar">
         {([ ["accountNumberLast4", "本方账号后四位"], ["counterpartyAccountLast4", "对方账号后四位"] ] as const).map(([key, label]) => (
           <label key={key}>{label}
-            <select value={q.get(key) ?? ""} onChange={e => filter({ [key]: e.target.value })}>
+            <select value={filters.draft.get(key) ?? ""} onChange={e => filters.change({ [key]: e.target.value })}>
               <option value="">全部</option>
               {options[key].map(suffix => <option key={suffix} value={suffix}>{suffix}</option>)}
             </select>
           </label>
         ))}
-          <label>
-            描述关键词
-            <input
-              value={q.get("q") ?? ""}
-              onChange={(e) => filter({ q: e.target.value })}
-            />
-          </label>
-      </div>
-      <details className="spending-more-filters">
-        <summary>日期范围与币种</summary>
-        <CashflowFilters params={q} change={(key, value) => filter({ [key]: value, ...(["from", "to"].includes(key) ? { month: "" } : {}) })} />
-      </details>
-      <div className="spending-actions">
-        <button
-          className="secondary-button"
-          onClick={() => setParams({ tab: "spending" })}
-        >
-          清除筛选
-        </button>
-        {q.get("statementId") && (
-          <button
-            className="secondary-button"
-            onClick={() => filter({ statementId: "" })}
-          >
-            取消指定导入筛选
-          </button>
-        )}
-      </div>
+
+<label>币种<select value={filters.draft.get("currency") ?? ""} onChange={e => filters.change({currency:e.target.value})}><option value="">全部币种</option>{SPENDING_CURRENCIES.map(c => <option key={c}>{c}</option>)}</select></label>
+{filters.draft.get("statementId") && <button type="button" onClick={() => filters.change({statementId:""})}>取消指定导入筛选</button>}
+</div></details><div className="spending-actions"><button type="submit" className="primary-button">查询</button><button type="button" onClick={() => filters.apply(true)}>重置</button></div></form>
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -361,11 +340,11 @@ export function SpendingPage() {
                       </th>
                     )}
                     <th>日期</th>
+                    <th>金额</th>
                     <th>账户</th>
                     <th>本方账号后四位</th>
                     <th>对方户名</th>
                     <th>描述</th>
-                    <th>金额</th>
                     <th>统计归类</th>
                     <th>标签</th>
                   </tr>
@@ -390,6 +369,9 @@ export function SpendingPage() {
                         </td>
                       )}
                       <td>{r.transaction_date}</td>
+                      <td className="numeric-cell">
+                        {r.currency} {money(r.amount)}
+                      </td>
                       <td>{r.account_name}</td>
                       <td>{r.account_number_last4 ?? "—"}</td>
                       <td>{r.counterparty_name ?? "—"}</td>
@@ -404,9 +386,7 @@ export function SpendingPage() {
                           {r.description}
                         </button>
                       </td>
-                      <td className="numeric-cell">
-                        {r.currency} {money(r.amount)}
-                      </td>
+
                       <td>{SPENDING_CLASS_LABELS[r.classification]}</td>
                       <td>{r.tag ?? "未分类"}</td>
                     </tr>

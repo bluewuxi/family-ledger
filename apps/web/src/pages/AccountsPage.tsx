@@ -401,7 +401,7 @@ export function AccountsPage() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/accounts">账户管理</PageTitle>
-          <p>维护投资与日常收支账户，可一并录入期初资产。教育资金池在教育储备页面独立管理。</p>
+          <p>维护投资与日常收支账户，可一并录入期初资产。教育资金池在家庭收支的教育收支页签独立管理。</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (

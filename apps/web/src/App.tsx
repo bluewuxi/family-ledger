@@ -17,9 +17,7 @@ import { MonthlySummaryPage } from "./pages/MonthlySummaryPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
-import { EducationReservePage } from "./pages/EducationReservePage";
-import { CashflowReportPage } from "./pages/CashflowReportPage";
-import { DailyExpensePage } from "./pages/DailyExpensePage";
+import { DailyExpensePage, LegacyCashflowRedirect } from "./pages/DailyExpensePage";
 
 function AppRoutes() {
   return (
@@ -31,8 +29,8 @@ function AppRoutes() {
       <Route path="/instruments" element={<InstrumentsPage />} />
       <Route path="/transactions" element={<TransactionsPage />} />
       <Route path="/daily-expense" element={<DailyExpensePage />} />
-      <Route path="/education" element={<EducationReservePage />} />
-      <Route path="/cashflows" element={<CashflowReportPage />} />
+      <Route path="/education" element={<LegacyCashflowRedirect tab="education" />} />
+      <Route path="/cashflows" element={<LegacyCashflowRedirect tab="report" />} />
       <Route path="/holdings" element={<HoldingsPage />} />
       <Route path="/holdings/:accountId/:instrumentId" element={<HoldingDetailPage />} />
       <Route path="/reports/monthly-summary" element={<MonthlySummaryPage />} />

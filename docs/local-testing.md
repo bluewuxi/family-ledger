@@ -4,7 +4,7 @@
 
 Run `corepack pnpm verify:education-reserve`, `corepack pnpm verify:education-reserve-db`, `corepack pnpm verify:backup`, and existing spending/account-purpose/time checks before typecheck/build. The PostgreSQL verification creates an isolated temporary local database without using project credentials; it covers concurrent refunds, stale updates, legacy guards, exact values, RLS, combined reports, and rollback-only backup restoration.
 
-For browser acceptance, keep auth bypass disabled. Start the local API and web app at `http://127.0.0.1:5181`; ask the user to log in and confirm `/education` is ready before accessing authenticated pages. Verify 320x740, 393x852, 430x932, 768x1024, and desktop layouts, including filters, currency totals, manual entry drawer, pagination, daily spending filters, and `/cashflows` purpose selection. Recording test payments against the connected test database requires an explicit test-data decision; responsive inspection itself is read-only.
+For browser acceptance, keep auth bypass disabled. Start the local API and web app at `http://127.0.0.1:5181`; ask the user to log in and confirm `/daily-expense` is ready before accessing authenticated pages. Verify 320x740, 393x852, 430x932, 768x1024, and desktop layouts, including filters, currency totals, manual entry drawer, pagination, daily spending filters, and the 收支查询 range buttons. Recording test payments against the connected test database requires an explicit test-data decision; responsive inspection itself is read-only.
 
 Use this runbook when starting the app locally for browser testing against the configured test Supabase project.
 
@@ -328,3 +328,13 @@ numeric errors; header sorting (including keyboard activation), account filters,
 page sizes/navigation, and linked cash expansion worked against the local API.
 An instrument-field column span caused mobile drawer overflow and was corrected
 at the existing 820px form breakpoint. No transactions were saved or deleted.
+
+Family cashflow navigation acceptance: verify all three tabs, per-tab filter restoration within the mounted page session, refresh and browser back/forward, spending filter reset/import navigation, and replacement redirects from `/education` and `/cashflows`. Check that only supported filters reach API requests, range changes clear category/pagination, and viewer/admin controls retain existing permissions.
+
+UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. This local revision has not been deployed; authenticated visual acceptance subsequently passed on 2026-10-06.
+
+## Cashflow UI visual acceptance — 2026-10-06
+
+Authenticated read-only checks covered daily spending, education, cashflow reports, and transactions at 320x740, 393x852, 430x932, 768x1024, and 1440x1000. Checked mobile navigation, page overflow, table scroll containers, the three entry drawers, footer/pagination, draft date application, empty results, scope switching, advanced filters, and linked cash-row expansion. No financial records were submitted, imported, edited, or deleted. Viewer-role and intentional server-failure scenarios were not exercised in this browser session.
+
+Fixed narrow-screen tab clipping, scope button wrapping, background leaf contrast, 24px mobile cash-row expansion buttons, empty-result pagination wording, and the transaction form hint grid span. Screenshots and layout measurements are retained locally in ignored `tmp/ui-visual-acceptance/`.

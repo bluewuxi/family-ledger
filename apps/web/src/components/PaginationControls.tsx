@@ -25,7 +25,7 @@ export function PaginationControls({ pagination, loading, onPageChange }: Pagina
       >
         上一页
       </button>
-      <span>第 {page} / {pages} 页 · 共 {pagination.total} 条</span>
+      <span>{pagination.total ? `第 ${page} / ${pages} 页 · 共 ${pagination.total} 条` : "共 0 条"}</span>
       <button
         className="secondary-button"
         type="button"

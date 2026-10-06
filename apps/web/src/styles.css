@@ -4589,9 +4589,11 @@ tr.editing-row td {
 
 
 /* Spending workspace: compact summaries, readable tables, and stacked mobile forms. */
-.spending-tabs { display:flex; gap:8px; border-bottom:1px solid var(--color-border); margin-bottom:24px; }
-.cashflow-scope { display:grid; gap:8px; min-width:180px; max-width:100%; }
-.cashflow-scope select,.cashflow-filters input,.cashflow-filters select { min-height:44px; width:100%; min-width:0; }
+.spending-tabs { display:flex; overflow-x:auto; max-width:100%; gap:8px; border-bottom:1px solid var(--color-border); margin-bottom:24px; }
+.cashflow-range { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:16px 0; }
+.cashflow-range button { min-height:44px; padding:8px 16px; }
+.cashflow-range button[aria-pressed="true"] { border-color:var(--color-brand-brown); font-weight:700; }
+.cashflow-filters input,.cashflow-filters select { min-height:44px; width:100%; min-width:0; }
 .education-totals { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:24px; margin:24px 0; }
 .education-total { border-block:1px solid var(--color-border); padding:16px 0; }
 .education-total p { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
@@ -4599,12 +4601,11 @@ tr.editing-row td {
 .cashflow-table { min-width:850px; }
 .cashflow-table td:last-child { white-space:normal; overflow-wrap:anywhere; min-width:220px; max-width:380px; }
 @media(max-width:600px) {
- .cashflow-scope { width:100%; }
  .cashflow-filters { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
  .cashflow-filters label { width:100%; min-width:0; }
  .education-totals { grid-template-columns:minmax(0,1fr); }
 }
-.spending-tabs button { min-height:44px; padding:10px 18px; border:0; background:transparent; color:inherit; cursor:pointer; }
+.spending-tabs button { flex:0 0 auto; white-space:nowrap; min-height:44px; padding:10px 18px; border:0; background:transparent; color:inherit; cursor:pointer; }
 .spending-tabs button[aria-current] { border-bottom:3px solid var(--color-brand-brown); font-weight:700; }
 .spending-toolbar { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:20px; }
 .spending-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0; }
@@ -4623,7 +4624,7 @@ tr.editing-row td {
 .spending-net b { font-size:21px; }
 .spending-text-button { background:transparent; border:0; color:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-underline-offset:4px; min-height:44px; padding:4px; font:inherit; }
 .spending-table { min-width:1000px; }
-.spending-table td:nth-child(2) { min-width:180px; max-width:320px; white-space:normal; overflow-wrap:anywhere; }
+.spending-table .spending-text-button { max-width:320px; white-space:normal; overflow-wrap:anywhere; }
 .spending-account-list { display:grid; gap:10px; }
 .spending-account-list button { min-height:44px; text-align:left; white-space:normal; overflow-wrap:anywhere; }
 .spending-upload { display:inline-flex; align-items:center; position:relative; cursor:pointer; }
@@ -4739,3 +4740,30 @@ tr.editing-row td {
   .transaction-pagination { gap: 8px; }
   .transaction-pagination > span { flex-basis: 100%; }
 }
+
+/* Query controls and dense ledger tables share readable touch targets. */
+.date-presets { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.date-presets button, .spending-more-filters summary { min-height:44px; padding:10px 14px; }
+.cashflow-range button { border:1px solid var(--color-border); border-radius:8px; background:var(--color-surface); color:inherit; }
+.cashflow-range button[aria-pressed="true"] { background:var(--color-brand-brown); color:#fff; }
+.transaction-truncated { display:block; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.spending-more-filters .filter-bar { padding-top:12px; }
+#root:has(.cashflow-range, .spending-tabs, .transaction-table)::before { opacity:.18; }
+@media (max-width:600px) {
+  .spending-filters, .spending-more-filters .filter-bar { display:grid; grid-template-columns:minmax(0,1fr); }
+  .spending-filters label, .spending-more-filters label { min-width:0; width:100%; }
+  .transaction-truncated { max-width:140px; }
+}
+/* Keep the three cashflow tabs and scope choices readable on narrow phones. */
+:root:not([data-theme="dark"]) #root:has(.spending-tabs, .transaction-table)::after { opacity:.16; }
+.date-presets button { border:1px solid var(--color-border); border-radius:8px; background:var(--color-surface); color:inherit; }
+@media (max-width:600px) {
+  .spending-tabs { gap:0; }
+  .spending-tabs button { padding-inline:10px; }
+  .cashflow-range > span { flex-basis:100%; }
+}
+@media (max-width:768px) {
+  .transaction-table .transaction-expand-button { min-width:44px; min-height:44px; }
+  .transaction-table .transaction-expand-column { min-width:52px; }
+}
+.transaction-form > .spending-hint { grid-column:1 / -1; margin:0; }

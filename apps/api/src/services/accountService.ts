@@ -108,7 +108,7 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
 }
 
 function rejectEducationAccount(purpose: AccountPurpose | undefined): void {
-  if (purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在教育储备页面管理，旧账户仅供历史核查。", 400);
+  if (purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理，旧账户仅供历史核查。", 400);
 }
 
 export function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {

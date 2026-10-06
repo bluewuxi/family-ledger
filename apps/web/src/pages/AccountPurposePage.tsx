@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { AccountPurposeOverview } from "@family-ledger/shared";
 import { ACCOUNT_PURPOSE_LABELS } from "@family-ledger/shared";
 import { PageTitle } from "../components/PageTitle";
@@ -13,9 +13,13 @@ export function AccountPurposePage({ purpose, embedded = false }: { purpose: "da
   const [overview, setOverview] = useState<AccountPurposeOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [accountId, setAccountId] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [params, setParams] = useSearchParams();
+  const accountId = params.get("accountId") ?? "";
+  const from = params.get("from") ?? "";
+  const to = params.get("to") ?? "";
+  function change(key: string, value: string) {
+    setParams(old => { const next = new URLSearchParams(old); if (value) next.set(key, value); else next.delete(key); return next; });
+  }
   const [error, setError] = useState<string | null>(null);
   const label = ACCOUNT_PURPOSE_LABELS[purpose];
 
@@ -37,9 +41,9 @@ export function AccountPurposePage({ purpose, embedded = false }: { purpose: "da
       <button className="primary-button" type="button" onClick={() => navigate("/transactions")}>{isAdmin ? "管理交易" : "查看交易"}</button>
     </header>
     <div className="filter-bar">
-      <label>账户<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">全部账户</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-      <label>开始日期<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-      <label>结束日期<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
+      <label>账户<select value={accountId} onChange={(event) => change("accountId", event.target.value)}><option value="">全部账户</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+      <label>开始日期<input type="date" value={from} onChange={(event) => change("from", event.target.value)} /></label>
+      <label>结束日期<input type="date" value={to} onChange={(event) => change("to", event.target.value)} /></label>
     </div>
     {error ? <p className="form-error">{error}</p> : null}
     {loading ? <p role="status">加载中…</p> : null}

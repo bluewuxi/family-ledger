@@ -1,3 +1,5 @@
+import { useSearchParams } from "react-router-dom";
+import { DatePresets } from "../components/cashflow/DatePresets";
 import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Eraser, Eye, Filter, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
@@ -77,6 +79,8 @@ const editableTransactionTypes = TRANSACTION_TYPES.filter((transactionType) => t
 const bankCashTransactionTypes: TransactionType[] = ["opening_balance", "deposit", "withdrawal", "interest", "adjustment"];
 
 export function TransactionsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.toString();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
@@ -179,8 +183,14 @@ export function TransactionsPage() {
   }, [createMenuOpen]);
 
   useEffect(() => {
-    void loadPageData();
-  }, []);
+    const p = new URLSearchParams(search);
+    const restored: TransactionFilters = { from:p.get("from") ?? "", to:p.get("to") ?? "", accountId:p.get("accountId") ?? "", instrumentId:p.get("instrumentId") ?? "", transactionType:(TRANSACTION_TYPES as readonly string[]).includes(p.get("transactionType") ?? "") ? p.get("transactionType") as TransactionType : "" };
+    const limit = [20,50,100].includes(Number(p.get("limit"))) ? Number(p.get("limit")) : 50;
+    const start = Number(p.get("offset") ?? 0);
+    const order = ["tradeDate", "settlementDate", "instrument", "transactionType"].includes(p.get("sortBy") ?? "") ? p.get("sortBy") as TransactionSortBy : "tradeDate";
+    setFilters(restored);
+    void fetchPageData(restored, Number.isSafeInteger(start) && start >= 0 ? start : 0, limit, order, p.get("sortDirection") === "asc" ? "asc" : "desc");
+  }, [search]);
 
   useEffect(() => {
     if (!isBankCashAccount) {
@@ -208,6 +218,11 @@ export function TransactionsPage() {
   }, [bankCashInstrument, form.instrumentId, form.transactionType, isBankCashAccount]);
 
   async function loadPageData(nextFilters = appliedFilters, nextOffset = offset, nextLimit = pageSize, nextSortBy = sortBy, nextDirection = sortDirection) {
+    const next = toQuery({ ...nextFilters, limit:nextLimit, offset:nextOffset, sortBy:nextSortBy, sortDirection:nextDirection });
+    if (next === search) await fetchPageData(nextFilters, nextOffset, nextLimit, nextSortBy, nextDirection);
+    else setSearchParams(next);
+  }
+  async function fetchPageData(nextFilters: TransactionFilters, nextOffset: number, nextLimit: number, nextSortBy: TransactionSortBy, nextDirection: TransactionSortDirection) {
     const requestId = ++requestSequence.current;
     setLoading(true);
     setError(null);
@@ -462,13 +477,13 @@ export function TransactionsPage() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/transactions">交易记录</PageTitle>
-          <p>记录买卖、股息和现金变动。买入和卖出的成交总额由系统按数量和价格计算。</p>
+          <p>记录买卖、股息和账户现金变动。</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (
             <div className="transaction-create-menu" ref={createMenuRef}>
               <button className="primary-button" type="button" aria-expanded={createMenuOpen}
-                onClick={() => setCreateMenuOpen(!createMenuOpen)} disabled={loading || saving || accounts.length === 0}>
+                onClick={() => appliedFilters.accountId ? startCreate(appliedFilters.accountId) : setCreateMenuOpen(!createMenuOpen)} disabled={loading || saving || accounts.length === 0}>
                 <Plus size={17} aria-hidden="true" /><span>新增交易</span><ChevronDown size={17} aria-hidden="true" />
               </button>
               {createMenuOpen ? <div className="transaction-account-menu">
@@ -486,10 +501,10 @@ export function TransactionsPage() {
       {error && !drawerOpen ? <p className="form-error" role="alert">{error}</p> : null}
 
       {!isAdmin && !loading && user ? (
-        <p className="readonly-note">当前角色为 viewer，可查看交易记录。新增、编辑和删除仅限 admin。</p>
+        <p className="readonly-note">当前为只读权限。</p>
       ) : null}
 
-      <form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
+      <DatePresets onChange={range => setFilters(old => ({...old,...range}))} /><form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
         <label>账户
           <select value={filters.accountId} onChange={(event) => setFilters({ ...filters, accountId: event.target.value })}>
             <option value="">全部账户</option>
@@ -532,11 +547,11 @@ export function TransactionsPage() {
         <div className="filter-actions">
           <button className="secondary-button" type="submit" disabled={loading}>
             <Filter size={17} aria-hidden="true" />
-            <span>筛选</span>
+            <span>查询</span>
           </button>
           <button className="secondary-button" type="button" onClick={clearFilters} disabled={loading}>
             <Eraser size={17} aria-hidden="true" />
-            <span>清空</span>
+            <span>重置</span>
           </button>
         </div>
       </form>
@@ -547,14 +562,13 @@ export function TransactionsPage() {
             <tr>
               <th className="transaction-expand-column"></th>
               {sortHeader("tradeDate", "交易日期")}
-              {sortHeader("settlementDate", "结算日期")}
               <th>账户</th>
-              {sortHeader("instrument", "标的")}
               {sortHeader("transactionType", "类型")}
+              <th className="numeric-cell">金额及币种</th>
+              {sortHeader("instrument", "标的")}
               <th className="numeric-cell">数量</th>
               <th className="numeric-cell">成交价</th>
-              <th className="numeric-cell">金额/费用</th>
-              <th>币种</th>
+              {sortHeader("settlementDate", "结算日期")}
               <th>结算</th>
               <th>备注</th>
               <th>操作</th>
@@ -563,11 +577,11 @@ export function TransactionsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={13}>正在加载交易记录...</td>
+                <td colSpan={12}>正在加载交易记录...</td>
               </tr>
             ) : visibleTransactions.length === 0 ? (
               <tr>
-                <td colSpan={13}>暂无符合筛选条件的交易记录。</td>
+                <td colSpan={12}>暂无符合筛选条件的交易记录。</td>
               </tr>
             ) : (
               visibleTransactions.map((transaction) => {
@@ -659,6 +673,7 @@ export function TransactionsPage() {
         }
       >
         <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={handleSubmit}>
+          {isTrade && <p className="spending-hint">买入和卖出的成交总额按数量和价格计算。</p>}
           {editingTransactionId && drawerMode === "modify" ? (
             <p className="form-warning transaction-edit-warning">
               修改交易记录可能会自动更新关联现金流水，并重新计算受影响日期之后的资产快照。交易类型不可在编辑时修改，如需更换类型请删除后重新新增。
@@ -1095,24 +1110,23 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
         ) : null}
       </td>
       <td>{transaction.tradeDate}</td>
-      <td>{transaction.settlementDate ?? "—"}</td>
       <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
-      <td>
-        <span className={isChildRow ? "transaction-child-indent" : undefined}>
-          {instrumentNames.get(transaction.instrumentId) ?? "-"}
-        </span>
-      </td>
       <td>
         <span className="transaction-type-cell">
           <span className={transactionTypeClassName(transaction)}>{formatTransactionType(transaction)}</span>
         </span>
       </td>
+      <td className="numeric-cell">{displayAmount(transaction)} {transaction.currency}</td>
+      <td>
+        <span title={instrumentNames.get(transaction.instrumentId) ?? ""} className={`transaction-truncated ${isChildRow ? "transaction-child-indent" : ""}`}>
+          {instrumentNames.get(transaction.instrumentId) ?? "-"}
+        </span>
+      </td>
       <td className="numeric-cell">{transaction.quantity ?? "-"}</td>
       <td className="numeric-cell">{transaction.transactionType === "buy" || transaction.transactionType === "sell" ? transaction.price ?? "—" : "—"}</td>
-      <td className="numeric-cell">{displayAmount(transaction)}</td>
-      <td>{transaction.currency}</td>
+      <td>{transaction.settlementDate ?? "—"}</td>
       <td>{formatSettlement(transaction)}</td>
-      <td>{transaction.notes ?? "-"}</td>
+      <td><span className="transaction-truncated" title={transaction.notes ?? ""}>{transaction.notes ?? "-"}</span></td>
       <td>
         <div className="table-actions">
           <button

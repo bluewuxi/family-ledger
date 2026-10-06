@@ -34,6 +34,7 @@
 - Portfolio summary (implemented: reporting-currency dashboard cards using stored prices, FX rates, and dashboard quote cache where available)
 - Account purposes (implemented: investment, daily expense, and education accounts; investment-only dashboard and dedicated flow pages)
 - Education logical fund and shared cashflow UI (deployed to test on 2026-10-04, #101): [implementation plan](education-reserve-unification-plan.md); manual multi-currency reserve, dedicated remaining/used summaries, independent domain totals, additive schema and verified seven-entry legacy cutover. Authenticated responsive checks passed at all five required sizes; version-6 backup checks and restore dry-run passed.
+- Family cashflow navigation (implemented locally; authenticated responsive acceptance passed on 2026-10-06): one 家庭收支 entry with 日常交易, 教育收支, and 收支查询 tabs; isolated URL filters and legacy route redirects. No schema or calculation changes.
 - Derived portfolio snapshots (implemented and deployed to test; separate cutover completed on 2026-09-23 after fresh backup and exact parity verification)
 - Dashboard account allocation and holding allocation (implemented)
 - Holding detail page (implemented: account/instrument drill-down with valuation, transactions, dividend summary, linked cash-leg context, and price context)
@@ -96,3 +97,5 @@
 - Local parser/storage tests, isolated PostgreSQL concurrency/undo/backup-restore checks, typecheck and build passed. Deployment health, runtime config/current assets, schema and version-4 backup checks passed. Remaining UI/mobile and personal import acceptance are delegated to the user at their request. No personal statements have been imported.
 - Test now uses the redesigned schema and version-4 backups, replacing the 2026-09-24 is_spending/statement-month model.
 - PDF extraction, budgets, FX conversion and investment integration remain out of scope.
+
+UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. This local revision has not been deployed; authenticated visual acceptance subsequently passed on 2026-10-06.

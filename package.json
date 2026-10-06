@@ -61,6 +61,7 @@
     "backup:ledger:prod": "tsx scripts/backup-ledger-data.ts --env prod",
     "restore:backup:dry-run": "tsx scripts/restore-backup-dry-run.ts",
     "typecheck": "tsc -b --pretty false",
+    "verify:family-cashflow-ui": "tsx scripts/verify-family-cashflow-ui.ts",
     "verify:spending": "tsx scripts/verify-spending.ts",
     "verify:spending-db": "tsx scripts/verify-spending-db.ts",
     "verify:education-reserve": "tsx scripts/verify-education-reserve.ts",

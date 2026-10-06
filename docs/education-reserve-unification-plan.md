@@ -1,6 +1,6 @@
 # Education Reserve and Shared Cashflow UI Plan
 
-Status: deployed to test on 2026-10-04 under issue #101. Database cutover, backup restoration checks, and authenticated responsive acceptance passed.
+Status: the original education feature was deployed to test on 2026-10-04 under issue #101. Its database cutover, backup restoration checks, and authenticated responsive acceptance passed. The subsequent family cashflow navigation update is implemented locally; authenticated visual acceptance passed on 2026-10-06.
 
 ## Product rules
 
@@ -12,12 +12,12 @@ Status: deployed to test on 2026-10-04 under issue #101. Database cutover, backu
 
 ## UI
 
-Keep the existing daily and education navigation entries for direct access to their different priorities. Use a shared cashflow workspace and reusable filters, record tables, amount formatting, drawers, pagination, and empty/loading states.
+Use one 家庭收支 navigation entry with three tabs for daily transactions, education activity, and shared querying. Reuse filters, record tables, amount formatting, drawers, pagination, and empty/loading states.
 
 - Education: show `剩余教育储备` and `累计教育支出` by currency, followed by records. Support manual opening balance, contribution, expense, refund, withdrawal, and currency exchange.
 - Expense categories: tuition (`学费`), accommodation (`住宿费`), living allowance (`生活费`), and other (`其他`). Living allowances count as used education funds when transferred to the student; do not also count the student's downstream purchases.
 - Daily: retain existing CSV/PDF import, classification, tags, and charts.
-- Shared record/report view: `资金用途` filter with `日常收支`, `教育储备`, and `全部`. Keep this distinct from transaction classification and expense category. Preserve filters in the URL and apply them to pagination and every summary/chart.
+- Shared record/report view: the 收支查询 tab within 家庭收支 provides 收支范围 buttons for 全部, 日常, and 教育. Keep this distinct from transaction classification and expense category. Preserve each tab's filters in the URL and apply them to pagination and every summary/chart.
 - Current balance and lifetime education spending remain clearly labeled. Date filters affect records and a separately labeled period spending summary, not the meaning of current balance.
 - Mobile controls stack with 44px minimum tap targets. Tables remain horizontally scrollable.
 
@@ -97,7 +97,7 @@ For a combined activity view, normalize DTOs with `domain`, `sourceId`, date, cu
 1. Shared domain types, entry validators, exact balance/spending calculations, and focused verification cases.
 2. Additive DB migration, constraints, grants/RLS, concurrency support, and version-6 backup/restore coverage.
 3. Education repositories, services, and thin API routes for fund summary and filtered/paginated entries. GET supports viewer/admin; POST/PATCH/DELETE requires admin.
-4. Education client and page with native-currency balances, spending summaries, manual form, edit/delete, and copy-existing-record action. Preserve `/education`.
+4. Education client and page with native-currency balances, spending summaries, manual form, edit/delete, and copy-existing-record action. Redirect `/education` to `/daily-expense?tab=education`, preserving supported filters.
 5. Extract shared presentation components from daily spending without changing import behavior. Add shared purpose-filtered querying/reporting with separate domain totals. Preserve existing URLs and import deep links.
 6. Implement legacy migration/cutover guards after inspecting actual data. Audit dashboard, holdings, account lists/details, transactions, monthly reports, exports, and snapshot readers for domain isolation; do not rely on UI filters.
 7. Update data-model, API, local-testing, backup/deployment documentation and roadmap implementation status.
@@ -123,3 +123,9 @@ The user approved mapping the single explicitly identified tuition payment to `e
 The private mapping and reviewed cutover SQL live under ignored `tmp/education-reserve/`, not in Git. The migration checks a verified backup, locks legacy account/transaction writes, compares protected rows again under the lock, preserves all seven source IDs/dates/notes/native amounts, and checks exact balance/spending parity before activation. Reruns never duplicate migrated entries.
 
 The implementation keeps native totals primary, adds a purpose-filtered summary/table, and shares date/currency controls with daily spending. Currency conversion of display totals, historical converted spending, and automatic cross-domain transfer linking remain deferred. The user has explicitly authorized commit, push, test deployment, and migration.
+
+## Family cashflow navigation update
+
+The single 家庭收支 sidebar entry opens `/daily-expense`, with `tab=spending|education|report` (default: spending). Education and report content share the page heading; the former navigation dropdown is removed. `/cashflows` redirects to the report tab with supported filters. Tab filters are isolated and remembered only while the family cashflow page remains mounted. Current filters survive refresh through the URL. API contracts and financial calculations are unchanged.
+
+UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. This local revision has not been deployed; authenticated visual acceptance subsequently passed on 2026-10-06.
