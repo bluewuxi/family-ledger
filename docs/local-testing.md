@@ -331,7 +331,7 @@ at the existing 820px form breakpoint. No transactions were saved or deleted.
 
 Family cashflow navigation acceptance: verify all three tabs, per-tab filter restoration within the mounted page session, refresh and browser back/forward, spending filter reset/import navigation, and replacement redirects from `/education` and `/cashflows`. Check that only supported filters reach API requests, range changes clear category/pagination, and viewer/admin controls retain existing permissions.
 
-UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. This local revision has not been deployed; authenticated visual acceptance subsequently passed on 2026-10-06.
+UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. Released to test under #103 on 2026-10-06 after authenticated visual acceptance.
 
 ## Cashflow UI visual acceptance — 2026-10-06
 
