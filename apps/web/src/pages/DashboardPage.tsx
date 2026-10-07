@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { InvestmentPerformanceCard } from "../components/InvestmentPerformanceCard";
 import { ValuationStatus } from "../components/ValuationStatus";
 import { DistributionPanel } from "../components/DistributionPanel";
@@ -47,7 +48,6 @@ import {
   type TrendPoint
 } from "../lib/trendChartData";
 
-import { selectTrendHoverDates } from "../lib/trendHoverPoints";
 
 interface DashboardResponse {
   dashboard: DashboardSummary;
@@ -129,6 +129,16 @@ export function DashboardPage() {
   const [snapshotsError, setSnapshotsError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [businessDayNow, setBusinessDayNow] = useState(() => new Date());
+  const trendPanelRef = useRef<HTMLElement>(null);
+  const [trendPanelHeight, setTrendPanelHeight] = useState(480);
+
+  useEffect(() => {
+    const panel = trendPanelRef.current;
+    if (!panel) return;
+    const observer = new ResizeObserver(() => setTrendPanelHeight(panel.getBoundingClientRect().height));
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const timerId = window.setInterval(() => setBusinessDayNow(new Date()), 60_000);
@@ -315,7 +325,7 @@ export function DashboardPage() {
     [profitChartData]
   );
   const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
-  const hoverDates = selectTrendHoverDates(trendView === "assets" ? trendChartData : profitChartData, trendRange);
+  const hoverDates = new Set((trendView === "assets" ? trendChartData : profitChartData).map(point => point.date));
   const profitValueDomain = useMemo(() => getProfitValueDomain(profitChartData), [profitChartData]);
   const profitValueTicks = useMemo(() => getProfitValueTicks(profitValueDomain), [profitValueDomain]);
   const profitAxisDomain = useMemo<[number, number]>(
@@ -375,7 +385,7 @@ export function DashboardPage() {
 
       <div className="metric-grid dashboard-metric-grid">
         <article className="metric-card"><span>当前估值</span><small className="metric-currency"><CurrencyFlagIcon currency={activeCurrency} />{activeCurrency}</small><strong>{formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading)}</strong></article>
-        <InvestmentPerformanceCard performance={dashboard?.investmentPerformance} currency={activeCurrency} loading={dashboardLoading} />
+        <InvestmentPerformanceCard performance={dashboard?.investmentPerformance} currency={activeCurrency} loading={dashboardLoading} wholeAmounts />
         {metrics.map((metric) => (
           <article className="metric-card" key={metric.label}>
             <span>{metric.label}</span>
@@ -395,7 +405,7 @@ export function DashboardPage() {
       {!dashboardLoading && dashboard ? <ValuationStatus metadata={dashboard.valuationMetadata} performance={dashboard.investmentPerformance} warnings={dashboard.warnings} /> : null}
 
       <section className="dashboard-card-flow dashboard-chart-flow" aria-label="投资趋势、持仓分布、证券账户与现金和最新成交">
-        <article className="flow-card chart-panel trend-chart-panel" style={chartToneStyle} id="trend-panel" role="tabpanel" aria-labelledby={`trend-tab-${trendView}`}>
+        <article ref={trendPanelRef} className="flow-card chart-panel trend-chart-panel" style={chartToneStyle} id="trend-panel" role="tabpanel" aria-labelledby={`trend-tab-${trendView}`}>
           <div className="chart-section-header">
             <div className="trend-tabs" role="tablist" aria-label="趋势视图">
               {(["profit", "assets"] as const).map(view => <button key={view} id={`trend-tab-${view}`} type="button" role="tab" aria-selected={trendView === view} aria-controls="trend-panel" tabIndex={trendView === view ? 0 : -1} onClick={() => setTrendView(view)} onKeyDown={event => {
@@ -474,7 +484,7 @@ export function DashboardPage() {
                     tickLine={false}
                     width={72}
                   />
-                  <Tooltip cursor={false} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={false} />} />
+                  <Tooltip cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={false} />} />
                   <Area
                     isAnimationActive={false}
                     type="stepAfter"
@@ -627,7 +637,7 @@ export function DashboardPage() {
                     width={72}
                   />
                   <ReferenceLine y={0} stroke="var(--color-chart-grid)" strokeWidth={1.4} />
-                  <Tooltip cursor={false} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={true} />} />
+                  <Tooltip cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={true} />} />
                   <Area
                     isAnimationActive={false}
                     type="monotone"
@@ -656,7 +666,7 @@ export function DashboardPage() {
                   <Line isAnimationActive={false} dataKey="profitLiveNegativeValue" name="当前估值对应期间盈利" stroke={chartNegativeColor} strokeWidth={0} dot={false} activeDot={props => renderTrendHoverDot(props, hoverDates)} connectNulls={false} />
                 </AreaChart>
               </ResponsiveContainer>
-              <p className="panel-description">所选期间内的盈利变化，已扣除净投入变化。起点为期间首个有效估值；悬停或轻触选定节点可查看数值；最新节点为当前估值。</p>
+              <p className="panel-description">所选期间内的盈利变化，已扣除净投入变化。起点为期间首个有效估值；悬停或轻触曲线可查看数值；最新节点为当前估值。</p>
               {profitSummary ? (
                 <p className="trend-summary">
                   {profitSummary.rangeLabel}，
@@ -673,7 +683,7 @@ export function DashboardPage() {
         </> : null}
         </article>
 
-        <article className="flow-card activity-panel trade-activity-panel">
+        <article className="flow-card activity-panel trade-activity-panel" style={{ height: trendPanelHeight }}>
           <div className="activity-panel-header">
             <h2>最新成交</h2>
             <span>10 条</span>
@@ -710,6 +720,7 @@ export function DashboardPage() {
               </div>
             </div>
           )}
+          <Link className="activity-more-link" to="/transactions">更多...</Link>
         </article>
         <DistributionPanel title="持仓分布" rows={(dashboard?.holdingAllocations ?? []).map(row => ({ id: row.id, name: row.name, marketValue: row.marketValue }))} total={dashboard?.totalAssets} loading={allocationLoading} />
         <DistributionPanel title="证券账户与现金" description="各账户仅统计证券市值，现金统一汇总。占比以全部投资资产为分母。" rows={dashboard?.allocations ?? []} total={dashboard?.totalAssets} loading={allocationLoading} />

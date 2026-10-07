@@ -8,6 +8,15 @@ export function formatDisplayAmount(value: string | number | null | undefined): 
   return formatDisplayDecimal(value, 3);
 }
 
+export function formatDisplayWholeAmount(value: string | number | null | undefined): string {
+  const formatted = formatDisplayDecimal(value, 0);
+  return isFormattedZero(formatted) ? "0" : formatted;
+}
+
+export function formatSignedDisplayWholeAmount(value: string | number | null | undefined): string {
+  return formatSignedDisplayDecimal(value, formatDisplayWholeAmount);
+}
+
 export function formatDisplayPercent(value: string | number | null | undefined): string {
   return formatDisplayDecimal(value, 1, 1);
 }

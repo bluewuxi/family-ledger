@@ -4778,6 +4778,11 @@ tr.editing-row td {
 .dashboard-card-flow.dashboard-chart-flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .dashboard-chart-flow > .flow-card { width: 100%; min-width: 0; box-sizing: border-box; }
 .dashboard-chart-flow > .trade-activity-panel { max-width: none; }
+.dashboard-chart-flow > .trend-chart-panel { min-height: 480px; }
+.dashboard-chart-flow > .trade-activity-panel { display: flex; flex-direction: column; overflow: hidden; }
+.dashboard-chart-flow .trade-activity-panel .activity-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+.dashboard-chart-flow .trade-activity-panel .activity-panel-header { flex-shrink: 0; }
+.activity-more-link { display: flex; align-items: center; justify-content: center; min-height: 44px; flex-shrink: 0; margin-top: auto; border-top: 1px solid var(--color-border); color: var(--color-brand-gold); }
 .trend-tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--color-border); }
 .trend-tabs button { min-height: 44px; padding: 8px 0; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--color-muted); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .trend-tabs button[aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-brand-gold); }
