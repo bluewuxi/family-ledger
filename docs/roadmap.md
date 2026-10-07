@@ -41,7 +41,7 @@
 - Account detail page (implemented: account-level current value, snapshot trend, holdings, recent transactions, cash balance context, and warnings)
 - Dedicated currency allocation (pending)
 
-- Investment overview performance and layout (implemented locally; deployment pending): API cumulative profit and asset ratio, shared live valuation for dashboard/holdings, default one-year period-profit tab with an asset-trend tab, full curves and sparse hover nodes, and paginated read-only snapshots in data maintenance. Dashboard authenticated responsive acceptance passed on 2026-10-08; holdings and snapshot-tab visual acceptance remain separate. See [investment overview specification](investment-overview-spec.md).
+- Investment overview performance and layout (deployed to test on 2026-10-08, #105): API cumulative profit and asset ratio, shared live valuation for dashboard/holdings, default one-year period-profit tab with an asset-trend tab, full curves and sparse hover nodes, and paginated read-only snapshots in data maintenance. Dashboard authenticated responsive acceptance passed on 2026-10-08; holdings and snapshot-tab visual acceptance remain separate. See [investment overview specification](investment-overview-spec.md).
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 

@@ -92,7 +92,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 `GET /holdings` returns current calculated positions and cash balances derived from transaction history, with valuation fields in the requested reporting currency.
 `GET /holdings/detail` returns one account/instrument holding detail, related transactions, dividend summary, linked buy/sell/dividend cash-leg context, and latest/previous price context.
 `GET /accounts/:id/detail` returns one account's current valued total, cash/non-cash subtotals, holdings, cash balance context, recent transactions with linked settlement cash legs, account snapshot trend, and account-scoped warnings.
-`GET /dashboard` returns a four-card portfolio summary in the selected reporting currency, calculated from holdings and stored price/FX records.
+`GET /dashboard` returns a portfolio summary with cumulative investment performance in the selected reporting currency, calculated from investment holdings, current/delayed quotes with stored-price fallback, and valuation FX.
 `GET /portfolio-snapshots` returns durable daily valuation snapshots with account-level rows.
 `GET /reports/monthly-summary` returns a monthly value bridge plus account contribution, buy/sell activity, cash-calibration context, and dividend fields for compatibility.
 `GET /reports/monthly-review` returns saved monthly family notes and review status. `PATCH /reports/monthly-review` updates those workflow fields for admins.
