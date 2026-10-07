@@ -1,5 +1,11 @@
 # Deployment
 
+## Dashboard display hotfix (2026-10-08, #106)
+
+Implementation commit `41dac5e` was pushed to `test` and released using `deploy:web:test`. This frontend-only release rounds dashboard monetary totals, restores vertical chart cursors and daily tooltips, and bounds recent trades to the trend panel height with a persistent full-history link. No API, job, schema, or infrastructure deployment was required.
+
+Typecheck, full build, portfolio-trend verification, and dashboard verification passed. CloudFront invalidation completed. Live entry HTML, runtime configuration, and all six referenced JS/CSS assets matched the local test build byte-for-byte; API health returned HTTP 200. Authenticated responsive visual verification was deferred at the user's request.
+
 ## Education reserve release procedure
 
 The 2026-10-04 education release uses additive migration `20261004090000_add_education_reserve.sql`. Existing education accounts start with an inactive logical fund; fresh empty installations initialize an active fund. No old accounts, transactions, or snapshots are deleted.
