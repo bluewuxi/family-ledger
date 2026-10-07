@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { normalizeQuery } from "../apps/api/src/services/spendingValidation";
 import { bankDate } from "../apps/api/src/services/spendingCsvParser";
-import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant, shiftCalendarDateMonths } from "@family-ledger/shared";
+import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant, shiftCalendarDateMonths, getMarketDateForAppBusinessDate } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
 import { formatHoursMinutes } from "../apps/web/src/lib/timeFormat";
 import { buildProfitChartData, buildTrendChartData, calculateTrendCumulativeMovement, getLiveValuationDot } from "../apps/web/src/lib/trendChartData";
@@ -43,8 +43,12 @@ async function main(): Promise<void> {
   assert.doesNotMatch(template, /Type: AWS::Events::Rule/u);
 
   const dashboard = readFileSync("apps/web/src/pages/DashboardPage.tsx", "utf8");
-  assert.match(dashboard, /行情变动/u);
-  assert.doesNotMatch(dashboard, /本交易日/u);
+  assert.match(dashboard, /本日变动/u);
+  assert.match(dashboard, /本交易日/u);
+  assert.equal(getMarketDateForAppBusinessDate("2026-10-08", "US"), "2026-10-07");
+  assert.equal(getMarketDateForAppBusinessDate("2026-10-08", "UK"), "2026-10-07");
+  assert.equal(getMarketDateForAppBusinessDate("2026-10-08", "CN"), "2026-10-08");
+  assert.equal(getMarketDateForAppBusinessDate("2026-01-01", "US"), "2025-12-31");
   assert.doesNotMatch(dashboard, /今日变动/u);
   assert.equal(formatHoursMinutes(201), "03小时 21分");
 

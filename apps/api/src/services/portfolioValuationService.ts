@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import {
   selectLatestPriceRecordsByDistinctDates,
+  getMarketDateForAppBusinessDate,
   selectPreferredExchangeRateRecord
 } from "@family-ledger/shared";
 import type {
@@ -16,6 +17,7 @@ import type {
   HoldingSummary,
   HoldingsValuationSummary,
   InvestmentAccount,
+  Instrument,
   PriceRecord,
   SnapshotDisplayCurrency,
   ValuedHoldingSummary
@@ -23,6 +25,39 @@ import type {
 import { ApiRequestError } from "../utils/apiError";
 
 export const reportingCurrencies = ["NZD", "USD", "CNY"] as const satisfies readonly SnapshotDisplayCurrency[];
+
+export function calculateTradingDayChange(holdings: HoldingSummary[], instruments: Instrument[], prices: PriceRecord[], fxRates: ExchangeRateRecord[], reportingCurrency: SnapshotDisplayCurrency, quotes: DashboardQuoteRecord[], businessDate: string): Pick<DashboardSummary, "todayChange" | "todayChangePct"> {
+  const pricesByInstrument = groupValidPricesByInstrument(holdings, prices);
+  const quotesByInstrument = groupValidQuotesByInstrument(holdings, quotes);
+  const rates = groupLatestUsdRatesByCurrency(fxRates);
+  const displayRate = getDisplayRate(reportingCurrency, rates);
+  const instrumentsById = new Map(instruments.map(instrument => [instrument.id, instrument]));
+  let change = new Decimal(0);
+  let baselineValue = new Decimal(0);
+  const unavailable = { todayChange: null, todayChangePct: null };
+  for (const holding of holdings) {
+    if (holding.assetType === "cash") continue;
+    const instrument = instrumentsById.get(holding.instrumentId);
+    if (!instrument) continue;
+    const history = pricesByInstrument.get(holding.instrumentId) ?? [];
+    const quote = quotesByInstrument.get(holding.instrumentId);
+    const marketDate = getMarketDateForAppBusinessDate(businessDate, instrument.marketRegion);
+    const latest = quote?.quoteDate === marketDate
+      ? dashboardQuoteToPriceRecord(quote)
+      : history.find(price => price.isEstimated && price.priceDate === marketDate);
+    if (!latest) continue;
+    const previous = history.find(price => price.priceDate < latest.priceDate);
+    const rate = getCurrencyToUsdRate(holding.currency, rates);
+    if (!previous || !rate || !displayRate) return unavailable;
+    const quantity = new Decimal(holding.quantity);
+    change = change.plus(quantity.times(new Decimal(latest.closePrice).minus(previous.closePrice)).times(rate));
+    baselineValue = baselineValue.plus(quantity.times(previous.closePrice).times(rate));
+  }
+  return {
+    todayChange: displayRate ? formatMoney(change.times(displayRate)) : null,
+    todayChangePct: baselineValue.gt(0) ? formatPercentage(change.dividedBy(baselineValue).times(100)) : null
+  };
+}
 
 export function parseReportingCurrency(value: string | undefined): SnapshotDisplayCurrency {
   if (value === undefined || value === "") {

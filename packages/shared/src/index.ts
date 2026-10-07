@@ -157,6 +157,14 @@ export type MarketDataSourceStatus = (typeof MARKET_DATA_SOURCE_STATUSES)[number
 export const MARKET_REGIONS = ["US", "HK", "CN", "NZ", "UK", "MULTI", "OTHER"] as const;
 export type MarketRegion = (typeof MARKET_REGIONS)[number];
 
+// Western exchange sessions close in the following app business day.
+export function getMarketDateForAppBusinessDate(businessDate: string, marketRegion: MarketRegion): string {
+  const date = new Date(`${businessDate}T00:00:00.000Z`);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== businessDate) throw new Error("Invalid business date.");
+  if (marketRegion === "US" || marketRegion === "UK") date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
 export const MARKET_REGION_LABELS: Record<MarketRegion, string> = {
   US: "\u7f8e\u80a1",
   HK: "\u6e2f\u80a1",

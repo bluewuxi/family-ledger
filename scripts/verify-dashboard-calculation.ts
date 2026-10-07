@@ -17,7 +17,7 @@ import type {
   InstrumentQuoteProviderResult,
   IInstrumentQuoteProvider
 } from "../apps/api/src/providers/IInstrumentQuoteProvider";
-import { calculateHoldingsValuation } from "../apps/api/src/services/portfolioValuationService";
+import { calculateHoldingsValuation, calculateTradingDayChange } from "../apps/api/src/services/portfolioValuationService";
 
 const accounts = [account("account-a"), account("account-b"), account("empty-account")];
 const usdSecurity = holding("usd-security", "US ETF", "etf", "USD", "2", "100");
@@ -31,6 +31,21 @@ const prices = [
   price("nzd-previous", nzdSecurity.instrumentId, "2026-05-21", "39", "NZD")
 ];
 const fxRates = [fxRate("nzd-usd", "NZD", "0.6666666667"), fxRate("cny-usd", "CNY", "0.14")];
+
+const dayInstrument = { ...instrument(usdSecurity.instrumentId, "yahoo_finance", "TEST", "USD"), marketRegion: "US" as const };
+const dayQuote = dashboardQuote("day-live", usdSecurity.instrumentId, "2026-05-22", "70", "USD", "2026-05-23T01:00:00Z");
+const dayChange = calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [dayQuote], "2026-05-23");
+assert.deepEqual(dayChange, { todayChange: "10.00", todayChangePct: "7.69" });
+assert.deepEqual(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [], "2026-05-24"), { todayChange: "0.00", todayChangePct: null });
+assert.deepEqual(calculateTradingDayChange([nzdSecurity, usdCash], [], [], [], "USD", [], "2026-05-23"), { todayChange: "0.00", todayChangePct: null });
+assert.deepEqual(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [], "2026-05-23"), { todayChange: "0.00", todayChangePct: null });
+assert.equal(calculateTradingDayChange([usdSecurity], [dayInstrument], prices.filter(p=>p.id!=="usd-previous"), fxRates, "USD", [dayQuote], "2026-05-23").todayChange, null);
+const fundInstrument = { ...instrument(nzdSecurity.instrumentId, "kernel_estimate", "FUND", "NZD", "pie_fund"), marketRegion: "NZ" as const };
+const estimatedFundPrices = prices.map(p=>p.id === "nzd-latest" ? {...p, isEstimated:true} : p);
+assert.deepEqual(calculateTradingDayChange([nzdSecurity], [fundInstrument], estimatedFundPrices, fxRates, "NZD", [], "2026-05-22"), {todayChange:"3.00",todayChangePct:"2.56"});
+assert.equal(calculateTradingDayChange([usdSecurity], [dayInstrument], prices, fxRates, "USD", [dashboardQuote("day-quote", usdSecurity.instrumentId, "2026-05-22", "60", "USD", "2026-05-23T01:00:00Z")], "2026-05-23").todayChange, "-10.00");
+assert.deepEqual(calculateTradingDayChange([usdSecurity], [dayInstrument], prices, fxRates, "USD", [{...dayQuote, quoteDate:"2026-05-21"}], "2026-05-23"), {todayChange:"0.00",todayChangePct:null});
+assert.deepEqual(calculateTradingDayChange([nzdSecurity], [fundInstrument], prices, fxRates, "NZD", [], "2026-05-22"), {todayChange:"0.00",todayChangePct:null});
 
 const complete = calculateDashboardSummary(holdings, accounts, prices, fxRates);
 assert.deepEqual(complete, {

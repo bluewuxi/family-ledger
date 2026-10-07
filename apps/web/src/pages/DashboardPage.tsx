@@ -267,7 +267,7 @@ export function DashboardPage() {
     [dashboard?.accounts]
   );
   const metrics = [
-    { label: "行情变动", value: formatPlainTodayChange(dashboard, dashboardLoading), currency: activeCurrency, toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3) },
+    { label: "本日变动", value: formatPlainTodayChange(dashboard, dashboardLoading), currency: activeCurrency, toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3) },
     { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency, toneClass: undefined }
   ];
 
@@ -396,7 +396,7 @@ export function DashboardPage() {
               </small>
             ) : null}
             <strong className={metric.toneClass}>{metric.value}</strong>
-            {metric.label === "行情变动" ? <small>当前持仓的价格变动</small> : null}
+            {metric.label === "本日变动" ? <small>仅计入本交易日有实时或预估数据的标的</small> : null}
           </article>
         ))}
       </div>

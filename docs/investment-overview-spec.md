@@ -13,7 +13,7 @@ This document consolidates the dashboard, holdings overview, and asset-snapshot 
 
 ## Dashboard Composition and Trends
 
-- Main cards are current valuation, investment profit with its asset-share ratio, price movement, and cash. Daily trade count and account count are secondary statistics. Price movement means price change on current quantities.
+- Main cards are current valuation, investment profit with its asset-share ratio, `本日变动`, and cash. Daily trade count and account count are secondary statistics. Daily movement includes only instruments with current-business-day quotes or estimated prices, on current quantities. Cash is excluded; lagged fund prices and historical closes alone do not qualify. US/UK session dates map to the following app business date. Older provider dates contribute no daily movement, and the percentage uses only participating instruments' preceding value.
 - The chart card has `期间盈利` and `资产趋势` tabs. Profit is selected initially and the default range is one year. Switching tabs preserves range and reuses fetched data.
 - Period profit is the change in assets minus net investment from the selected period's first valid valuation. It starts at zero, excludes direct principal changes, reports the actual starting date when needed, and has no period return percentage. Headline lifetime profit is independent of this range.
 - Asset view shows net assets and stepped `累计净投入`. The full historical curve retains all stored snapshot dates for every range. Missing valuations remain gaps. Current valuation is a separate endpoint; no intermediate live prices are fabricated.

@@ -25,7 +25,7 @@ import type {
   InstrumentQuoteProviderInstrument
 } from "../providers/IInstrumentQuoteProvider";
 import { YahooFinanceInstrumentQuoteProvider } from "../providers/YahooFinanceInstrumentQuoteProvider";
-import { calculateDashboardSummary, calculateHoldingsValuation } from "./portfolioValuationService";
+import { calculateDashboardSummary, calculateHoldingsValuation, calculateTradingDayChange } from "./portfolioValuationService";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { listValuationRatesForHoldings } from "./valuationMarketDataService";
 import { getInvestmentPerformance } from "./investmentPerformanceService";
@@ -84,7 +84,7 @@ export async function getCurrentInvestmentPortfolio(input: { currency?: string; 
   const investmentPerformance = await getInvestmentPerformance({ totalAssets: dashboard.totalAssets, transactions: currentTransactions, currency: reportingCurrency, businessDate });
   const valuationMetadata = buildValuationMetadata(valuedHoldings.holdings, fxRates, now, reportingCurrency);
   return {
-    dashboard: { ...dashboard, investmentPerformance, valuationMetadata },
+    dashboard: { ...dashboard, ...calculateTradingDayChange(holdings, instruments, prices, fxRates, reportingCurrency, dashboardQuotes, businessDate), investmentPerformance, valuationMetadata },
     holdings: { ...valuedHoldings, investmentPerformance, valuationMetadata }
   };
 }
