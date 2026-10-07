@@ -208,6 +208,8 @@ async function main(): Promise<void> {
 
     sql("alter table public.dashboard_instrument_quotes add column instrument_id uuid");
     sql(readFileSync("supabase/migrations/20261007120000_kernel_nta_estimation.sql", "utf8"));
+    sql(readFileSync("supabase/migrations/20261007130000_kernel_nta_target_configuration.sql", "utf8"));
+    sql(`update instruments set symbol='KN_SP500' where id='${instrumentId}'`);
     sql(`delete from instrument_prices where instrument_id='${instrumentId}'; delete from kernel_price_anchors where instrument_id='${instrumentId}'`);
     sql("alter table instrument_prices disable trigger reject_legacy_kernel_estimate");
     const ntaPayload = JSON.stringify([{source_id:"00000000-0000-4000-8000-000000000077",anchor_date:"2026-09-30",kernel_unit_price:"6.67",proxy_close:"23.60990",proxy_price_date:"2026-10-01",announcement_id:481058,published_at:"2026-10-02T00:00:00Z",created_by_user_id:actor,revision_at:"2026-10-02T08:25:57Z"}]);

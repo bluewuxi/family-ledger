@@ -4,7 +4,7 @@ import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
 export const LEDGER_BACKUP_VERSION = 7;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261007120000_kernel_nta_estimation";
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261007130000_kernel_nta_target_configuration";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 

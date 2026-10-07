@@ -50,8 +50,11 @@ export async function findKernelEstimateInstrument(): Promise<KernelInstrumentRo
   const { data, error } = await supabase
     .from("instruments")
     .select("id, price_update_enabled")
-    .eq("symbol", "KERNEL_SP500_UNHEDGED")
     .eq("exchange", "KERNEL")
+    .eq("currency", "NZD")
+    .eq("price_source", "kernel_estimate")
+    .eq("price_source_symbol", "USF.NZ")
+    .eq("price_source_exchange", "NZX")
     .maybeSingle<KernelInstrumentRow>();
   if (error) throw new Error("Failed to load the Kernel estimate instrument.");
   return data;
