@@ -301,9 +301,9 @@ It returns values in the selected reporting currency:
 }
 ```
 
-The dashboard derives holdings through the existing holdings calculation and may refresh delayed quote cache rows during the request:
+The dashboard derives holdings through the existing holdings calculation and may refresh delayed quote cache rows during the request. Its headline performance and input-date metadata are specified under Investment Overview Performance and Valuation Metadata below:
 
-- Securities use a dashboard-only delayed quote cache for current-estimate valuation when available; cash uses its calculated cash balance.
+- Securities use a dashboard-only delayed quote cache for current-estimate valuation in both the dashboard and investment holdings when available; cash uses its calculated cash balance.
 - Dashboard quote cache rows are refreshed when older than five minutes and do not replace stored market-close `instrument_prices`. If a stale cache row cannot be refreshed, the dashboard ignores it and falls back to stored closes.
 - Yahoo Finance and Eastmoney each have a six-second deadline for their sequential quote batch, including response-body reading. On deadline expiry, completed quotes are returned and cached; no further instruments are requested in that batch. An entirely timed-out batch returns no quotes. Instruments without a fresh quote use the existing stored-close fallback and remain eligible for refresh on the next dashboard request. Non-timeout HTTP and invalid-response errors still fail the provider batch.
 - Holdings are valued internally in USD using USD-centered valuation FX rates in `exchange_rates`, then converted to the requested reporting currency.
@@ -312,7 +312,7 @@ The dashboard derives holdings through the existing holdings calculation and may
 - `unrealizedGain` applies only to non-cash holdings with available remaining cost basis.
 - `dailyTradeCount` counts buy/sell transactions on the current app business date, excluding generated cash legs and cash instruments.
 - `accountCount` includes accounts with no non-zero holdings.
-- `allocations` drives the `账户分布` chart and contains account rows plus one combined cash row.
+- `allocations` drives the `证券账户与现金` chart and contains account rows plus one combined cash row.
 - `holdingAllocations` drives the `持仓分布` chart. It aggregates each non-cash instrument across accounts and combines all cash holdings into one `现金` row. If any row in an aggregate has unavailable `marketValue`, the aggregate `marketValue` and `percentageOfTotal` are `null`. Percentages are `null` when `totalAssets` is `null` or zero.
 - `quoteFetchedAt` and `quoteDate` describe the newest dashboard quote cache row used in the response, or `null` when no dashboard quotes are available.
 
@@ -405,7 +405,7 @@ Current valuation is account-scoped: the API calculates holdings, filters to the
 
 `valuationBusinessDate` is the app business date used as the valuation reference date. It does not mean every holding has same-day market data. Each holding still carries row-level `latestPriceDate`; lagged funds may use the latest published price available.
 
-The account trend uses persisted `portfolio_account_snapshots`. Account snapshot rows store USD values, so NZD/CNY display values are converted with the parent `portfolio_snapshot_headers.usd_to_nzd_rate` and `usd_to_cny_rate` from the same snapshot. For long ranges of two years or more (`3y`, `5y`, or `inception`), account trend points use the same weekly thinning semantics as portfolio trend points.
+The account trend uses persisted `portfolio_account_snapshots`. Account snapshot rows store USD values, so NZD/CNY display values are converted with the parent `portfolio_snapshot_headers.usd_to_nzd_rate` and `usd_to_cny_rate` from the same snapshot. Account trends retain all stored snapshot dates, including long ranges.
 
 Recent transactions exclude `generated_cash_leg` rows as primary activity. When a buy/sell/dividend has an automatically generated cash leg, it is attached as `linkedCashLeg`.
 
@@ -611,9 +611,9 @@ Response data:
 }
 ```
 
-Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals. For dashboard recent-snapshot activity, compare adjacent returned rows' `marketValue` values client-side. Do not reuse `dailyChange` or `dailyChangePct` for `较上一快照`; those fields are latest-price movement on current snapshot holdings, not cash-flow-adjusted portfolio daily P&L.
+Snapshots are stored canonically in USD and converted for display using the FX rates persisted on each snapshot. Missing valuation inputs are returned as `null` rather than partial totals. The dashboard does not render a snapshot list. Data maintenance requests API comparisons so the previous persisted row remains available across page and date-filter boundaries. Do not reuse `dailyChange` or `dailyChangePct` for `较上一快照`; those fields are latest-price movement on current snapshot holdings, not cash-flow-adjusted portfolio daily P&L.
 
-Trend `portfolioValue` points normally use every stored daily snapshot in the selected range so the value curve remains faithful to daily data. For long ranges of two years or more (`3y`, `5y`, or `inception`), the API thins portfolio points to weekly targets aligned to the current app business date's weekday; if a target date has no snapshot, the API uses the latest previous snapshot and still labels the point with the target date. `totalInvestment` is calculated from manual opening positions, opening balances, deposits, and withdrawals only; generated trade cash legs and income/fee/tax/adjustment transactions are excluded. Principal events use exact trade-date valuation FX. If required FX is missing, `totalInvestment` and `currentTotalInvestment` are returned as `null` and `summary.warnings` includes `MISSING_PRINCIPAL_FX_RATE`; this should be fixed as a data issue rather than hidden with fallback FX.
+Trend `portfolioValue` points normally use every stored daily snapshot in the selected range so the value curve remains faithful to daily data. Long ranges also retain all stored snapshot dates; hover selection in the dashboard does not thin the curve data. `totalInvestment` is calculated from manual opening positions, opening balances, deposits, and withdrawals only; generated trade cash legs and income/fee/tax/adjustment transactions are excluded. Principal events use exact trade-date valuation FX. If required FX is missing, `totalInvestment` and `currentTotalInvestment` are returned as `null` and `summary.warnings` includes `MISSING_PRINCIPAL_FX_RATE`; this should be fixed as a data issue rather than hidden with fallback FX.
 
 ## Account Write APIs
 
@@ -997,3 +997,17 @@ The table uses page sizes 20, 50 (default), and 100, with
 The optional `linkedCashLegs` response array contains generated cash rows for returned
 parents only; these rows do not affect pagination totals. Other callers retain their
 existing defaults. Transaction numeric DTO fields are decimal strings, preserving nulls.
+
+### Investment Overview Performance and Valuation Metadata
+
+GET /dashboard returns dashboard.investmentPerformance and dashboard.valuationMetadata. GET /holdings returns the same objects beside holdings for investment accounts. Both endpoints use the same five-minute quote cache, provider deadline, and stored-price fallback. Existing unrealized fields remain compatible. Other purpose overviews, detail pages, and historical snapshots retain stored-price valuation. Future-dated transactions are excluded from current investment overview valuation.
+
+InvestmentPerformance contains netInvestment, investmentProfit, profitPercentageOfAssets (percentage units), inceptionDate, and warnings. Numeric values are decimal strings or null. Missing exact principal-date FX invalidates net investment, cumulative profit, and its ratio without invalidating an otherwise available market value. Missing cost basis affects unrealized gain, not cumulative profit when assets and principal remain available.
+
+ValuationMetadata contains valuedAt (UTC instant), fxDateFrom/fxDateTo, priceDateFrom/priceDateTo, quoteFetchedAtFrom/quoteFetchedAtTo, quotedHoldingCount, storedPriceHoldingCount, and missingPriceHoldingCount. Ranges describe actual inputs and are null when none apply. ValuedHoldingSummary additionally exposes latestPriceSource, latestPriceKind (quote/stored/null), and quoteFetchedAt. Price dates remain provider calendar dates; acquisition and valuation instants are displayed in viewer-local time. Legacy quoteFetchedAt/quoteDate fields are retained and do not describe every holding's freshness.
+
+### Paginated Snapshot Comparisons
+
+GET /portfolio-snapshots accepts optional offset and includeComparison=true. Either enables pagination; default limit is 20, maximum 200, offset is a non-negative integer. Existing calls without either parameter keep their response behavior. The response adds pagination (limit, offset, total, hasMore); comparison mode also adds comparisons keyed by snapshot ID. Each comparison has previousSnapshotDate, changeAmount, and changePct as nullable values.
+
+The predecessor is the immediately earlier persisted snapshot in the same purpose, independent of page or start-date filtering. Each snapshot is converted with its own saved FX. Missing current/previous valuation makes the difference unavailable; a missing or non-positive predecessor makes the percentage unavailable. Missing history has no predecessor. Viewer and admin can read comparisons. The data-maintenance tab requests purpose=investment, descending order, and twenty rows per page; it does not repair or write snapshots.

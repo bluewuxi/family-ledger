@@ -24,9 +24,13 @@ import { listTransactions } from "../repositories/transactionRepository";
 import { calculateHoldingsValuation } from "./portfolioValuationService";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { listValuationRatesForHoldings } from "./valuationMarketDataService";
+import { getCurrentInvestmentPortfolio } from "./dashboardService";
 import { ApiRequestError } from "../utils/apiError";
 
 export async function getHoldings(input: { currency?: string; user?: AuthenticatedUser; purpose?: AccountPurpose } = {}): Promise<HoldingsValuationSummary> {
+  if ((input.purpose ?? "investment") === "investment") {
+    return (await getCurrentInvestmentPortfolio(input)).holdings;
+  }
   const reportingCurrency = await resolveReportingCurrency(input);
   const [transactions, allAccounts, instruments] = await Promise.all([
     listTransactions({ purpose: input.purpose ?? "investment" }),

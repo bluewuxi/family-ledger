@@ -5,6 +5,7 @@ import {
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { formatDisplayAmount, formatDisplayPrice } from "./numberFormat";
+import { formatLocalDateTime } from "./timeFormat";
 
 const HOLDING_WARNING_LABELS: Record<HoldingWarning, string> = {
   NEGATIVE_POSITION: "负数余额/持仓，请核对交易记录",
@@ -38,6 +39,8 @@ export function formatHoldingLatestPrice(holding: ValuedHoldingSummary): ReactNo
           <span className="price-date-label">{formatShortPriceDate(holding.latestPriceDate)}</span>
         </>
       ) : null}
+      {holding.latestPriceKind ? <><br /><span className="price-date-label">{holding.latestPriceKind === "quote" ? "当前／延迟报价" : "已存储价格"}{holding.latestPriceSource ? ` · ${holding.latestPriceSource}` : ""}</span></> : null}
+      {holding.quoteFetchedAt ? <><br /><span className="price-date-label">获取于 {formatLocalDateTime(holding.quoteFetchedAt)}（本地时间）</span></> : null}
     </>
   );
 }

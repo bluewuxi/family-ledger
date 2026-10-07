@@ -3,7 +3,6 @@ import {
   getAppBusinessDate,
   PORTFOLIO_TREND_RANGES,
   type AuthenticatedUser,
-  type CurrencyCode,
   type ExchangeRateRecord,
   type InvestmentTransaction,
   type PortfolioPrincipalPoint,
@@ -11,8 +10,8 @@ import {
   type PortfolioTrend,
   type PortfolioTrendPoint,
   type PortfolioTrendRange,
-  type PortfolioTrendSummary,
-  type PortfolioTrendWarning,
+  type Pagination,
+  type SnapshotComparison,
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { listExactValuationRatesToUsdForDates } from "../repositories/fxRateRepository";
@@ -21,6 +20,8 @@ import { listManualPrincipalTransactionsUntil } from "../repositories/transactio
 import { ApiRequestError } from "../utils/apiError";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { optionalAccountPurpose } from "./accountPurpose";
+import { calculatePrincipalPoints, getRequiredPrincipalFxCurrencies, toPrincipalEvent, type PrincipalEvent } from "./principalService";
+export { calculatePrincipalPoints, type PrincipalEvent } from "./principalService";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const earliestDate = "0001-01-01";
@@ -28,6 +29,8 @@ const earliestDate = "0001-01-01";
 export interface PortfolioSnapshotsResponse {
   snapshots: PortfolioSnapshotSummary[];
   trend?: PortfolioTrend;
+  pagination?: Pagination;
+  comparisons?: Record<string, SnapshotComparison>;
 }
 
 interface SnapshotQuery {
@@ -36,24 +39,6 @@ interface SnapshotQuery {
   currency: SnapshotDisplayCurrency;
   limit?: number;
   order: "asc" | "desc";
-}
-
-export interface PrincipalEvent {
-  date: string;
-  currency: CurrencyCode;
-  amount: Decimal;
-}
-
-interface ConvertedPrincipalEvent {
-  date: string;
-  amount: Decimal;
-}
-
-interface PrincipalCalculation {
-  inceptionDate: string | null;
-  currentTotalInvestment: string | null;
-  principalPoints: PortfolioPrincipalPoint[];
-  warnings: PortfolioTrendWarning[];
 }
 
 export async function getPortfolioSnapshots(input: {
@@ -77,24 +62,57 @@ export async function getPortfolioSnapshotsResponse(input: {
   limit?: string;
   order?: string;
   includeTrend?: string;
+  offset?: string;
+  includeComparison?: string;
   trendRange?: string;
   user?: AuthenticatedUser;
 }): Promise<PortfolioSnapshotsResponse> {
   const query = await resolveSnapshotQuery(input);
-  const snapshots = await listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) });
+  const includeComparison = optionalBoolean("includeComparison", input.includeComparison);
+  const paginated = input.offset !== undefined || includeComparison;
+  let result: PortfolioSnapshotsResponse;
+  if (paginated) {
+    const offset = input.offset === undefined ? 0 : Number(input.offset);
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new ApiRequestError("VALIDATION_ERROR", "offset must be a non-negative integer.", 400);
+    const history = await listPortfolioSnapshots({ from: earliestDate, to: query.to, currency: query.currency, order: "asc", purpose: optionalAccountPurpose(input.purpose) });
+    result = paginateSnapshotHistory(history, { ...query, offset, limit: query.limit ?? 20 }, includeComparison);
+  } else {
+    result = { snapshots: await listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) }) };
+  }
 
   if (!optionalBoolean("includeTrend", input.includeTrend)) {
-    return { snapshots };
+    return result;
   }
 
   return {
-    snapshots,
+    ...result,
     trend: await buildPortfolioTrend({
       currency: query.currency,
       range: optionalTrendRange(input.trendRange),
       today: query.to
     })
   };
+}
+
+export function paginateSnapshotHistory(history: PortfolioSnapshotSummary[], query: { from: string; to: string; order: "asc" | "desc"; offset: number; limit: number }, includeComparison: boolean): PortfolioSnapshotsResponse {
+  const chronological = [...history].sort((left, right) => left.snapshotDate.localeCompare(right.snapshotDate));
+  const comparisons: Record<string, SnapshotComparison> = {};
+  chronological.forEach((snapshot, index) => {
+    const previous = chronological[index - 1];
+    const change = snapshot.marketValue !== null && previous?.marketValue !== null && previous?.marketValue !== undefined
+      ? new Decimal(snapshot.marketValue).minus(previous.marketValue) : null;
+    comparisons[snapshot.id] = {
+      previousSnapshotDate: previous?.snapshotDate ?? null,
+      changeAmount: change?.toFixed(2) ?? null,
+      changePct: change !== null && previous?.marketValue && new Decimal(previous.marketValue).gt(0)
+        ? change.div(previous.marketValue).times(100).toFixed(4) : null
+    };
+  });
+  const filtered = chronological.filter(snapshot => snapshot.snapshotDate >= query.from && snapshot.snapshotDate <= query.to);
+  if (query.order === "desc") filtered.reverse();
+  const snapshots = filtered.slice(query.offset, query.offset + query.limit);
+  return { snapshots, pagination: { limit: query.limit, offset: query.offset, total: filtered.length, hasMore: query.offset + query.limit < filtered.length },
+    ...(includeComparison ? { comparisons: Object.fromEntries(snapshots.map(snapshot => [snapshot.id, comparisons[snapshot.id]])) } : {}) };
 }
 
 export async function buildPortfolioTrend(input: {
@@ -153,55 +171,6 @@ export async function buildPortfolioTrend(input: {
   };
 }
 
-export function calculatePrincipalPoints(input: {
-  events: PrincipalEvent[];
-  exactFxRates: ExchangeRateRecord[];
-  currency: SnapshotDisplayCurrency;
-  rangeStart: string;
-  rangeEnd: string;
-  inceptionDate: string | null;
-}): PrincipalCalculation {
-  const ratesByCurrencyAndDate = new Map(input.exactFxRates.map((rate) => [fxRateKey(rate.fromCurrency, rate.rateDate), rate]));
-  const convertedEvents: ConvertedPrincipalEvent[] = [];
-  const warnings = new Map<string, PortfolioTrendWarning>();
-
-  for (const event of input.events) {
-    const conversion = convertPrincipalEventAmount(event, input.currency, ratesByCurrencyAndDate);
-
-    for (const warning of conversion.warnings) {
-      warnings.set(`${warning.code}:${warning.transactionDate}:${warning.currency}`, warning);
-    }
-
-    if (conversion.amount !== null) {
-      convertedEvents.push({ date: event.date, amount: conversion.amount });
-    }
-  }
-
-  if (warnings.size > 0) {
-    return {
-      inceptionDate: input.inceptionDate,
-      currentTotalInvestment: null,
-      principalPoints: buildPrincipalPointDates(input.events, input.rangeStart, input.rangeEnd).map((date) => ({
-        date,
-        totalInvestment: null
-      })),
-      warnings: [...warnings.values()]
-    };
-  }
-
-  const principalDates = buildPrincipalPointDates(input.events, input.rangeStart, input.rangeEnd);
-
-  return {
-    inceptionDate: input.inceptionDate,
-    currentTotalInvestment: formatDecimal(sumPrincipalAsOf(convertedEvents, input.rangeEnd)),
-    principalPoints: principalDates.map((date) => ({
-      date,
-      totalInvestment: formatDecimal(sumPrincipalAsOf(convertedEvents, date))
-    })),
-    warnings: []
-  };
-}
-
 export function getTrendRangeStart(
   range: PortfolioTrendRange,
   rangeEnd: string,
@@ -249,92 +218,6 @@ export function buildSampledPortfolioPoints(input: {
   });
 }
 
-function toPrincipalEvent(transaction: InvestmentTransaction): PrincipalEvent {
-  const direction = transaction.transactionType === "withdrawal" ? -1 : 1;
-  return {
-    date: transaction.tradeDate,
-    currency: transaction.currency,
-    amount: new Decimal(transaction.grossAmount ?? "0").times(direction)
-  };
-}
-
-function convertPrincipalEventAmount(
-  event: PrincipalEvent,
-  displayCurrency: SnapshotDisplayCurrency,
-  ratesByCurrencyAndDate: Map<string, ExchangeRateRecord>
-): { amount: Decimal | null; warnings: PortfolioTrendWarning[] } {
-  if (event.currency === displayCurrency) {
-    return { amount: event.amount, warnings: [] };
-  }
-
-  const warnings: PortfolioTrendWarning[] = [];
-  const sourceRate = getExactUsdRate(event.currency, event.date, ratesByCurrencyAndDate);
-  const displayRate = getExactUsdRate(displayCurrency, event.date, ratesByCurrencyAndDate);
-
-  if (sourceRate === null) {
-    warnings.push({ code: "MISSING_PRINCIPAL_FX_RATE", transactionDate: event.date, currency: event.currency });
-  }
-
-  if (displayRate === null) {
-    warnings.push({ code: "MISSING_PRINCIPAL_FX_RATE", transactionDate: event.date, currency: displayCurrency });
-  }
-
-  if (warnings.length > 0 || sourceRate === null || displayRate === null) {
-    return { amount: null, warnings };
-  }
-
-  const amountUsd = event.amount.times(sourceRate);
-  return { amount: amountUsd.dividedBy(displayRate), warnings: [] };
-}
-
-function getExactUsdRate(
-  currency: CurrencyCode,
-  rateDate: string,
-  ratesByCurrencyAndDate: Map<string, ExchangeRateRecord>
-): Decimal | null {
-  if (currency === "USD") {
-    return new Decimal(1);
-  }
-
-  const rate = ratesByCurrencyAndDate.get(fxRateKey(currency, rateDate));
-  return rate ? new Decimal(rate.rate) : null;
-}
-
-function getRequiredPrincipalFxCurrencies(
-  events: PrincipalEvent[],
-  displayCurrency: SnapshotDisplayCurrency
-): CurrencyCode[] {
-  const currencies = new Set<CurrencyCode>();
-
-  for (const event of events) {
-    if (event.currency !== displayCurrency && event.currency !== "USD") {
-      currencies.add(event.currency);
-    }
-    if (event.currency !== displayCurrency && displayCurrency !== "USD") {
-      currencies.add(displayCurrency);
-    }
-  }
-
-  return [...currencies];
-}
-
-function buildPrincipalPointDates(events: PrincipalEvent[], rangeStart: string, rangeEnd: string): string[] {
-  return uniqueValues([
-    rangeStart,
-    ...events
-      .map((event) => event.date)
-      .filter((date) => date >= rangeStart && date <= rangeEnd),
-    rangeEnd
-  ]).sort();
-}
-
-function sumPrincipalAsOf(events: ConvertedPrincipalEvent[], date: string): Decimal {
-  return events.reduce(
-    (sum, event) => event.date <= date ? sum.plus(event.amount) : sum,
-    new Decimal(0)
-  );
-}
-
 function getPortfolioTargetDates(input: {
   snapshots: PortfolioSnapshotSummary[];
   range: PortfolioTrendRange;
@@ -344,39 +227,7 @@ function getPortfolioTargetDates(input: {
   const snapshotDates = input.snapshots
     .map((snapshot) => snapshot.snapshotDate)
     .filter((date) => date >= input.rangeStart && date <= input.rangeEnd);
-  const firstSnapshotDate = input.snapshots.find((snapshot) =>
-    snapshot.snapshotDate >= input.rangeStart && snapshot.snapshotDate <= input.rangeEnd && snapshot.marketValue !== null
-  )?.snapshotDate;
-
-  if (!shouldSamplePortfolioSnapshots(input.range, input.rangeStart, input.rangeEnd)) {
-    return uniqueValues([
-      input.rangeStart,
-      ...snapshotDates,
-      input.rangeEnd
-    ]).sort();
-  }
-
-  return uniqueValues([
-    input.rangeStart,
-    ...(firstSnapshotDate ? [firstSnapshotDate] : []),
-    ...weeklyTargets(input.rangeStart, input.rangeEnd)
-  ]).sort();
-}
-
-function shouldSamplePortfolioSnapshots(range: PortfolioTrendRange, rangeStart: string, rangeEnd: string): boolean {
-  return (range === "3y" || range === "5y" || range === "inception") && monthsBetween(rangeStart, rangeEnd) >= 24;
-}
-
-function weeklyTargets(rangeStart: string, rangeEnd: string): string[] {
-  const targets: string[] = [];
-  let cursor = parseIsoDate(rangeEnd);
-
-  while (formatIsoDate(cursor) >= rangeStart) {
-    targets.push(formatIsoDate(cursor));
-    cursor = addUtcDays(cursor, -7);
-  }
-
-  return targets;
+  return uniqueValues([input.rangeStart, ...snapshotDates, input.rangeEnd]).sort();
 }
 
 function findSnapshotAsOf(
@@ -516,17 +367,6 @@ function subtractMonths(value: string, months: number): string {
   return formatIsoDate(monthTarget(date.getUTCFullYear(), date.getUTCMonth() - months, date.getUTCDate()));
 }
 
-function monthsBetween(start: string, end: string): number {
-  const startDate = parseIsoDate(start);
-  const endDate = parseIsoDate(end);
-  const monthCount =
-    (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
-    endDate.getUTCMonth() -
-    startDate.getUTCMonth();
-
-  return endDate.getUTCDate() >= startDate.getUTCDate() ? monthCount : monthCount - 1;
-}
-
 function monthTarget(year: number, monthIndex: number, day: number): Date {
   const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
   return new Date(Date.UTC(year, monthIndex, Math.min(day, lastDay)));
@@ -536,22 +376,9 @@ function parseIsoDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-function addUtcDays(value: Date, days: number): Date {
-  const next = new Date(value);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
 
 function formatIsoDate(value: Date): string {
   return value.toISOString().slice(0, 10);
-}
-
-function formatDecimal(value: Decimal): string {
-  return value.toFixed(6);
-}
-
-function fxRateKey(currency: CurrencyCode, rateDate: string): string {
-  return `${currency}:${rateDate}`;
 }
 
 function uniqueValues<T>(values: T[]): T[] {

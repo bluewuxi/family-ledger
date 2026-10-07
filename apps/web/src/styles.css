@@ -1459,7 +1459,7 @@ textarea {
 }
 
 .metric-grid.dashboard-metric-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .monthly-summary-metrics {
@@ -4767,3 +4767,46 @@ tr.editing-row td {
   .transaction-table .transaction-expand-column { min-width:52px; }
 }
 .transaction-form > .spending-hint { grid-column:1 / -1; margin:0; }
+
+/* Investment overview: keep cumulative performance separate from filtered holdings. */
+.portfolio-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 16px; }
+.investment-performance-card > small:not(.metric-currency), .metric-card > small:not(.metric-currency) { display: block; margin-top: 8px; color: var(--color-muted); font-size: 14px; line-height: 1.5; }
+.dashboard-secondary-stats { color: var(--color-muted); font-size: 14px; margin: 14px 0; }
+.valuation-status { margin: 16px 0; padding: 12px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); font-size: 14px; overflow-wrap: anywhere; }
+.valuation-status summary { cursor: pointer; min-height: 44px; display: list-item; align-content: center; line-height: 1.6; }
+.valuation-status p, .panel-description { color: var(--color-muted); line-height: 1.6; font-size: 14px; }
+.dashboard-card-flow.dashboard-chart-flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.dashboard-chart-flow > .flow-card { width: 100%; min-width: 0; box-sizing: border-box; }
+.dashboard-chart-flow > .trade-activity-panel { max-width: none; }
+.trend-tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--color-border); }
+.trend-tabs button { min-height: 44px; padding: 8px 0; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--color-muted); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.trend-tabs button[aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-brand-gold); }
+.trend-tabs button:focus-visible { outline: 2px solid var(--color-brand-gold); outline-offset: 3px; }
+.trend-chart-panel .chart-section-header { flex-wrap: wrap; gap: 12px; }
+.dashboard-chart-flow .trade-activity-row { grid-template-columns: minmax(0, 1fr) max-content; min-height: 44px; white-space: normal; }
+.dashboard-chart-flow .activity-account { text-align: right; }
+.dashboard-chart-flow .activity-trade-instrument { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .dashboard-card-flow.dashboard-chart-flow { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .trend-chart-panel .chart-header-controls { width: 100%; justify-content: space-between; } }
+.filter-results-title { margin: 24px 0 16px; font-size: 18px; }
+.holdings-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.snapshot-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.snapshot-filters label { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.snapshot-filters input, .snapshot-filters button, .snapshot-filters select { min-height: 44px; }
+@media (max-width: 1100px) {
+  .metric-grid.dashboard-metric-grid, .holdings-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .dashboard-card-flow.dashboard-chart-flow { grid-template-columns: minmax(0, 1fr); }
+  .portfolio-overview-metrics { grid-template-columns: minmax(0, 1fr); }
+  .holding-filters select, .dashboard-controls button, .chart-range-select select { min-height: 44px; }
+  .snapshot-filters label { flex: 1 1 180px; }
+  .snapshot-filters input { width: 100%; box-sizing: border-box; }
+}
+@media (max-width: 350px) {
+  .metric-grid.dashboard-metric-grid, .holdings-metrics { grid-template-columns: minmax(0, 1fr); }
+}
+
+.holding-table .price-date-label { font-size: 14px; line-height: 1.5; }
+
+.holding-filters select, .dashboard-controls button, .chart-range-select select { min-height: 44px; }

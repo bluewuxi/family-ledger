@@ -1,8 +1,11 @@
+import { selectTrendHoverDates } from "../apps/web/src/lib/trendHoverPoints";
 import assert from "node:assert/strict";
 import Decimal from "decimal.js";
 import { buildProfitChartData, buildTrendChartData } from "../apps/web/src/lib/trendChartData";
+import { convertSnapshotAmount } from "@family-ledger/shared";
 import type { ExchangeRateRecord, InvestmentTransaction, PortfolioSnapshotSummary } from "@family-ledger/shared";
 import {
+  paginateSnapshotHistory,
   buildPortfolioTrend,
   buildSampledPortfolioPoints,
   calculatePrincipalPoints,
@@ -99,16 +102,16 @@ async function main(): Promise<void> {
     ["2026-06-15", "140", "2026-06-13"]
   ]);
 
-  const longRangeWeekly = buildSampledPortfolioPoints({
+  const longRangeComplete = buildSampledPortfolioPoints({
     snapshots,
     range: "3y",
     rangeStart: "2024-06-15",
     rangeEnd: "2026-06-15"
   });
-  const longRangeDates = longRangeWeekly.map((point) => point.date);
-  assert.equal(longRangeDates.includes("2026-06-08"), true);
+  const longRangeDates = longRangeComplete.map((point) => point.date);
+  assert.equal(longRangeDates.includes("2026-06-08"), false);
   assert.equal(longRangeDates.includes("2026-06-15"), true);
-  assert.equal(longRangeDates.includes("2026-06-13"), false);
+  assert.equal(longRangeDates.includes("2026-06-13"), true);
 
   const historicalTrend = await buildPortfolioTrend({
     currency: "NZD",
@@ -186,6 +189,24 @@ async function main(): Promise<void> {
   });
   assert.equal(weekly.points.find((point) => point.date === "2026-06-01")?.portfolioValue, "1500");
   assert.equal(weekly.points.find((point) => point.date === "2026-06-01")?.snapshotDate, "2026-06-01");
+  const history = [snapshot("2026-05-01", "100"), snapshot("2026-05-02", "110"), snapshot("2026-05-03", "120")];
+  const page = paginateSnapshotHistory(history, { from: "2026-05-02", to: "2026-05-03", order: "desc", limit: 1, offset: 1 }, true);
+  assert.deepEqual(page.pagination, { total: 2, limit: 1, offset: 1, hasMore: false });
+  assert.equal(page.comparisons?.["snapshot-2026-05-02"]?.previousSnapshotDate, "2026-05-01");
+  assert.equal(page.comparisons?.["snapshot-2026-05-02"]?.changeAmount, "10.00");
+  assert.equal(page.comparisons?.["snapshot-2026-05-02"]?.changePct, "10.0000");
+  // Historical FX is attached to each snapshot rather than replaced by current rates.
+  const historicalFxRows = [
+    { ...snapshot("2026-05-01", "0"), marketValue: convertSnapshotAmount("100", "NZD", { usdToNzdRate: "2", usdToCnyRate: "7" }) },
+    { ...snapshot("2026-05-02", "0"), marketValue: convertSnapshotAmount("100", "NZD", { usdToNzdRate: "3", usdToCnyRate: "7" }) }
+  ];
+  assert.equal(paginateSnapshotHistory(historicalFxRows, { from: "2026-05-02", to: "2026-05-02", order: "desc", limit: 20, offset: 0 }, true).comparisons?.["snapshot-2026-05-02"]?.changeAmount, "100.00");
+  const noBaseline = paginateSnapshotHistory(history, { from: "2026-05-01", to: "2026-05-03", order: "asc", limit: 1, offset: 0 }, true);
+  assert.equal(noBaseline.comparisons?.["snapshot-2026-05-01"]?.changeAmount, null);
+  for (const baseline of [null, "0", "-10"]) {
+    const boundary = paginateSnapshotHistory([{ ...history[0]!, marketValue: baseline }, history[1]!], { from: "2026-05-02", to: "2026-05-03", order: "desc", limit: 20, offset: 0 }, true);
+    assert.equal(boundary.comparisons?.["snapshot-2026-05-02"]?.changePct, null);
+  }
   console.log("Portfolio trend verification: success");
 }
 
@@ -263,3 +284,13 @@ function transaction(
     updatedAt: `${tradeDate}T00:00:00.000Z`
   };
 }
+
+const hoverFixture = Array.from({ length: 90 }, (_, index) => ({ date: new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10), value: index, snapshotValue: index, liveValue: null, totalInvestment: 0 }));
+assert.equal(selectTrendHoverDates(hoverFixture, "1m").size, 90);
+const weeklyHover = selectTrendHoverDates(hoverFixture, "3m");
+assert.ok(weeklyHover.size >= 13 && weeklyHover.size <= 15);
+assert.ok(weeklyHover.has(hoverFixture[0]!.date));
+assert.ok(weeklyHover.has(hoverFixture[89]!.date));
+assert.equal(selectTrendHoverDates(hoverFixture, "1y").size, 4);
+assert.equal(selectTrendHoverDates([{ date: "2026-04-01", value: 0, snapshotValue: null, liveValue: null, totalInvestment: 0 }], "1y").size, 0);
+assert.ok(selectTrendHoverDates([{ date: "2026-04-01", value: 10, snapshotValue: null, liveValue: 10, totalInvestment: 0, isSynthetic: true }], "1y").has("2026-04-01"));

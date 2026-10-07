@@ -153,6 +153,8 @@ const routes: Record<string, RouteHandler> = {
         limit: event.queryStringParameters?.limit,
         order: event.queryStringParameters?.order,
         includeTrend: event.queryStringParameters?.includeTrend,
+        offset: event.queryStringParameters?.offset,
+        includeComparison: event.queryStringParameters?.includeComparison,
         trendRange: event.queryStringParameters?.trendRange,
         user
       })

@@ -36,10 +36,12 @@
 - Education logical fund and shared cashflow UI (deployed to test on 2026-10-04, #101): [implementation plan](education-reserve-unification-plan.md); manual multi-currency reserve, dedicated remaining/used summaries, independent domain totals, additive schema and verified seven-entry legacy cutover. Authenticated responsive checks passed at all five required sizes; version-6 backup checks and restore dry-run passed.
 - Family cashflow navigation (deployed to test under #103; authenticated responsive acceptance passed on 2026-10-06): one 家庭收支 entry with 日常交易, 教育收支, and 收支查询 tabs; isolated URL filters and legacy route redirects. No schema or calculation changes.
 - Derived portfolio snapshots (implemented and deployed to test; separate cutover completed on 2026-09-23 after fresh backup and exact parity verification)
-- Dashboard account allocation and holding allocation (implemented)
+- Dashboard account allocation and holding allocation (implemented; securities by account plus pooled cash, with explicit incomplete/negative distribution states)
 - Holding detail page (implemented: account/instrument drill-down with valuation, transactions, dividend summary, linked cash-leg context, and price context)
 - Account detail page (implemented: account-level current value, snapshot trend, holdings, recent transactions, cash balance context, and warnings)
 - Dedicated currency allocation (pending)
+
+- Investment overview performance and layout (implemented locally; deployment pending): API cumulative profit and asset ratio, shared live valuation for dashboard/holdings, default one-year period-profit tab with an asset-trend tab, full curves and sparse hover nodes, and paginated read-only snapshots in data maintenance. Dashboard authenticated responsive acceptance passed on 2026-10-08; holdings and snapshot-tab visual acceptance remain separate. See [investment overview specification](investment-overview-spec.md).
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
@@ -80,7 +82,7 @@
 - Dashboard reporting currency selector (implemented: `NZD`, `USD`, and `CNY`)
 - Holdings reporting currency selector and filters (implemented: account, asset type/cash, and currency filters with valued totals)
 - Dashboard asset trend chart (implemented: uses portfolio snapshots)
-- Dashboard account allocation chart (implemented: uses latest available portfolio snapshot)
+- Dashboard account allocation chart (implemented: uses current investment security values by account and pooled cash)
 - Dashboard daily trade count, holdings allocation chart, and business-day countdown (implemented)
 
 ## Spending Queries and Statements

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { InvestmentPerformanceCard } from "../components/InvestmentPerformanceCard";
+import { ValuationStatus } from "../components/ValuationStatus";
+import { DistributionPanel } from "../components/DistributionPanel";
 import { RefreshCw } from "lucide-react";
 import {
   Area,
   AreaChart,
-  Cell,
   CartesianGrid,
   Line,
-  Pie,
-  PieChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -17,10 +17,8 @@ import {
 import {
   getAppBusinessDate,
   getAppBusinessDayEndInstant,
-  getLocalDateString,
   SNAPSHOT_DISPLAY_CURRENCIES,
   type DashboardSummary,
-  type DashboardWarning,
   type GainColorScheme,
   type InvestmentTransaction,
   type PortfolioSnapshotSummary,
@@ -39,17 +37,17 @@ import {
   formatSignedDisplayPercent
 } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
-import { formatHoursMinutes, formatLocalDateTimeNote } from "../lib/timeFormat";
+import { formatHoursMinutes } from "../lib/timeFormat";
 import {
   buildProfitChartData,
   buildTrendChartData,
-  calculateTrendCumulativeMovement,
-  getLiveValuationDot,
   isSyntheticTrendDate,
   type ProfitChartPoint,
   type TrendChartPoint,
   type TrendPoint
 } from "../lib/trendChartData";
+
+import { selectTrendHoverDates } from "../lib/trendHoverPoints";
 
 interface DashboardResponse {
   dashboard: DashboardSummary;
@@ -64,12 +62,6 @@ interface TransactionsResponse {
   transactions: InvestmentTransaction[];
 }
 
-interface AllocationPoint {
-  name: string;
-  value: number;
-  percentage: number;
-}
-
 interface ColorSplitTrendChartPoint extends TrendChartPoint {
   snapshotPositiveValue: number | null;
   snapshotNegativeValue: number | null;
@@ -82,6 +74,8 @@ interface ColorSplitTrendChartPoint extends TrendChartPoint {
 interface ColorSplitProfitChartPoint extends ProfitChartPoint {
   profitPositiveValue: number | null;
   profitNegativeValue: number | null;
+  profitLivePositiveValue: number | null;
+  profitLiveNegativeValue: number | null;
 }
 
 const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
@@ -93,7 +87,6 @@ const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
   { value: "inception", label: "投资以来" }
 ];
 const dashboardAutoRefreshIntervalMs = 5 * 60 * 1000;
-const allocationColors = ["#5A321C", "#F5B52E", "#C77A22", "#D9534F", "#A85A32", "#9C6B2F"];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 const trendPrincipalColor = "#8A5A24";
 const chartPositiveColor = "var(--color-chart-positive)";
@@ -123,12 +116,12 @@ export function DashboardPage() {
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
-  const [trendRange, setTrendRange] = useState<PortfolioTrendRange>("3m");
+  const [trendView, setTrendView] = useState<"profit" | "assets">("profit");
+  const [trendRange, setTrendRange] = useState<PortfolioTrendRange>("1y");
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
   const [trend, setTrend] = useState<PortfolioTrend | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<InvestmentTransaction[]>([]);
-  const [recentSnapshots, setRecentSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [snapshotsLoading, setSnapshotsLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
@@ -239,14 +232,8 @@ export function DashboardPage() {
     setActivityError(null);
 
     try {
-      const [transactionData, snapshotData] = await Promise.all([
-        apiGet<TransactionsResponse>(
-          "/transactions?purpose=investment&transactionTypes=buy,sell&excludeGeneratedCashLegs=true&excludeCashInstruments=true&limit=10&offset=0"
-        ),
-        apiGet<PortfolioSnapshotsResponse>(`/portfolio-snapshots?purpose=investment&currency=${currency}&limit=16&order=desc`)
-      ]);
+      const transactionData = await apiGet<TransactionsResponse>("/transactions?purpose=investment&transactionTypes=buy,sell&excludeGeneratedCashLegs=true&excludeCashInstruments=true&limit=10&offset=0");
       setRecentTransactions(transactionData.transactions);
-      setRecentSnapshots(snapshotData.snapshots);
     } catch (requestError) {
       setActivityError(toErrorMessage(requestError, "最新动态请求失败，请稍后重试。"));
     } finally {
@@ -270,22 +257,8 @@ export function DashboardPage() {
     [dashboard?.accounts]
   );
   const metrics = [
-    { label: "当前估值", value: formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading), currency: activeCurrency },
-    {
-      label: "行情变动",
-      value: formatPlainTodayChange(dashboard, dashboardLoading),
-      currency: activeCurrency,
-      toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3)
-    },
-    {
-      label: "动态盈亏",
-      value: formatSignedMoneyMetric(dashboard?.unrealizedGain, dashboardLoading),
-      currency: activeCurrency,
-      toneClass: signedToneClass(dashboard?.unrealizedGain, preferences.gainColorScheme, 3)
-    },
-    { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency },
-    { label: "当日交易", value: dashboardLoading ? <LoadingState label="加载中" /> : String(dashboard?.dailyTradeCount ?? 0), compact: true },
-    { label: "账户数量", value: dashboardLoading ? <LoadingState label="加载中" /> : String(dashboard?.accountCount ?? 0), compact: true }
+    { label: "行情变动", value: formatPlainTodayChange(dashboard, dashboardLoading), currency: activeCurrency, toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3) },
+    { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency, toneClass: undefined }
   ];
 
   const trendData = useMemo<TrendPoint[]>(
@@ -316,16 +289,15 @@ export function DashboardPage() {
   );
   const trendChartData = useMemo(
     () =>
-      buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.quoteDate, new Date(), {
-        showLiveConnector: trendRange === "1m"
+      buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.valuationMetadata ? getAppBusinessDate(dashboard.valuationMetadata.valuedAt) : dashboard?.quoteDate, new Date(), {
+        currentTotalInvestment: dashboard?.investmentPerformance?.netInvestment
       }),
-    [dashboard?.quoteDate, dashboard?.totalAssets, trendData, trendRange]
+    [dashboard?.quoteDate, dashboard?.valuationMetadata, dashboard?.investmentPerformance?.netInvestment, dashboard?.totalAssets, trendData, trendRange]
   );
   const colorSplitTrendChartData = useMemo(
     () => buildColorSplitTrendChartData(trendChartData),
     [trendChartData]
   );
-  const liveValuationDot = useMemo(() => getLiveValuationDot(trendChartData), [trendChartData]);
   const trendSummary = useMemo(
     () => buildTrendSummary(trendChartData),
     [trendChartData]
@@ -343,6 +315,7 @@ export function DashboardPage() {
     [profitChartData]
   );
   const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
+  const hoverDates = selectTrendHoverDates(trendView === "assets" ? trendChartData : profitChartData, trendRange);
   const profitValueDomain = useMemo(() => getProfitValueDomain(profitChartData), [profitChartData]);
   const profitValueTicks = useMemo(() => getProfitValueTicks(profitValueDomain), [profitValueDomain]);
   const profitAxisDomain = useMemo<[number, number]>(
@@ -353,44 +326,9 @@ export function DashboardPage() {
     () => getChartToneStyle(preferences.gainColorScheme),
     [preferences.gainColorScheme]
   );
-  const cumulativeMovement = useMemo(
-    () => calculateTrendCumulativeMovement(trendChartData),
-    [trendChartData]
-  );
-  const hasPrincipalWarning = (trend?.summary.warnings.length ?? 0) > 0;
-  const allocationData = useMemo<AllocationPoint[]>(
-    () => {
-      const values = (dashboard?.allocations ?? [])
-        .filter((account) => account.marketValue !== null)
-        .map((account) => ({
-          name: account.name,
-          value: Number(account.marketValue)
-        }))
-        .filter((point) => Number.isFinite(point.value) && point.value > 0);
-      const total = values.reduce((sum, point) => sum + point.value, 0);
-
-      return values.map((point) => ({
-        ...point,
-        percentage: total > 0 ? (point.value / total) * 100 : 0
-      }));
-    },
-    [dashboard]
-  );
-  const holdingAllocationData = useMemo<AllocationPoint[]>(
-    () =>
-      (dashboard?.holdingAllocations ?? [])
-        .filter((allocation) => allocation.marketValue !== null && allocation.percentageOfTotal !== null)
-        .map((allocation) => ({
-          name: allocation.name,
-          value: Number(allocation.marketValue),
-          percentage: Number(allocation.percentageOfTotal)
-        }))
-        .filter((point) => Number.isFinite(point.value) && point.value > 0 && Number.isFinite(point.percentage)),
-    [dashboard?.holdingAllocations]
-  );
+  const hasPrincipalWarning = (trend?.summary.warnings.length ?? 0) > 0 || (dashboard?.investmentPerformance?.warnings.length ?? 0) > 0;
   const trendLoading = snapshotsLoading || !currencyInitialized;
   const allocationLoading = dashboardLoading || !currencyInitialized;
-  const allocationDate = dashboard?.quoteDate ?? (dashboard?.quoteFetchedAt ? getLocalDateString(dashboard.quoteFetchedAt) : "暂无日期");
 
   return (
     <section>
@@ -436,8 +374,10 @@ export function DashboardPage() {
       </p>
 
       <div className="metric-grid dashboard-metric-grid">
+        <article className="metric-card"><span>当前估值</span><small className="metric-currency"><CurrencyFlagIcon currency={activeCurrency} />{activeCurrency}</small><strong>{formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading)}</strong></article>
+        <InvestmentPerformanceCard performance={dashboard?.investmentPerformance} currency={activeCurrency} loading={dashboardLoading} />
         {metrics.map((metric) => (
-          <article className={metric.compact ? "metric-card metric-card-compact" : "metric-card"} key={metric.label}>
+          <article className="metric-card" key={metric.label}>
             <span>{metric.label}</span>
             {metric.currency ? (
               <small className="metric-currency">
@@ -446,17 +386,25 @@ export function DashboardPage() {
               </small>
             ) : null}
             <strong className={metric.toneClass}>{metric.value}</strong>
+            {metric.label === "行情变动" ? <small>当前持仓的价格变动</small> : null}
           </article>
         ))}
       </div>
 
-      {!dashboardLoading && dashboard ? <p className="quote-update-note">{renderQuoteUpdateNote(dashboard)}</p> : null}
+      <p className="dashboard-secondary-stats">当日交易 {dashboardLoading ? "--" : dashboard?.dailyTradeCount ?? 0} · 账户数量 {dashboardLoading ? "--" : dashboard?.accountCount ?? 0}</p>
+      {!dashboardLoading && dashboard ? <ValuationStatus metadata={dashboard.valuationMetadata} performance={dashboard.investmentPerformance} warnings={dashboard.warnings} /> : null}
 
-      <section className="dashboard-card-flow dashboard-chart-flow" aria-label="资产趋势、持仓分布、账户分布、最新成交和快照净值变动">
-        <article className="flow-card chart-panel trend-chart-panel" style={chartToneStyle}>
+      <section className="dashboard-card-flow dashboard-chart-flow" aria-label="投资趋势、持仓分布、证券账户与现金和最新成交">
+        <article className="flow-card chart-panel trend-chart-panel" style={chartToneStyle} id="trend-panel" role="tabpanel" aria-labelledby={`trend-tab-${trendView}`}>
           <div className="chart-section-header">
-            <div>
-              <h2>资产趋势</h2>
+            <div className="trend-tabs" role="tablist" aria-label="趋势视图">
+              {(["profit", "assets"] as const).map(view => <button key={view} id={`trend-tab-${view}`} type="button" role="tab" aria-selected={trendView === view} aria-controls="trend-panel" tabIndex={trendView === view ? 0 : -1} onClick={() => setTrendView(view)} onKeyDown={event => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                const next = event.key === "Home" ? "profit" : event.key === "End" ? "assets" : view === "profit" ? "assets" : "profit";
+                setTrendView(next);
+                document.getElementById(`trend-tab-${next}`)?.focus();
+              }}>{view === "profit" ? "期间盈利" : "资产趋势"}</button>)}
             </div>
             <div className="chart-header-controls">
               <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
@@ -465,7 +413,7 @@ export function DashboardPage() {
               </span>
               <div className="chart-range-select">
                 <select
-                  aria-label="范围"
+                  aria-label="趋势范围"
                   value={trendRange}
                   onChange={(event) => setTrendRange(event.target.value as PortfolioTrendRange)}
                   disabled={trendLoading}
@@ -479,24 +427,18 @@ export function DashboardPage() {
               </div>
             </div>
           </div>
+        {trendView === "assets" ? <>
           {snapshotsError ? <p className="form-error">{snapshotsError}</p> : null}
           {hasPrincipalWarning ? (
-            <p className="form-error">总投入缺少交易日汇率，请补齐汇率数据后查看累计收益。</p>
+            <p className="form-error">累计净投入缺少交易日汇率，请补齐汇率数据后查看累计收益。</p>
           ) : null}
           {trendLoading ? (
             <LoadingBlock label="正在加载资产趋势" />
-          ) : trendData.length === 0 ? (
+          ) : trendChartData.length === 0 ? (
             <div className="empty-chart-state">暂无快照数据</div>
           ) : (
             <>
               <div className="trend-panel-metrics">
-                <div className="trend-movement">
-                  <strong className={signedToneClass(cumulativeMovement, preferences.gainColorScheme, 3)}>
-                    {formatNullableSignedWholeAmount(cumulativeMovement)}
-                  </strong>
-                  <span>{activeCurrency}</span>
-                  <small>累计收益</small>
-                </div>
                 <div className="trend-legend" aria-label="图例">
                   <span>
                     <i className="trend-legend-portfolio" />
@@ -504,7 +446,7 @@ export function DashboardPage() {
                   </span>
                   <span>
                     <i className="trend-legend-principal" />
-                    总投入
+                    累计净投入
                   </span>
                 </div>
               </div>
@@ -532,18 +474,12 @@ export function DashboardPage() {
                     tickLine={false}
                     width={72}
                   />
-                  <Tooltip
-                    shared={false}
-                    contentStyle={chartTooltipContentStyle}
-                    formatter={(value, name) => [formatTooltipMoney(value), formatTrendTooltipName(String(name))]}
-                    labelFormatter={(label) => formatTrendTooltipLabel(String(label))}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                  />
+                  <Tooltip cursor={false} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={false} />} />
                   <Area
+                    isAnimationActive={false}
                     type="stepAfter"
                     dataKey="totalInvestment"
-                    name="总投入"
+                    name="累计净投入"
                     stroke="none"
                     fill="url(#portfolioTrendPrincipalFill)"
                     dot={false}
@@ -552,6 +488,7 @@ export function DashboardPage() {
                     tooltipType="none"
                   />
                   <Area
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="snapshotPositiveRange"
                     name="资产净值"
@@ -562,6 +499,7 @@ export function DashboardPage() {
                     connectNulls={false}
                   />
                   <Area
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="snapshotNegativeRange"
                     name="资产净值"
@@ -572,55 +510,60 @@ export function DashboardPage() {
                     connectNulls={false}
                   />
                   <Line
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="snapshotPositiveValue"
                     name="资产净值"
                     stroke={chartPositiveColor}
                     strokeWidth={2.8}
                     dot={false}
-                    activeDot={{ r: 5 }}
+                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls={false}
                   />
                   <Line
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="snapshotNegativeValue"
                     name="资产净值"
                     stroke={chartNegativeColor}
                     strokeWidth={2.8}
                     dot={false}
-                    activeDot={{ r: 5 }}
+                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls={false}
                   />
                   <Line
+                    isAnimationActive={false}
                     type="stepAfter"
                     dataKey="totalInvestment"
                     stroke={trendPrincipalColor}
                     strokeDasharray="6 5"
                     strokeWidth={2.5}
                     dot={false}
-                    activeDot={{ r: 5 }}
+                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls
                   />
                   <Line
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="livePositiveValue"
-                    name="实时估值"
+                    name="当前估值"
                     stroke={chartPositiveColor}
                     strokeDasharray="3 5"
                     strokeWidth={2}
-                    dot={liveValuationDot}
-                    activeDot={{ r: 5 }}
+                    dot={false}
+                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls={false}
                   />
                   <Line
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="liveNegativeValue"
-                    name="实时估值"
+                    name="当前估值"
                     stroke={chartNegativeColor}
                     strokeDasharray="3 5"
                     strokeWidth={2}
-                    dot={liveValuationDot}
-                    activeDot={{ r: 5 }}
+                    dot={false}
+                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls={false}
                   />
                 </AreaChart>
@@ -643,48 +586,22 @@ export function DashboardPage() {
               ) : null}
             </>
           )}
-        </article>
-
-        <article className="flow-card chart-panel trend-chart-panel" style={chartToneStyle}>
-          <div className="chart-section-header">
-            <div>
-              <h2>期间盈亏</h2>
-            </div>
-            <div className="chart-header-controls">
-              <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
-                <CurrencyFlagIcon currency={activeCurrency} />
-                {activeCurrency}
-              </span>
-              <div className="chart-range-select">
-                <select
-                  aria-label="期间盈亏范围"
-                  value={trendRange}
-                  onChange={(event) => setTrendRange(event.target.value as PortfolioTrendRange)}
-                  disabled={trendLoading}
-                >
-                  {trendRanges.map((range) => (
-                    <option key={range.value} value={range.value}>
-                      {range.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+        </> : null}
+        {trendView === "profit" ? <>
           {hasPrincipalWarning ? (
-            <p className="form-error">总投入缺少交易日汇率，请补齐汇率数据后查看期间盈亏。</p>
+            <p className="form-error">累计净投入缺少交易日汇率，请补齐汇率数据后查看期间盈利。</p>
           ) : null}
           {trendLoading ? (
-            <LoadingBlock label="正在加载期间盈亏" />
+            <LoadingBlock label="正在加载期间盈利" />
           ) : profitChartData.length === 0 ? (
-            <div className="empty-chart-state">暂无期间盈亏数据</div>
+            <div className="empty-chart-state">暂无期间盈利数据</div>
           ) : (
             <>
               <div className="trend-panel-metrics profit-panel-metrics">
                 <div className="trend-legend" aria-label="图例">
                   <span>
                     <i className="trend-legend-profit" />
-                    期间盈亏
+                    期间盈利
                   </span>
                 </div>
               </div>
@@ -710,151 +627,50 @@ export function DashboardPage() {
                     width={72}
                   />
                   <ReferenceLine y={0} stroke="var(--color-chart-grid)" strokeWidth={1.4} />
-                  <Tooltip
-                    shared={false}
-                    contentStyle={chartTooltipContentStyle}
-                    formatter={(value) => [formatSignedTooltipMoney(value), "期间盈亏"]}
-                    labelFormatter={(label) => formatTrendTooltipLabel(String(label))}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                  />
+                  <Tooltip cursor={false} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={true} />} />
                   <Area
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="profitPositiveValue"
-                    name="期间盈亏"
+                    name="期间盈利"
                     stroke={chartPositiveColor}
                     fill="url(#portfolioProfitPositiveFill)"
                     strokeWidth={2.8}
                     dot={false}
-                    activeDot={{ r: 5 }}
+                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls={false}
                   />
                   <Area
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="profitNegativeValue"
-                    name="期间盈亏"
+                    name="期间盈利"
                     stroke={chartNegativeColor}
                     fill="url(#portfolioProfitNegativeFill)"
                     strokeWidth={2.8}
                     dot={false}
-                    activeDot={{ r: 5 }}
+                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls={false}
                   />
+                  <Line isAnimationActive={false} dataKey="profitLivePositiveValue" name="当前估值对应期间盈利" stroke={chartPositiveColor} strokeWidth={0} dot={false} activeDot={props => renderTrendHoverDot(props, hoverDates)} connectNulls={false} />
+                  <Line isAnimationActive={false} dataKey="profitLiveNegativeValue" name="当前估值对应期间盈利" stroke={chartNegativeColor} strokeWidth={0} dot={false} activeDot={props => renderTrendHoverDot(props, hoverDates)} connectNulls={false} />
                 </AreaChart>
               </ResponsiveContainer>
+              <p className="panel-description">所选期间内的盈利变化，已扣除净投入变化。起点为期间首个有效估值；悬停或轻触选定节点可查看数值；最新节点为当前估值。</p>
               {profitSummary ? (
                 <p className="trend-summary">
                   {profitSummary.rangeLabel}，
                   <span className="trend-summary-change">
-                    期间盈亏
+                    期间盈利
                     <span className={signedToneClass(profitSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
                       {profitSummary.changeAmount}
                     </span>
-                    （占期初总资产
-                    <span className={signedToneClass(profitSummary.changePctRaw, preferences.gainColorScheme, 1)}>
-                      {profitSummary.changePct}
-                    </span>
-                    ）
                   </span>
                 </p>
               ) : null}
             </>
           )}
-        </article>
-
-        <article className="flow-card allocation-panel holding-allocation-panel">
-          <div className="allocation-heading">
-            <h2>持仓分布</h2>
-            <span>{allocationDate}</span>
-          </div>
-          {allocationLoading ? (
-            <LoadingBlock label="正在加载持仓分布" />
-          ) : holdingAllocationData.length === 0 ? (
-            <div className="empty-chart-state">暂无持仓估值数据</div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={holdingAllocationData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={54}
-                    outerRadius={86}
-                    paddingAngle={2}
-                  >
-                    {holdingAllocationData.map((entry, index) => (
-                      <Cell key={entry.name} fill={allocationColors[index % allocationColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={chartTooltipContentStyle}
-                    formatter={(value, _name, item) => [formatTooltipMoney(value), (item.payload as AllocationPoint).name]}
-                    itemStyle={chartTooltipItemStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="allocation-list">
-                {holdingAllocationData.map((entry, index) => (
-                  <div className="allocation-row" key={entry.name}>
-                    <span>
-                      <i style={{ background: allocationColors[index % allocationColors.length] }} />
-                      {entry.name}
-                    </span>
-                    <strong>
-                      {formatChartMoney(entry.value)}
-                      <small>{formatPercentage(entry.percentage)}</small>
-                    </strong>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </article>
-
-        <article className="flow-card allocation-panel">
-          <div className="allocation-heading">
-            <h2>账户分布</h2>
-            <span>{allocationDate}</span>
-          </div>
-          {allocationLoading ? (
-            <LoadingBlock label="正在加载账户分布" />
-          ) : allocationData.length === 0 ? (
-            <div className="empty-chart-state">暂无账户估值数据</div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={allocationData} dataKey="value" nameKey="name" innerRadius={54} outerRadius={86} paddingAngle={2}>
-                    {allocationData.map((entry, index) => (
-                      <Cell key={entry.name} fill={allocationColors[index % allocationColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={chartTooltipContentStyle}
-                    formatter={(value, _name, item) => [formatTooltipMoney(value), (item.payload as AllocationPoint).name]}
-                    itemStyle={chartTooltipItemStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="allocation-list">
-                {allocationData.map((entry, index) => (
-                  <div className="allocation-row" key={entry.name}>
-                    <span>
-                      <i style={{ background: allocationColors[index % allocationColors.length] }} />
-                      {entry.name}
-                    </span>
-                    <strong>
-                      {formatChartMoney(entry.value)}
-                      <small>{formatPercentage(entry.percentage)}</small>
-                    </strong>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+        </> : null}
         </article>
 
         <article className="flow-card activity-panel trade-activity-panel">
@@ -895,55 +711,12 @@ export function DashboardPage() {
             </div>
           )}
         </article>
+        <DistributionPanel title="持仓分布" rows={(dashboard?.holdingAllocations ?? []).map(row => ({ id: row.id, name: row.name, marketValue: row.marketValue }))} total={dashboard?.totalAssets} loading={allocationLoading} />
+        <DistributionPanel title="证券账户与现金" description="各账户仅统计证券市值，现金统一汇总。占比以全部投资资产为分母。" rows={dashboard?.allocations ?? []} total={dashboard?.totalAssets} loading={allocationLoading} />
 
-        <article className="flow-card activity-panel snapshot-activity-panel">
-          <div className="activity-panel-header">
-            <div className="activity-title-with-currency">
-              <h2>快照净值变动</h2>
-              <span className="chart-currency-indicator">
-                <CurrencyFlagIcon currency={activeCurrency} />
-                {activeCurrency}
-              </span>
-            </div>
-          </div>
-          {activityLoading ? (
-            <LoadingBlock label="正在加载快照净值变动" />
-          ) : recentSnapshots.length === 0 ? (
-            <div className="empty-chart-state">暂无快照记录</div>
-          ) : (
-            <div className="activity-table-wrap">
-              <div className="activity-list compact-activity-list snapshot-activity-list">
-                {buildSnapshotComparisonRows(recentSnapshots).map((row) => (
-                  <div className="compact-activity-row snapshot-activity-row" key={row.snapshot.id}>
-                    <span className="activity-date">{row.snapshot.snapshotDate}</span>
-                    <strong>{formatNullableAmount(row.snapshot.marketValue)}</strong>
-                    <span className={signedToneClass(row.changeAmount, preferences.gainColorScheme, 3)}>
-                      {formatNullableSignedAmount(row.changeAmount)}
-                    </span>
-                    <span className={signedToneClass(row.changePct, preferences.gainColorScheme, 1)}>
-                      {formatNullableSignedPercent(row.changePct)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </article>
+
       </section>
 
-      {!dashboardLoading && dashboard?.warnings.length ? (
-        <section className="dashboard-warning-panel" aria-label="数据提示">
-          <h2>数据提示</h2>
-          <p>缺少必要数据的指标显示为 --，不会展示不完整的合计金额。</p>
-          <div className="holding-warnings">
-            {dashboard.warnings.map((warning) => (
-              <span className="warning-pill" key={`${warning.code}:${warning.instrumentId}:${warning.currency}`}>
-                {formatWarning(warning)}
-              </span>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </section>
   );
 }
@@ -954,14 +727,6 @@ function formatPlainMoneyMetric(value: string | null | undefined, loading: boole
   }
 
   return value === null || value === undefined ? "--" : formatMetricWholeNumber(value);
-}
-
-function formatSignedMoneyMetric(value: string | null | undefined, loading: boolean): ReactNode {
-  if (loading) {
-    return <LoadingState label="加载中" />;
-  }
-
-  return value === null || value === undefined ? "--" : formatMetricWholeNumber(value, { signed: true });
 }
 
 function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boolean): ReactNode {
@@ -1004,21 +769,6 @@ function formatMetricWholeNumber(value: string | number, options: { signed?: boo
   return formatted;
 }
 
-function renderQuoteUpdateNote(dashboard: DashboardSummary): ReactNode {
-  if (!dashboard.quoteFetchedAt) {
-    return "行情延迟：暂无本次财富足迹报价更新时间。";
-  }
-
-  const formattedTime = formatLocalDateTimeNote(dashboard.quoteFetchedAt, dashboard.quoteFetchedAt);
-
-  return (
-    <>
-      行情估值：更新于 {formattedTime}
-      {dashboard.quoteDate ? <span className="quote-date-nowrap"> 报价日期 {dashboard.quoteDate}</span> : null}
-    </>
-  );
-}
-
 function buildBusinessDayCountdownParts(now: Date): { businessDate: string; remainingTime: string } {
   const businessDate = getAppBusinessDate(now);
   const endInstant = new Date(getAppBusinessDayEndInstant(now));
@@ -1028,21 +778,6 @@ function buildBusinessDayCountdownParts(now: Date): { businessDate: string; rema
     businessDate,
     remainingTime: formatHoursMinutes(remainingMinutes)
   };
-}
-
-function formatWarning(warning: DashboardWarning): string {
-  const instrument = `${warning.instrumentShortName} (${warning.currency})`;
-
-  switch (warning.code) {
-    case "MISSING_LATEST_PRICE":
-      return `${instrument} 缺少最新价格`;
-    case "MISSING_PREVIOUS_PRICE":
-      return `${instrument} 缺少前一收盘价，无法计算行情变动`;
-    case "MISSING_FX_RATE":
-      return `${instrument} 缺少估值汇率`;
-    case "COST_BASIS_UNAVAILABLE":
-      return `${instrument} 成本不可用，无法计算动态盈亏`;
-  }
 }
 
 function buildTrendSummary(chartPoints: TrendChartPoint[]): {
@@ -1080,43 +815,14 @@ function buildTrendSummary(chartPoints: TrendChartPoint[]): {
   };
 }
 
-function buildProfitSummary(chartPoints: ProfitChartPoint[]): {
-  rangeLabel: string;
-  changeAmount: string;
-  changeAmountRaw: string;
-  changePct: string;
-  changePctRaw: string;
-} | null {
-  const profitPoints = chartPoints
-    .map((point) => ({
-      date: point.date,
-      value: point.profitValue,
-      periodStartValue: point.periodStartValue
-    }))
-    .filter(
-      (point): point is { date: string; value: number; periodStartValue: number | null } =>
-        point.value !== null && Number.isFinite(point.value)
-    );
-  const firstPoint = profitPoints[0];
-  const lastPoint = profitPoints.at(-1);
-
-  if (!firstPoint || !lastPoint) {
-    return null;
-  }
-
-  const changeAmount = lastPoint.value - firstPoint.value;
-  const periodStartValue = firstPoint.periodStartValue;
-  const changePct =
-    periodStartValue === null || periodStartValue === 0 ? null : (changeAmount / Math.abs(periodStartValue)) * 100;
-  const endDate = isSyntheticTrendDate(lastPoint.date) ? getAppBusinessDate() : lastPoint.date;
-
-  return {
-    rangeLabel: `${firstPoint.date} 至 ${endDate}`,
-    changeAmount: formatMetricWholeNumber(changeAmount, { signed: true }),
-    changeAmountRaw: String(changeAmount),
-    changePct: changePct === null ? "--" : `${formatSignedDisplayPercent(changePct)}%`,
-    changePctRaw: changePct === null ? "0" : String(changePct)
-  };
+function buildProfitSummary(chartPoints: ProfitChartPoint[]): { rangeLabel: string; changeAmount: string; changeAmountRaw: string } | null {
+  const points = chartPoints.filter(point => point.profitValue !== null && Number.isFinite(point.profitValue));
+  const first = points[0];
+  const last = points.at(-1);
+  if (!first || !last) return null;
+  const amount = last.profitValue! - first.profitValue!;
+  const endDate = isSyntheticTrendDate(last.date) ? getAppBusinessDate() : last.date;
+  return { rangeLabel: `实际统计起点 ${first.date} 至 ${endDate}`, changeAmount: formatMetricWholeNumber(amount, { signed: true }), changeAmountRaw: String(amount) };
 }
 
 function formatTransactionInstrument(transaction: InvestmentTransaction): string {
@@ -1135,29 +841,6 @@ function formatTransactionQuantityPrice(transaction: InvestmentTransaction): str
   return `${formatDisplayAmount(transaction.quantity)}@${formatDisplayAmount(transaction.price)}`;
 }
 
-function buildSnapshotComparisonRows(snapshots: PortfolioSnapshotSummary[]): Array<{
-  snapshot: PortfolioSnapshotSummary;
-  changeAmount: string | null;
-  changePct: string | null;
-}> {
-  // Activity compares persisted snapshot totals, not each snapshot's latest-price dailyChange fields.
-  return snapshots.slice(0, 15).map((snapshot, index) => {
-    const previous = snapshots[index + 1];
-    const currentValue = parseNullableNumber(snapshot.marketValue);
-    const previousValue = parseNullableNumber(previous?.marketValue);
-    const changeAmount = currentValue === null || previousValue === null ? null : currentValue - previousValue;
-    const changePct = changeAmount === null || previousValue === null || previousValue === 0
-      ? null
-      : (changeAmount / previousValue) * 100;
-
-    return {
-      snapshot,
-      changeAmount: changeAmount === null ? null : String(changeAmount),
-      changePct: changePct === null ? null : String(changePct)
-    };
-  });
-}
-
 function parseNullableNumber(value: string | null | undefined): number | null {
   if (value === null || value === undefined) {
     return null;
@@ -1165,22 +848,6 @@ function parseNullableNumber(value: string | null | undefined): number | null {
 
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : null;
-}
-
-function formatNullableAmount(value: string | null | undefined): string {
-  return value === null || value === undefined ? "--" : formatDisplayAmount(value);
-}
-
-function formatNullableSignedAmount(value: string | null): string {
-  return value === null ? "--" : formatSignedDisplayAmount(value);
-}
-
-function formatNullableSignedWholeAmount(value: string | null): string {
-  return value === null ? "--" : formatMetricWholeNumber(value, { signed: true });
-}
-
-function formatNullableSignedPercent(value: string | null): string {
-  return value === null ? "--" : `${formatSignedDisplayPercent(value)}%`;
 }
 
 function formatShortDate(value: string): string {
@@ -1209,7 +876,7 @@ function formatTrendTooltipName(value: string): string {
     case "snapshotNegativeValue":
       return "资产净值";
     case "totalInvestment":
-      return "总投入";
+      return "累计净投入";
     case "liveValue":
     case "livePositiveValue":
     case "liveNegativeValue":
@@ -1242,7 +909,7 @@ function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
 
   if (valueRange === 0) {
     const padding = Math.max(Math.abs(maxValue) * 0.01, 1);
-    return [Math.max(0, minValue - padding), maxValue + padding];
+    return [minValue < 0 ? minValue - padding : Math.max(0, minValue - padding), maxValue + padding];
   }
 
   const padding = valueRange * 0.2;
@@ -1389,6 +1056,7 @@ function buildProfitCrossingPoint(
   point: ProfitChartPoint
 ): ColorSplitProfitChartPoint | null {
   if (
+    point.isSynthetic || previousPoint?.isSynthetic ||
     previousPoint?.profitValue === null ||
     previousPoint?.profitValue === undefined ||
     point.profitValue === null ||
@@ -1405,6 +1073,8 @@ function buildProfitCrossingPoint(
     profitValue: 0,
     profitPositiveValue: 0,
     profitNegativeValue: 0,
+    profitLivePositiveValue: null,
+    profitLiveNegativeValue: null,
     periodStartValue: point.periodStartValue,
     snapshotDate: point.snapshotDate ?? null,
     isSynthetic: true
@@ -1416,8 +1086,10 @@ function toColorSplitProfitPoint(point: ProfitChartPoint): ColorSplitProfitChart
 
   return {
     ...point,
-    profitPositiveValue: point.profitValue !== null && isPositive ? point.profitValue : null,
-    profitNegativeValue: point.profitValue !== null && !isPositive ? point.profitValue : null
+    profitPositiveValue: !point.isSynthetic && point.profitValue !== null && isPositive ? point.profitValue : null,
+    profitNegativeValue: !point.isSynthetic && point.profitValue !== null && !isPositive ? point.profitValue : null,
+    profitLivePositiveValue: point.isSynthetic && point.profitValue !== null && isPositive ? point.profitValue : null,
+    profitLiveNegativeValue: point.isSynthetic && point.profitValue !== null && !isPositive ? point.profitValue : null
   };
 }
 
@@ -1491,11 +1163,6 @@ function formatSignedTooltipMoney(value: unknown): string {
   return Number.isFinite(numericValue) ? formatMetricWholeNumber(numericValue, { signed: true }) : "--";
 }
 
-function formatPercentage(value: number): string {
-  const formatted = formatDisplayPercent(value);
-  return Math.abs(value) < 10 ? ` ${formatted}%` : `${formatted}%`;
-}
-
 function formatCompactMoney(value: number): string {
   if (Math.abs(value) >= 1_000_000) {
     const scaledValue = value / 1_000_000;
@@ -1531,4 +1198,21 @@ function toErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+
+function renderTrendHoverDot(props: unknown, dates: Set<string>): ReactNode {
+  const point = props as { cx?: number; cy?: number; fill?: string; payload?: { date?: string } };
+  return point.payload?.date && dates.has(point.payload.date) ? <circle cx={point.cx} cy={point.cy} r={5} fill={point.fill} stroke="var(--color-surface)" strokeWidth={2} /> : <g />;
+}
+
+function TrendHoverTooltip({ active, payload, label, dates, profit }: { active?: boolean; payload?: readonly { payload?: unknown }[]; label?: unknown; dates: Set<string>; profit: boolean }) {
+  if (!active || typeof label !== "string" || !dates.has(label)) return null;
+  const point = payload?.[0]?.payload as { value?: number | null; totalInvestment?: number | null; snapshotDate?: string } | undefined;
+  if (!point || point.value == null) return null;
+  return <div style={{ ...chartTooltipContentStyle, padding: "10px 12px" }}>
+    <div style={chartTooltipLabelStyle}>{point.snapshotDate ?? label.replace("__live_endpoint__", "")}{label.startsWith("__live_endpoint__") ? " · 当前估值" : ""}</div>
+    <div style={chartTooltipItemStyle}>{profit ? "期间盈利" : "资产净值"}：{profit ? formatSignedTooltipMoney(point.value) : formatTooltipMoney(point.value)}</div>
+    {!profit && point.totalInvestment != null ? <div>累计净投入：{formatTooltipMoney(point.totalInvestment)}</div> : null}
+  </div>;
 }

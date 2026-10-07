@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { calculateHoldings as calculateLedgerHoldings } from "@family-ledger/shared";
+import { calculateInvestmentPerformance } from "../apps/api/src/services/investmentPerformanceService";
+import { buildValuationMetadata } from "../apps/api/src/services/valuationMetadataService";
 import type {
   ExchangeRateRecord,
   DashboardQuoteRecord,
@@ -321,6 +324,58 @@ assert.equal(
   ),
   2
 );
+
+// A closed loss must survive replacement of the current position.
+const ledgerCash = { ...cashInstrument, id: "ledger-cash", currency: "USD" as const };
+const ledgerSecurity = { ...securityInstrument, id: "ledger-security" };
+function ledgerEntry(id: string, kind: InvestmentTransaction["transactionType"], amount: string, cash = false, generated = false): InvestmentTransaction {
+  return { ...transaction(id, cash ? ledgerCash.id : ledgerSecurity.id, kind, id.startsWith("buy2") ? "2026-05-21" : "2026-05-20", generated ? "generated_cash_leg" : "manual", cash ? "cash" : "etf"),
+    grossAmount: amount, quantity: cash ? null : "1", price: cash ? null : amount };
+}
+const lossLedger = [ledgerEntry("initial", "deposit", "100", true), ledgerEntry("buy1", "buy", "100"),
+  ledgerEntry("buy1cash", "withdrawal", "100", true, true), ledgerEntry("sell1", "sell", "80"),
+  ledgerEntry("sell1cash", "deposit", "80", true, true), ledgerEntry("buy2", "buy", "50"), ledgerEntry("buy2cash", "withdrawal", "50", true, true)];
+const lossHoldings = calculateLedgerHoldings(lossLedger, accounts, [ledgerCash, ledgerSecurity]);
+const liveLossQuote = dashboardQuote("loss-quote", ledgerSecurity.id, "2026-05-22", "55", "USD");
+const lossPrices = [price("loss-close", ledgerSecurity.id, "2026-05-21", "52", "USD")];
+const lossDashboard = calculateDashboardSummary(lossHoldings, accounts, lossPrices, [], "USD", [liveLossQuote]);
+const lossValuation = calculateHoldingsValuation(lossHoldings, lossPrices, [], "USD", [liveLossQuote]);
+assert.equal(lossDashboard.totalAssets, "85.00");
+assert.equal(lossDashboard.unrealizedGain, "5.00");
+assert.equal(lossValuation.totalMarketValue, lossDashboard.totalAssets);
+assert.equal(lossValuation.totalUnrealizedGain, lossDashboard.unrealizedGain);
+assert.equal(lossValuation.holdings.find(row => row.instrumentId === ledgerSecurity.id)?.latestPriceKind, "quote");
+const cumulative = calculateInvestmentPerformance({ transactions: lossLedger, businessDate: "2026-05-22", currency: "USD", totalAssets: lossDashboard.totalAssets, exactFxRates: [] });
+assert.equal(cumulative.netInvestment, "100.000000");
+assert.equal(cumulative.investmentProfit, "-15.00");
+assert.equal(cumulative.profitPercentageOfAssets, "-17.6471");
+assert.equal(calculateInvestmentPerformance({ transactions: [...lossLedger, { ...ledgerEntry("future-input", "deposit", "100", true), tradeDate: "2026-05-23" }], businessDate: "2026-05-22", currency: "USD", totalAssets: "85", exactFxRates: [] }).investmentProfit, "-15.00");
+const allClosed = [...lossLedger.slice(0, 5)];
+const closedValue = calculateHoldingsValuation(calculateLedgerHoldings(allClosed, accounts, [ledgerCash, ledgerSecurity]), [], [], "USD");
+assert.equal(closedValue.totalMarketValue, "80.00");
+assert.equal(calculateInvestmentPerformance({ transactions: allClosed, businessDate: "2026-05-22", currency: "USD", totalAssets: closedValue.totalMarketValue, exactFxRates: [] }).investmentProfit, "-20.00");
+const incomeLedger = [...lossLedger, ledgerEntry("dividend", "dividend", "5"), ledgerEntry("dividendcash", "deposit", "5", true, true),
+  ledgerEntry("interest", "interest", "2", true), { ...ledgerEntry("fee", "fee", "0", true), fee: "1" }, { ...ledgerEntry("tax", "tax", "0", true), tax: "1" }];
+const incomeValue = calculateHoldingsValuation(calculateLedgerHoldings(incomeLedger, accounts, [ledgerCash, ledgerSecurity]), lossPrices, [], "USD", [liveLossQuote]);
+assert.equal(calculateInvestmentPerformance({ transactions: incomeLedger, businessDate: "2026-05-22", currency: "USD", totalAssets: incomeValue.totalMarketValue, exactFxRates: [] }).investmentProfit, "-10.00");
+const transferLedger = [...lossLedger, ledgerEntry("internal-out", "withdrawal", "30", true), { ...ledgerEntry("internal-in", "deposit", "30", true), accountId: "account-b" }];
+assert.equal(calculateInvestmentPerformance({ transactions: transferLedger, businessDate: "2026-05-22", currency: "USD", totalAssets: "85", exactFxRates: [] }).investmentProfit, "-15.00");
+const cashFlows = [...lossLedger, ledgerEntry("external-in", "deposit", "20", true), ledgerEntry("external-out", "withdrawal", "10", true)];
+assert.equal(calculateInvestmentPerformance({ transactions: cashFlows, businessDate: "2026-05-22", currency: "USD", totalAssets: "95", exactFxRates: [] }).investmentProfit, "-15.00");
+const opening = [{ ...ledgerEntry("opening", "opening_position", "100"), tradeDate: "2026-05-20" }];
+assert.equal(calculateInvestmentPerformance({ transactions: opening, businessDate: "2026-05-22", currency: "USD", totalAssets: "105", exactFxRates: [] }).investmentProfit, "5.00");
+for (const totalAssets of ["0", "-1", null]) {
+  assert.equal(calculateInvestmentPerformance({ transactions: lossLedger, businessDate: "2026-05-22", currency: "USD", totalAssets, exactFxRates: [] }).profitPercentageOfAssets, null);
+}
+const missingPrincipalFx = calculateInvestmentPerformance({ transactions: [{ ...ledgerEntry("fx-input", "deposit", "100", true), currency: "NZD" }], businessDate: "2026-05-22", currency: "USD", totalAssets: "85", exactFxRates: [] });
+assert.equal(missingPrincipalFx.investmentProfit, null);
+assert.equal(missingPrincipalFx.warnings.length, 1);
+const exactPrincipalRate = { ...fxRates[0]!, rateDate: "2026-05-20", rate: "0.5" };
+assert.equal(calculateInvestmentPerformance({ transactions: [{ ...ledgerEntry("fx-input", "deposit", "100", true), currency: "NZD" }], businessDate: "2026-05-22", currency: "USD", totalAssets: "55", exactFxRates: [exactPrincipalRate] }).investmentProfit, "5.00");
+assert.equal(calculateInvestmentPerformance({ transactions: [], businessDate: "2026-05-22", currency: "USD", totalAssets: "0", exactFxRates: [] }).investmentProfit, "0.00");
+const metadata = buildValuationMetadata(lossValuation.holdings, [], new Date("2026-05-22T10:00:00Z"), "USD");
+assert.equal(metadata.quotedHoldingCount, 1);
+assert.equal(metadata.storedPriceHoldingCount, 0);
 
 const quoteInstrument = instrument(usdSecurity.instrumentId, "yahoo_finance", "US_TEST", "USD");
 let fetchCount = 0;

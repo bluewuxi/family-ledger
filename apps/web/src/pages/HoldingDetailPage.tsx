@@ -141,7 +141,7 @@ export function HoldingDetailPage() {
             />
             <MetricCard label="持仓成本" value={formatNullableAmount(detail.holding.costAmount)} />
             <MetricCard
-              label="动态盈亏"
+              label="未实现盈亏"
               currency={activeCurrency}
               value={formatNullableSignedAmount(detail.holding.unrealizedGain)}
               toneClass={signedToneClass(detail.holding.unrealizedGain, preferences.gainColorScheme, 3)}

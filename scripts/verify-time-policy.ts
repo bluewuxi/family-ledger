@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { normalizeQuery } from "../apps/api/src/services/spendingValidation";
 import { bankDate } from "../apps/api/src/services/spendingCsvParser";
-import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant } from "@family-ledger/shared";
+import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant, shiftCalendarDateMonths } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
 import { formatHoursMinutes } from "../apps/web/src/lib/timeFormat";
 import { buildProfitChartData, buildTrendChartData, calculateTrendCumulativeMovement, getLiveValuationDot } from "../apps/web/src/lib/trendChartData";
@@ -10,6 +10,9 @@ import { buildProfitChartData, buildTrendChartData, calculateTrendCumulativeMove
 void main();
 
 async function main(): Promise<void> {
+  assert.equal(shiftCalendarDateMonths("2026-05-31", -3), "2026-02-28");
+  assert.equal(shiftCalendarDateMonths("2024-05-31", -3), "2024-02-29");
+  assert.throws(() => shiftCalendarDateMonths("2026-02-30", -3));
   // Spending dates use bank-specific calendar formats, never locale guessing or portfolio cutoffs.
   assert.equal(bankDate("20260924", "ccb_debit"), "2026-09-24");
   assert.equal(bankDate("20260924", "ccb_credit"), "2026-09-24");
@@ -59,12 +62,12 @@ async function main(): Promise<void> {
     "2026-05-29",
     aShareOpenTime
   );
-  assert.equal(sameDayLiveChart.length, 3);
+  assert.equal(sameDayLiveChart.length, 2);
   assert.equal(sameDayLiveChart[0]?.date, "2026-05-29");
   assert.equal(sameDayLiveChart[0]?.snapshotValue, 100);
-  assert.equal(sameDayLiveChart[0]?.liveValue, 100);
-  assert.equal(sameDayLiveChart[2]?.date, "__live_endpoint__2026-05-29");
-  assert.equal(sameDayLiveChart[2]?.liveValue, 110);
+  assert.equal(sameDayLiveChart[0]?.liveValue, null);
+  assert.equal(sameDayLiveChart[1]?.date, "__live_endpoint__2026-05-29");
+  assert.equal(sameDayLiveChart[1]?.liveValue, 110);
 
   const previousDayLiveChart = buildTrendChartData(
     [{ date: "2026-05-28", portfolioValue: 100, totalInvestment: null }],
@@ -80,7 +83,7 @@ async function main(): Promise<void> {
     "110",
     "2026-05-29",
     aShareOpenTime,
-    { showLiveConnector: false }
+    {}
   );
   assert.deepEqual(sampledRangeLiveChart, [
     {
@@ -94,12 +97,16 @@ async function main(): Promise<void> {
     {
       date: "2026-05-29",
       value: 110,
-      snapshotValue: 110,
-      liveValue: null,
-      totalInvestment: null
+      snapshotValue: null,
+      liveValue: 110,
+      totalInvestment: null,
+      isSynthetic: true
     }
   ]);
 
+  const currentPrincipalChart = buildTrendChartData([{ date: "2026-05-28", portfolioValue: 100, totalInvestment: 100 }], "120", "2026-05-29", aShareOpenTime, { currentTotalInvestment: "120" });
+  assert.equal(buildProfitChartData(currentPrincipalChart).at(-1)?.profitValue, 0);
+  assert.equal(buildTrendChartData([{ date: "2026-05-28", portfolioValue: 100, totalInvestment: 100 }], "120", "2026-05-29", aShareOpenTime, { currentTotalInvestment: null }).length, 1);
   const profitChart = buildProfitChartData([
     {
       date: "2026-05-28",
@@ -154,7 +161,8 @@ async function main(): Promise<void> {
     assert.equal(calculateTrendCumulativeMovement(isolated), String(Number(liveValue) - 1500));
   }
   assert.equal(getLiveValuationDot(unavailable), false);
-  assert.equal(getLiveValuationDot(sameDayLiveChart), false);
+  assert.deepEqual(getLiveValuationDot(sameDayLiveChart), { r: 4 });
+  assert.equal(sameDayLiveChart.some(point => point.date.startsWith("__live_midpoint__")), false);
   assert.equal(buildProfitChartData(sameDayLiveChart).some((point) => point.date.startsWith("__live_midpoint__")), false);
 
   const staleQuoteChart = buildTrendChartData(

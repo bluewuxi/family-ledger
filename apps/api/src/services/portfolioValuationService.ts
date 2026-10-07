@@ -70,9 +70,10 @@ export function calculateHoldingsValuation(
   holdings: HoldingSummary[],
   prices: PriceRecord[],
   fxRates: ExchangeRateRecord[],
-  reportingCurrency: SnapshotDisplayCurrency = "NZD"
+  reportingCurrency: SnapshotDisplayCurrency = "NZD",
+  dashboardQuotes: DashboardQuoteRecord[] = []
 ): HoldingsValuationSummary {
-  const valuation = calculateValuedHoldings(holdings, prices, fxRates, reportingCurrency);
+  const valuation = calculateValuedHoldings(holdings, prices, fxRates, reportingCurrency, dashboardQuotes);
 
   return {
     reportingCurrency,
@@ -190,6 +191,9 @@ function calculateValuedHoldings(
       latestPrice: latestPrice?.closePrice ?? null,
       latestPriceDate: latestPrice?.priceDate ?? null,
       latestPriceIsEstimated: latestPrice?.isEstimated ?? false,
+      latestPriceSource: latestPrice?.source ?? null,
+      latestPriceKind: latestPrice ? (quotesByInstrument.has(holding.instrumentId) ? "quote" : "stored") : null,
+      quoteFetchedAt: latestPrice && quotesByInstrument.has(holding.instrumentId) ? quotesByInstrument.get(holding.instrumentId)?.fetchedAt ?? null : null,
       valuationWarnings: rowWarnings
     });
   }

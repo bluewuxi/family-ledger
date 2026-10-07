@@ -942,7 +942,46 @@ export interface DashboardHoldingAllocationSummary {
   allocationType: "instrument" | "cash";
 }
 
+export interface InvestmentPerformance {
+  netInvestment: string | null;
+  investmentProfit: string | null;
+  profitPercentageOfAssets: string | null;
+  inceptionDate: string | null;
+  warnings: PortfolioTrendWarning[];
+}
+
+export function shiftCalendarDateMonths(value: string, months: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isInteger(months)) throw new Error("Invalid calendar date or month offset.");
+  const [year, month, day] = value.split("-").map(Number);
+  const original = new Date(Date.UTC(year, month - 1, day));
+  if (toIsoDate(original.getUTCFullYear(), original.getUTCMonth() + 1, original.getUTCDate()) !== value) throw new Error("Invalid calendar date.");
+  const target = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  return toIsoDate(target.getUTCFullYear(), target.getUTCMonth() + 1, Math.min(day, lastDay));
+}
+
+export interface ValuationMetadata {
+  valuedAt: string;
+  fxDateFrom: string | null;
+  fxDateTo: string | null;
+  quotedHoldingCount: number;
+  storedPriceHoldingCount: number;
+  missingPriceHoldingCount: number;
+  priceDateFrom: string | null;
+  priceDateTo: string | null;
+  quoteFetchedAtFrom: string | null;
+  quoteFetchedAtTo: string | null;
+}
+
+export interface SnapshotComparison {
+  previousSnapshotDate: string | null;
+  changeAmount: string | null;
+  changePct: string | null;
+}
+
 export interface DashboardSummary {
+  investmentPerformance?: InvestmentPerformance;
+  valuationMetadata?: ValuationMetadata;
   reportingCurrency: SnapshotDisplayCurrency;
   totalAssets: string | null;
   todayChange: string | null;
@@ -972,6 +1011,9 @@ export interface DashboardQuoteRecord {
 }
 
 export interface ValuedHoldingSummary extends HoldingSummary {
+  latestPriceSource?: string | null;
+  latestPriceKind?: "quote" | "stored" | null;
+  quoteFetchedAt?: string | null;
   reportingCurrency: SnapshotDisplayCurrency;
   marketValue: string | null;
   unrealizedGain: string | null;
@@ -982,6 +1024,8 @@ export interface ValuedHoldingSummary extends HoldingSummary {
 }
 
 export interface HoldingsValuationSummary {
+  investmentPerformance?: InvestmentPerformance;
+  valuationMetadata?: ValuationMetadata;
   reportingCurrency: SnapshotDisplayCurrency;
   totalMarketValue: string | null;
   totalUnrealizedGain: string | null;

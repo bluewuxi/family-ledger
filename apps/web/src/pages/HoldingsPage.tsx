@@ -12,6 +12,8 @@ import {
   type SnapshotDisplayCurrency,
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
+import { InvestmentPerformanceCard } from "../components/InvestmentPerformanceCard";
+import { ValuationStatus } from "../components/ValuationStatus";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
@@ -120,7 +122,7 @@ export function HoldingsPage() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/holdings">持仓总览</PageTitle>
-          <p>按账户、类型和币种查看当前持仓，使用已存储价格和估值汇率显示市值与动态盈亏。</p>
+          <p>按账户、类型和币种查看当前持仓，使用当前或延迟行情、已存储价格及估值汇率显示市值与未实现盈亏。</p>
         </div>
         <div className="dashboard-controls">
           <CurrencySelect
@@ -148,6 +150,12 @@ export function HoldingsPage() {
 
       {error ? <p className="form-error">{error}</p> : null}
 
+      <div className="metric-grid portfolio-overview-metrics">
+        <article className="metric-card"><span>当前估值 · 全部投资账户</span><small className="metric-currency">{activeCurrency}</small><strong>{formatMetric(summary?.totalMarketValue ?? null, pageLoading)}</strong></article>
+        <InvestmentPerformanceCard performance={summary?.investmentPerformance} currency={activeCurrency} loading={pageLoading} fullScope />
+      </div>
+      {!pageLoading && summary ? <ValuationStatus metadata={summary.valuationMetadata} performance={summary.investmentPerformance} warnings={summary.warnings} /> : null}
+      <h2 className="filter-results-title">筛选结果</h2>
       <div className="holding-filters">
         <label>
           账户
@@ -186,7 +194,7 @@ export function HoldingsPage() {
 
       <div className="metric-grid holdings-metrics">
         <article className="metric-card">
-          <span>总市值</span>
+          <span>筛选结果市值</span>
           <small className="metric-currency">
             <CurrencyFlagIcon currency={activeCurrency} />
             {activeCurrency}
@@ -194,17 +202,7 @@ export function HoldingsPage() {
           <strong>{formatMetric(visibleTotals.totalMarketValue, pageLoading)}</strong>
         </article>
         <article className="metric-card">
-          <span>动态盈亏</span>
-          <small className="metric-currency">
-            <CurrencyFlagIcon currency={activeCurrency} />
-            {activeCurrency}
-          </small>
-          <strong className={signedToneClass(visibleTotals.totalUnrealizedGain, preferences.gainColorScheme, 3)}>
-            {formatSignedMetric(visibleTotals.totalUnrealizedGain, pageLoading)}
-          </strong>
-        </article>
-        <article className="metric-card">
-          <span>现金</span>
+          <span>筛选结果现金</span>
           <small className="metric-currency">
             <CurrencyFlagIcon currency={activeCurrency} />
             {activeCurrency}
@@ -212,12 +210,8 @@ export function HoldingsPage() {
           <strong>{formatMetric(visibleCashTotal, pageLoading)}</strong>
         </article>
         <article className="metric-card metric-card-compact">
-          <span>持仓数量</span>
+          <span>筛选结果持仓数量</span>
           <strong>{pageLoading ? <LoadingState label="加载中" /> : String(visibleHoldings.length)}</strong>
-        </article>
-        <article className="metric-card metric-card-compact">
-          <span>数据提示</span>
-          <strong>{pageLoading ? <LoadingState label="加载中" /> : String(summary?.warnings.length ?? 0)}</strong>
         </article>
       </div>
 
@@ -234,7 +228,7 @@ export function HoldingsPage() {
               <th className="numeric-cell">剩余成本</th>
               <th className="numeric-cell">最新价格</th>
               <th className="numeric-cell">市值 ({activeCurrency})</th>
-              <th className="numeric-cell">动态盈亏 ({activeCurrency})</th>
+              <th className="numeric-cell">未实现盈亏 ({activeCurrency})</th>
               <th>数据提示</th>
             </tr>
           </thead>
@@ -285,18 +279,15 @@ export function HoldingsPage() {
 
 function summarizeVisibleHoldings(holdings: ValuedHoldingSummary[]): {
   totalMarketValue: string | null;
-  totalUnrealizedGain: string | null;
 } {
   if (holdings.length === 0) {
-    return { totalMarketValue: "0.00", totalUnrealizedGain: "0.00" };
+    return { totalMarketValue: "0.00" };
   }
 
   const marketValues = holdings.map((holding) => holding.marketValue);
-  const gains = holdings.filter((holding) => holding.assetType !== "cash").map((holding) => holding.unrealizedGain);
 
   return {
-    totalMarketValue: marketValues.every((value): value is string => value !== null) ? sumMoney(marketValues) : null,
-    totalUnrealizedGain: gains.every((value): value is string => value !== null) ? sumMoney(gains) : null
+    totalMarketValue: marketValues.every((value): value is string => value !== null) ? sumMoney(marketValues) : null
   };
 }
 
@@ -321,14 +312,6 @@ function formatMetric(value: string | null, loading: boolean): ReactNode {
   }
 
   return value === null ? "--" : formatDisplayAmount(value);
-}
-
-function formatSignedMetric(value: string | null, loading: boolean): ReactNode {
-  if (loading) {
-    return <LoadingState label="加载中" />;
-  }
-
-  return value === null ? "--" : formatSignedDisplayAmount(value);
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {

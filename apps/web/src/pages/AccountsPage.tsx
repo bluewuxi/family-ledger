@@ -962,7 +962,7 @@ function renderAccountHoldings(
             <th className="numeric-cell">剩余成本</th>
             <th className="numeric-cell">最新价格</th>
             <th className="numeric-cell">市值 ({reportingCurrency})</th>
-            <th className="numeric-cell">动态盈亏 ({reportingCurrency})</th>
+            <th className="numeric-cell">未实现盈亏 ({reportingCurrency})</th>
             <th>数据提示</th>
           </tr>
         </thead>

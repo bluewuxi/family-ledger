@@ -1,4 +1,5 @@
 import { PaginationControls } from "../components/PaginationControls";
+import { AssetSnapshotsTab } from "../components/AssetSnapshotsTab";
 import { type FormEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { CloudDownload, Eye, Filter, RefreshCw } from "lucide-react";
 import type {
@@ -26,7 +27,7 @@ import { formatDisplayPrice } from "../lib/numberFormat";
 import { isInteractiveRowTarget } from "../lib/tableInteraction";
 import { formatLocalDateTime } from "../lib/timeFormat";
 
-type DataMaintenanceTab = "sources" | "fx" | "prices" | "logs" | "backups" | "restore";
+type DataMaintenanceTab = "sources" | "fx" | "prices" | "snapshots" | "logs" | "backups" | "restore";
 
 interface DataSourcesResponse {
   user: AuthenticatedUser;
@@ -120,6 +121,7 @@ const emptyBackupSummary: DataMaintenanceBackupSummary = { latestRun: null, late
 export function DataMaintenancePage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [activeTab, setActiveTab] = useState<DataMaintenanceTab>("sources");
+  const [snapshotRefreshVersion, setSnapshotRefreshVersion] = useState(0);
   const [dataSources, setDataSources] = useState<MarketDataSourceSummary[]>([]);
   const [kernelAnchors, setKernelAnchors] = useState<KernelPriceAnchor[]>([]);
   const [kernelDrawerOpen, setKernelDrawerOpen] = useState(false);
@@ -390,15 +392,15 @@ export function DataMaintenancePage() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/data-maintenance">数据维护</PageTitle>
-          <p>查看数据源、汇率、价格、任务日志、数据备份和数据恢复说明。写入由 Lambda API 和计划任务负责。</p>
+          <p>查看数据源、汇率、价格、资产快照、任务日志、数据备份和数据恢复说明。写入由 Lambda API 和计划任务负责。</p>
         </div>
-        <button className="secondary-button" type="button" onClick={() => void loadActiveTab(0)} disabled={loading || triggeringKind !== null}>
+        <button className="secondary-button" type="button" onClick={() => activeTab === "snapshots" ? setSnapshotRefreshVersion(value => value + 1) : void loadActiveTab(0)} disabled={loading || triggeringKind !== null}>
           <RefreshCw size={16} aria-hidden="true" />
           刷新
         </button>
       </header>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {activeTab !== "snapshots" && error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
       <div className="tabs" role="tablist" aria-label="数据维护分类">
@@ -411,6 +413,7 @@ export function DataMaintenancePage() {
         <button className={activeTab === "prices" ? "active" : undefined} type="button" onClick={() => setActiveTab("prices")}>
           价格
         </button>
+        <button className={activeTab === "snapshots" ? "active" : undefined} type="button" onClick={() => setActiveTab("snapshots")}>资产快照</button>
         <button className={activeTab === "logs" ? "active" : undefined} type="button" onClick={() => setActiveTab("logs")}>
           任务日志
         </button>
@@ -425,6 +428,7 @@ export function DataMaintenancePage() {
       {activeTab === "sources" ? renderSourcesTab() : null}
       {activeTab === "fx" ? renderFxTab() : null}
       {activeTab === "prices" ? renderPricesTab() : null}
+      {activeTab === "snapshots" ? <AssetSnapshotsTab refreshVersion={snapshotRefreshVersion} /> : null}
       {activeTab === "logs" ? renderLogsTab() : null}
       {activeTab === "backups" ? renderBackupsTab() : null}
       {activeTab === "restore" ? renderRestoreTab() : null}

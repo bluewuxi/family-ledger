@@ -9,7 +9,7 @@ import type {
   InvestmentTransaction,
   PriceSource
 } from "@family-ledger/shared";
-import { getAppBusinessDate } from "@family-ledger/shared";
+import { calculateHoldings, getAppBusinessDate } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
 import {
   listDashboardQuotes,
@@ -25,10 +25,11 @@ import type {
   InstrumentQuoteProviderInstrument
 } from "../providers/IInstrumentQuoteProvider";
 import { YahooFinanceInstrumentQuoteProvider } from "../providers/YahooFinanceInstrumentQuoteProvider";
-import { calculateHoldings } from "./holdingService";
-import { calculateDashboardSummary } from "./portfolioValuationService";
+import { calculateDashboardSummary, calculateHoldingsValuation } from "./portfolioValuationService";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { listValuationRatesForHoldings } from "./valuationMarketDataService";
+import { getInvestmentPerformance } from "./investmentPerformanceService";
+import { buildValuationMetadata } from "./valuationMetadataService";
 
 export { calculateDashboardSummary } from "./portfolioValuationService";
 
@@ -40,6 +41,10 @@ interface DashboardQuoteRepository {
 }
 
 export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<DashboardSummary> {
+  return (await getCurrentInvestmentPortfolio(input)).dashboard;
+}
+
+export async function getCurrentInvestmentPortfolio(input: { currency?: string; user?: AuthenticatedUser } = {}) {
   const now = new Date();
   const businessDate = getAppBusinessDate(now);
   const reportingCurrency = await resolveReportingCurrency(input);
@@ -49,7 +54,8 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
     listInstruments()
   ]);
   const { accounts: investmentAccounts, transactions: investmentTransactions } = selectInvestmentLedger(accounts, transactions);
-  const preliminaryHoldings = calculateHoldings(investmentTransactions, investmentAccounts, instruments);
+  const currentTransactions = investmentTransactions.filter(transaction => transaction.tradeDate <= businessDate);
+  const preliminaryHoldings = calculateHoldings(currentTransactions, investmentAccounts, instruments);
   const securityInstruments = uniqueBy(
     preliminaryHoldings
       .filter((holding) => holding.assetType !== "cash")
@@ -60,12 +66,12 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
     listLatestPrices(securityInstruments),
     listValuationRatesForHoldings({
       valuationDate: businessDate,
-      transactions: investmentTransactions,
+      transactions: currentTransactions,
       holdings: preliminaryHoldings,
       reportingCurrency
     })
   ]);
-  const holdings = calculateHoldings(investmentTransactions, investmentAccounts, instruments, fxRates);
+  const holdings = calculateHoldings(currentTransactions, investmentAccounts, instruments, { fxRates });
   const dashboardQuotes = await refreshDashboardQuotes({
     holdings,
     instruments,
@@ -73,7 +79,14 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
   });
   const dailyTradeCount = countDailyTrades(investmentTransactions, instruments, businessDate);
 
-  return calculateDashboardSummary(holdings, investmentAccounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
+  const dashboard = calculateDashboardSummary(holdings, investmentAccounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
+  const valuedHoldings = calculateHoldingsValuation(holdings, prices, fxRates, reportingCurrency, dashboardQuotes);
+  const investmentPerformance = await getInvestmentPerformance({ totalAssets: dashboard.totalAssets, transactions: currentTransactions, currency: reportingCurrency, businessDate });
+  const valuationMetadata = buildValuationMetadata(valuedHoldings.holdings, fxRates, now, reportingCurrency);
+  return {
+    dashboard: { ...dashboard, investmentPerformance, valuationMetadata },
+    holdings: { ...valuedHoldings, investmentPerformance, valuationMetadata }
+  };
 }
 
 export function selectInvestmentLedger(accounts: InvestmentAccount[], transactions: InvestmentTransaction[]) {
