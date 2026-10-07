@@ -11,7 +11,7 @@ const RESTORE_ORDER = [
   "user_roles",
   "investment_accounts",
   "instruments",
-  "kernel_price_anchors",
+  "kernel_price_anchors", "kernel_nta_refresh_state",
   "exchange_rates",
   "transactions",
   "education_reserve_funds",
@@ -80,7 +80,7 @@ function validatePrimaryKeys(payload: LedgerBackupPayload): void {
   for (const name of RESTORE_ORDER) {
     const table = { name };
     const rows = payload.tables[table.name] as Array<Record<string, unknown>>;
-    const primaryKey = table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
+    const primaryKey = table.name === "kernel_nta_refresh_state" ? "instrument_id" : table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
     const values = rows.map((row) => row[primaryKey]).filter((value) => value !== null && value !== undefined);
 
     if (values.length !== rows.length) {
@@ -94,6 +94,8 @@ function validatePrimaryKeys(payload: LedgerBackupPayload): void {
 }
 
 function validateInternalReferences(payload: LedgerBackupPayload): void {
+  requireKnownValues(payload.tables.kernel_nta_refresh_state, "kernel_nta_refresh_state", "instrument_id", idSet(payload.tables.instruments));
+  requireKnownValues(payload.tables.kernel_price_anchors, "kernel_price_anchors", "derived_from_anchor_id", idSet(payload.tables.kernel_price_anchors));
   requireKnownValues(payload.tables.education_reserve_funds, "education_reserve_funds", "legacy_account_id", idSet(payload.tables.investment_accounts));
   requireKnownValues(payload.tables.education_reserve_entries, "education_reserve_entries", "fund_id", idSet(payload.tables.education_reserve_funds));
   requireKnownValues(payload.tables.education_reserve_entries, "education_reserve_entries", "legacy_transaction_id", idSet(payload.tables.transactions));

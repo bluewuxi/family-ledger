@@ -1,307 +1,53 @@
 import assert from "node:assert/strict";
-import {
-  MARKET_DATA_SOURCE_DEFINITIONS,
-  getKernelValuationDateForNzxSession,
-  parseYahooFinanceDailyBars,
-  selectPreferredPriceRecord,
-  type KernelPriceAnchor,
-  type PriceRecord
-} from "@family-ledger/shared";
+import { parseNzxNtaAnnouncements, fetchNzxUsfNta, prepareKernelNtaPlan, getKernelValuationDateForNzxSession, type KernelPriceAnchor } from "@family-ledger/shared";
 import { KernelEstimatedInstrumentPriceProvider } from "../apps/jobs/src/providers/KernelEstimatedInstrumentPriceProvider";
-import {
-  calculateKernelEstimates,
-  resolveMarketDataSourceStatus
-} from "../apps/api/src/services/marketDataSourceService";
-
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
-
-async function main(): Promise<void> {
-  assert.deepEqual(
-    MARKET_DATA_SOURCE_DEFINITIONS.map((source) => source.key),
-    ["frankfurter", "yahoo_finance", "eastmoney", "fundrock", "kernel_estimate"]
-  );
-  assert.equal(resolveMarketDataSourceStatus("kernel_estimate", 0, 0), "needs_configuration");
-  assert.equal(resolveMarketDataSourceStatus("kernel_estimate", 1, 1), "ready");
-  assert.equal(resolveMarketDataSourceStatus("kernel_estimate", 0, 1), "inactive");
-  assert.equal(resolveMarketDataSourceStatus("yahoo_finance", 0, 0), "inactive");
-  assert.equal(resolveMarketDataSourceStatus("frankfurter", null, 0), "ready");
-
-  const response = yahooResponse([
-    ["2026-09-30T21:00:00Z", 10, 10.25],
-    ["2026-10-01T21:00:00Z", 11, 11.25]
-  ]);
-  const beforeClose = parseYahooFinanceDailyBars(response, {
-    sourceSymbol: "USF.NZ",
-    expectedCurrency: "NZD",
-    expectedExchangeTimeZone: "Pacific/Auckland",
-    fetchedAt: "2026-10-01T23:00:00Z",
-    confirmationCutoff: { timeZone: "Pacific/Auckland", hour: 17, minute: 15 }
-  });
-  assert.deepEqual(beforeClose.bars, [{ priceDate: "2026-10-01", openPrice: "10", closePrice: "10.25" }]);
-
-  const afterClose = parseYahooFinanceDailyBars(response, {
-    sourceSymbol: "USF.NZ",
-    expectedCurrency: "NZD",
-    expectedExchangeTimeZone: "Pacific/Auckland",
-    fetchedAt: "2026-10-02T05:00:00Z",
-    confirmationCutoff: { timeZone: "Pacific/Auckland", hour: 17, minute: 15 }
-  });
-  assert.equal(afterClose.bars.at(-1)?.priceDate, "2026-10-02");
-
-  const liveResponse = yahooResponse([
-    ["2026-09-30T21:00:00Z", 10, 10.25],
-    ["2026-10-01T00:00:00Z", null, 10.5],
-    ["2026-10-01T21:00:00Z", 11, null]
-  ]);
-  const confirmedOpens = parseYahooFinanceDailyBars(liveResponse, {
-    sourceSymbol: "USF.NZ",
-    expectedCurrency: "NZD",
-    expectedExchangeTimeZone: "Pacific/Auckland",
-    fetchedAt: "2026-10-01T21:10:00Z",
-    requiredPriceField: "open",
-    confirmationCutoff: { timeZone: "Pacific/Auckland", hour: 10, minute: 5 }
-  });
-  assert.deepEqual(confirmedOpens.bars, [
-    { priceDate: "2026-10-01", openPrice: "10", closePrice: "10.5" },
-    { priceDate: "2026-10-02", openPrice: "11" }
-  ]);
-  const beforeOpeningCutoff = parseYahooFinanceDailyBars(liveResponse, {
-    sourceSymbol: "USF.NZ",
-    expectedCurrency: "NZD",
-    expectedExchangeTimeZone: "Pacific/Auckland",
-    fetchedAt: "2026-10-01T21:04:00Z",
-    requiredPriceField: "open",
-    confirmationCutoff: { timeZone: "Pacific/Auckland", hour: 10, minute: 5 }
-  });
-  assert.equal(beforeOpeningCutoff.bars.at(-1)?.priceDate, "2026-10-01");
-  const confirmedCloses = parseYahooFinanceDailyBars(liveResponse, {
-    sourceSymbol: "USF.NZ",
-    expectedCurrency: "NZD",
-    expectedExchangeTimeZone: "Pacific/Auckland",
-    fetchedAt: "2026-10-01T21:10:00Z"
-  });
-  assert.deepEqual(confirmedCloses.bars, [
-    { priceDate: "2026-10-01", openPrice: "10", closePrice: "10.5" }
-  ]);
-
-  const winter = parseYahooFinanceDailyBars(yahooResponse([["2026-07-01T22:00:00Z", 9.5, 9.75]]), {
-    sourceSymbol: "USF.NZ",
-    expectedCurrency: "NZD",
-    expectedExchangeTimeZone: "Pacific/Auckland",
-    fetchedAt: "2026-07-02T06:00:00Z"
-  });
-  assert.equal(winter.bars[0]?.priceDate, "2026-07-02");
-  assert.equal(getKernelValuationDateForNzxSession("2026-10-01"), "2026-09-30");
-  assert.equal(getKernelValuationDateForNzxSession("2026-09-28"), "2026-09-25");
-
-  const anchors = [anchor("a1", "2026-09-30", "5", "10", "2026-10-01", "2026-10-01T00:00:00Z")];
-  assert.deepEqual(
-    calculateKernelEstimates(
-      [
-        { priceDate: "2026-09-30", openPrice: "9", closePrice: "9.1" },
-        { priceDate: "2026-10-01", openPrice: "10", closePrice: "10.1" },
-        { priceDate: "2026-10-02", openPrice: "11", closePrice: "11.1" }
-      ],
-      anchors,
-      "2026-10-02T05:00:00Z"
-    ),
-    [{ priceDate: "2026-10-01", closePrice: "5.5000000000", fetchedAt: "2026-10-02T05:00:00Z" }]
-  );
-
-  const revised = anchor("a2", "2026-09-30", "6", "10", "2026-10-01", "2026-10-02T00:00:00Z");
-  assert.equal(
-    calculateKernelEstimates(
-      [{ priceDate: "2026-10-02", openPrice: "11", closePrice: "99" }],
-      [anchors[0]!, revised],
-      "now"
-    )[0]?.closePrice,
-    "6.6000000000"
-  );
-  assert.equal(
-    calculateKernelEstimates(
-      [{ priceDate: "2026-10-02", openPrice: "11", closePrice: "99" }],
-      [
-        anchor("legacy", "2026-09-30", "99", "9", "2026-09-30", "2026-10-03T00:00:00Z"),
-        anchors[0]!
-      ],
-      "now"
-    )[0]?.closePrice,
-    "5.5000000000"
-  );
-  assert.deepEqual(
-    calculateKernelEstimates(
-      [{ priceDate: "2026-09-30", openPrice: "9", closePrice: "99" }],
-      [anchor("legacy", "2026-09-30", "99", "9", "2026-09-30", "2026-10-03T00:00:00Z")],
-      "now"
-    ),
-    []
-  );
-  assert.equal(
-    calculateKernelEstimates(
-      [{ priceDate: "2026-10-02", openPrice: "1.00000000005", closePrice: "999" }],
-      [anchor("rounding", "2026-09-30", "1", "1", "2026-10-01", "2026-10-01T00:00:00Z")],
-      "now"
-    )[0]?.closePrice,
-    "1.0000000001"
-  );
-  assert.equal(
-    calculateKernelEstimates(
-      [{ priceDate: "2026-10-05", openPrice: "15", closePrice: "999" }],
-      [anchors[0]!, anchor("later", "2026-10-01", "7", "14", "2026-10-02", "2026-10-02T05:00:00Z")],
-      "now"
-    )[0]?.closePrice,
-    "7.5000000000"
-  );
-
-  const exact = priceRecord("exact", false, "Kernel Anchor");
-  const estimate = priceRecord("estimate", true, "Kernel Estimate (USF.NZ)");
-  assert.equal(selectPreferredPriceRecord([estimate, exact]).id, "exact");
-
-  const provider = new KernelEstimatedInstrumentPriceProvider({
-    fetchFn: async () => ({ ok: true, status: 200, async json() { return response; } }),
-    listAnchors: async () => anchors
-  });
-  const providerResult = await provider.fetchLatestPrices({
-    fetchedAt: "2026-10-02T05:00:00Z",
-    instruments: [{
-      instrumentId: "kernel-instrument",
-      sourceSymbol: "USF.NZ",
-      providerInstrumentName: "Kernel S&P 500 (Unhedged) Fund",
-      currency: "NZD",
-      sourceExchange: "NZX"
-    }]
-  });
-  assert.deepEqual(providerResult.prices, [{
-    sourceSymbol: "USF.NZ",
-    priceDate: "2026-10-01",
-    closePrice: "5.5000000000",
-    currency: "NZD",
-    isEstimated: true
-  }]);
-
-  const exactDateProvider = new KernelEstimatedInstrumentPriceProvider({
-    fetchFn: async () => ({ ok: true, status: 200, async json() { return response; } }),
-    listAnchors: async () => [anchor("exact-date", "2026-10-01", "5.5", "11", "2026-10-02", "2026-10-02T05:00:00Z")]
-  });
-  const exactDateResult = await exactDateProvider.fetchLatestPrices({
-    fetchedAt: "2026-10-02T05:00:00Z",
-    instruments: [{
-      instrumentId: "kernel-instrument",
-      sourceSymbol: "USF.NZ",
-      providerInstrumentName: "Kernel S&P 500 (Unhedged) Fund",
-      currency: "NZD",
-      sourceExchange: "NZX"
-    }]
-  });
-  assert.deepEqual(exactDateResult.prices, []);
-  assert.deepEqual(exactDateResult.skippedSourceSymbols, ["USF.NZ"]);
-
-  await assert.rejects(
-    new KernelEstimatedInstrumentPriceProvider({
-      fetchFn: async () => ({ ok: true, status: 200, async json() { return response; } }),
-      listAnchors: async () => []
-    }).fetchLatestPrices({
-      fetchedAt: "2026-10-02T05:00:00Z",
-      instruments: [{
-        instrumentId: "kernel-instrument",
-        sourceSymbol: "USF.NZ",
-        providerInstrumentName: "Kernel S&P 500 (Unhedged) Fund",
-        currency: "NZD",
-        sourceExchange: "NZX"
-      }]
-    }),
-    /no applicable price anchor/
-  );
-  await assert.rejects(
-    provider.fetchLatestPrices({
-      fetchedAt: "2026-10-02T05:00:00Z",
-      instruments: [{
-        instrumentId: "kernel-instrument",
-        sourceSymbol: "USF.NZ",
-        providerInstrumentName: "Kernel S&P 500 (Unhedged) Fund",
-        currency: "NZD",
-        sourceExchange: "NASDAQ"
-      }]
-    }),
-    /invalid proxy configuration/
-  );
-  await assert.rejects(
-    new KernelEstimatedInstrumentPriceProvider({
-      fetchFn: async () => ({ ok: false, status: 503, async json() { return {}; } }),
-      listAnchors: async () => anchors
-    }).fetchLatestPrices({
-      fetchedAt: "2026-10-02T05:00:00Z",
-      instruments: [{
-        instrumentId: "kernel-instrument",
-        sourceSymbol: "USF.NZ",
-        providerInstrumentName: "Kernel S&P 500 (Unhedged) Fund",
-        currency: "NZD",
-        sourceExchange: "NZX"
-      }]
-    }),
-    /status 503/
-  );
-
-  console.log("Kernel price estimation verification: success");
+import { getUnconfirmedMarketCloseReason } from "../apps/jobs/src/services/marketClosePolicy";
+import { applyKernelNtaPlan } from "../apps/jobs/src/services/kernelNtaRefreshService";
+const fetchedAt = "2026-10-07T01:00:00Z";
+const anchor: KernelPriceAnchor = { id: "root", instrumentId: "kernel", anchorDate: "2026-09-30", kernelUnitPrice: "6.67", proxySymbol: "USF.NZ", proxyCurrency: "NZD", proxyClose: "23.6", proxyPriceDate: "2026-10-01", proxyFetchedAt: fetchedAt, createdByUserId: "actor", createdAt: "2026-10-02T08:25:57Z" };
+const row = (date:string,price:string,id:number,published=1791230000) => ({ id,companyCode:"USF",securityCode:"USF",title:"USF NTA " + date + " $" + price,publicationDate:published });
+async function main() {
+ const rows = [row("01-10-2026","23.60990",1),row("02-10-2026","23.81728",2),row("05-10-2026","23.93025",3),row("06-10-2026","24.19392",4)];
+ const records = parseNzxNtaAnnouncements(rows,fetchedAt);
+ const plan = prepareKernelNtaPlan([anchor],records,fetchedAt);
+ assert.deepEqual(plan.estimates.map(p=>[p.priceDate,p.closePrice]),[["2026-10-01","6.7285866353"],["2026-10-02","6.7605016328"],["2026-10-05","6.8349906776"]]);
+ assert.equal(getKernelValuationDateForNzxSession("2026-10-05"),"2026-10-02");
+ assert.throws(()=>prepareKernelNtaPlan([anchor],records.slice(1),fetchedAt),/No corresponding/);
+ const revised = {...row("06-10-2026","24.20000",5),title:"AMENDED: USF NTA 06-10-2026 $24.20000"};
+ assert.equal(parseNzxNtaAnnouncements([...rows,revised],fetchedAt).at(-1)?.unitNta,"24.20000");
+ assert.equal(parseNzxNtaAnnouncements([...rows,row("07-10-2026","25",6,Date.parse(fetchedAt)/1000+1)],fetchedAt).length,4);
+ for (const invalid of [row("32-10-2026","1",8),row("06-10-2026","0",8),{...rows[0],companyCode:"BAD"},{...rows[0],publicationDate:"invalid"},{...rows[0],title:"USF NTA bad"}]) assert.throws(()=>parseNzxNtaAnnouncements([invalid],fetchedAt));
+ const corrected = {...anchor,id:"new-root",kernelUnitPrice:"7",createdAt:"2026-10-03T00:00:00Z"};
+ const derived = {...anchor,id:"derived",derivedFromAnchorId:anchor.id,createdAt:"2026-10-07T00:00:00Z"};
+ assert.equal(prepareKernelNtaPlan([anchor,corrected,derived],records,fetchedAt).anchors[0].id,"new-root");
+ const sparse = prepareKernelNtaPlan([anchor],records.filter(r=>r.ntaDate!=="2026-10-05"),fetchedAt);
+ assert(!sparse.estimates.some(e=>e.priceDate==="2026-10-02"));
+ const requests:string[]=[];
+ await fetchNzxUsfNta({fromDate:"2025-12-31",fetchedAt},async url=>{requests.push(url);return new Response("[]");});
+ assert.equal(requests.length,2);
+ await assert.rejects(fetchNzxUsfNta({fromDate:"2026-09-30",fetchedAt},async()=>new Response("",{status:503})),/request failed/);
+ const provider = new KernelEstimatedInstrumentPriceProvider({listAnchors:async()=>[anchor],fetchFn:async()=>new Response(JSON.stringify(rows))});
+ const result = await provider.fetchLatestPrices({fetchedAt,instruments:[{instrumentId:"kernel",sourceSymbol:"USF.NZ",currency:"NZD",providerInstrumentName:"Kernel",sourceExchange:"NZX"}]});
+ assert.deepEqual(result.kernelNtaPlans?.[0].estimates,plan.estimates);
+ let completed = false;
+ const dependencies = {
+   refresh: async () => ({ pending_snapshot_from: "2026-10-01", refresh_token: "retry", changed_count: 0 }),
+   listDates: async () => ["2026-10-01", "2026-10-02"],
+   recalculate: async (_date: string) => { throw new Error("Snapshot write failed"); },
+   complete: async () => { completed = true; }
+ };
+ await assert.rejects(applyKernelNtaPlan(plan, dependencies), /Snapshot write failed/);
+ assert.equal(completed, false);
+ const recalculated: string[] = [];
+ await applyKernelNtaPlan(plan, { ...dependencies, recalculate: async date => { recalculated.push(date); } });
+ assert.deepEqual(recalculated, ["2026-10-01", "2026-10-02"]);
+ assert.equal(completed, true);
+ recalculated.length = 0;
+ await applyKernelNtaPlan(plan, { ...dependencies,
+   refresh: async () => ({ pending_snapshot_from: null, refresh_token: "unchanged", changed_count: 0 }),
+   recalculate: async date => { recalculated.push(date); } });
+ assert.equal(recalculated.length, 0);
+ assert.equal(getUnconfirmedMarketCloseReason({priceDate:"2026-10-06",fetchedAt:"2026-10-06T00:00:00Z",priceSource:"kernel_estimate",sourceExchange:"NZX"}),null);
+ console.log("Kernel NTA estimation verification: success");
 }
-
-function anchor(
-  id: string,
-  anchorDate: string,
-  kernelUnitPrice: string,
-  proxyClose: string,
-  proxyPriceDate: string,
-  createdAt: string
-): KernelPriceAnchor {
-  return {
-    id,
-    instrumentId: "kernel-instrument",
-    anchorDate,
-    kernelUnitPrice,
-    proxySymbol: "USF.NZ",
-    proxyCurrency: "NZD",
-    proxyClose,
-    proxyPriceDate,
-    proxyFetchedAt: createdAt,
-    createdByUserId: "user-id",
-    createdAt
-  };
-}
-
-function priceRecord(id: string, isEstimated: boolean, source: string): PriceRecord {
-  return {
-    id,
-    instrumentId: "kernel-instrument",
-    priceDate: "2026-10-01",
-    closePrice: "5",
-    currency: "NZD",
-    source,
-    sourceSymbol: "USF.NZ",
-    isAdjusted: false,
-    isEstimated,
-    createdAt: "2026-10-01T00:00:00Z",
-    updatedAt: "2026-10-01T00:00:00Z"
-  };
-}
-
-function yahooResponse(rows: Array<[string, number | null, number | null]>): unknown {
-  return {
-    chart: {
-      result: [{
-        meta: { symbol: "USF.NZ", currency: "NZD", exchangeTimezoneName: "Pacific/Auckland" },
-        timestamp: rows.map(([timestamp]) => Date.parse(timestamp) / 1000),
-        indicators: {
-          quote: [{
-            open: rows.map(([, open]) => open),
-            close: rows.map(([, , close]) => close)
-          }],
-          adjclose: [{ adjclose: rows.map(() => 999) }]
-        }
-      }],
-      error: null
-    }
-  };
-}
+main().catch(error=>{console.error(error);process.exitCode=1;});

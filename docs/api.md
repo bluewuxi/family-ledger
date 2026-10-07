@@ -185,9 +185,9 @@ A revision guard returns `409 CONFLICT` when accounts, instruments, transactions
 }
 ```
 
-The request date is Kernel's US-market valuation date. The API loads `USF.NZ` daily bars, selects the corresponding raw NZX-session open after the Kernel date, verifies that the proxy session maps back to that valuation date, and saves both dates through a service-role-only atomic database function. It replaces Kernel estimate rows through the latest confirmed proxy session and recalculates affected snapshots. Generated prices retain the mapped Kernel/global valuation date; an anchor is applicable only after both its Kernel valuation date and stored proxy date. An identical retry is idempotent. A same-date correction appends another revision; the newest-created revision wins. The first anchor enables automatic updates, while later anchors preserve an administrator's manual disabled state.
+The request date is Kernel's US-market valuation date. The API fetches published USF NTA announcements and requires a reference date mapping back to that valuation date. It atomically writes an NTA anchor and recomputes the available estimate history, then recalculates affected snapshots. The request shape is unchanged. Anchor responses add `proxyValueType`, `proxyAnnouncementId`, `proxyPublishedAt`, and `derivedFromAnchorId`; decimal values remain strings. The compatibility `proxyClose` field contains NTA for `nta` records, or the historical open for `open` records. Derived references do not change actual-price revision priority. Identical actual-anchor retries are idempotent; the first anchor enables updates and subsequent refreshes preserve disabled state.
 
-The endpoint returns `DATA_SOURCE_DATE_UNAVAILABLE` when no confirmed later `USF.NZ` session open is available for the supplied Kernel date and `DATA_SOURCE_UNAVAILABLE` when Yahoo Finance cannot provide usable proxy data. It never accepts, stores, or replays Kernel login credentials.
+The endpoint returns `DATA_SOURCE_DATE_UNAVAILABLE` for a missing corresponding published NTA and `DATA_SOURCE_UNAVAILABLE` for unusable NZX data. It never falls back to a market price. Snapshot failures leave pending work for retry; callers can safely retry. Kernel login credentials are never accepted or stored.
 
 ### User Preferences API
 

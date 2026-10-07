@@ -36,7 +36,7 @@ const marketCloseRulesByExchange = new Map<string, MarketCloseRule>([
 ]);
 
 export function getUnconfirmedMarketCloseReason(input: MarketCloseConfirmationInput): string | null {
-  if (input.priceSource !== "yahoo_finance" && input.priceSource !== "eastmoney" && input.priceSource !== "kernel_estimate") {
+  if (input.priceSource !== "yahoo_finance" && input.priceSource !== "eastmoney") {
     return null;
   }
 

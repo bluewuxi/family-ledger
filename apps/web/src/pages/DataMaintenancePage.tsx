@@ -242,10 +242,10 @@ export function DataMaintenancePage() {
       setKernelAnchors(anchorData.anchors);
       setAnchorDate("");
       setKernelUnitPrice("");
-      setNotice("锚点已保存，并已按下一 NZX 交易日的 USF.NZ 开盘价重新计算估算价格。");
+      setNotice("锚点已保存，并已按下一 NZX 交易日的 USF 公布净值（NTA）重新计算估算价格。");
     } catch (requestError) {
       if (requestError instanceof ApiClientError && requestError.code === "DATA_SOURCE_DATE_UNAVAILABLE") {
-        setError("所选 Kernel 估值日期之后暂无已确认的 USF.NZ 开盘价，请稍后重试或检查日期。");
+        setError("所选 Kernel 估值日期之后暂无已公布的 USF 净值（NTA），请稍后重试或检查日期。");
       } else if (requestError instanceof ApiClientError && requestError.code === "DATA_SOURCE_UNAVAILABLE") {
         setError("USF.NZ 数据源暂时不可用，请稍后重试。");
       } else {
@@ -777,7 +777,7 @@ export function DataMaintenancePage() {
   }
 
   function renderKernelDrawer() {
-    const latestAnchor = kernelAnchors[0] ?? null;
+    const latestAnchor = kernelAnchors.find(anchor => !anchor.derivedFromAnchorId) ?? null;
     const kernelSource = dataSources.find((source) => source.key === "kernel_estimate") ?? null;
     return (
       <Drawer
@@ -796,13 +796,13 @@ export function DataMaintenancePage() {
             <h3>估算方法</h3>
             <dl className="detail-grid">
               <div><dt>目标基金</dt><dd>Kernel S&P 500 (Unhedged)</dd></div>
-              <div><dt>代理标的</dt><dd>USF.NZ（NZD，下一交易日开盘价）</dd></div>
+              <div><dt>代理标的</dt><dd>USF（NZD，公布净值 NTA）</dd></div>
               <div><dt>当前状态</dt><dd>{kernelSource ? formatSourceStatus(kernelSource.status) : "-"}</dd></div>
               <div><dt>最新锚点</dt><dd>{latestAnchor?.anchorDate ?? "尚未配置"}</dd></div>
               <div><dt>最新准确价格</dt><dd>{latestAnchor ? formatDisplayPrice(latestAnchor.kernelUnitPrice) : "-"}</dd></div>
             </dl>
-            <p className="form-hint">估算价格 = 锚点基金价格 × USF.NZ 开盘价 ÷ 锚点对应的 USF.NZ 开盘价。</p>
-            <p className="form-hint">Kernel 日期按美国市场估值日填写；系统使用下一 NZX 交易日的开盘价，并把后续估算记录在对应的前一美国市场估值日。周末和假期后的开盘价可能包含额外市场变动。</p>
+            <p className="form-hint">估算价格 = 实际基准基金价格 × 对应日期的 USF 净值 ÷ 基准对应的 USF 净值。</p>
+            <p className="form-hint">Kernel 日期按美国市场估值日填写；系统使用下一 NZX 交易日日期对应的 USF 公布净值（NTA），并将估算记录在对应的前一估值日。尚未公布时沿用最近价格；缺失日期不补值。</p>
             <p className="form-hint">该结果属于估算，可能因费用、现金和分红日期差异产生偏差。建议每季度及基金分红后新增锚点。</p>
           </section>
 
@@ -839,14 +839,14 @@ export function DataMaintenancePage() {
             <h3>锚点历史</h3>
             <div className="table-wrap">
               <table className="kernel-anchor-table">
-                <thead><tr><th>Kernel 估值日期</th><th className="numeric-cell">Kernel 价格</th><th>USF 开盘日期</th><th className="numeric-cell">USF.NZ 开盘价</th><th>创建时间</th></tr></thead>
+                <thead><tr><th>Kernel 估值日期</th><th className="numeric-cell">Kernel 价格</th><th>USF 参考日期</th><th className="numeric-cell">USF 参考值</th><th>创建时间</th></tr></thead>
                 <tbody>
                   {kernelAnchors.length === 0 ? <EmptyRow colSpan={5} label="暂无锚点。" /> : kernelAnchors.map((anchor) => (
                     <tr key={anchor.id}>
                       <td>{anchor.anchorDate}</td>
                       <td className="numeric-cell">{formatDisplayPrice(anchor.kernelUnitPrice)}</td>
                       <td>{anchor.proxyPriceDate}</td>
-                      <td className="numeric-cell">{formatDisplayPrice(anchor.proxyClose)}</td>
+                      <td className="numeric-cell">{formatDisplayPrice(anchor.proxyClose)}（{anchor.proxyValueType === "nta" ? "净值" : "历史开盘价"}）</td>
                       <td>{formatDateTime(anchor.createdAt)}</td>
                     </tr>
                   ))}

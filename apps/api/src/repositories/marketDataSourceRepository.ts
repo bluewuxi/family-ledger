@@ -1,3 +1,4 @@
+import { kernelNtaRpcArguments, type KernelNtaPlan } from "@family-ledger/shared";
 import type {
   CurrencyCode,
   DataProviderRun,
@@ -12,6 +13,10 @@ interface KernelInstrumentRow {
 }
 
 interface KernelAnchorRow {
+  proxy_value_type: "open" | "nta";
+  proxy_announcement_id: number | null;
+  proxy_published_at: string | null;
+  derived_from_anchor_id: string | null;
   id: string;
   instrument_id: string;
   anchor_date: string;
@@ -38,12 +43,6 @@ interface ProviderRunRow {
   error_message: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface KernelEstimateWrite {
-  priceDate: string;
-  closePrice: string;
-  fetchedAt: string;
 }
 
 export async function findKernelEstimateInstrument(): Promise<KernelInstrumentRow | null> {
@@ -87,65 +86,10 @@ export async function findLatestProviderRun(provider: string): Promise<DataProvi
 
 export async function listKernelPriceAnchors(): Promise<KernelPriceAnchor[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("kernel_price_anchors")
-    .select(kernelAnchorSelect)
-    .order("anchor_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .returns<KernelAnchorRow[]>();
-  if (error) throw new Error("Failed to load Kernel price anchors.");
-  return data.map(mapKernelAnchor);
+  const { data, error } = await supabase.rpc("list_kernel_nta_anchors");
+  if (error || !Array.isArray(data)) throw new Error("Failed to load Kernel price anchors.");
+  return (data as KernelAnchorRow[]).map(mapKernelAnchor);
 }
-
-export async function saveKernelPriceAnchor(input: {
-  instrumentId: string;
-  anchorDate: string;
-  kernelUnitPrice: string;
-  proxySymbol: string;
-  proxyCurrency: CurrencyCode;
-  proxyClose: string;
-  proxyPriceDate: string;
-  proxyFetchedAt: string;
-  createdByUserId: string;
-  estimates: KernelEstimateWrite[];
-}): Promise<KernelPriceAnchor> {
-  const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase.rpc("save_kernel_price_anchor", {
-    p_target_instrument_id: input.instrumentId,
-    p_anchor_date: input.anchorDate,
-    p_kernel_unit_price: input.kernelUnitPrice,
-    p_proxy_symbol: input.proxySymbol,
-    p_proxy_currency: input.proxyCurrency,
-    p_proxy_close: input.proxyClose,
-    p_proxy_price_date: input.proxyPriceDate,
-    p_proxy_fetched_at: input.proxyFetchedAt,
-    p_created_by_user_id: input.createdByUserId,
-    p_estimates: input.estimates.map((estimate) => ({
-      price_date: estimate.priceDate,
-      close_price: estimate.closePrice,
-      fetched_at: estimate.fetchedAt
-    }))
-  });
-  if (error || !data) throw new Error("Failed to save the Kernel price anchor.");
-  const row = (Array.isArray(data) ? data[0] : data) as KernelAnchorRow | undefined;
-  if (!row) throw new Error("Kernel price anchor save returned no row.");
-  return mapKernelAnchor(row);
-}
-
-const kernelAnchorSelect = [
-  "id",
-  "instrument_id",
-  "anchor_date",
-  "kernel_unit_price",
-  "proxy_symbol",
-  "proxy_currency",
-  "proxy_close",
-  "proxy_price_date",
-  "proxy_fetched_at",
-  "created_by_user_id",
-  "created_at"
-].join(", ");
 
 const providerRunSelect = [
   "id",
@@ -164,6 +108,8 @@ const providerRunSelect = [
 
 function mapKernelAnchor(row: KernelAnchorRow): KernelPriceAnchor {
   return {
+    proxyValueType: row.proxy_value_type, proxyAnnouncementId: row.proxy_announcement_id,
+    proxyPublishedAt: row.proxy_published_at, derivedFromAnchorId: row.derived_from_anchor_id,
     id: row.id,
     instrumentId: row.instrument_id,
     anchorDate: row.anchor_date,
@@ -193,4 +139,16 @@ function mapProviderRun(row: ProviderRunRow): DataProviderRun {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+export async function refreshKernelNta(plan: KernelNtaPlan): Promise<{ pending_snapshot_from: string | null; refresh_token: string; changed_count: number }> {
+  const db = await getSupabaseAdmin();
+  const { data, error } = await db.rpc("refresh_kernel_nta", kernelNtaRpcArguments(plan));
+  if (error || !data) throw new Error("Kernel NTA atomic refresh failed.");
+  return data;
+}
+export async function completeKernelNtaSnapshots(instrumentId: string, token: string): Promise<void> {
+  const db = await getSupabaseAdmin();
+  const { error } = await db.rpc("complete_kernel_nta_snapshots", { p_instrument_id: instrumentId, p_refresh_token: token });
+  if (error) throw new Error("Kernel NTA snapshot completion failed.");
 }

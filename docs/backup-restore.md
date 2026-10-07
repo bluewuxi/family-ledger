@@ -28,7 +28,7 @@ The Lambda checks for active batch jobs before export and again before S3 write.
 
 ## Exact Numeric Values
 
-Version 4 serializes spending amounts as strings. Version 5 also serializes Kernel anchor prices and proxy values as strings. The legacy `proxy_close` column now carries the aligned `USF.NZ` raw opening value. These values must stay strings throughout verification and restore so JavaScript cannot truncate PostgreSQL `numeric` precision. Existing numeric values from older tables retain their established backup representation.
+Version 4 serializes spending amounts as strings. Version 5 also serializes Kernel anchor prices and proxy values as strings. Version 7 adds NTA metadata and pending Kernel snapshot refresh state. The compatibility `proxy_close` value is interpreted using `proxy_value_type`: published NTA for `nta`, historical open for `open`. Older backups restore absent metadata as `open`; restore actual anchor roots before derived references. These values must stay strings throughout verification and restore so JavaScript cannot truncate PostgreSQL `numeric` precision. Existing numeric values from older tables retain their established backup representation.
 
 ## Storage
 

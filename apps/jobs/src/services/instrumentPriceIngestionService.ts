@@ -1,3 +1,4 @@
+import { applyKernelNtaPlan } from "./kernelNtaRefreshService";
 import type {
   CreateInstrumentPriceInput,
   DataKind,
@@ -373,6 +374,16 @@ async function runProvider(input: {
           instruments: toProviderInstruments(instruments, providerConfig.providerInstrumentNames),
           fetchedAt
         });
+    if (providerResult.kernelNtaPlans) {
+      let changed = 0;
+      for (const plan of providerResult.kernelNtaPlans) changed += await applyKernelNtaPlan(plan);
+      const finishedProviderRun = await jobRunRepository.finishDataProviderRun(dataProviderRun.id, {
+        status: "succeeded", finishedAt: now().toISOString(), recordsInserted: changed, recordsSkipped: 0
+      });
+      return { status: "succeeded", result: { provider: providerConfig.provider.name, priceSource: providerConfig.priceSource,
+        dataProviderRun: finishedProviderRun, fetchedAt: providerResult.fetchedAt, recordsInserted: changed,
+        recordsSkipped: 0, recordsSkippedByClosePolicy: 0, instrumentPrices: [] } };
+    }
     const priceInputs = toInstrumentPriceInputs(
       instruments,
       providerResult.prices,

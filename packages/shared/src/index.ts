@@ -267,7 +267,7 @@ export const MARKET_DATA_SOURCE_DEFINITIONS: MarketDataSourceDefinition[] = [
   {
     key: "kernel_estimate",
     name: "Kernel S&P 500 (Unhedged) Estimate",
-    runProviderName: "Kernel Estimate (USF.NZ)",
+    runProviderName: "Kernel Estimate (USF NTA)",
     capabilities: ["instrument_prices"],
     acquisitionMethod: "proxy_estimate",
     configurationType: "kernel_anchor",
@@ -1287,13 +1287,17 @@ export interface MarketDataSourceSummary {
 }
 
 export interface KernelPriceAnchor {
+  proxyValueType?: "open" | "nta";
+  proxyAnnouncementId?: number | null;
+  proxyPublishedAt?: string | null;
+  derivedFromAnchorId?: string | null;
   id: string;
   instrumentId: string;
   anchorDate: string;
   kernelUnitPrice: string;
   proxySymbol: string;
   proxyCurrency: CurrencyCode;
-  /** Legacy field name retained for backup/API compatibility; stores the raw proxy opening price. */
+  /** Compatibility value: raw open for legacy anchors, published NTA for nta anchors. */
   proxyClose: string;
   proxyPriceDate: string;
   proxyFetchedAt: string;
@@ -1981,3 +1985,5 @@ export interface TransactionsResponse {
   pagination: Pagination;
   linkedCashLegs?: InvestmentTransaction[];
 }
+
+export * from "./nzxNta";

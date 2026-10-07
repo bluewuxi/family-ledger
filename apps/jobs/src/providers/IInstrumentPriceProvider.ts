@@ -22,6 +22,7 @@ export interface InstrumentPriceProviderPrice {
 }
 
 export interface InstrumentPriceProviderResult {
+  kernelNtaPlans?: import("@family-ledger/shared").KernelNtaPlan[];
   provider: string;
   fetchedAt: string;
   prices: InstrumentPriceProviderPrice[];

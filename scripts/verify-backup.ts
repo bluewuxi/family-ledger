@@ -45,10 +45,10 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 6);
+  assert.equal(backupObject.payload.manifest.version, 7);
   const version5 = structuredClone(backupObject.payload);
   version5.manifest.version = 5;
-  const educationTables = ["education_reserve_funds", "education_reserve_entries"];
+  const educationTables = ["education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
   version5.manifest.tables = version5.manifest.tables.filter(t => !educationTables.includes(t.name));
   version5.manifest.tableOrder = version5.manifest.tableOrder.filter(t => !educationTables.includes(t));
   for (const name of educationTables) delete (version5.tables as unknown as Record<string, unknown>)[name];
@@ -75,7 +75,7 @@ async function runSelfTests(): Promise<void> {
   assert.equal((cleanSpending.account_statements[0] as Record<string, unknown>).total_count, 1);
   const previous = structuredClone(backupObject.payload);
   previous.manifest.version = 2;
-  const newTables = ["spending_accounts", "account_statements", "statement_rows", "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"];
+  const newTables = ["spending_accounts", "account_statements", "statement_rows", "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
   previous.manifest.tables = previous.manifest.tables.filter((table) => !newTables.includes(table.name));
   previous.manifest.tableOrder = previous.manifest.tableOrder.filter((name) => !newTables.includes(name));
   for (const name of newTables) delete (previous.tables as unknown as Record<string, unknown>)[name];
@@ -90,10 +90,11 @@ async function runSelfTests(): Promise<void> {
   const asVersion3 = (value: LedgerBackupPayload) => {
     const copy = structuredClone(value);
     copy.manifest.version = 3;
-    const removed = ["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"];
+    const removed = ["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
     copy.manifest.tables = copy.manifest.tables.filter((table) => !removed.includes(table.name));
     copy.manifest.tableOrder = copy.manifest.tableOrder.filter((name) => !removed.includes(name));
     delete (copy.tables as unknown as Record<string, unknown>).kernel_price_anchors;
+    delete (copy.tables as unknown as Record<string, unknown>).kernel_nta_refresh_state;
     delete (copy.tables as unknown as Record<string, unknown>).education_reserve_funds;
     delete (copy.tables as unknown as Record<string, unknown>).education_reserve_entries;
     const {payloadChecksumSha256: _p, fileChecksumSha256: _f, ...manifest} = copy.manifest;
@@ -104,8 +105,9 @@ async function runSelfTests(): Promise<void> {
   assert.deepEqual(prepareLedgerRestoreRows(asVersion3(backupObject.payload)).statement_rows, []);
   const version4 = structuredClone(backupObject.payload);
   version4.manifest.version = 4;
-  version4.manifest.tables = version4.manifest.tables.filter((table) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"].includes(table.name));
-  version4.manifest.tableOrder = version4.manifest.tableOrder.filter((name) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries"].includes(name));
+  delete (version4.tables as unknown as Record<string, unknown>).kernel_nta_refresh_state;
+  version4.manifest.tables = version4.manifest.tables.filter((table) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"].includes(table.name));
+  version4.manifest.tableOrder = version4.manifest.tableOrder.filter((name) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"].includes(name));
   delete (version4.tables as unknown as Record<string, unknown>).kernel_price_anchors;
   delete (version4.tables as unknown as Record<string, unknown>).education_reserve_funds;
   delete (version4.tables as unknown as Record<string, unknown>).education_reserve_entries;

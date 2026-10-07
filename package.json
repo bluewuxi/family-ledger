@@ -68,7 +68,9 @@
     "verify:education-reserve-db": "tsx scripts/verify-education-reserve-db.ts",
     "inspect:education-reserve:test": "tsx scripts/inspect-education-reserve.ts",
     "migrate:education-reserve:test": "tsx scripts/migrate-education-reserve.ts",
-    "apply:education-reserve-schema:test": "tsx scripts/apply-education-reserve-schema.ts"
+    "apply:education-reserve-schema:test": "tsx scripts/apply-education-reserve-schema.ts",
+    "repair:kernel-nta:test": "tsx scripts/repair-kernel-nta-history.ts",
+    "apply:kernel-nta-schema:test": "tsx scripts/apply-kernel-nta-schema.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",

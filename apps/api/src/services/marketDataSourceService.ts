@@ -1,29 +1,27 @@
 import Decimal from "decimal.js";
+import { randomUUID } from "node:crypto";
+import { fetchNzxUsfNta, prepareKernelNtaPlan, type KernelNtaPlan } from "@family-ledger/shared";
 import {
   MARKET_DATA_SOURCE_DEFINITIONS,
-  fetchYahooFinanceDailyBars,
-  getKernelValuationDateForNzxSession,
   type AuthenticatedUser,
   type CreateKernelPriceAnchorInput,
   type KernelPriceAnchor,
   type MarketDataSourceKey,
   type MarketDataSourceSummary,
   type MarketDataSourceStatus,
-  type YahooFinanceDailyBar
 } from "@family-ledger/shared";
 import {
   countEnabledPriceTargets,
   findKernelEstimateInstrument,
   findLatestProviderRun,
   listKernelPriceAnchors,
-  saveKernelPriceAnchor,
-  type KernelEstimateWrite
+  refreshKernelNta,
+  completeKernelNtaSnapshots,
 } from "../repositories/marketDataSourceRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
 
 const KERNEL_PROXY_SYMBOL = "USF.NZ";
-const KERNEL_PROXY_TIME_ZONE = "Pacific/Auckland";
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function getMarketDataSources(): Promise<MarketDataSourceSummary[]> {
@@ -78,100 +76,34 @@ export async function createKernelPriceAnchor(
   if (!instrument) throw new ApiRequestError("INTERNAL_ERROR", "Kernel estimate instrument is not configured.", 500);
 
   const fetchedAt = now().toISOString();
-  let bars: YahooFinanceDailyBar[];
-  try {
-    const result = await fetchYahooFinanceDailyBars({
-      sourceSymbol: KERNEL_PROXY_SYMBOL,
-      expectedCurrency: "NZD",
-      expectedExchangeTimeZone: KERNEL_PROXY_TIME_ZONE,
-      fetchedAt,
-      fromDate: input.anchorDate,
-      requiredPriceField: "open",
-      confirmationCutoff: { timeZone: KERNEL_PROXY_TIME_ZONE, hour: 10, minute: 5 }
-    });
-    bars = result.bars;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (message.includes("no confirmed daily open")) {
-      throw new ApiRequestError(
-        "DATA_SOURCE_DATE_UNAVAILABLE",
-        "No confirmed next-session USF.NZ opening price is available after the selected Kernel valuation date.",
-        422
-      );
-    }
-    throw new ApiRequestError("DATA_SOURCE_UNAVAILABLE", "USF.NZ market data is currently unavailable.", 502);
-  }
-
-  const anchorBar = bars.find((bar) => bar.priceDate > input.anchorDate);
-  if (!anchorBar || getKernelValuationDateForNzxSession(anchorBar.priceDate) !== input.anchorDate) {
-    throw new ApiRequestError(
-      "DATA_SOURCE_DATE_UNAVAILABLE",
-      "No confirmed next-session USF.NZ opening price is available after the selected Kernel valuation date.",
-      422
-    );
-  }
-  if (!anchorBar.openPrice) {
-    throw new ApiRequestError("DATA_SOURCE_UNAVAILABLE", "USF.NZ opening-price data is currently unavailable.", 502);
-  }
-
   const existingAnchors = await listKernelPriceAnchors();
-  const candidate: KernelPriceAnchor = {
-    id: "candidate",
-    instrumentId: instrument.id,
-    anchorDate: input.anchorDate,
-    kernelUnitPrice: input.kernelUnitPrice,
-    proxySymbol: KERNEL_PROXY_SYMBOL,
-    proxyCurrency: "NZD",
-    proxyClose: anchorBar.openPrice,
-    proxyPriceDate: anchorBar.priceDate,
-    proxyFetchedAt: fetchedAt,
-    createdByUserId: user.id,
-    createdAt: fetchedAt
+  const previous = existingAnchors.find(a => !a.derivedFromAnchorId && a.proxyValueType === "nta"
+    && a.anchorDate === input.anchorDate && new Decimal(a.kernelUnitPrice).eq(input.kernelUnitPrice));
+  const candidate: KernelPriceAnchor = previous ?? {
+    id: randomUUID(), instrumentId: instrument.id, anchorDate: input.anchorDate,
+    kernelUnitPrice: input.kernelUnitPrice, proxySymbol: KERNEL_PROXY_SYMBOL,
+    proxyCurrency: "NZD", proxyClose: "0", proxyPriceDate: input.anchorDate,
+    proxyFetchedAt: fetchedAt, createdByUserId: user.id, createdAt: fetchedAt, proxyValueType: "nta"
   };
-  const estimates = calculateKernelEstimates(bars, [candidate, ...existingAnchors], fetchedAt);
-  const saved = await saveKernelPriceAnchor({
-    instrumentId: instrument.id,
-    anchorDate: input.anchorDate,
-    kernelUnitPrice: input.kernelUnitPrice,
-    proxySymbol: KERNEL_PROXY_SYMBOL,
-    proxyCurrency: "NZD",
-    proxyClose: anchorBar.openPrice,
-    proxyPriceDate: anchorBar.priceDate,
-    proxyFetchedAt: fetchedAt,
-    createdByUserId: user.id,
-    estimates
-  });
-  await recalculateSnapshotsFrom(input.anchorDate);
+  const anchors = previous ? existingAnchors : [candidate, ...existingAnchors];
+  let plan: KernelNtaPlan;
+  try {
+    const records = await fetchNzxUsfNta({ fromDate: anchors.map(a => a.anchorDate).sort()[0], fetchedAt });
+    plan = prepareKernelNtaPlan(anchors, records, fetchedAt);
+  } catch (error) {
+    const missing = error instanceof Error && error.message.startsWith("No corresponding published USF NTA");
+    throw new ApiRequestError(missing ? "DATA_SOURCE_DATE_UNAVAILABLE" : "DATA_SOURCE_UNAVAILABLE",
+      missing ? "No corresponding published USF NTA is available for a Kernel anchor date." : "USF NTA data is unavailable.", missing ? 422 : 502);
+  }
+  const result = await refreshKernelNta(plan);
+  if (result.pending_snapshot_from) {
+    await recalculateSnapshotsFrom(result.pending_snapshot_from);
+    await completeKernelNtaSnapshots(instrument.id, result.refresh_token);
+  }
+  const saved = (await listKernelPriceAnchors()).find(a => !a.derivedFromAnchorId && a.proxyValueType === "nta"
+    && a.anchorDate === candidate.anchorDate && new Decimal(a.kernelUnitPrice).eq(candidate.kernelUnitPrice));
+  if (!saved) throw new Error("Kernel NTA anchor not found after saving.");
   return saved;
-}
-
-export function calculateKernelEstimates(
-  bars: YahooFinanceDailyBar[],
-  anchors: KernelPriceAnchor[],
-  fetchedAt: string
-): KernelEstimateWrite[] {
-  const exactDates = new Set(anchors.map((anchor) => anchor.anchorDate));
-  const orderedAnchors = [...anchors].sort(
-    (left, right) => right.proxyPriceDate.localeCompare(left.proxyPriceDate)
-      || right.anchorDate.localeCompare(left.anchorDate)
-      || right.createdAt.localeCompare(left.createdAt)
-  );
-
-  return bars.flatMap((bar) => {
-    const valuationDate = getKernelValuationDateForNzxSession(bar.priceDate);
-    if (exactDates.has(valuationDate)) return [];
-    const anchor = orderedAnchors.find((candidate) =>
-      candidate.anchorDate <= valuationDate && candidate.proxyPriceDate <= bar.priceDate
-    );
-    if (!anchor) return [];
-    if (!bar.openPrice) throw new Error("Yahoo Finance returned a confirmed USF.NZ bar without an opening price.");
-    const result = new Decimal(anchor.kernelUnitPrice)
-      .times(bar.openPrice)
-      .dividedBy(anchor.proxyClose)
-      .toDecimalPlaces(10, Decimal.ROUND_HALF_UP);
-    if (!result.isFinite() || result.lte(0)) throw new Error("Kernel estimate calculation produced an invalid price.");
-    return [{ priceDate: valuationDate, closePrice: result.toFixed(10), fetchedAt }];
-  });
 }
 
 function parseCreateInput(body: unknown): CreateKernelPriceAnchorInput {

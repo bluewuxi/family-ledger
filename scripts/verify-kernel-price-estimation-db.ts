@@ -206,6 +206,32 @@ async function main(): Promise<void> {
     assert.equal(sql(`select price_update_enabled from instruments where id = '${instrumentId}'`), "f");
     assert.equal(sql("select jsonb_typeof(export_ledger_backup()->'kernel_price_anchors'->0->'kernel_unit_price')"), "string");
 
+    sql("alter table public.dashboard_instrument_quotes add column instrument_id uuid");
+    sql(readFileSync("supabase/migrations/20261007120000_kernel_nta_estimation.sql", "utf8"));
+    sql(`delete from instrument_prices where instrument_id='${instrumentId}'; delete from kernel_price_anchors where instrument_id='${instrumentId}'`);
+    sql("alter table instrument_prices disable trigger reject_legacy_kernel_estimate");
+    const ntaPayload = JSON.stringify([{source_id:"00000000-0000-4000-8000-000000000077",anchor_date:"2026-09-30",kernel_unit_price:"6.67",proxy_close:"23.60990",proxy_price_date:"2026-10-01",announcement_id:481058,published_at:"2026-10-02T00:00:00Z",created_by_user_id:actor,revision_at:"2026-10-02T08:25:57Z"}]);
+    const ntaEstimates = JSON.stringify([{price_date:"2026-10-01",close_price:"6.7285866353"},{price_date:"2026-10-05",close_price:"6.8349906776"}]);
+    const refresh = (estimates=ntaEstimates) => sql(`select refresh_kernel_nta('${instrumentId}','2026-09-30','2026-10-07T02:00:00Z','${ntaPayload}'::jsonb,'${estimates}'::jsonb)`);
+    sql(`insert into instrument_prices(instrument_id,price_date,close_price,currency,provider,is_adjusted,is_estimated) values('${instrumentId}','2026-10-02',6.756567,'NZD','manual',false,false),('${instrumentId}','2026-10-05',9,'NZD','Kernel Estimate (USF.NZ)',false,true)`);
+    sql("alter table instrument_prices enable trigger reject_legacy_kernel_estimate");
+    const firstRefresh = JSON.parse(refresh());
+    assert.equal(firstRefresh.pending_snapshot_from,"2026-09-30");
+    assert.equal(sql("select close_price from instrument_prices where provider='Kernel Estimate (USF NTA)' and price_date='2026-10-05'"),"6.8349906776");
+    assert.equal(sql("select count(*) from instrument_prices where provider='Kernel Estimate (USF.NZ)'"),"0");
+    assert.equal(sql("select close_price from instrument_prices where provider='manual'"),"6.7565670000");
+    sql(`select complete_kernel_nta_snapshots('${instrumentId}','${firstRefresh.refresh_token}')`);
+    const repeated = JSON.parse(refresh());
+    assert.equal(repeated.changed_count,0);
+    assert.equal(repeated.pending_snapshot_from,null);
+    assert.equal(sql("select count(*) from kernel_price_anchors"),"1");
+    assert.throws(()=>refresh(JSON.stringify([{price_date:"2026-10-01",close_price:"-1"}])));
+    assert.equal(sql("select close_price from instrument_prices where provider='Kernel Estimate (USF NTA)' and price_date='2026-10-05'"),"6.8349906776");
+    const corrected = JSON.parse(refresh(JSON.stringify([{price_date:"2026-10-01",close_price:"6.7285866353"},{price_date:"2026-10-05",close_price:"6.84"}])));
+    assert.equal(corrected.pending_snapshot_from,"2026-10-05");
+    assert.equal(sql("select has_function_privilege('authenticated','public.refresh_kernel_nta(uuid,date,timestamptz,jsonb,jsonb)','EXECUTE')"),"f");
+    assert.equal(sql("select has_function_privilege('service_role','public.save_kernel_price_anchor(uuid,date,numeric,text,text,numeric,date,timestamptz,uuid,jsonb)','EXECUTE')"),"f");
+    assert.equal(sql("select jsonb_typeof(list_kernel_nta_anchors()->0->'kernel_unit_price')"),"string");
     console.log("Kernel price-estimation database verification: success");
   } finally {
     if (started) {
