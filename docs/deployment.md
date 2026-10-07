@@ -1,5 +1,11 @@
 # Deployment
 
+## Trading-day movement correction (2026-10-08, #107)
+
+Implementation commit `16e69a1` was pushed to `test`. The reviewed change set had no deletions or replacements; scheduler changes were target dependency references with unchanged schedule expressions. The change set was executed directly, the stack reached `UPDATE_COMPLETE`, API Lambda was active with a successful update, web assets were deployed, and CloudFront invalidation completed.
+
+Typecheck, full build, dashboard verification, time-policy verification, and the read-only database readiness smoke check passed. Live HTML, runtime config, and all six entry assets matched the local test build; API health returned HTTP 200 and unauthenticated dashboard requests returned HTTP 401. A server-side service diagnostic against test data returned CNY daily movement `-8043.72` and percentage `-0.75`, excluding September 30 Chinese quotes and October 6 NZ fund data under the new eligibility rule. This diagnostic refreshed the ordinary dashboard quote cache but did not mutate investment ledger data. Authenticated responsive UI verification remains deferred at the user's request.
+
 ## Dashboard display hotfix (2026-10-08, #106)
 
 Implementation commit `41dac5e` was pushed to `test` and released using `deploy:web:test`. This frontend-only release rounds dashboard monetary totals, restores vertical chart cursors and daily tooltips, and bounds recent trades to the trend panel height with a persistent full-history link. No API, job, schema, or infrastructure deployment was required.

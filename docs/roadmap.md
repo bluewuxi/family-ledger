@@ -43,7 +43,7 @@
 
 - Investment overview performance and layout (deployed to test on 2026-10-08, #105): API cumulative profit and asset ratio, shared live valuation for dashboard/holdings, default one-year period-profit tab with an asset-trend tab, full curves and sparse hover nodes, and paginated read-only snapshots in data maintenance. Dashboard authenticated responsive acceptance passed on 2026-10-08; holdings and snapshot-tab visual acceptance remain separate. See [investment overview specification](investment-overview-spec.md).
 - Dashboard display hotfix (deployed to test on 2026-10-08, #106): rounded whole monetary totals, vertical chart cursors with daily tooltips, and bounded recent trades matching the trend panel height with a full-history link. Authenticated responsive visual checks are deferred at the user's request.
-- Trading-day movement correction (#107): `本日变动` uses only current-business-day quotes or estimates, excluding stale prices and published historical closes. Percentage uses participating instruments only; eligibility is data-based, including funds only when a current estimate/quote exists.
+- Trading-day movement correction (deployed to test on 2026-10-08, #107): `本日变动` uses only current-business-day quotes or estimates, excluding stale prices and published historical closes. Percentage uses participating instruments only; eligibility is data-based, including funds only when a current estimate/quote exists.
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
 
