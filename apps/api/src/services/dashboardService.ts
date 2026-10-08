@@ -84,7 +84,7 @@ export async function getCurrentInvestmentPortfolio(input: { currency?: string; 
   const investmentPerformance = await getInvestmentPerformance({ totalAssets: dashboard.totalAssets, transactions: currentTransactions, currency: reportingCurrency, businessDate });
   const valuationMetadata = buildValuationMetadata(valuedHoldings.holdings, fxRates, now, reportingCurrency);
   return {
-    dashboard: { ...dashboard, ...calculateTradingDayChange(holdings, instruments, prices, fxRates, reportingCurrency, dashboardQuotes, businessDate), investmentPerformance, valuationMetadata },
+    dashboard: { ...dashboard, ...calculateTradingDayChange(holdings, instruments, prices, fxRates, reportingCurrency, dashboardQuotes, businessDate, dashboard.totalAssets), investmentPerformance, valuationMetadata },
     holdings: { ...valuedHoldings, investmentPerformance, valuationMetadata }
   };
 }

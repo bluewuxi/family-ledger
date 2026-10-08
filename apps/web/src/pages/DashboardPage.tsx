@@ -1,3 +1,4 @@
+import { buildColorSplitTrendChartData, buildColorSplitProfitChartData } from "../lib/trendChartSeries";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { InvestmentPerformanceCard } from "../components/InvestmentPerformanceCard";
@@ -60,22 +61,6 @@ interface PortfolioSnapshotsResponse {
 
 interface TransactionsResponse {
   transactions: InvestmentTransaction[];
-}
-
-interface ColorSplitTrendChartPoint extends TrendChartPoint {
-  snapshotPositiveValue: number | null;
-  snapshotNegativeValue: number | null;
-  snapshotPositiveRange: [number, number] | null;
-  snapshotNegativeRange: [number, number] | null;
-  livePositiveValue: number | null;
-  liveNegativeValue: number | null;
-}
-
-interface ColorSplitProfitChartPoint extends ProfitChartPoint {
-  profitPositiveValue: number | null;
-  profitNegativeValue: number | null;
-  profitLivePositiveValue: number | null;
-  profitLiveNegativeValue: number | null;
 }
 
 const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
@@ -552,30 +537,8 @@ export function DashboardPage() {
                     activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls
                   />
-                  <Line
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="livePositiveValue"
-                    name="当前估值"
-                    stroke={chartPositiveColor}
-                    strokeDasharray="3 5"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
-                    connectNulls={false}
-                  />
-                  <Line
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="liveNegativeValue"
-                    name="当前估值"
-                    stroke={chartNegativeColor}
-                    strokeDasharray="3 5"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
-                    connectNulls={false}
-                  />
+
+
                 </AreaChart>
               </ResponsiveContainer>
               {trendSummary ? (
@@ -662,8 +625,8 @@ export function DashboardPage() {
                     activeDot={props => renderTrendHoverDot(props, hoverDates)}
                     connectNulls={false}
                   />
-                  <Line isAnimationActive={false} dataKey="profitLivePositiveValue" name="当前估值对应期间盈利" stroke={chartPositiveColor} strokeWidth={0} dot={false} activeDot={props => renderTrendHoverDot(props, hoverDates)} connectNulls={false} />
-                  <Line isAnimationActive={false} dataKey="profitLiveNegativeValue" name="当前估值对应期间盈利" stroke={chartNegativeColor} strokeWidth={0} dot={false} activeDot={props => renderTrendHoverDot(props, hoverDates)} connectNulls={false} />
+
+
                 </AreaChart>
               </ResponsiveContainer>
               <p className="panel-description">所选期间内的盈利变化，已扣除净投入变化。起点为期间首个有效估值；悬停或轻触曲线可查看数值；最新节点为当前估值。</p>
@@ -947,161 +910,6 @@ function getProfitValueDomain(points: ProfitChartPoint[]): [number, number] {
 
   const padding = valueRange * 0.2;
   return [minValue - padding, maxValue + padding];
-}
-
-function buildColorSplitTrendChartData(chartPoints: TrendChartPoint[]): ColorSplitTrendChartPoint[] {
-  let carriedTotalInvestment: number | null = null;
-  let previousPoint: (TrendChartPoint & { carriedTotalInvestment: number | null }) | null = null;
-  const splitPoints: ColorSplitTrendChartPoint[] = [];
-
-  for (const point of chartPoints) {
-    if (point.totalInvestment !== null && Number.isFinite(point.totalInvestment)) {
-      carriedTotalInvestment = point.totalInvestment;
-    }
-    const pointWithThreshold = { ...point, carriedTotalInvestment };
-
-    const crossingPoint = buildTrendCrossingPoint(previousPoint, pointWithThreshold);
-    if (crossingPoint) {
-      splitPoints.push(crossingPoint);
-    }
-
-    splitPoints.push(toColorSplitTrendPoint(pointWithThreshold));
-    previousPoint = pointWithThreshold;
-  }
-
-  return splitPoints;
-}
-
-function buildTrendCrossingPoint(
-  previousPoint: (TrendChartPoint & { carriedTotalInvestment: number | null }) | null,
-  point: TrendChartPoint & { carriedTotalInvestment: number | null }
-): ColorSplitTrendChartPoint | null {
-  if (
-    previousPoint?.snapshotValue === null ||
-    previousPoint?.snapshotValue === undefined ||
-    previousPoint.carriedTotalInvestment === null ||
-    point.snapshotValue === null ||
-    point.carriedTotalInvestment === null
-  ) {
-    return null;
-  }
-
-  const previousDifference = previousPoint.snapshotValue - previousPoint.carriedTotalInvestment;
-  const currentDifference = point.snapshotValue - point.carriedTotalInvestment;
-
-  if (previousDifference === 0 || currentDifference === 0 || Math.sign(previousDifference) === Math.sign(currentDifference)) {
-    return null;
-  }
-
-  const crossingRatio = previousDifference / (previousDifference - currentDifference);
-  const crossingInvestment =
-    previousPoint.carriedTotalInvestment +
-    (point.carriedTotalInvestment - previousPoint.carriedTotalInvestment) * crossingRatio;
-
-  return {
-    date: `__chart_crossing__trend__${previousPoint.date}__${point.date}`,
-    value: crossingInvestment,
-    snapshotValue: crossingInvestment,
-    liveValue: null,
-    totalInvestment: crossingInvestment,
-    snapshotPositiveValue: crossingInvestment,
-    snapshotNegativeValue: crossingInvestment,
-    snapshotPositiveRange: [crossingInvestment, crossingInvestment],
-    snapshotNegativeRange: [crossingInvestment, crossingInvestment],
-    livePositiveValue: null,
-    liveNegativeValue: null,
-    snapshotDate: point.snapshotDate ?? null,
-    isSynthetic: true
-  };
-}
-
-function toColorSplitTrendPoint(
-  point: TrendChartPoint & { carriedTotalInvestment: number | null }
-): ColorSplitTrendChartPoint {
-  const snapshotIsPositive =
-    point.snapshotValue !== null && point.carriedTotalInvestment !== null
-      ? point.snapshotValue >= point.carriedTotalInvestment
-      : true;
-  const snapshotPositiveRange =
-    point.snapshotValue !== null && point.carriedTotalInvestment !== null && snapshotIsPositive
-      ? ([point.carriedTotalInvestment, point.snapshotValue] satisfies [number, number])
-      : null;
-  const snapshotNegativeRange =
-    point.snapshotValue !== null && point.carriedTotalInvestment !== null && !snapshotIsPositive
-      ? ([point.snapshotValue, point.carriedTotalInvestment] satisfies [number, number])
-      : null;
-  const liveIsPositive =
-    point.liveValue !== null && point.carriedTotalInvestment !== null
-      ? point.liveValue >= point.carriedTotalInvestment
-      : true;
-
-  return {
-    ...point,
-    snapshotPositiveValue: point.snapshotValue !== null && snapshotIsPositive ? point.snapshotValue : null,
-    snapshotNegativeValue: point.snapshotValue !== null && !snapshotIsPositive ? point.snapshotValue : null,
-    snapshotPositiveRange,
-    snapshotNegativeRange,
-    livePositiveValue: point.liveValue !== null && liveIsPositive ? point.liveValue : null,
-    liveNegativeValue: point.liveValue !== null && !liveIsPositive ? point.liveValue : null
-  };
-}
-
-function buildColorSplitProfitChartData(chartPoints: ProfitChartPoint[]): ColorSplitProfitChartPoint[] {
-  const splitPoints: ColorSplitProfitChartPoint[] = [];
-
-  for (const point of chartPoints) {
-    const previousPoint = splitPoints.at(-1);
-    const crossingPoint = buildProfitCrossingPoint(previousPoint, point);
-    if (crossingPoint) {
-      splitPoints.push(crossingPoint);
-    }
-
-    splitPoints.push(toColorSplitProfitPoint(point));
-  }
-
-  return splitPoints;
-}
-
-function buildProfitCrossingPoint(
-  previousPoint: ColorSplitProfitChartPoint | undefined,
-  point: ProfitChartPoint
-): ColorSplitProfitChartPoint | null {
-  if (
-    point.isSynthetic || previousPoint?.isSynthetic ||
-    previousPoint?.profitValue === null ||
-    previousPoint?.profitValue === undefined ||
-    point.profitValue === null ||
-    previousPoint.profitValue === 0 ||
-    point.profitValue === 0 ||
-    Math.sign(previousPoint.profitValue) === Math.sign(point.profitValue)
-  ) {
-    return null;
-  }
-
-  return {
-    date: `__chart_crossing__profit__${previousPoint.date}__${point.date}`,
-    value: 0,
-    profitValue: 0,
-    profitPositiveValue: 0,
-    profitNegativeValue: 0,
-    profitLivePositiveValue: null,
-    profitLiveNegativeValue: null,
-    periodStartValue: point.periodStartValue,
-    snapshotDate: point.snapshotDate ?? null,
-    isSynthetic: true
-  };
-}
-
-function toColorSplitProfitPoint(point: ProfitChartPoint): ColorSplitProfitChartPoint {
-  const isPositive = point.profitValue !== null ? point.profitValue >= 0 : true;
-
-  return {
-    ...point,
-    profitPositiveValue: !point.isSynthetic && point.profitValue !== null && isPositive ? point.profitValue : null,
-    profitNegativeValue: !point.isSynthetic && point.profitValue !== null && !isPositive ? point.profitValue : null,
-    profitLivePositiveValue: point.isSynthetic && point.profitValue !== null && isPositive ? point.profitValue : null,
-    profitLiveNegativeValue: point.isSynthetic && point.profitValue !== null && !isPositive ? point.profitValue : null
-  };
 }
 
 function getChartToneStyle(gainColorScheme: GainColorScheme): ChartToneStyle {

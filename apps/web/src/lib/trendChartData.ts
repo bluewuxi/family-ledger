@@ -86,7 +86,7 @@ export function buildTrendChartData(
     totalInvestment: principal,
     isSynthetic: true
   };
-  // Keep historical gaps and actual closes; the live valuation is a separate marker.
+  // Keep saved closes and real gaps; chart series connect this endpoint to its valid predecessor.
   return [...(lastPoint.date === today && lastPoint.snapshotValue === null ? chartPoints.slice(0, -1) : chartPoints), endpoint];
 }
 

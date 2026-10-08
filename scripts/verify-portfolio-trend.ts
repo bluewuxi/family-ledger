@@ -2,6 +2,7 @@ import { selectTrendHoverDates } from "../apps/web/src/lib/trendHoverPoints";
 import assert from "node:assert/strict";
 import Decimal from "decimal.js";
 import { buildProfitChartData, buildTrendChartData } from "../apps/web/src/lib/trendChartData";
+import { buildColorSplitProfitChartData, buildColorSplitTrendChartData } from "../apps/web/src/lib/trendChartSeries";
 import { convertSnapshotAmount } from "@family-ledger/shared";
 import type { ExchangeRateRecord, InvestmentTransaction, PortfolioSnapshotSummary } from "@family-ledger/shared";
 import {
@@ -40,6 +41,38 @@ const snapshots: PortfolioSnapshotSummary[] = [
 void main();
 
 async function main(): Promise<void> {
+  const liveCurve = buildTrendChartData([
+    {date:"2026-10-06",portfolioValue:120,totalInvestment:100},
+    {date:"2026-10-07",portfolioValue:110,totalInvestment:100}
+  ], "90", "2026-10-08", "2026-10-08T01:00:00Z", {currentTotalInvestment:"100"});
+  const assetSeries = buildColorSplitTrendChartData(liveCurve);
+  assert.equal(assetSeries.at(-1)?.snapshotNegativeValue, 90);
+  assert.ok(assetSeries.some(point=>point.date.startsWith("__chart_crossing__")));
+  assert.equal(assetSeries.at(-2)?.snapshotNegativeValue, 100);
+  const profitSeries = buildColorSplitProfitChartData(buildProfitChartData(liveCurve));
+  assert.equal(profitSeries.at(-1)?.profitNegativeValue, -30);
+  assert.equal(profitSeries.at(-2)?.profitNegativeValue, -10);
+  const crossingProfitCurve = buildTrendChartData([
+    {date:"2026-10-06",portfolioValue:100,totalInvestment:100},
+    {date:"2026-10-07",portfolioValue:110,totalInvestment:100}
+  ], "90", "2026-10-08", "2026-10-08T01:00:00Z", {currentTotalInvestment:"100"});
+  const crossingProfitSeries = buildColorSplitProfitChartData(buildProfitChartData(crossingProfitCurve));
+  assert.equal(crossingProfitSeries.at(-1)?.profitNegativeValue, -10);
+  assert.equal(crossingProfitSeries.at(-2)?.profitPositiveValue, 0);
+  assert.equal(crossingProfitSeries.at(-2)?.profitNegativeValue, 0);
+  const sameDateCurve = buildTrendChartData([
+    {date:"2026-10-08",portfolioValue:110,totalInvestment:100}
+  ], "120", "2026-10-08", "2026-10-08T01:00:00Z", {currentTotalInvestment:"100"});
+  assert.deepEqual(buildColorSplitTrendChartData(sameDateCurve).map(p=>p.snapshotPositiveValue), [110,120]);
+  assert.deepEqual(buildColorSplitProfitChartData(buildProfitChartData(sameDateCurve)).map(p=>p.profitPositiveValue), [0,10]);
+  assert.equal(sameDateCurve[0]?.snapshotValue, 110);
+  assert.equal(sameDateCurve[1]?.snapshotValue, null);
+  const gapCurve = buildTrendChartData([
+    {date:"2026-10-06",portfolioValue:120,totalInvestment:100},
+    {date:"2026-10-07",portfolioValue:null,totalInvestment:100}
+  ], "130", "2026-10-08", "2026-10-08T01:00:00Z", {currentTotalInvestment:"100"});
+  assert.equal(buildColorSplitTrendChartData(gapCurve)[1]?.snapshotPositiveValue, null);
+  assert.equal(buildColorSplitProfitChartData(buildProfitChartData(gapCurve))[1]?.profitPositiveValue, null);
   const principal = calculatePrincipalPoints({
     events: principalEvents,
     exactFxRates: rates,

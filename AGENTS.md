@@ -256,6 +256,13 @@ Treat date and time handling as a cross-layer product rule.
 
 ---
 
+## Dashboard Calculation and Chart Contracts
+
+- `本日变动` uses only instruments with a quote or estimated price for the current app business day. Older quotes, delayed published fund unit prices, and historical closes alone do not qualify for the numerator. Eligibility is based on data kind/date, not a market or fund exclusion list.
+- Its percentage is `todayChange / totalAssets * 100`, using current total investment assets in the same reporting currency. Total assets include cash and instruments excluded from the daily-change numerator, valued using their latest available prices. Never replace this denominator with participating instruments, their preceding value, net investment, or a previous snapshot. Missing/non-positive total assets yield an unavailable percentage.
+- Both period-profit and asset-trend curves connect the current dynamic valuation endpoint to its immediately preceding valid point. Preserve real missing-data gaps, saved closes, gain/loss coloring, and hover details; do not split the endpoint into an isolated marker-only series or fabricate intermediate quotes.
+- Keep [the investment overview specification](docs/investment-overview-spec.md), [API semantics](docs/api.md), `verify:dashboard`, and `verify:portfolio-trend` aligned with these contracts. Changes to these rules require an explicit user request.
+
 ## Shared Types
 
 Shared enum-like values, DTOs, and reusable calculations live in `packages/shared/src/index.ts`.

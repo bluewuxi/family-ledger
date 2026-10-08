@@ -35,17 +35,22 @@ const fxRates = [fxRate("nzd-usd", "NZD", "0.6666666667"), fxRate("cny-usd", "CN
 const dayInstrument = { ...instrument(usdSecurity.instrumentId, "yahoo_finance", "TEST", "USD"), marketRegion: "US" as const };
 const dayQuote = dashboardQuote("day-live", usdSecurity.instrumentId, "2026-05-22", "70", "USD", "2026-05-23T01:00:00Z");
 const dayChange = calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [dayQuote], "2026-05-23");
-assert.deepEqual(dayChange, { todayChange: "10.00", todayChangePct: "7.69" });
-assert.deepEqual(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [], "2026-05-24"), { todayChange: "0.00", todayChangePct: null });
+assert.deepEqual(dayChange, { todayChange: "10.00", todayChangePct: "4.35" });
+// Ineligible fund valuations and cash still belong in the total-assets denominator.
+assert.equal(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [dayQuote], "2026-05-23", "1000").todayChangePct, "1.00");
+assert.equal(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [dayQuote], "2026-05-23", null).todayChangePct, null);
+assert.equal(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [dayQuote], "2026-05-23", "0").todayChangePct, null);
+assert.equal(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [dayQuote], "2026-05-23", "-1").todayChangePct, null);
+assert.deepEqual(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [], "2026-05-24"), { todayChange: "0.00", todayChangePct: "0.00" });
 assert.deepEqual(calculateTradingDayChange([nzdSecurity, usdCash], [], [], [], "USD", [], "2026-05-23"), { todayChange: "0.00", todayChangePct: null });
-assert.deepEqual(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [], "2026-05-23"), { todayChange: "0.00", todayChangePct: null });
+assert.deepEqual(calculateTradingDayChange(holdings, [dayInstrument], prices, fxRates, "USD", [], "2026-05-23"), { todayChange: "0.00", todayChangePct: "0.00" });
 assert.equal(calculateTradingDayChange([usdSecurity], [dayInstrument], prices.filter(p=>p.id!=="usd-previous"), fxRates, "USD", [dayQuote], "2026-05-23").todayChange, null);
 const fundInstrument = { ...instrument(nzdSecurity.instrumentId, "kernel_estimate", "FUND", "NZD", "pie_fund"), marketRegion: "NZ" as const };
 const estimatedFundPrices = prices.map(p=>p.id === "nzd-latest" ? {...p, isEstimated:true} : p);
-assert.deepEqual(calculateTradingDayChange([nzdSecurity], [fundInstrument], estimatedFundPrices, fxRates, "NZD", [], "2026-05-22"), {todayChange:"3.00",todayChangePct:"2.56"});
+assert.deepEqual(calculateTradingDayChange([nzdSecurity], [fundInstrument], estimatedFundPrices, fxRates, "NZD", [], "2026-05-22"), {todayChange:"3.00",todayChangePct:"2.50"});
 assert.equal(calculateTradingDayChange([usdSecurity], [dayInstrument], prices, fxRates, "USD", [dashboardQuote("day-quote", usdSecurity.instrumentId, "2026-05-22", "60", "USD", "2026-05-23T01:00:00Z")], "2026-05-23").todayChange, "-10.00");
-assert.deepEqual(calculateTradingDayChange([usdSecurity], [dayInstrument], prices, fxRates, "USD", [{...dayQuote, quoteDate:"2026-05-21"}], "2026-05-23"), {todayChange:"0.00",todayChangePct:null});
-assert.deepEqual(calculateTradingDayChange([nzdSecurity], [fundInstrument], prices, fxRates, "NZD", [], "2026-05-22"), {todayChange:"0.00",todayChangePct:null});
+assert.deepEqual(calculateTradingDayChange([usdSecurity], [dayInstrument], prices, fxRates, "USD", [{...dayQuote, quoteDate:"2026-05-21"}], "2026-05-23"), {todayChange:"0.00",todayChangePct:"0.00"});
+assert.deepEqual(calculateTradingDayChange([nzdSecurity], [fundInstrument], prices, fxRates, "NZD", [], "2026-05-22"), {todayChange:"0.00",todayChangePct:"0.00"});
 
 const complete = calculateDashboardSummary(holdings, accounts, prices, fxRates);
 assert.deepEqual(complete, {

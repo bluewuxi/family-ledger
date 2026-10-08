@@ -26,14 +26,13 @@ import { ApiRequestError } from "../utils/apiError";
 
 export const reportingCurrencies = ["NZD", "USD", "CNY"] as const satisfies readonly SnapshotDisplayCurrency[];
 
-export function calculateTradingDayChange(holdings: HoldingSummary[], instruments: Instrument[], prices: PriceRecord[], fxRates: ExchangeRateRecord[], reportingCurrency: SnapshotDisplayCurrency, quotes: DashboardQuoteRecord[], businessDate: string): Pick<DashboardSummary, "todayChange" | "todayChangePct"> {
+export function calculateTradingDayChange(holdings: HoldingSummary[], instruments: Instrument[], prices: PriceRecord[], fxRates: ExchangeRateRecord[], reportingCurrency: SnapshotDisplayCurrency, quotes: DashboardQuoteRecord[], businessDate: string, totalAssets: string | null = calculateValuedHoldings(holdings, prices, fxRates, reportingCurrency, quotes).totalMarketValue): Pick<DashboardSummary, "todayChange" | "todayChangePct"> {
   const pricesByInstrument = groupValidPricesByInstrument(holdings, prices);
   const quotesByInstrument = groupValidQuotesByInstrument(holdings, quotes);
   const rates = groupLatestUsdRatesByCurrency(fxRates);
   const displayRate = getDisplayRate(reportingCurrency, rates);
   const instrumentsById = new Map(instruments.map(instrument => [instrument.id, instrument]));
   let change = new Decimal(0);
-  let baselineValue = new Decimal(0);
   const unavailable = { todayChange: null, todayChangePct: null };
   for (const holding of holdings) {
     if (holding.assetType === "cash") continue;
@@ -51,11 +50,11 @@ export function calculateTradingDayChange(holdings: HoldingSummary[], instrument
     if (!previous || !rate || !displayRate) return unavailable;
     const quantity = new Decimal(holding.quantity);
     change = change.plus(quantity.times(new Decimal(latest.closePrice).minus(previous.closePrice)).times(rate));
-    baselineValue = baselineValue.plus(quantity.times(previous.closePrice).times(rate));
   }
   return {
     todayChange: displayRate ? formatMoney(change.times(displayRate)) : null,
-    todayChangePct: baselineValue.gt(0) ? formatPercentage(change.dividedBy(baselineValue).times(100)) : null
+    todayChangePct: displayRate && totalAssets !== null && new Decimal(totalAssets).gt(0)
+      ? formatPercentage(change.times(displayRate).dividedBy(totalAssets).times(100)) : null
   };
 }
 

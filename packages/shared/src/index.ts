@@ -993,6 +993,7 @@ export interface DashboardSummary {
   reportingCurrency: SnapshotDisplayCurrency;
   totalAssets: string | null;
   todayChange: string | null;
+  // Dashboard daily movement as a share of current total assets, including ineligible instruments and cash.
   todayChangePct: string | null;
   unrealizedGain: string | null;
   dailyTradeCount: number;
