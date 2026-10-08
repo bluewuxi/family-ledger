@@ -1,5 +1,13 @@
 # Deployment
 
+## Total-assets daily ratio and connected live curves (2026-10-08, #108)
+
+Implementation commit `6511c76` was pushed to `test`. The reviewed change set had no deletions or replacements; scheduler changes were target dependency references without schedule-expression changes. The change set was executed directly, CloudFormation reached `UPDATE_COMPLETE`, API Lambda was active with a successful update, web deployment succeeded, and CloudFront invalidation completed.
+
+Daily movement eligibility is unchanged, but its percentage now divides by current total investment assets, including cash and instruments excluded from the numerator. Both trend tabs use connected color-aware curve series for the live endpoint; regression fixtures cover same-day saved close/live pairs, zero crossings, and actual gaps. Durable contracts are recorded in AGENTS.md, the API documentation, and the investment overview specification. This supersedes the denominator introduced in #107.
+
+Typecheck, full build, dashboard, portfolio-trend, time-policy, and database-readiness checks passed. A server-side diagnostic using test data returned total assets CNY `5201534.46`, daily movement `35340.28`, and the corrected percentage `0.68`; quotes can change between diagnostic runs. Live HTML/runtime configuration and all six entry assets matched the local test build. API health returned HTTP 200, and unauthenticated dashboard requests returned HTTP 401. Authenticated responsive visual checks remain deferred at the user's earlier request; chart verification here is fixture-based, not browser visual acceptance.
+
 ## Trading-day movement correction (2026-10-08, #107)
 
 Implementation commit `16e69a1` was pushed to `test`. The reviewed change set had no deletions or replacements; scheduler changes were target dependency references with unchanged schedule expressions. The change set was executed directly, the stack reached `UPDATE_COMPLETE`, API Lambda was active with a successful update, web assets were deployed, and CloudFront invalidation completed.
