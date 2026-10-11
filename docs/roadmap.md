@@ -1,5 +1,10 @@
 # Roadmap
 
+## Pending Deployment: API Error Tracking (2026-10-12)
+
+- Implemented locally: structured redacted raw-error diagnostics, reviewed INFO/WARN/ERROR classification, admin-only ERROR queries and handling state under `数据维护`, atomic observation deduplication and recurrence tracking, and a 30-day policy for project CloudWatch groups.
+- Migration and infrastructure changes are prepared but not applied. Commit/push and deployment are not part of this implementation request. Authenticated responsive verification was deferred by the user.
+
 ## Stage 0: Project Foundation
 
 - Monorepo setup

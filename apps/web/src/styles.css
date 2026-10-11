@@ -4815,3 +4815,18 @@ tr.editing-row td {
 .holding-table .price-date-label { font-size: 14px; line-height: 1.5; }
 
 .holding-filters select, .dashboard-controls button, .chart-range-select select { min-height: 44px; }
+.api-errors-table { min-width: 920px; }
+.api-errors-table td:first-child { max-width: 360px; overflow-wrap: anywhere; }
+.api-error-filters label { flex: 1 1 220px; }
+.api-error-filters input, .api-error-filters select { width: 100%; box-sizing: border-box; }
+.api-error-filters .api-error-checkbox { flex-direction: row; align-items: center; }
+.api-error-checkbox input { width: 22px; min-height: 44px; flex: 0 0 22px; }
+.api-error-detail { display: grid; gap: 16px; min-width: 0; overflow-wrap: anywhere; }
+.api-error-detail label { display: grid; gap: 8px; }
+.api-error-detail select, .api-error-detail textarea { min-height: 44px; width: 100%; box-sizing: border-box; }
+.api-error-log { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-size: 14px; line-height: 1.6; max-height: 480px; overflow: auto; padding: 12px; background: var(--color-panel-soft); color: var(--color-text); border-radius: 8px; }
+@media (max-width: 600px) {
+  .api-error-filters button { flex: 1 1 100%; }
+  .api-error-filters label { flex-basis: 100%; }
+  .api-errors-panel .pagination-controls { flex-wrap: wrap; }
+}

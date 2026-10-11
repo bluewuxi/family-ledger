@@ -310,3 +310,9 @@ Dashboard and investment holdings share one current portfolio valuation service.
 The ratio is cumulative profit divided by current investment assets, including pooled cash; it is unavailable when assets are missing or non-positive. It is an asset composition indicator, not an investment return rate. Holdings headline performance covers all investment accounts regardless of table filters; the current-position table retains unrealized P&L and excludes closed positions.
 
 Distribution amounts retain missing/negative rows. Pie charts and percentages are hidden when totals are missing/non-positive or any allocation is missing/negative; known amounts are never renormalized into a misleading complete portfolio. Account allocations contain securities only plus one pooled-cash row.
+
+## API Error Tracking
+
+Migration `202610120001_api_error_tracking.sql` adds operational tables `api_error_groups` and `api_error_events`. Groups retain redacted summaries, unique fingerprints, observed first/last UTC instants and counts, status, recurrence, resolution time, notes and the latest human editor/time. Event rows retain only source identifiers, UTC occurrence time, request ID and a legacy flag; the `(log_group, log_stream, event_id)` primary key prevents duplicate observations. Full logs remain in CloudWatch.
+
+`observe_api_errors(jsonb)` serializes overlapping group updates and increments counts only after inserting a new event. `update_api_error_status` changes state and actor metadata under a row lock. Both functions use invoker security and are callable only by `service_role`; RLS is enabled and anon/authenticated clients have no access. Lambda authorizes all access as admin. Saved summaries and metadata have no 30-day deletion policy and are intentionally outside the financial-ledger backup table list; Supabase database backup/recovery governs these operational records.

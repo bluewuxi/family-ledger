@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type {
   AccountPurpose,
   TransactionSortBy,
@@ -62,18 +63,21 @@ interface InvestmentTransactionRow {
 }
 
 export class TransactionNotFoundError extends Error {
+  override readonly name = "TransactionNotFoundError";
   constructor() {
     super("Transaction was not found.");
   }
 }
 
 export class TransactionReferenceError extends Error {
+  override readonly name = "TransactionReferenceError";
   constructor() {
     super("Transaction references an account or instrument that does not exist.");
   }
 }
 
 export class TransactionConstraintError extends Error {
+  override readonly name = "TransactionConstraintError";
   constructor(public readonly constraint: string | null) {
     super("Transaction violates a database constraint.");
   }
@@ -124,7 +128,7 @@ async function transactionQuery(input: TransactionListFilters, exactCount = fals
 export async function listTransactionPage(input: TransactionListFilters & { limit: number; offset: number }) {
   const { query } = await transactionQuery(input, true);
   const { data, error, count } = await query.range(input.offset, input.offset + input.limit - 1);
-  if (error) throw new Error("Failed to list transactions.");
+  if (error) { logDependencyError("transactionRepository.listTransactionPage", error, []); throw new Error("Failed to list transactions."); }
   return { items: (data as unknown as InvestmentTransactionRow[]).map(mapTransactionRow), total: count ?? 0 };
 }
 
@@ -139,6 +143,7 @@ export async function listTransactions(input: TransactionListFilters = {}): Prom
     : await readAllRows(query.returns<InvestmentTransactionRow[]>());
 
   if (error) {
+    logDependencyError("transactionRepository.listTransactions", error, []);
     throw new Error("Failed to list transactions.");
   }
 
@@ -166,6 +171,7 @@ export async function findTransactionById(id: string): Promise<InvestmentTransac
     .maybeSingle<InvestmentTransactionRow>();
 
   if (error) {
+    logDependencyError("transactionRepository.findTransactionById", error, []);
     throw new Error("Failed to find transaction.");
   }
 
@@ -182,6 +188,7 @@ export async function findGeneratedCashLegByParentId(parentId: string): Promise<
     .maybeSingle<InvestmentTransactionRow>();
 
   if (error) {
+    logDependencyError("transactionRepository.findGeneratedCashLegByParentId", error, []);
     throw new Error("Failed to find linked cash transaction.");
   }
 
@@ -204,6 +211,7 @@ export async function createTransaction(
     .single<InvestmentTransactionRow>();
 
   if (error) {
+    logDependencyError("transactionRepository.createTransaction", error, ["23503","23514","22P02","23514"]);
     if (error.code === "23503") {
       throw new TransactionReferenceError();
     }
@@ -235,6 +243,7 @@ export async function updateTransaction(
     .maybeSingle<InvestmentTransactionRow>();
 
   if (error) {
+    logDependencyError("transactionRepository.updateTransaction", error, ["23503","23514","22P02","23514"]);
     if (error.code === "23503") {
       throw new TransactionReferenceError();
     }
@@ -263,6 +272,7 @@ export async function deleteTransaction(id: string): Promise<void> {
     .maybeSingle<{ id: string }>();
 
   if (error) {
+    logDependencyError("transactionRepository.deleteTransaction", error, []);
     throw new Error("Failed to delete transaction.");
   }
 
@@ -280,6 +290,7 @@ export async function deleteGeneratedCashLegByParentId(parentId: string): Promis
     .eq("transaction_source", "generated_cash_leg");
 
   if (error) {
+    logDependencyError("transactionRepository.deleteGeneratedCashLegByParentId", error, []);
     throw new Error("Failed to delete linked cash transaction.");
   }
 }
@@ -372,6 +383,7 @@ export async function getTransactionWriteRevision(): Promise<string> {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase.rpc("get_ledger_write_revision");
   if (error || typeof data !== "string") {
+    logDependencyError("transactionRepository.getTransactionWriteRevision", error, []);
     throw new ApiRequestError("INTERNAL_ERROR", "无法读取交易校验数据，本次操作未保存，请稍后重试。", 500);
   }
   return data;
@@ -401,8 +413,10 @@ export async function commitTransactionWrite(input: {
     update_derived_data: input.updateDerivedData
   });
   if (error) {
+    logDependencyError("transactionRepository.commitTransactionWrite", error,
+      ["price", "snapshot"].includes(error.details) ? [] : ["40001", "40P01", "P0002", "42501", "23503", "23514", "22P02"]);
     const stage = ["transaction", "cash", "price", "snapshot"].includes(error.details) ? error.details : null;
-    console.error("Atomic transaction write failed", { operation: input.operation, code: error.code, stage });
+
     if (!/^[0-9A-Z]{5}$/.test(error.code) || error.code.startsWith("08")) {
       throw new ApiRequestError("INTERNAL_ERROR", "未能确认交易保存结果，请先刷新交易记录，确认是否已保存后再操作，避免重复提交。", 500);
     }
@@ -458,6 +472,6 @@ export async function listGeneratedCashLegs(parentIds: string[]): Promise<Invest
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase.from("transactions").select(transactionSelect)
     .eq("transaction_source", "generated_cash_leg").in("linked_transaction_id", parentIds);
-  if (error) throw new Error("Failed to list linked cash transactions.");
+  if (error) { logDependencyError("transactionRepository.listGeneratedCashLegs", error, []); throw new Error("Failed to list linked cash transactions."); }
   return (data as unknown as InvestmentTransactionRow[]).map(mapTransactionRow);
 }

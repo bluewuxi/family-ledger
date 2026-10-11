@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -124,6 +125,7 @@ export async function createInvestmentTransaction(
     if (!transaction) throw new Error("Atomic transaction result was missing.");
     return transaction;
   } catch (error) {
+    logCaughtError("transactionService.createInvestmentTransaction", error);
     if (error instanceof TransactionReferenceError) {
       throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400);
     }
@@ -264,6 +266,7 @@ export async function updateInvestmentTransaction(
     if (!transaction) throw new Error("Atomic transaction result was missing.");
     return transaction;
   } catch (error) {
+    logCaughtError("transactionService.updateInvestmentTransaction", error);
     if (error instanceof TransactionNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
     }
@@ -296,6 +299,7 @@ export async function deleteInvestmentTransaction(id: string, user: Authenticate
     await writeTransactionAtomically({ operation: "delete", id, userId: user.id, revision,
       transaction: null, existing, updateDerivedData: true });
   } catch (error) {
+    logCaughtError("transactionService.deleteInvestmentTransaction", error);
     if (error instanceof TransactionNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Transaction was not found.", 404);
     }

@@ -1,3 +1,4 @@
+import { logDependencyError, logError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
 import type { CurrencyCode } from "@family-ledger/shared";
 import type {
@@ -53,6 +54,7 @@ export class YahooFinanceInstrumentQuoteProvider implements IInstrumentQuoteProv
 
         quotes.push(parseYahooChartResponse(await response.json(), instrument.instrumentId, instrument.sourceSymbol, instrument.currency));
       } catch (error) {
+        logError("YahooFinanceInstrumentQuoteProvider.fetchLatestQuotes", error, signal.aborted ? "WARN" : "ERROR");
         // Keep completed quotes when the shared deadline interrupts fetch or body reading.
         if (signal.aborted) break;
         throw error;
@@ -85,6 +87,7 @@ function parseYahooChartResponse(
   const error = chart.error;
 
   if (error !== null && error !== undefined) {
+    logDependencyError("YahooFinanceInstrumentQuoteProvider.parseYahooChartResponse", error, []);
     throw new Error(`Yahoo Finance returned an error for ${sourceSymbol}.`);
   }
 

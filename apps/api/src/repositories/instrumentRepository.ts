@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import { INSTRUMENT_SHORT_NAME_MAX_LENGTH, type CreateInstrumentInput, type Instrument, type UpdateInstrumentInput } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -28,18 +29,21 @@ interface InstrumentRow {
 }
 
 export class InstrumentNotFoundError extends Error {
+  override readonly name = "InstrumentNotFoundError";
   constructor() {
     super("Instrument was not found.");
   }
 }
 
 export class InstrumentDuplicateError extends Error {
+  override readonly name = "InstrumentDuplicateError";
   constructor() {
     super("An instrument with the same market, exchange, and symbol already exists.");
   }
 }
 
 export class InstrumentInUseError extends Error {
+  override readonly name = "InstrumentInUseError";
   constructor() {
     super("Instrument cannot be deleted because it has transaction or price history.");
   }
@@ -56,6 +60,7 @@ export async function listInstruments(): Promise<Instrument[]> {
     .order("name", { ascending: true });
 
   if (error) {
+    logDependencyError("instrumentRepository.listInstruments", error, []);
     throw new Error("Failed to list instruments.");
   }
 
@@ -71,6 +76,7 @@ export async function findInstrumentById(id: string): Promise<Instrument | null>
     .maybeSingle<InstrumentRow>();
 
   if (error) {
+    logDependencyError("instrumentRepository.findInstrumentById", error, []);
     throw new Error("Failed to find instrument.");
   }
 
@@ -90,6 +96,7 @@ export async function createInstrument(input: CreateInstrumentInput, userId: str
     .single<InstrumentRow>();
 
   if (error) {
+    logDependencyError("instrumentRepository.createInstrument", error, ["23505"]);
     if (error.code === "23505") {
       throw new InstrumentDuplicateError();
     }
@@ -117,6 +124,7 @@ export async function updateInstrument(
     .maybeSingle<InstrumentRow>();
 
   if (error) {
+    logDependencyError("instrumentRepository.updateInstrument", error, ["23505"]);
     if (error.code === "23505") {
       throw new InstrumentDuplicateError();
     }
@@ -139,6 +147,7 @@ export async function deleteInstrument(id: string): Promise<void> {
   ]);
 
   if (transactionReference.error || priceReference.error) {
+    logDependencyError("instrumentRepository.deleteInstrument", transactionReference.error, []); logDependencyError("instrumentRepository.deleteInstrument", priceReference.error, []);
     throw new Error("Failed to check instrument usage.");
   }
 
@@ -154,6 +163,7 @@ export async function deleteInstrument(id: string): Promise<void> {
     .maybeSingle<{ id: string }>();
 
   if (error) {
+    logDependencyError("instrumentRepository.deleteInstrument", error, ["23503"]);
     if (error.code === "23503") {
       throw new InstrumentInUseError();
     }

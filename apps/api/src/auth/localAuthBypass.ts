@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
@@ -6,6 +7,7 @@ export const LOCAL_AUTH_BYPASS_TOKEN = "family-ledger-local-dev-auth-bypass";
 const defaultLocalAuthBypassEmail = "ricky.yu@outlook.com";
 
 export class LocalAuthBypassUserNotFoundError extends Error {
+  override readonly name = "LocalAuthBypassUserNotFoundError";
   constructor(email: string) {
     super(`Local auth bypass user was not found: ${email}`);
   }
@@ -53,6 +55,7 @@ async function findUserByEmail(email: string): Promise<{ id: string; email: stri
   const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
 
   if (error) {
+    logDependencyError("localAuthBypass.findUserByEmail", error, []);
     throw new Error("Failed to list Supabase Auth users for local auth bypass.");
   }
 

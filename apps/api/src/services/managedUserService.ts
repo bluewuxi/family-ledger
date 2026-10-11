@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import {
   USER_ROLES,
   type AuthenticatedUser,
@@ -32,6 +33,7 @@ export async function updateManagedUser(
   try {
     return await updateManagedUserRole(id, input);
   } catch (error) {
+    logCaughtError("managedUserService.updateManagedUser", error);
     if (error instanceof ManagedUserNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "User was not found.", 404);
     }

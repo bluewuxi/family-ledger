@@ -1,3 +1,4 @@
+import { logError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
 import { randomUUID } from "node:crypto";
 import { fetchNzxUsfNta, prepareKernelNtaPlan, type KernelNtaPlan } from "@family-ledger/shared";
@@ -92,6 +93,7 @@ export async function createKernelPriceAnchor(
     plan = prepareKernelNtaPlan(anchors, records, fetchedAt);
   } catch (error) {
     const missing = error instanceof Error && error.message.startsWith("No corresponding published USF NTA");
+    logError("marketDataSourceService.createKernelPriceAnchor", error, missing ? "WARN" : "ERROR");
     throw new ApiRequestError(missing ? "DATA_SOURCE_DATE_UNAVAILABLE" : "DATA_SOURCE_UNAVAILABLE",
       missing ? "No corresponding published USF NTA is available for a Kernel anchor date." : "USF NTA data is unavailable.", missing ? 422 : 502);
   }

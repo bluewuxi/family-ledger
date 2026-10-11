@@ -1,5 +1,6 @@
 import { PaginationControls } from "../components/PaginationControls";
 import { AssetSnapshotsTab } from "../components/AssetSnapshotsTab";
+import { ApiErrorsTab } from "../components/ApiErrorsTab";
 import { type FormEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { CloudDownload, Eye, Filter, RefreshCw } from "lucide-react";
 import type {
@@ -27,7 +28,7 @@ import { formatDisplayPrice } from "../lib/numberFormat";
 import { isInteractiveRowTarget } from "../lib/tableInteraction";
 import { formatLocalDateTime } from "../lib/timeFormat";
 
-type DataMaintenanceTab = "sources" | "fx" | "prices" | "snapshots" | "logs" | "backups" | "restore";
+type DataMaintenanceTab = "sources" | "fx" | "prices" | "snapshots" | "logs" | "errors" | "backups" | "restore";
 
 interface DataSourcesResponse {
   user: AuthenticatedUser;
@@ -122,6 +123,7 @@ export function DataMaintenancePage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [activeTab, setActiveTab] = useState<DataMaintenanceTab>("sources");
   const [snapshotRefreshVersion, setSnapshotRefreshVersion] = useState(0);
+  const [errorRefreshVersion, setErrorRefreshVersion] = useState(0);
   const [dataSources, setDataSources] = useState<MarketDataSourceSummary[]>([]);
   const [kernelAnchors, setKernelAnchors] = useState<KernelPriceAnchor[]>([]);
   const [kernelDrawerOpen, setKernelDrawerOpen] = useState(false);
@@ -394,7 +396,7 @@ export function DataMaintenancePage() {
           <PageTitle route="/data-maintenance">数据维护</PageTitle>
           <p>查看数据源、汇率、价格、资产快照、任务日志、数据备份和数据恢复说明。写入由 Lambda API 和计划任务负责。</p>
         </div>
-        <button className="secondary-button" type="button" onClick={() => activeTab === "snapshots" ? setSnapshotRefreshVersion(value => value + 1) : void loadActiveTab(0)} disabled={loading || triggeringKind !== null}>
+        <button className="secondary-button" type="button" onClick={() => activeTab === "snapshots" ? setSnapshotRefreshVersion(value => value + 1) : activeTab === "errors" ? setErrorRefreshVersion(value => value + 1) : void loadActiveTab(0)} disabled={loading || triggeringKind !== null}>
           <RefreshCw size={16} aria-hidden="true" />
           刷新
         </button>
@@ -417,6 +419,7 @@ export function DataMaintenancePage() {
         <button className={activeTab === "logs" ? "active" : undefined} type="button" onClick={() => setActiveTab("logs")}>
           任务日志
         </button>
+        {isAdmin ? <button className={activeTab === "errors" ? "active" : undefined} type="button" onClick={() => setActiveTab("errors")}>错误记录</button> : null}
         <button className={activeTab === "backups" ? "active" : undefined} type="button" onClick={() => setActiveTab("backups")}>
           数据备份
         </button>
@@ -430,6 +433,7 @@ export function DataMaintenancePage() {
       {activeTab === "prices" ? renderPricesTab() : null}
       {activeTab === "snapshots" ? <AssetSnapshotsTab refreshVersion={snapshotRefreshVersion} /> : null}
       {activeTab === "logs" ? renderLogsTab() : null}
+      {activeTab === "errors" && isAdmin ? <ApiErrorsTab refreshVersion={errorRefreshVersion} /> : null}
       {activeTab === "backups" ? renderBackupsTab() : null}
       {activeTab === "restore" ? renderRestoreTab() : null}
       {renderKernelDrawer()}

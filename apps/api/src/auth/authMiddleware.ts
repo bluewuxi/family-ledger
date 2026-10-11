@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser, UserRole } from "@family-ledger/shared";
 import { getUserRole, UserRoleNotFoundError } from "../repositories/userRoleRepository";
@@ -5,6 +6,7 @@ import { getLocalAuthBypassUser, LocalAuthBypassUserNotFoundError } from "./loca
 import { InvalidTokenError, verifySupabaseJwt } from "./verifySupabaseJwt";
 
 export class ApiAuthError extends Error {
+  override readonly name = "ApiAuthError";
   constructor(
     message: string,
     public readonly statusCode: 401 | 403 = 401
@@ -46,6 +48,7 @@ export async function getCurrentUser(event: APIGatewayProxyEventV2): Promise<Aut
       role
     };
   } catch (error) {
+    logCaughtError("authMiddleware.getCurrentUser", error);
     if (error instanceof InvalidTokenError) {
       throw new ApiAuthError("Authentication is required.");
     }

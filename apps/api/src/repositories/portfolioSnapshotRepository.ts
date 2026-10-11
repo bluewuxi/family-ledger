@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import {
   combineAccountValuations,
   type AccountPurpose,
@@ -84,7 +85,8 @@ export async function listPortfolioSnapshots(input: {
   const { data: accounts, error: accountError } = await listAccountSnapshotRows(supabase, snapshotIds, input.purpose);
 
   if (accountError) {
-    console.error("Failed to list portfolio account snapshots", { error: accountError });
+    logDependencyError("portfolioSnapshotRepository.listPortfolioSnapshots", accountError, []);
+
     throw new Error("Failed to list portfolio account snapshots.");
   }
 
@@ -104,7 +106,7 @@ export async function listPortfolioSnapshotTrendRows(input: {
   const snapshots = await listPortfolioSnapshotRows(input);
   if (snapshots.length === 0) return [];
   const { data, error } = await listAccountSnapshotRows(supabase, snapshots.map((snapshot) => snapshot.id), input.purpose);
-  if (error) throw new Error("Failed to list investment account snapshots.");
+  if (error) { logDependencyError("portfolioSnapshotRepository.listPortfolioSnapshotTrendRows", error, []); throw new Error("Failed to list investment account snapshots."); }
   const accountsBySnapshotId = groupAccountsBySnapshotId(data);
   return snapshots.map((snapshot) => mapSnapshotRow(aggregateSnapshotRow(snapshot, accountsBySnapshotId.get(snapshot.id) ?? []), [], input.currency));
 }
@@ -133,7 +135,8 @@ export async function listAccountSnapshotTrendRows(input: {
   const { data, error } = await readAllRows(query.returns<PortfolioAccountSnapshotTrendRow[]>(), input.limit);
 
   if (error) {
-    console.error("Failed to list account snapshot trend rows", { error });
+    logDependencyError("portfolioSnapshotRepository.listAccountSnapshotTrendRows", error, []);
+
     throw new Error("Failed to list account snapshot trend rows.");
   }
 
@@ -169,7 +172,8 @@ async function listPortfolioSnapshotRows(input: {
   const { data: snapshots, error: snapshotError } = await readAllRows(snapshotQuery.returns<PortfolioSnapshotHeaderRow[]>(), input.limit);
 
   if (snapshotError) {
-    console.error("Failed to list portfolio snapshots", { error: snapshotError });
+    logDependencyError("portfolioSnapshotRepository.listPortfolioSnapshotRows", snapshotError, []);
+
     throw new Error("Failed to list portfolio snapshots.");
   }
 
@@ -190,6 +194,7 @@ export async function listSnapshotDatesFrom(fromDate: string): Promise<string[]>
     .returns<Array<{ snapshot_date: string }>>());
 
   if (error) {
+    logDependencyError("portfolioSnapshotRepository.listSnapshotDatesFrom", error, []);
     throw new Error("Failed to list affected portfolio snapshots.");
   }
 
@@ -202,7 +207,8 @@ export async function upsertPortfolioSnapshot(
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation });
   if (error || typeof data !== "string") {
-    console.error("Portfolio snapshot write failed", { snapshotDate: valuation.snapshotDate, code: error?.code });
+    logDependencyError("portfolioSnapshotRepository.upsertPortfolioSnapshot", error, []);
+
     throw new Error("Failed to atomically write portfolio snapshot.");
   }
   return { snapshotId: data, accountsWritten: valuation.accounts.length };
@@ -356,7 +362,7 @@ async function listAccountSnapshotRows(
         .order("id", { ascending: true }).range(offset, offset + 499);
       if (purpose) query = query.eq("investment_accounts.purpose", purpose);
       const { data, error } = await query.returns<PortfolioAccountSnapshotRow[]>();
-      if (error) return { data: rows, error };
+      if (error) { logDependencyError("portfolioSnapshotRepository.listAccountSnapshotRows", error, []); return { data: rows, error }; }
       rows.push(...data);
       if (data.length < 500) break;
     }

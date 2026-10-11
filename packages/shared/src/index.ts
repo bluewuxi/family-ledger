@@ -2040,3 +2040,33 @@ export interface TransactionsResponse {
 }
 
 export * from "./nzxNta";
+export type ApiErrorTrackingStatus = "open" | "in_progress" | "resolved";
+export interface ApiErrorGroup {
+  id: string;
+  fingerprint: string;
+  summary: string;
+  method: string;
+  path: string;
+  operation: string;
+  errorCode: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  observedCount: number;
+  status: ApiErrorTrackingStatus;
+  resolvedAt: string | null;
+  recurring: boolean;
+  notes: string;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+export interface ApiErrorGroupsPage { items: ApiErrorGroup[]; pagination: Pagination; }
+export interface ApiErrorQueryResult { observed: number; nextCursor: string | null; from: string; to: string; }
+export interface ApiErrorEventDetail {
+  eventId: string;
+  occurredAt: string;
+  requestId: string | null;
+  message: string | null;
+  unavailable: boolean;
+  legacy: boolean;
+}
+export interface ApiErrorEventsPage { items: ApiErrorEventDetail[]; pagination: Pagination; }

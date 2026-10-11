@@ -1,4 +1,6 @@
+import { logCaughtError, logError, withRequestLogging } from "../utils/errorLogging";
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
+import { apiErrorRoute } from "./apiErrorRoutes";
 import {
   createInvestmentAccount,
   deleteInvestmentAccount,
@@ -337,11 +339,16 @@ const dynamicRoutes: Array<{
 ];
 
 export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
+  return withRequestLogging({ requestId: event.requestContext.requestId, method: event.requestContext.http.method, path: event.rawPath }, () => routeRequest(event));
+}
+
+async function routeRequest(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
   try {
     if (event.requestContext.http.method === "OPTIONS") {
       return preflight();
     }
 
+    if (event.rawPath === "/data-maintenance/errors" || event.rawPath.startsWith("/data-maintenance/errors/")) return await apiErrorRoute(event);
     if (event.rawPath === "/education-reserve" || event.rawPath.startsWith("/education-reserve/")) return await educationReserveRoute(event);
     if (event.rawPath === "/cashflows" && event.requestContext.http.method === "GET") {
       const user = await requireRole(event, "viewer");
@@ -356,6 +363,8 @@ export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
 
     return await handler();
   } catch (error) {
+    if (error instanceof ApiAuthError || error instanceof ApiRequestError) logCaughtError("request.failed", error);
+    else logError("request.failed", error, "ERROR");
     if (error instanceof ApiAuthError) {
       return failure(
         {
@@ -370,11 +379,6 @@ export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
       return failure({ code: error.code, message: error.message }, error.statusCode);
     }
 
-    console.error("Unhandled API error", {
-      method: event.requestContext.http.method,
-      path: event.rawPath,
-      error
-    });
     return failure({ code: "INTERNAL_ERROR", message: "Unexpected server error." }, 500);
   }
 }

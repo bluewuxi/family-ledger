@@ -1,3 +1,4 @@
+import { logError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
 import type { CurrencyCode } from "@family-ledger/shared";
 import type {
@@ -53,6 +54,7 @@ export class EastMoneyInstrumentQuoteProvider implements IInstrumentQuoteProvide
 
         quotes.push(parseEastMoneyResponse(await response.json(), instrument.instrumentId, instrument.sourceSymbol, instrument.currency));
       } catch (error) {
+        logError("EastMoneyInstrumentQuoteProvider.fetchLatestQuotes", error, signal.aborted ? "WARN" : "ERROR");
         // Keep completed quotes when the shared deadline interrupts fetch or body reading.
         if (signal.aborted) break;
         throw error;

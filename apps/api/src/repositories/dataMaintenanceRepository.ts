@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type {
   CurrencyCode,
   DataKind,
@@ -114,6 +115,7 @@ export async function listExchangeRates(input: {
   const { data, error, count } = await query;
 
   if (error) {
+    logDependencyError("dataMaintenanceRepository.listExchangeRates", error, []);
     throw new Error("Failed to list exchange rates.");
   }
 
@@ -153,6 +155,7 @@ export async function listInstrumentPrices(input: {
   const { data, error, count } = await query;
 
   if (error) {
+    logDependencyError("dataMaintenanceRepository.listInstrumentPrices", error, []);
     throw new Error("Failed to list instrument prices.");
   }
 
@@ -187,6 +190,7 @@ export async function listJobRuns(input: {
   const { data, error, count } = await query;
 
   if (error) {
+    logDependencyError("dataMaintenanceRepository.listJobRuns", error, []);
     throw new Error("Failed to list job runs.");
   }
 
@@ -202,6 +206,7 @@ export async function listDataProviderRuns(jobRunId: string): Promise<DataProvid
     .order("provider_started_at", { ascending: false });
 
   if (error) {
+    logDependencyError("dataMaintenanceRepository.listDataProviderRuns", error, []);
     throw new Error("Failed to list data provider runs.");
   }
 

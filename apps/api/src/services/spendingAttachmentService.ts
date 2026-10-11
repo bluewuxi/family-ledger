@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import { createHash, randomUUID } from "node:crypto";
 import {
   GetObjectCommand,
@@ -170,6 +171,7 @@ export async function finishStatementUpload(
     );
     return deps.getStatement(id);
   } catch (error) {
+    logCaughtError("spendingAttachmentService.finishStatementUpload", error);
     if (error instanceof ApiRequestError) throw error;
     throw new ApiRequestError(
       "VALIDATION_ERROR",

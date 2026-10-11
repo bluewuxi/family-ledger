@@ -1,3 +1,4 @@
+import { logDependencyError, logError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
 import {
   selectPreferredExchangeRateRecord,
@@ -97,6 +98,7 @@ export async function findValuationRateToUsdOnDate(
     .returns<FxRateRow[]>();
 
   if (error) {
+    logDependencyError("fxRateRepository.findValuationRateToUsdOnDate", error, []);
     throw new Error("Failed to find settlement FX rate.");
   }
 
@@ -126,6 +128,7 @@ export async function listValuationRatesToUsdForDates(
   });
 
   if (error) {
+    logDependencyError("fxRateRepository.listValuationRatesToUsdForDates", error, []);
     throw new Error("Failed to list snapshot FX rates.");
   }
 
@@ -154,6 +157,7 @@ export async function listExactValuationRatesToUsdForDates(
     .returns<FxRateRow[]>();
 
   if (error) {
+    logDependencyError("fxRateRepository.listExactValuationRatesToUsdForDates", error, []);
     throw new Error("Failed to list exact valuation FX rates.");
   }
 
@@ -185,8 +189,10 @@ export async function insertExchangeRateIfNotExists(
   }
 
   if (error.code !== "23505") {
+    logDependencyError("fxRateRepository.insertExchangeRateIfNotExists", error);
     throw new Error("Failed to insert exchange rate.");
   }
+  logError("fxRateRepository.insertExchangeRateIfNotExists.existing", error, "INFO");
 
   const { data: existing, error: existingError } = await supabase
     .from("exchange_rates")
@@ -199,6 +205,7 @@ export async function insertExchangeRateIfNotExists(
     .maybeSingle<FxRateRow>();
 
   if (existingError || !existing) {
+    logDependencyError("fxRateRepository.insertExchangeRateIfNotExists", existingError, []);
     throw new Error("Failed to find existing exchange rate.");
   }
 
@@ -232,6 +239,7 @@ async function findLatestValuationRateToUsd(fromCurrency: CurrencyCode): Promise
     .returns<FxRateRow[]>();
 
   if (error) {
+    logDependencyError("fxRateRepository.findLatestValuationRateToUsd", error, []);
     throw new Error("Failed to list latest FX rates.");
   }
 

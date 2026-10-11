@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import {
   ASSET_TYPES,
   CURRENCY_CODES,
@@ -35,6 +36,7 @@ export async function createInvestmentInstrument(body: unknown, user: Authentica
   try {
     return await createInstrument(input, user.id);
   } catch (error) {
+    logCaughtError("instrumentService.createInvestmentInstrument", error);
     if (error instanceof InstrumentDuplicateError) {
       throw new ApiRequestError(
         "VALIDATION_ERROR",
@@ -69,6 +71,7 @@ export async function updateInvestmentInstrument(
   try {
     return await updateInstrument(id, input, user.id);
   } catch (error) {
+    logCaughtError("instrumentService.updateInvestmentInstrument", error);
     if (error instanceof InstrumentNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Instrument was not found.", 404);
     }
@@ -91,6 +94,7 @@ export async function deleteInvestmentInstrument(id: string): Promise<void> {
   try {
     await deleteInstrument(id);
   } catch (error) {
+    logCaughtError("instrumentService.deleteInvestmentInstrument", error);
     if (error instanceof InstrumentNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Instrument was not found.", 404);
     }

@@ -93,6 +93,81 @@ Globals:
         TRADING_PASSWORD_GATE_SSM_PARAM: !Sub /family-ledger/${EnvironmentName}_trading_password_gate
 
 Resources:
+  LogRetentionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ManageProjectLogRetention
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogGroup, logs:PutRetentionPolicy, logs:CreateLogStream, logs:PutLogEvents]
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-api:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-update-fx-rates:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-update-prices:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-portfolio-snapshots:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-backup-ledger-data:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-log-retention:*
+
+  LogRetentionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub family-ledger-${EnvironmentName}-log-retention
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt LogRetentionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          const { CloudWatchLogsClient, CreateLogGroupCommand, PutRetentionPolicyCommand } = require('@aws-sdk/client-cloudwatch-logs');
+          const https = require('node:https');
+          exports.handler = async event => {
+            let status = 'SUCCESS';
+            let reason = 'Project log retention configured.';
+            try {
+              if (event.RequestType !== 'Delete') {
+                const client = new CloudWatchLogsClient({});
+                for (const logGroupName of event.ResourceProperties.LogGroupNames) {
+                  try { await client.send(new CreateLogGroupCommand({ logGroupName })); }
+                  catch (error) { if (error.name !== 'ResourceAlreadyExistsException') throw error; }
+                  await client.send(new PutRetentionPolicyCommand({ logGroupName, retentionInDays: Number(event.ResourceProperties.RetentionInDays) }));
+                }
+              }
+            } catch (error) {
+              status = 'FAILED'; reason = 'Project log retention configuration failed.';
+              console.error(JSON.stringify({ level: 'ERROR', operation: 'log-retention', name: error.name, code: error.code, message: error.message }));
+            }
+            const body = JSON.stringify({ Status: status, Reason: reason, PhysicalResourceId: event.PhysicalResourceId || 'project-log-retention',
+              StackId: event.StackId, RequestId: event.RequestId, LogicalResourceId: event.LogicalResourceId });
+            await new Promise((resolve, reject) => {
+              const req = https.request(event.ResponseURL, { method: 'PUT', headers: { 'content-type': '', 'content-length': Buffer.byteLength(body) } }, res => {
+                res.resume(); res.on('end', () => res.statusCode >= 200 && res.statusCode < 300 ? resolve() : reject(new Error('CloudFormation response failed')));
+              });
+              req.on('error', reject); req.end(body);
+            });
+          };
+
+  ProjectLogRetention:
+    Type: Custom::ProjectLogRetention
+    Properties:
+      ServiceToken: !GetAtt LogRetentionFunction.Arn
+      RetentionInDays: 30
+      LogGroupNames:
+        - !Sub /aws/lambda/family-ledger-${EnvironmentName}-api
+        - !Sub /aws/lambda/family-ledger-${EnvironmentName}-update-fx-rates
+        - !Sub /aws/lambda/family-ledger-${EnvironmentName}-update-prices
+        - !Sub /aws/lambda/family-ledger-${EnvironmentName}-portfolio-snapshots
+        - !Sub /aws/lambda/family-ledger-${EnvironmentName}-backup-ledger-data
+        - !Sub /aws/lambda/family-ledger-${EnvironmentName}-log-retention
+
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -107,6 +182,13 @@ Resources:
       ManagedPolicyArns:
         - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: ReadApiErrors
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:FilterLogEvents]
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-api:*
         - PolicyName: ReadFamilyLedgerParameters
           PolicyDocument:
             Version: "2012-10-17"
@@ -410,6 +492,7 @@ Resources:
       Environment:
         Variables:
           ALLOWED_ORIGIN: !Sub https://${WebDomainName}
+          API_ERROR_LOG_GROUP: !Sub /aws/lambda/family-ledger-${EnvironmentName}-api
           STATEMENT_BUCKET_NAME: !Ref StatementBucket
           UPDATE_FX_RATES_FUNCTION_NAME: !Ref UpdateFxRatesFunction
           UPDATE_PRICES_FUNCTION_NAME: !Ref UpdatePricesFunction

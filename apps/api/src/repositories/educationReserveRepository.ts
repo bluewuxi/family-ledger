@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { EducationEntry, EducationEntryInput, EducationFund, CashflowReport } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 import { ApiRequestError } from "../utils/apiError";
@@ -5,6 +6,7 @@ import { ApiRequestError } from "../utils/apiError";
 export async function educationRpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
   const db = await getSupabaseAdmin();
   const { data, error } = await db.rpc(name, args);
+  logDependencyError(`educationReserveRepository.${name}`, error, ["40001", "P0002", "23514", "23503"]);
   if (error?.code === "40001") throw new ApiRequestError("CONFLICT", "记录已变化，请刷新后重试。", 409);
   if (error?.code === "P0002") throw new ApiRequestError("NOT_FOUND", "教育储备记录不存在。", 404);
   if (error?.code === "23514" || error?.code === "23503") throw new ApiRequestError("VALIDATION_ERROR", "关联退款、币种或金额不符合规则，请检查记录。", 400);

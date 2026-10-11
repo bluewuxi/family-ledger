@@ -1,3 +1,4 @@
+import { logDependencyError, logAuthenticationError } from "../utils/errorLogging";
 import type { ManagedUser, UserRole } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -8,6 +9,7 @@ interface UserRoleRow {
 }
 
 export class ManagedUserNotFoundError extends Error {
+  override readonly name = "ManagedUserNotFoundError";
   constructor() {
     super("Managed user was not found.");
   }
@@ -19,7 +21,8 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
     supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     supabase.from("user_roles").select("user_id, role, is_active").returns<UserRoleRow[]>()
   ]);
-
+  logDependencyError("managedUserRepository.listManagedUsers.auth", authError);
+  logDependencyError("managedUserRepository.listManagedUsers.roles", roleError);
   if (authError) {
     throw new Error("Failed to list Supabase Auth users.");
   }
@@ -57,6 +60,7 @@ export async function updateManagedUserRole(
   const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(userId);
 
   if (authUserError || !authUserData.user) {
+    logAuthenticationError("managedUserRepository.updateManagedUserRole", authUserError);
     throw new ManagedUserNotFoundError();
   }
 
@@ -67,6 +71,7 @@ export async function updateManagedUserRole(
     .maybeSingle<UserRoleRow>();
 
   if (existingRoleError) {
+    logDependencyError("managedUserRepository.updateManagedUserRole", existingRoleError, []);
     throw new Error("Failed to load existing user role.");
   }
 
@@ -86,6 +91,7 @@ export async function updateManagedUserRole(
     .single<UserRoleRow>();
 
   if (roleError) {
+    logDependencyError("managedUserRepository.updateManagedUserRole", roleError, []);
     throw new Error("Failed to update user role.");
   }
 

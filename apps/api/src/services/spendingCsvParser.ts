@@ -1,3 +1,4 @@
+import { logError } from "../utils/errorLogging";
 import { createHash } from "node:crypto";
 import { parse } from "csv-parse/sync";
 import Decimal from "decimal.js";
@@ -120,7 +121,8 @@ export function decodeBankCsv(
         !candidates.some((c) => c.text === text)
       )
         candidates.push({ encoding, rows, text });
-    } catch {
+    } catch (caughtError) {
+      logError("spendingCsvParser.decodeBankCsv", caughtError, override || bom ? "WARN" : "INFO");
       /* Strict decoder or CSV syntax failed; never repair corrupt input. */
     }
   }
@@ -300,6 +302,7 @@ export function parseBankCsv(
         duplicate_count: 0,
       });
     } catch (e) {
+      logError("spendingCsvParser.parseBankCsv", e, "WARN");
       result.errors.push({
         row_number,
         message: e instanceof Error ? e.message : "交易行无效。",

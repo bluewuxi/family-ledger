@@ -1,3 +1,4 @@
+import { logDependencyError, logCaughtError } from "../utils/errorLogging";
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import {
   deleteSecureParameter,
@@ -27,6 +28,7 @@ export async function deleteTradingPasswordParameter(accountId: string): Promise
   try {
     await deleteSecureParameter(getTradingPasswordParameterName(accountId));
   } catch (error) {
+    logCaughtError("accountTradingPasswordService.deleteTradingPasswordParameter", error);
     if (isSsmParameterNotFound(error)) {
       return;
     }
@@ -49,6 +51,7 @@ export async function revealTradingPassword(
       tradingPassword: await getSecureParameter(getTradingPasswordParameterName(accountId))
     };
   } catch (error) {
+    logCaughtError("accountTradingPasswordService.revealTradingPassword", error);
     if (isSsmParameterNotFound(error)) {
       throw new Error("Trading password parameter is missing.");
     }
@@ -127,6 +130,7 @@ async function getOrCreateTradingPasswordGateValue(): Promise<string> {
   try {
     return normalizeGateValue(await getSecureParameter(getTradingPasswordGateParameterName()));
   } catch (error) {
+    logCaughtError("accountTradingPasswordService.getOrCreateTradingPasswordGateValue", error);
     if (!isSsmParameterNotFound(error)) {
       throw error;
     }
@@ -176,6 +180,7 @@ async function deriveScryptKey(extraPassword: string, salt: string): Promise<Buf
   return new Promise((resolve, reject) => {
     scrypt(extraPassword, Buffer.from(salt, "base64url"), SCRYPT_KEY_LENGTH, SCRYPT_OPTIONS, (error, derivedKey) => {
       if (error) {
+        logDependencyError("accountTradingPasswordService.deriveScryptKey", error, []);
         reject(error);
         return;
       }
@@ -289,7 +294,8 @@ function isScryptGateSignature(value: string): boolean {
     const salt = Buffer.from(parts[2] ?? "", "base64url");
     const derivedKey = Buffer.from(parts[3] ?? "", "base64url");
     return salt.length >= 16 && derivedKey.length === SCRYPT_KEY_LENGTH;
-  } catch {
+  } catch (caughtError) {
+    logCaughtError("accountTradingPasswordService.isScryptGateSignature", caughtError);
     return false;
   }
 }

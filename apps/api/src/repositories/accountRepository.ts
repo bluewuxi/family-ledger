@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { CreateInvestmentAccountInput, InvestmentAccount, UpdateInvestmentAccountInput } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -18,12 +19,14 @@ interface InvestmentAccountRow {
 }
 
 export class AccountNotFoundError extends Error {
+  override readonly name = "AccountNotFoundError";
   constructor() {
     super("Account was not found.");
   }
 }
 
 export class AccountInUseError extends Error {
+  override readonly name = "AccountInUseError";
   constructor() {
     super("Account cannot be deleted because it is used by transactions.");
   }
@@ -37,6 +40,7 @@ export async function listAccounts(): Promise<InvestmentAccount[]> {
     .order("name", { ascending: true });
 
   if (result.error) {
+    logDependencyError("accountRepository.listAccounts", result.error, []);
     throw new Error("Failed to list accounts.");
   }
 
@@ -52,6 +56,7 @@ export async function findAccountById(id: string): Promise<InvestmentAccount | n
     .maybeSingle<InvestmentAccountRow>();
 
   if (result.error) {
+    logDependencyError("accountRepository.findAccountById", result.error, []);
     throw new Error("Failed to find account.");
   }
 
@@ -81,6 +86,7 @@ export async function createAccount(
     .single<InvestmentAccountRow>();
 
   if (error) {
+    logDependencyError("accountRepository.createAccount", error, []);
     throw new Error("Failed to create account.");
   }
 
@@ -104,6 +110,7 @@ export async function updateAccount(
     .maybeSingle<InvestmentAccountRow>();
 
   if (error) {
+    logDependencyError("accountRepository.updateAccount", error, []);
     throw new Error("Failed to update account.");
   }
 
@@ -124,6 +131,7 @@ export async function deleteAccount(id: string): Promise<void> {
     .maybeSingle<{ id: string }>();
 
   if (error) {
+    logDependencyError("accountRepository.deleteAccount", error, ["23503"]);
     if (error.code === "23503") {
       throw new AccountInUseError();
     }
@@ -144,6 +152,7 @@ export async function countAccountTransactions(id: string): Promise<number> {
     .eq("account_id", id);
 
   if (error) {
+    logDependencyError("accountRepository.countAccountTransactions", error, []);
     throw new Error("Failed to count account transactions.");
   }
 

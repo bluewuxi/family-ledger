@@ -1,3 +1,4 @@
+import { logDependencyError, logError } from "../utils/errorLogging";
 import {
   selectLatestPriceRecordsByDistinctDates,
   type CreateInstrumentPriceInput,
@@ -39,7 +40,7 @@ export async function listPricesForTransactionWrite(instrumentIds: string[], toD
   const { data, error } = await readAllRows(supabase.from("instrument_prices").select(priceSelect)
     .in("instrument_id", uniqueValues(instrumentIds)).lte("price_date", toDate)
     .order("id").returns<PriceRow[]>());
-  if (error) throw new Error("Failed to load transaction valuation prices.");
+  if (error) { logDependencyError("priceRepository.listPricesForTransactionWrite", error, []); throw new Error("Failed to load transaction valuation prices."); }
   return data.map(row => ({ ...mapPriceRow(row), sourceTransactionId: row.source_transaction_id }));
 }
 
@@ -60,6 +61,7 @@ export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): P
         .limit(20);
 
       if (error) {
+        logDependencyError("priceRepository.listLatestPrices", error, []);
         throw new Error("Failed to list latest prices.");
       }
 
@@ -92,6 +94,7 @@ export async function listLatestPricesForDates(
   });
 
   if (error) {
+    logDependencyError("priceRepository.listLatestPricesForDates", error, []);
     throw new Error("Failed to list snapshot prices.");
   }
 
@@ -114,6 +117,7 @@ export async function hasInstrumentPriceOnDate(input: {
     .maybeSingle<{ id: string }>();
 
   if (error) {
+    logDependencyError("priceRepository.hasInstrumentPriceOnDate", error, []);
     throw new Error("Failed to check instrument price.");
   }
 
@@ -128,6 +132,7 @@ export async function deletePriceBySourceTransactionId(sourceTransactionId: stri
     .eq("source_transaction_id", sourceTransactionId);
 
   if (error) {
+    logDependencyError("priceRepository.deletePriceBySourceTransactionId", error, []);
     throw new Error("Failed to delete transaction-generated instrument price.");
   }
 }
@@ -148,8 +153,10 @@ export async function insertInstrumentPriceIfNotExists(
   }
 
   if (error.code !== "23505") {
+    logDependencyError("priceRepository.insertInstrumentPriceIfNotExists", error);
     throw new Error("Failed to insert instrument price.");
   }
+  logError("priceRepository.insertInstrumentPriceIfNotExists.existing", error, "INFO");
 
   const { data: existing, error: existingError } = await supabase
     .from("instrument_prices")
@@ -160,6 +167,7 @@ export async function insertInstrumentPriceIfNotExists(
     .maybeSingle<PriceRow>();
 
   if (existingError || !existing) {
+    logDependencyError("priceRepository.insertInstrumentPriceIfNotExists", existingError, []);
     throw new Error("Failed to find existing instrument price.");
   }
 

@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import { kernelNtaRpcArguments, type KernelNtaPlan } from "@family-ledger/shared";
 import type {
   CurrencyCode,
@@ -56,7 +57,7 @@ export async function findKernelEstimateInstrument(): Promise<KernelInstrumentRo
     .eq("price_source_symbol", "USF.NZ")
     .eq("price_source_exchange", "NZX")
     .maybeSingle<KernelInstrumentRow>();
-  if (error) throw new Error("Failed to load the Kernel estimate instrument.");
+  if (error) { logDependencyError("marketDataSourceRepository.findKernelEstimateInstrument", error, []); throw new Error("Failed to load the Kernel estimate instrument."); }
   return data;
 }
 
@@ -69,7 +70,7 @@ export async function countEnabledPriceTargets(priceSource: PriceSource, sourceS
     .eq("price_update_enabled", true);
   if (sourceSymbols) query = query.in("price_source_symbol", sourceSymbols);
   const { count, error } = await query;
-  if (error) throw new Error("Failed to count configured market-data targets.");
+  if (error) { logDependencyError("marketDataSourceRepository.countEnabledPriceTargets", error, []); throw new Error("Failed to count configured market-data targets."); }
   return count ?? 0;
 }
 
@@ -83,14 +84,14 @@ export async function findLatestProviderRun(provider: string): Promise<DataProvi
     .order("id", { ascending: false })
     .limit(1)
     .maybeSingle<ProviderRunRow>();
-  if (error) throw new Error("Failed to load the latest data-source run.");
+  if (error) { logDependencyError("marketDataSourceRepository.findLatestProviderRun", error, []); throw new Error("Failed to load the latest data-source run."); }
   return data ? mapProviderRun(data) : null;
 }
 
 export async function listKernelPriceAnchors(): Promise<KernelPriceAnchor[]> {
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase.rpc("list_kernel_nta_anchors");
-  if (error || !Array.isArray(data)) throw new Error("Failed to load Kernel price anchors.");
+  if (error || !Array.isArray(data)) { logDependencyError("marketDataSourceRepository.listKernelPriceAnchors", error, []); throw new Error("Failed to load Kernel price anchors."); }
   return (data as KernelAnchorRow[]).map(mapKernelAnchor);
 }
 
@@ -147,11 +148,11 @@ function mapProviderRun(row: ProviderRunRow): DataProviderRun {
 export async function refreshKernelNta(plan: KernelNtaPlan): Promise<{ pending_snapshot_from: string | null; refresh_token: string; changed_count: number }> {
   const db = await getSupabaseAdmin();
   const { data, error } = await db.rpc("refresh_kernel_nta", kernelNtaRpcArguments(plan));
-  if (error || !data) throw new Error("Kernel NTA atomic refresh failed.");
+  if (error || !data) { logDependencyError("marketDataSourceRepository.refreshKernelNta", error, []); throw new Error("Kernel NTA atomic refresh failed."); }
   return data;
 }
 export async function completeKernelNtaSnapshots(instrumentId: string, token: string): Promise<void> {
   const db = await getSupabaseAdmin();
   const { error } = await db.rpc("complete_kernel_nta_snapshots", { p_instrument_id: instrumentId, p_refresh_token: token });
-  if (error) throw new Error("Kernel NTA snapshot completion failed.");
+  if (error) { logDependencyError("marketDataSourceRepository.completeKernelNtaSnapshots", error, []); throw new Error("Kernel NTA snapshot completion failed."); }
 }

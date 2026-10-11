@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { UserRole } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -6,6 +7,7 @@ interface UserRoleRow {
 }
 
 export class UserRoleNotFoundError extends Error {
+  override readonly name = "UserRoleNotFoundError";
   constructor() {
     super("No active role found for this user.");
   }
@@ -21,6 +23,7 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     .maybeSingle<UserRoleRow>();
 
   if (error) {
+    logDependencyError("userRoleRepository.getUserRole", error, []);
     throw new Error("Failed to load user role.");
   }
 

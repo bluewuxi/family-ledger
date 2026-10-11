@@ -1,3 +1,4 @@
+import { logCaughtError, logError } from "../utils/errorLogging";
 import {
   ACCOUNT_TYPES,
   ACCOUNT_PURPOSES,
@@ -40,13 +41,11 @@ export async function createInvestmentAccount(
   try {
     await createTradingPasswordPlaceholder(account.id);
   } catch (error) {
+    logCaughtError("accountService.createInvestmentAccount", error);
     try {
       await deleteAccount(account.id);
     } catch (cleanupError) {
-      console.error("Failed to clean up account after trading password placeholder creation failed", {
-        accountId: account.id,
-        error: cleanupError
-      });
+      logError("accountService.createInvestmentAccount.cleanup", cleanupError, "ERROR");
     }
 
     throw error;
@@ -68,6 +67,7 @@ export async function updateInvestmentAccount(
   try {
     return await updateAccount(id, input, user.id);
   } catch (error) {
+    logCaughtError("accountService.updateInvestmentAccount", error);
     if (error instanceof AccountNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Account was not found.", 404);
     }
@@ -95,6 +95,7 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
     await deleteAccount(id);
     await deleteTradingPasswordParameter(id);
   } catch (error) {
+    logCaughtError("accountService.deleteInvestmentAccount", error);
     if (error instanceof AccountNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "Account was not found.", 404);
     }

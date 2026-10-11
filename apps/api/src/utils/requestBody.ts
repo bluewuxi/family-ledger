@@ -1,3 +1,4 @@
+import { logError } from "./errorLogging";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { ApiRequestError } from "./apiError";
 
@@ -10,7 +11,8 @@ export function parseJsonBody(event: APIGatewayProxyEventV2): unknown {
 
   try {
     return JSON.parse(rawBody) as unknown;
-  } catch {
+  } catch (caughtError) {
+    logError("requestBody.parseJsonBody", caughtError, "WARN");
     throw new ApiRequestError("VALIDATION_ERROR", "Request body must be valid JSON.", 400);
   }
 }

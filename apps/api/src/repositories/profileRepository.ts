@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { AuthenticatedUser, CurrencyCode, GainColorScheme, Profile, UiTheme } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -21,6 +22,7 @@ export async function getOrCreateProfile(user: AuthenticatedUser): Promise<Profi
     .maybeSingle<ProfileRow>();
 
   if (error) {
+    logDependencyError("profileRepository.getOrCreateProfile", error, []);
     throw new Error("Failed to load profile.");
   }
 
@@ -35,6 +37,7 @@ export async function getOrCreateProfile(user: AuthenticatedUser): Promise<Profi
     .single<ProfileRow>();
 
   if (createError) {
+    logDependencyError("profileRepository.getOrCreateProfile", createError, []);
     throw new Error("Failed to create profile.");
   }
 
@@ -62,6 +65,7 @@ export async function updateProfilePreferences(
     .single<ProfileRow>();
 
   if (error) {
+    logDependencyError("profileRepository.updateProfilePreferences", error, []);
     throw new Error("Failed to update profile preferences.");
   }
 

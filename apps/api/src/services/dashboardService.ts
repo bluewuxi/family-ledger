@@ -1,3 +1,4 @@
+import { logError } from "../utils/errorLogging";
 import type {
   AuthenticatedUser,
   CurrencyCode,
@@ -201,10 +202,8 @@ async function fetchAndStoreDashboardQuotes(input: {
         storedQuotes.push(await input.dashboardQuoteRepository.upsertDashboardQuote(quoteInput));
       }
     } catch (error) {
-      console.error("Failed to refresh dashboard quotes.", {
-        priceSource,
-        error
-      });
+      logError("dashboardService.fetchAndStoreDashboardQuotes", error, "ERROR", { provider: priceSource });
+
     }
   }
 

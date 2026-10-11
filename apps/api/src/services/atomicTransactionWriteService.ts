@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import { randomUUID } from "node:crypto";
 import {
   calculateHoldings, calculatePortfolioSnapshotValuation,
@@ -69,8 +70,9 @@ export async function writeTransactionAtomically(input: {
         holdings: calculateHoldings(datedTransactions, accounts, instruments, { fxRates }) }));
     }
   } catch (error) {
+    logCaughtError("atomicTransactionWriteService.writeTransactionAtomically", error);
     if (error instanceof ApiRequestError) throw error;
-    console.error("Transaction snapshot preparation failed", { operation: input.operation });
+
     throw new ApiRequestError("INTERNAL_ERROR", "无法计算历史资产快照，本次操作未保存，交易和现金余额未改变。请稍后重试。", 500);
   }
   return commitTransactionWrite({ ...input, cashLeg, price, snapshots });

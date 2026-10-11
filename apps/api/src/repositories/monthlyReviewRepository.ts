@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { MonthlyReview, MonthlyReviewStatus } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -29,6 +30,7 @@ export async function findMonthlyReview(month: string): Promise<MonthlyReview | 
     .maybeSingle<MonthlyReviewRow>();
 
   if (error) {
+    logDependencyError("monthlyReviewRepository.findMonthlyReview", error, []);
     throw new Error("Failed to load monthly review.");
   }
 
@@ -57,6 +59,7 @@ export async function saveMonthlyReviewRecord(
       .single<MonthlyReviewRow>();
 
     if (error) {
+      logDependencyError("monthlyReviewRepository.saveMonthlyReviewRecord", error, []);
       throw new Error("Failed to update monthly review.");
     }
 
@@ -77,6 +80,7 @@ export async function saveMonthlyReviewRecord(
     .single<MonthlyReviewRow>();
 
   if (error) {
+    logDependencyError("monthlyReviewRepository.saveMonthlyReviewRecord", error, []);
     throw new Error("Failed to create monthly review.");
   }
 

@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { DashboardQuoteRecord } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -37,6 +38,7 @@ export async function listDashboardQuotes(instrumentIds: string[]): Promise<Dash
     .returns<DashboardQuoteRow[]>();
 
   if (error) {
+    logDependencyError("dashboardQuoteRepository.listDashboardQuotes", error, []);
     throw new Error("Failed to list dashboard quotes.");
   }
 
@@ -52,6 +54,7 @@ export async function upsertDashboardQuote(input: UpsertDashboardQuoteInput): Pr
     .single<DashboardQuoteRow>();
 
   if (error) {
+    logDependencyError("dashboardQuoteRepository.upsertDashboardQuote", error, []);
     throw new Error("Failed to upsert dashboard quote.");
   }
 

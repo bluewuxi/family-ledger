@@ -1,3 +1,4 @@
+import { logDependencyError } from "../utils/errorLogging";
 import type { DataKind, DataProviderRun, JobRun, JobRunStatus, JobTriggerSource } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -62,6 +63,7 @@ export async function createJobRun(input: {
     .single<JobRunRow>();
 
   if (error) {
+    logDependencyError("jobRunRepository.createJobRun", error, []);
     throw new Error("Failed to create job run.");
   }
 
@@ -84,6 +86,7 @@ export async function finishJobRun(id: string, input: FinishRunInput): Promise<J
     .maybeSingle<JobRunRow>();
 
   if (error || !data) {
+    logDependencyError("jobRunRepository.finishJobRun", error, []);
     throw new Error("Failed to finish job run.");
   }
 
@@ -110,6 +113,7 @@ export async function createDataProviderRun(input: {
     .single<DataProviderRunRow>();
 
   if (error) {
+    logDependencyError("jobRunRepository.createDataProviderRun", error, []);
     throw new Error("Failed to create data provider run.");
   }
 
@@ -132,6 +136,7 @@ export async function finishDataProviderRun(id: string, input: FinishRunInput): 
     .maybeSingle<DataProviderRunRow>();
 
   if (error || !data) {
+    logDependencyError("jobRunRepository.finishDataProviderRun", error, []);
     throw new Error("Failed to finish data provider run.");
   }
 

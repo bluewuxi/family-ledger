@@ -1,4 +1,5 @@
 import { DeleteParameterCommand, GetParameterCommand, PutParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { registerLogSecret } from "../utils/errorLogging";
 
 const parameterCache = new Map<string, string>();
 let ssmClient: SSMClient | null = null;
@@ -31,6 +32,7 @@ export async function resolveSecureParameter(parameterName: string): Promise<str
   const value = await getSecureParameter(parameterName);
 
   parameterCache.set(parameterName, value);
+  registerLogSecret(value);
   return value;
 }
 
@@ -52,10 +54,12 @@ export async function getSecureParameter(parameterName: string): Promise<string>
     throw new Error("Required SSM parameter could not be resolved.");
   }
 
+  registerLogSecret(value);
   return value;
 }
 
 export async function putSecureParameter(parameterName: string, value: string, overwrite: boolean): Promise<void> {
+  registerLogSecret(value);
   if (!parameterName) {
     throw new Error("SSM parameter name is required.");
   }
