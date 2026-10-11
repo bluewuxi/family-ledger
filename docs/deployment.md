@@ -454,3 +454,9 @@ Issue #110 deployed implementation commit `a38f899` to test. The additive `lates
 Typecheck, build, loading/cache/retry, account-detail, account-secrets, dashboard, holdings, portfolio-trend, transaction-table, quote-timeout, time-policy and API-error-logging checks passed. Read-only stage-one database readiness passed. Live entry HTML, runtime config and all six entry JS/CSS assets matched the release output byte-for-byte. Health returned 200; unauthenticated accounts/totals, cached dashboard, cached holdings and cached account-detail requests returned 401 with `UNAUTHORIZED`.
 
 Local authenticated account-detail refinements were reviewed with the user. Full cross-page authenticated responsive acceptance, an authenticated deployed browser check, and comparable real-world before/after latency measurements remain outstanding; this release does not claim those results. Production was not changed.
+
+### Batch-price JSON hotfix (2026-10-12)
+
+Issue #111 deployed `d609ea8` to test. GET RPC array parameters are explicitly serialized to JSON so the installed JSONB batch-price function no longer rejects a PostgreSQL array literal with `22P02`. Local transaction balance retry recovered while preserving the open edit form.
+
+Real test-database GET RPC, loading, holdings, transaction-table, typecheck and build checks passed. The reviewed change set had no deletions or replacements, the stack reached `UPDATE_COMPLETE`, and web publication/CloudFront invalidation completed. Authenticated deployed cached holdings, dashboard and account totals returned successful results using temporary test sessions that were closed locally afterward. No email, schema change, financial record mutation or production deployment occurred.
