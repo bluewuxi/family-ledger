@@ -61,6 +61,16 @@ export async function upsertDashboardQuote(input: UpsertDashboardQuoteInput): Pr
   return mapDashboardQuoteRow(data);
 }
 
+export async function upsertDashboardQuotes(inputs: UpsertDashboardQuoteInput[]): Promise<DashboardQuoteRecord[]> {
+  if (!inputs.length) return [];
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase.from("dashboard_instrument_quotes")
+    .upsert(inputs.map(toDashboardQuoteRow), { onConflict: "instrument_id,provider" })
+    .select(dashboardQuoteSelect).returns<DashboardQuoteRow[]>();
+  if (error) { logDependencyError("dashboardQuoteRepository.upsertDashboardQuotes", error); throw new Error("Failed to store quotes."); }
+  return data.map(mapDashboardQuoteRow);
+}
+
 const dashboardQuoteSelect = [
   "id",
   "instrument_id",

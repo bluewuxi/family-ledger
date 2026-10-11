@@ -1,3 +1,5 @@
+import { readHistoryCache } from "./historyCache";
+import { timed } from "../utils/timing";
 import Decimal from "decimal.js";
 import {
   getAppBusinessDate,
@@ -61,6 +63,7 @@ export async function getPortfolioSnapshotsResponse(input: {
   currency?: string;
   limit?: string;
   order?: string;
+  bypassCache?: string;
   includeTrend?: string;
   offset?: string;
   includeComparison?: string;
@@ -70,6 +73,14 @@ export async function getPortfolioSnapshotsResponse(input: {
   const query = await resolveSnapshotQuery(input);
   const includeComparison = optionalBoolean("includeComparison", input.includeComparison);
   const paginated = input.offset !== undefined || includeComparison;
+  if (!paginated && optionalBoolean("includeTrend", input.includeTrend) && (!input.purpose || input.purpose === "investment")) {
+    const history = await loadPortfolioHistory(input.user?.id, query.currency, query.to, optionalBoolean("bypassCache", input.bypassCache));
+    const snapshots = history.snapshots.filter(snapshot => snapshot.snapshotDate >= query.from && snapshot.snapshotDate <= query.to);
+    if (query.order === "desc") snapshots.reverse();
+    return { snapshots: query.limit === undefined ? snapshots : snapshots.slice(0, query.limit),
+      trend: await buildPortfolioTrend({ currency: query.currency, range: optionalTrendRange(input.trendRange), today: query.to,
+        snapshots: history.snapshots, principalTransactions: history.principalTransactions }) };
+  }
   let result: PortfolioSnapshotsResponse;
   if (paginated) {
     const offset = input.offset === undefined ? 0 : Number(input.offset);
@@ -89,7 +100,7 @@ export async function getPortfolioSnapshotsResponse(input: {
     trend: await buildPortfolioTrend({
       currency: query.currency,
       range: optionalTrendRange(input.trendRange),
-      today: query.to
+      today: query.to, userId: input.user?.id, bypassCache: optionalBoolean("bypassCache", input.bypassCache)
     })
   };
 }
@@ -116,6 +127,8 @@ export function paginateSnapshotHistory(history: PortfolioSnapshotSummary[], que
 }
 
 export async function buildPortfolioTrend(input: {
+  userId?: string;
+  bypassCache?: boolean;
   currency: SnapshotDisplayCurrency;
   range: PortfolioTrendRange;
   today?: string;
@@ -126,14 +139,16 @@ export async function buildPortfolioTrend(input: {
   const rangeEnd = input.today ?? getAppBusinessDate();
   validateDate("today", rangeEnd);
 
-  const principalTransactions =
-    input.principalTransactions ?? await listManualPrincipalTransactionsUntil(rangeEnd, "investment");
+  const readHistory = () => timed("portfolio.history", () => Promise.all([
+    input.principalTransactions ? Promise.resolve(input.principalTransactions) : listManualPrincipalTransactionsUntil(rangeEnd, "investment"),
+    input.snapshots ? Promise.resolve(input.snapshots) : listPortfolioSnapshotTrendRows({ from: earliestDate, to: rangeEnd, currency: input.currency, order: "asc", purpose: "investment" })
+  ]));
+  const [principalTransactions, allSnapshots] = input.userId && !input.snapshots && !input.principalTransactions && !input.bypassCache
+    ? await readHistoryCache(`${input.userId}:${input.currency}:${rangeEnd}`, readHistory) : await readHistory();
   const principalEvents = principalTransactions.map(toPrincipalEvent);
   const inceptionDate = principalEvents[0]?.date ?? null;
   const requestedRangeStart = getTrendRangeStart(input.range, rangeEnd, inceptionDate);
   const rangeStart = inceptionDate && requestedRangeStart < inceptionDate ? inceptionDate : requestedRangeStart;
-  const allSnapshots =
-    input.snapshots ?? await listPortfolioSnapshotTrendRows({ from: earliestDate, to: rangeEnd, currency: input.currency, order: "asc", purpose: "investment" });
   const exactFxRates =
     input.exactFxRates ?? await listExactValuationRatesToUsdForDates(
       principalEvents.map((event) => event.date),
@@ -383,4 +398,15 @@ function formatIsoDate(value: Date): string {
 
 function uniqueValues<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+async function loadPortfolioHistory(userId: string | undefined, currency: SnapshotDisplayCurrency, to: string, bypass: boolean) {
+  const load = async () => {
+    const [snapshots, principalTransactions] = await Promise.all([
+      timed("portfolio.snapshots", () => listPortfolioSnapshots({ from: earliestDate, to, currency, order: "asc", purpose: "investment" })),
+      timed("portfolio.principal", () => listManualPrincipalTransactionsUntil(to, "investment"))
+    ]);
+    return { snapshots, principalTransactions };
+  };
+  return userId && !bypass ? readHistoryCache(`${userId}:raw:${currency}:${to}`, load) : load();
 }

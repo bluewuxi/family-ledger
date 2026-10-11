@@ -105,3 +105,9 @@
 - PDF extraction, budgets, FX conversion and investment integration remain out of scope.
 
 UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. This local revision has not been deployed; authenticated visual acceptance subsequently passed on 2026-10-06.
+
+## Account Detail and Staged Loading (2026-10-12)
+
+Implemented cached-first valuation with explicit refresh, parallel quote providers and batch writes, batch latest-price candidates, staged accounts/transaction dependencies, shared instrument/history reads, and bounded future-JWT read recovery. Account detail now shows investment profit and dashboard-compatible trend tabs; range controls belong to the chart panel, cash remains in holdings, recent trades span the available width, and parent links share one component. Spec: [investment overview](investment-overview-spec.md).
+
+Focused verification and typecheck/build are release gates. Full authenticated cross-page responsive acceptance and comparable real-world before/after latency measurements remain outstanding and must not be inferred from the local account-detail checks.

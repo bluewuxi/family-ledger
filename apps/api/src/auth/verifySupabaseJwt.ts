@@ -1,4 +1,4 @@
-import { logAuthenticationError, registerLogSecret } from "../utils/errorLogging";
+import { logDependencyError, logAuthenticationError, registerLogSecret } from "../utils/errorLogging";
 import type { AuthenticatedUser } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
@@ -15,6 +15,7 @@ export async function verifySupabaseJwt(token: string): Promise<Omit<Authenticat
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data.user) {
+    if (error?.code === "DEPENDENCY_UNAVAILABLE") logDependencyError("verifySupabaseJwt.verifySupabaseJwt", error);
     logAuthenticationError("verifySupabaseJwt.verifySupabaseJwt", error);
     throw new InvalidTokenError();
   }

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { clearReadCache, setReadCacheIdentity } from "./readCache";
 import { createLocalAuthBypassSession, isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_EMAIL } from "./localAuthBypass";
 import { getRuntimeConfig } from "./runtimeConfig";
 import { getCurrentSession, getSupabaseClient, subscribeAuthSessionExpired } from "./supabase";
@@ -55,11 +56,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setReadCacheIdentity(nextSession?.user.id ?? null);
       setSession(nextSession);
       setLoading(false);
     });
 
     const unsubscribeSessionExpired = subscribeAuthSessionExpired(() => {
+      setReadCacheIdentity(null);
       setSession(null);
       setLoading(false);
     });
@@ -76,6 +79,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       session,
       loading,
       signOut: async () => {
+        clearReadCache();
         if (isLocalAuthBypassEnabled(getRuntimeConfig())) {
           setSession(createLocalAuthBypassSession());
           return;

@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
+import { PageBackLink } from "../components/PageBackLink";
 import { getSupabaseClient } from "../lib/supabase";
 
 export function ForgotPasswordPage() {
@@ -31,6 +31,7 @@ export function ForgotPasswordPage() {
   return (
     <main className="login-page">
       <section className="login-panel" aria-labelledby="forgot-password-title">
+        <PageBackLink to="/login" label="登录" />
         <div className="login-brand-lockup">
           <img className="login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
           <div>
@@ -61,9 +62,6 @@ export function ForgotPasswordPage() {
           <button type="submit" disabled={loading}>
             {loading ? "发送中..." : "发送重置邮件"}
           </button>
-          <Link className="login-secondary-link" to="/login">
-            返回登录
-          </Link>
         </form>
       </section>
     </main>

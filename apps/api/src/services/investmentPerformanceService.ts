@@ -40,3 +40,8 @@ export async function getInvestmentPerformance(input: Omit<Parameters<typeof cal
   const exactFxRates = await listExactValuationRatesToUsdForDates(events.map((event) => event.date), getRequiredPrincipalFxCurrencies(events, input.currency));
   return calculateInvestmentPerformance({ ...input, exactFxRates });
 }
+
+export function completeInvestmentPerformance(performance: InvestmentPerformance, totalAssets: string | null): InvestmentPerformance {
+  const profit = totalAssets === null || performance.netInvestment === null ? null : new Decimal(totalAssets).minus(performance.netInvestment);
+  return { ...performance, investmentProfit: profit?.toFixed(2) ?? null, profitPercentageOfAssets: profit !== null && totalAssets !== null && new Decimal(totalAssets).gt(0) ? profit.div(totalAssets).times(100).toFixed(4) : null };
+}

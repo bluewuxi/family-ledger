@@ -1,3 +1,4 @@
+import { useValuation } from "../lib/useValuation";
 import { buildColorSplitTrendChartData, buildColorSplitProfitChartData } from "../lib/trendChartSeries";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -103,14 +104,16 @@ export function DashboardPage() {
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
   const [trendView, setTrendView] = useState<"profit" | "assets">("profit");
   const [trendRange, setTrendRange] = useState<PortfolioTrendRange>("1y");
-  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const { data: dashboardResponse, loading: dashboardLoading, refreshing, error: dashboardError, reload: reloadDashboard } = useValuation<DashboardResponse>(currencyInitialized ? `/dashboard?currency=${reportingCurrency}` : null);
+  const dashboard = dashboardResponse?.dashboard ?? null;
+  const snapshotSequence = useRef(0);
+  const activitySequence = useRef(0);
+  const lastDashboardRefresh = useRef(0);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
   const [trend, setTrend] = useState<PortfolioTrend | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<InvestmentTransaction[]>([]);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [snapshotsLoading, setSnapshotsLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
-  const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [snapshotsError, setSnapshotsError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [businessDayNow, setBusinessDayNow] = useState(() => new Date());
@@ -140,22 +143,16 @@ export function DashboardPage() {
   }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
   useEffect(() => {
-    if (currencyInitialized) {
-      void loadDashboard(reportingCurrency);
-    }
-  }, [currencyInitialized, reportingCurrency]);
-
-  useEffect(() => {
     if (!currencyInitialized) {
       return undefined;
     }
 
     const intervalId = window.setInterval(() => {
-      void loadDashboard(reportingCurrency, { showLoading: false });
+      if (document.visibilityState === "visible" && !refreshing && Date.now() - lastDashboardRefresh.current >= dashboardAutoRefreshIntervalMs) void loadDashboard(reportingCurrency, { showLoading: false });
     }, dashboardAutoRefreshIntervalMs);
 
     function refreshWhenVisible() {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && !refreshing && Date.now() - lastDashboardRefresh.current >= dashboardAutoRefreshIntervalMs) {
         void loadDashboard(reportingCurrency, { showLoading: false });
       }
     }
@@ -166,7 +163,7 @@ export function DashboardPage() {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [currencyInitialized, reportingCurrency]);
+  }, [currencyInitialized, reportingCurrency, refreshing]);
 
   useEffect(() => {
     if (currencyInitialized) {
@@ -176,49 +173,37 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (currencyInitialized) {
-      void loadActivity(reportingCurrency);
+      void loadActivity();
     }
-  }, [currencyInitialized, reportingCurrency]);
+  }, [currencyInitialized]);
 
-  async function loadDashboard(currency: SnapshotDisplayCurrency, options: { showLoading?: boolean } = {}) {
-    const showLoading = options.showLoading ?? true;
+  useEffect(() => { if (dashboardResponse && !refreshing && !dashboardError) lastDashboardRefresh.current = Date.now(); }, [dashboardResponse, refreshing, dashboardError]);
+  useEffect(() => () => { snapshotSequence.current++; activitySequence.current++; }, []);
+  async function loadDashboard(_currency: SnapshotDisplayCurrency, _options: { showLoading?: boolean } = {}) { await reloadDashboard(); }
 
-    if (showLoading) {
-      setDashboardLoading(true);
-    }
-    setDashboardError(null);
-
-    try {
-      const data = await apiGet<DashboardResponse>(`/dashboard?currency=${currency}`);
-      setDashboard(data.dashboard);
-    } catch (requestError) {
-      setDashboardError(toErrorMessage(requestError, "财富足迹请求失败，请稍后重试。"));
-    } finally {
-      if (showLoading) {
-        setDashboardLoading(false);
-      }
-    }
-  }
-
-  async function loadSnapshots(currency: SnapshotDisplayCurrency, range: PortfolioTrendRange) {
-    setSnapshotsLoading(true);
+  async function loadSnapshots(currency: SnapshotDisplayCurrency, range: PortfolioTrendRange, bypassCache = false) {
+    const id = ++snapshotSequence.current;
+    setSnapshotsLoading(trend === null);
     setSnapshotsError(null);
 
     try {
       const data = await apiGet<PortfolioSnapshotsResponse>(
-        `/portfolio-snapshots?purpose=investment&currency=${currency}&includeTrend=true&trendRange=${range}`
+        `/portfolio-snapshots?purpose=investment&currency=${currency}&includeTrend=true&trendRange=${range}${bypassCache ? "&bypassCache=true" : ""}`, { cacheMs: 60_000, bypassCache }
       );
+      if (id !== snapshotSequence.current) return;
       setSnapshots(data.snapshots);
       setTrend(data.trend ?? null);
     } catch (requestError) {
+      if (id !== snapshotSequence.current) return;
       setSnapshotsError(toErrorMessage(requestError, "资产趋势请求失败，请稍后重试。"));
-      setTrend(null);
+
     } finally {
-      setSnapshotsLoading(false);
+      if (id === snapshotSequence.current) setSnapshotsLoading(false);
     }
   }
 
-  async function loadActivity(currency: SnapshotDisplayCurrency, options: { showLoading?: boolean } = {}) {
+  async function loadActivity(options: { showLoading?: boolean } = {}) {
+    const id = ++activitySequence.current;
     const showLoading = options.showLoading ?? true;
 
     if (showLoading) {
@@ -228,11 +213,12 @@ export function DashboardPage() {
 
     try {
       const transactionData = await apiGet<TransactionsResponse>("/transactions?purpose=investment&transactionTypes=buy,sell&excludeGeneratedCashLegs=true&excludeCashInstruments=true&limit=10&offset=0");
-      setRecentTransactions(transactionData.transactions);
+      if (id === activitySequence.current) setRecentTransactions(transactionData.transactions);
     } catch (requestError) {
+      if (id !== activitySequence.current) return;
       setActivityError(toErrorMessage(requestError, "最新动态请求失败，请稍后重试。"));
     } finally {
-      if (showLoading) {
+      if (showLoading && id === activitySequence.current) {
         setActivityLoading(false);
       }
     }
@@ -240,8 +226,8 @@ export function DashboardPage() {
 
   function refreshDashboard() {
     void loadDashboard(reportingCurrency);
-    void loadSnapshots(reportingCurrency, trendRange);
-    void loadActivity(reportingCurrency);
+    void loadSnapshots(reportingCurrency, trendRange, true);
+    void loadActivity();
   }
 
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
@@ -362,6 +348,7 @@ export function DashboardPage() {
         </div>
       </header>
 
+      {refreshing && !dashboardLoading ? <p role="status">正在更新行情，当前显示已有估值。</p> : null}
       {dashboardError ? <p className="form-error">{dashboardError}</p> : null}
 
       <p className="business-day-note dashboard-business-day-note-desktop">

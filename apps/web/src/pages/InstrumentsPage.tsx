@@ -104,12 +104,12 @@ export function InstrumentsPage() {
     void loadInstruments();
   }, []);
 
-  async function loadInstruments() {
+  async function loadInstruments(bypassCache = false) {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await apiGet<InstrumentsResponse>("/instruments");
+      const data = await apiGet<InstrumentsResponse>("/instruments", { bypassCache });
       setUser(data.user);
       setInstruments(data.instruments);
     } catch (requestError) {
@@ -234,7 +234,7 @@ export function InstrumentsPage() {
               <span>新增标的</span>
             </button>
           ) : null}
-          <button className="secondary-button" type="button" onClick={loadInstruments} disabled={loading || saving}>
+          <button className="secondary-button" type="button" onClick={() => void loadInstruments(true)} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
             <span>刷新</span>
           </button>

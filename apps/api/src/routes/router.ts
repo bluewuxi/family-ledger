@@ -1,3 +1,5 @@
+import { invalidateHistoryCache } from "../services/historyCache";
+import { getAccountTotals } from "../services/accountService";
 import { logCaughtError, logError, withRequestLogging } from "../utils/errorLogging";
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 import { apiErrorRoute } from "./apiErrorRoutes";
@@ -87,6 +89,10 @@ const routes: Record<string, RouteHandler> = {
     const user = await requireRole(event, "viewer");
     return success({ user, accounts: await getAccounts() });
   },
+  "GET /accounts/totals": async (event) => {
+    const user = await requireRole(event, "viewer");
+    return success({ totals: await getAccountTotals({ currency: event.queryStringParameters?.currency, user }) });
+  },
   "POST /accounts": async (event) => {
     const user = await requireRole(event, "admin");
     const account = await createInvestmentAccount(parseJsonBody(event), user);
@@ -113,7 +119,7 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /holdings": async (event) => {
     const user = await requireRole(event, "viewer");
-    const holdings = await getHoldings({ currency: event.queryStringParameters?.currency, user });
+    const holdings = await getHoldings({ currency: event.queryStringParameters?.currency, quoteMode: event.queryStringParameters?.quoteMode, user });
     return success({ user, ...holdings });
   },
   "GET /account-purpose-overview": async (event) => {
@@ -141,7 +147,7 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /dashboard": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, dashboard: await getDashboard({ currency: event.queryStringParameters?.currency, user }) });
+    return success({ user, dashboard: await getDashboard({ currency: event.queryStringParameters?.currency, quoteMode: event.queryStringParameters?.quoteMode, user }) });
   },
   "GET /portfolio-snapshots": async (event) => {
     const user = await requireRole(event, "viewer");
@@ -155,6 +161,7 @@ const routes: Record<string, RouteHandler> = {
         limit: event.queryStringParameters?.limit,
         order: event.queryStringParameters?.order,
         includeTrend: event.queryStringParameters?.includeTrend,
+      bypassCache: event.queryStringParameters?.bypassCache,
         offset: event.queryStringParameters?.offset,
         includeComparison: event.queryStringParameters?.includeComparison,
         trendRange: event.queryStringParameters?.trendRange,
@@ -245,6 +252,7 @@ const dynamicRoutes: Array<{
           currency: event.queryStringParameters?.currency,
           trendRange: event.queryStringParameters?.trendRange,
           recentLimit: event.queryStringParameters?.recentLimit,
+          quoteMode: event.queryStringParameters?.quoteMode,
           user
         })
       });
@@ -361,7 +369,9 @@ async function routeRequest(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
       return failure({ code: "NOT_FOUND", message: "Route not found." }, 404);
     }
 
-    return await handler();
+    const response = await handler();
+    if (event.requestContext.http.method !== "GET" && (response.statusCode ?? 200) < 400) invalidateHistoryCache();
+    return response;
   } catch (error) {
     if (error instanceof ApiAuthError || error instanceof ApiRequestError) logCaughtError("request.failed", error);
     else logError("request.failed", error, "ERROR");

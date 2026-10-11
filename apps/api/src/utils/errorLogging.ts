@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { ApiRequestError } from "./apiError";
 
 export type LogLevel = "INFO" | "WARN" | "ERROR";
 interface RequestLogContext { requestId: string; method: string; path: string; recorded: WeakMap<object, LogLevel>; secrets: Set<string>; }
@@ -82,6 +83,10 @@ export function logError(operation: string, error: unknown, level: LogLevel = "E
 }
 
 export function logDependencyError(operation: string, error: unknown, expectedCodes: string[] = []): void {
+  if (field(error, "code") === "DEPENDENCY_UNAVAILABLE") {
+    logError(operation, error, "WARN");
+    throw new ApiRequestError("DEPENDENCY_UNAVAILABLE", "数据服务暂时不可用，请稍后重试。", 503);
+  }
   if (!error) return;
   const code = field(error, "code");
   logError(operation, error, typeof code === "string" && expectedCodes.includes(code) ? "WARN" : "ERROR");

@@ -1,3 +1,4 @@
+import { useValuation } from "../lib/useValuation";
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
@@ -39,12 +40,10 @@ export function HoldingsPage() {
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
-  const [summary, setSummary] = useState<HoldingsValuationSummary | null>(null);
   const [accountFilter, setAccountFilter] = useState("all");
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetTypeFilter>("all");
   const [currencyFilter, setCurrencyFilter] = useState<"all" | CurrencyCode>("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: summary, loading, refreshing, error, reload } = useValuation<HoldingsResponse>(currencyInitialized ? `/holdings?currency=${reportingCurrency}` : null);
 
   useEffect(() => {
     if (!preferencesLoading && !currencyManuallySelected) {
@@ -55,25 +54,7 @@ export function HoldingsPage() {
     }
   }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
-  useEffect(() => {
-    if (currencyInitialized) {
-      void loadHoldings(reportingCurrency);
-    }
-  }, [currencyInitialized, reportingCurrency]);
-
-  async function loadHoldings(currency: SnapshotDisplayCurrency) {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await apiGet<HoldingsResponse>(`/holdings?currency=${currency}`);
-      setSummary(data);
-    } catch (requestError) {
-      setError(toErrorMessage(requestError));
-    } finally {
-      setLoading(false);
-    }
-  }
+  async function loadHoldings(_currency: SnapshotDisplayCurrency) { await reload(); }
 
   function openHoldingDetail(holding: ValuedHoldingSummary) {
     navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`);
@@ -148,6 +129,7 @@ export function HoldingsPage() {
         </div>
       </header>
 
+      {refreshing && !loading ? <p role="status">正在更新行情，当前显示已有估值。</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
 
       <div className="metric-grid portfolio-overview-metrics">

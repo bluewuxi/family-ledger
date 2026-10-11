@@ -47,6 +47,15 @@ export async function listAccounts(): Promise<InvestmentAccount[]> {
   return (result.data as unknown as InvestmentAccountRow[]).map(mapAccountRow);
 }
 
+export async function listAccountsWithHistory(): Promise<InvestmentAccount[]> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase.from("investment_accounts")
+    .select(`${accountSelect}, transactions(id)`).order("name")
+    .limit(1, { referencedTable: "transactions" });
+  if (error) { logDependencyError("accountRepository.listAccountsWithHistory", error); throw new Error("Failed to list accounts."); }
+  return (data as unknown as Array<InvestmentAccountRow & { transactions: { id: string }[] }>).map(row => ({ ...mapAccountRow(row), hasTransactions: row.transactions.length > 0 }));
+}
+
 export async function findAccountById(id: string): Promise<InvestmentAccount | null> {
   const supabase = await getSupabaseAdmin();
   const result = await supabase

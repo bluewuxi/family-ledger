@@ -1,3 +1,4 @@
+import { getAppBusinessDate, SNAPSHOT_DISPLAY_CURRENCIES, type InvestmentAccount, type AccountTotal } from "@family-ledger/shared";
 import { logDependencyError } from "../utils/errorLogging";
 import {
   combineAccountValuations,
@@ -373,4 +374,20 @@ async function listAccountSnapshotRows(
 
 function parseWarnings(value: unknown): SnapshotWarning[] {
   return Array.isArray(value) ? (value as SnapshotWarning[]) : [];
+}
+
+export async function listLatestAccountTotals(accounts: InvestmentAccount[], fallbackCurrency: SnapshotDisplayCurrency): Promise<AccountTotal[]> {
+  const headers = await listPortfolioSnapshotRows({ from: "0001-01-01", to: getAppBusinessDate(), currency: fallbackCurrency, order: "desc", limit: 1 });
+  const header = headers[0];
+  if (!header) return [];
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await listAccountSnapshotRows(supabase, [header.id]);
+  if (error) { logDependencyError("portfolioSnapshotRepository.listLatestAccountTotals", error); throw new Error("Failed to load account totals."); }
+  return accounts.flatMap(account => {
+    const row = data.find(item => item.account_id === account.id);
+    if (!row) return [];
+    const currency = SNAPSHOT_DISPLAY_CURRENCIES.includes(account.baseCurrency as SnapshotDisplayCurrency) ? account.baseCurrency as SnapshotDisplayCurrency : fallbackCurrency;
+    const mapped = mapSnapshotRow(aggregateSnapshotRow(header, [row]), [row], currency).accounts[0];
+    return mapped ? [{ accountId: account.id, currency: mapped.currency, marketValue: mapped.marketValue, snapshotDate: header.snapshot_date }] : [];
+  });
 }

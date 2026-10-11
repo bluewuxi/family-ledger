@@ -467,6 +467,9 @@ void verifyDashboardQuoteCache()
   });
 
 async function verifyDashboardQuoteCache(): Promise<void> {
+  const cachedOnly = await refreshDashboardQuotes({ holdings: [usdSecurity], instruments: [quoteInstrument], now: new Date("2026-05-23T11:02:00.000Z"), quoteMode: "cached", providers: { yahoo_finance: provider }, dashboardQuoteRepository: quoteRepository });
+  assert.equal(fetchCount, 0, "Cached mode must not call a provider even when stale");
+  assert.deepEqual(cachedOnly, [], "Expired quotes cannot enter daily change");
   const freshQuotes = await refreshDashboardQuotes({
     holdings: [usdSecurity],
     instruments: [quoteInstrument],

@@ -50,26 +50,27 @@ export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): P
   }
 
   const supabase = await getSupabaseAdmin();
-  const results = await Promise.all(
-    instruments.map(async ({ instrumentId, currency }) => {
-      const { data, error } = await supabase
-        .from("instrument_prices")
-        .select(priceSelect)
-        .eq("instrument_id", instrumentId)
-        .eq("currency", currency)
-        .order("price_date", { ascending: false })
-        .limit(20);
-
-      if (error) {
-        logDependencyError("priceRepository.listLatestPrices", error, []);
-        throw new Error("Failed to list latest prices.");
-      }
-
-      return selectLatestPriceRecordsByDistinctDates((data as unknown as PriceRow[]).map(mapPriceRow), 2);
-    })
-  );
-
-  return results.flat();
+  const { data, error } = await supabase.rpc("latest_price_candidates", {
+    price_keys: instruments.map(key => ({ instrument_id: key.instrumentId, currency: key.currency }))
+  }, { get: true });
+  if (error?.code === "PGRST202") {
+    // Rolling compatibility: use the former read path until the migration is applied.
+    console.info(JSON.stringify({ event: "api-timing", operation: "prices.legacyCompatibility", rows: instruments.length }));
+    return (await Promise.all(instruments.map(async key => {
+      const result = await supabase.from("instrument_prices").select(priceSelect)
+        .eq("instrument_id", key.instrumentId).eq("currency", key.currency).order("price_date", { ascending: false }).limit(20);
+      if (result.error) { logDependencyError("priceRepository.listLatestPrices.compatibility", result.error); throw new Error("Failed to list latest prices."); }
+      return selectLatestPriceRecordsByDistinctDates((result.data as unknown as PriceRow[]).map(mapPriceRow), 2);
+    }))).flat();
+  }
+  if (error) { logDependencyError("priceRepository.listLatestPrices", error); throw new Error("Failed to list latest prices."); }
+  const groups = new Map<string, PriceRecord[]>();
+  for (const row of (data ?? []) as PriceRow[]) {
+    const key = `${row.instrument_id}:${row.currency}`;
+    const records = groups.get(key) ?? [];
+    records.push(mapPriceRow(row)); groups.set(key, records);
+  }
+  return [...groups.values()].flatMap(records => selectLatestPriceRecordsByDistinctDates(records, 2));
 }
 
 export async function listPricesUntil(priceDate: string): Promise<PriceRecord[]> {

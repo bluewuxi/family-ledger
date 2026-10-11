@@ -1,3 +1,6 @@
+import { completeInvestmentPerformance } from "./investmentPerformanceService";
+import { timed } from "../utils/timing";
+import { parseQuoteMode } from "./quoteMode";
 import { logError } from "../utils/errorLogging";
 import type {
   AuthenticatedUser,
@@ -15,6 +18,7 @@ import { listAccounts } from "../repositories/accountRepository";
 import {
   listDashboardQuotes,
   upsertDashboardQuote,
+  upsertDashboardQuotes,
   type UpsertDashboardQuoteInput
 } from "../repositories/dashboardQuoteRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
@@ -39,18 +43,21 @@ const DASHBOARD_QUOTE_CACHE_TTL_MS = 5 * 60 * 1000;
 interface DashboardQuoteRepository {
   listDashboardQuotes(instrumentIds: string[]): Promise<DashboardQuoteRecord[]>;
   upsertDashboardQuote(input: UpsertDashboardQuoteInput): Promise<DashboardQuoteRecord>;
+  upsertDashboardQuotes?(inputs: UpsertDashboardQuoteInput[]): Promise<DashboardQuoteRecord[]>;
 }
 
-export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser } = {}): Promise<DashboardSummary> {
+export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser; quoteMode?: string } = {}): Promise<DashboardSummary> {
   return (await getCurrentInvestmentPortfolio(input)).dashboard;
 }
 
-export async function getCurrentInvestmentPortfolio(input: { currency?: string; user?: AuthenticatedUser } = {}) {
+export async function getCurrentInvestmentPortfolio(input: { currency?: string; user?: AuthenticatedUser; quoteMode?: string } = {}) {
+  parseQuoteMode(input.quoteMode);
+  const quoteRefreshWarnings: string[] = [];
   const now = new Date();
   const businessDate = getAppBusinessDate(now);
   const reportingCurrency = await resolveReportingCurrency(input);
   const [transactions, accounts, instruments] = await Promise.all([
-    listTransactions(),
+    timed("portfolio.transactions", () => listTransactions({ purpose: "investment", to: businessDate })),
     listAccounts(),
     listInstruments()
   ]);
@@ -63,30 +70,27 @@ export async function getCurrentInvestmentPortfolio(input: { currency?: string; 
       .map((holding) => ({ instrumentId: holding.instrumentId, currency: holding.currency })),
     (instrument) => instrument.instrumentId
   );
-  const [prices, fxRates] = await Promise.all([
-    listLatestPrices(securityInstruments),
+  const [prices, fxRates, preliminaryPerformance] = await Promise.all([
+    timed("portfolio.prices", () => listLatestPrices(securityInstruments)),
     listValuationRatesForHoldings({
       valuationDate: businessDate,
       transactions: currentTransactions,
       holdings: preliminaryHoldings,
       reportingCurrency
-    })
+    }),
+    timed("portfolio.performance", () => getInvestmentPerformance({ totalAssets: null, transactions: currentTransactions, currency: reportingCurrency, businessDate }))
   ]);
   const holdings = calculateHoldings(currentTransactions, investmentAccounts, instruments, { fxRates });
-  const dashboardQuotes = await refreshDashboardQuotes({
-    holdings,
-    instruments,
-    now
-  });
+  const dashboardQuotes = await timed("portfolio.quotes", () => refreshDashboardQuotes({ holdings, instruments, now, quoteMode: input.quoteMode, quoteRefreshWarnings }));
   const dailyTradeCount = countDailyTrades(investmentTransactions, instruments, businessDate);
 
   const dashboard = calculateDashboardSummary(holdings, investmentAccounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
   const valuedHoldings = calculateHoldingsValuation(holdings, prices, fxRates, reportingCurrency, dashboardQuotes);
-  const investmentPerformance = await getInvestmentPerformance({ totalAssets: dashboard.totalAssets, transactions: currentTransactions, currency: reportingCurrency, businessDate });
+  const investmentPerformance = completeInvestmentPerformance(preliminaryPerformance, dashboard.totalAssets);
   const valuationMetadata = buildValuationMetadata(valuedHoldings.holdings, fxRates, now, reportingCurrency);
   return {
-    dashboard: { ...dashboard, ...calculateTradingDayChange(holdings, instruments, prices, fxRates, reportingCurrency, dashboardQuotes, businessDate, dashboard.totalAssets), investmentPerformance, valuationMetadata },
-    holdings: { ...valuedHoldings, investmentPerformance, valuationMetadata }
+    dashboard: { ...dashboard, quoteRefreshWarnings, ...calculateTradingDayChange(holdings, instruments, prices, fxRates, reportingCurrency, dashboardQuotes, businessDate, dashboard.totalAssets), investmentPerformance, valuationMetadata },
+    holdings: { ...valuedHoldings, quoteRefreshWarnings, investmentPerformance, valuationMetadata }
   };
 }
 
@@ -119,6 +123,8 @@ export async function refreshDashboardQuotes(input: {
   holdings: HoldingSummary[];
   instruments: Instrument[];
   now: Date;
+  quoteMode?: string;
+  quoteRefreshWarnings?: string[];
   providers?: Partial<Record<PriceSource, IInstrumentQuoteProvider>>;
   dashboardQuoteRepository?: DashboardQuoteRepository;
 }): Promise<DashboardQuoteRecord[]> {
@@ -130,15 +136,17 @@ export async function refreshDashboardQuotes(input: {
 
   const dashboardQuoteRepository = input.dashboardQuoteRepository ?? {
     listDashboardQuotes,
-    upsertDashboardQuote
+    upsertDashboardQuote, upsertDashboardQuotes
   };
   const existingQuotes = await dashboardQuoteRepository.listDashboardQuotes(quoteInstruments.map((instrument) => instrument.id));
   const existingQuotesByInstrument = new Map(existingQuotes.map((quote) => [dashboardQuoteKey(quote.instrumentId, quote.provider), quote]));
+  if (parseQuoteMode(input.quoteMode) === "cached") return existingQuotes.filter(quote => !isQuoteStale(quote, input.now));
   const staleInstruments = quoteInstruments.filter((instrument) =>
-    isQuoteStale(existingQuotesByInstrument.get(dashboardQuoteKey(instrument.id, providerNameForPriceSource(instrument.priceSource))), input.now)
+    input.quoteMode === "refresh" || isQuoteStale(existingQuotesByInstrument.get(dashboardQuoteKey(instrument.id, providerNameForPriceSource(instrument.priceSource))), input.now)
   );
   const refreshedQuotes = await fetchAndStoreDashboardQuotes({
     instruments: staleInstruments,
+    quoteRefreshWarnings: input.quoteRefreshWarnings,
     fetchedAt: input.now.toISOString(),
     providers: input.providers ?? defaultDashboardQuoteProviders(),
     dashboardQuoteRepository
@@ -176,6 +184,7 @@ function getDashboardQuoteInstruments(holdings: HoldingSummary[], instruments: I
 }
 
 async function fetchAndStoreDashboardQuotes(input: {
+  quoteRefreshWarnings?: string[];
   instruments: Instrument[];
   fetchedAt: string;
   providers: Partial<Record<PriceSource, IInstrumentQuoteProvider>>;
@@ -184,11 +193,11 @@ async function fetchAndStoreDashboardQuotes(input: {
   const storedQuotes: DashboardQuoteRecord[] = [];
   const instrumentsBySource = groupInstrumentsByPriceSource(input.instruments);
 
-  for (const [priceSource, instruments] of instrumentsBySource) {
+  await Promise.all([...instrumentsBySource].map(async ([priceSource, instruments]) => {
     const provider = input.providers[priceSource];
 
     if (!provider) {
-      continue;
+      return;
     }
 
     try {
@@ -196,16 +205,19 @@ async function fetchAndStoreDashboardQuotes(input: {
         instruments: instruments.map(toProviderInstrument),
         fetchedAt: input.fetchedAt
       });
+      if (providerResult.quotes.length < instruments.length) input.quoteRefreshWarnings?.push(`${priceSource} 部分行情未能更新`);
       const inputs = toDashboardQuoteInputs(instruments, providerResult.provider, providerResult.fetchedAt, providerResult.quotes);
 
-      for (const quoteInput of inputs) {
-        storedQuotes.push(await input.dashboardQuoteRepository.upsertDashboardQuote(quoteInput));
-      }
+      const saved = input.dashboardQuoteRepository.upsertDashboardQuotes
+        ? await input.dashboardQuoteRepository.upsertDashboardQuotes(inputs)
+        : await Promise.all(inputs.map(quote => input.dashboardQuoteRepository.upsertDashboardQuote(quote)));
+      storedQuotes.push(...saved);
     } catch (error) {
       logError("dashboardService.fetchAndStoreDashboardQuotes", error, "ERROR", { provider: priceSource });
+      input.quoteRefreshWarnings?.push(`${priceSource} 行情更新失败`);
 
     }
-  }
+  }));
 
   return storedQuotes;
 }

@@ -1,3 +1,5 @@
+import { listLatestAccountTotals } from "../repositories/portfolioSnapshotRepository";
+import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { logCaughtError, logError } from "../utils/errorLogging";
 import {
   ACCOUNT_TYPES,
@@ -21,13 +23,14 @@ import {
   deleteAccount,
   findAccountById,
   listAccounts,
+  listAccountsWithHistory,
   updateAccount
 } from "../repositories/accountRepository";
 import { createTradingPasswordPlaceholder, deleteTradingPasswordParameter } from "./accountTradingPasswordService";
 import { ApiRequestError } from "../utils/apiError";
 
 export async function getAccounts(): Promise<InvestmentAccount[]> {
-  return (await listAccounts()).filter(account => account.purpose !== "education");
+  return (await listAccountsWithHistory()).filter(account => account.purpose !== "education");
 }
 
 export async function createInvestmentAccount(
@@ -224,4 +227,9 @@ function assertUuid(id: string): void {
   if (!uuidPattern.test(id)) {
     throw new ApiRequestError("VALIDATION_ERROR", "Account id is invalid.", 400);
   }
+}
+
+export async function getAccountTotals(input: { currency?: string; user?: AuthenticatedUser }) {
+  const [accounts, currency] = await Promise.all([listAccounts(), resolveReportingCurrency(input)]);
+  return listLatestAccountTotals(accounts.filter(account => account.purpose !== "education"), currency);
 }

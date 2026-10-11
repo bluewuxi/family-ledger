@@ -73,7 +73,8 @@
     "migrate:education-reserve:test": "tsx scripts/migrate-education-reserve.ts",
     "apply:education-reserve-schema:test": "tsx scripts/apply-education-reserve-schema.ts",
     "repair:kernel-nta:test": "tsx scripts/repair-kernel-nta-history.ts",
-    "apply:kernel-nta-schema:test": "tsx scripts/apply-kernel-nta-schema.ts"
+    "apply:kernel-nta-schema:test": "tsx scripts/apply-kernel-nta-schema.ts",
+    "verify:loading": "tsx scripts/verify-loading-performance.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",

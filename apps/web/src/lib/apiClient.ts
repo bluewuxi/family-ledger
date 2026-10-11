@@ -2,6 +2,7 @@ import type { ApiResponse } from "@family-ledger/shared";
 import { isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_TOKEN } from "./localAuthBypass";
 import { getRuntimeConfig } from "./runtimeConfig";
 import { getCurrentSession, notifyAuthSessionExpired } from "./supabase";
+import { cachedRead, clearReadCache, setReadCacheIdentity } from "./readCache";
 
 export class ApiClientError extends Error {
   constructor(
@@ -14,6 +15,8 @@ export class ApiClientError extends Error {
 }
 
 interface ApiRequestOptions {
+  cacheMs?: number;
+  bypassCache?: boolean;
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
 }
@@ -26,15 +29,16 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiClientError("缺少 API 地址配置。", "MISSING_API_BASE_URL");
   }
 
-  const token = isLocalAuthBypassEnabled(config)
-    ? LOCAL_AUTH_BYPASS_TOKEN
-    : (await getCurrentSession())?.access_token;
+  const session = isLocalAuthBypassEnabled(config) ? null : await getCurrentSession();
+  const token = isLocalAuthBypassEnabled(config) ? LOCAL_AUTH_BYPASS_TOKEN : session?.access_token;
+  setReadCacheIdentity(isLocalAuthBypassEnabled(config) ? "local" : session?.user.id ?? null);
 
   if (!token) {
     notifyAuthSessionExpired();
     throw new ApiClientError("登录状态已失效，请重新登录。", "MISSING_SESSION");
   }
 
+  const request = async (): Promise<T> => {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: options.method ?? "GET",
     headers: {
@@ -57,11 +61,17 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiClientError(error?.message ?? "API 请求失败。", error?.code ?? "HTTP_ERROR", response.status);
   }
 
+  if (options.method && options.method !== "GET") clearReadCache();
   return body.data;
+  };
+  const mayCache = path === "/instruments" || path.startsWith("/portfolio-snapshots?");
+  return !options.method || options.method === "GET"
+    ? cachedRead(`${apiBaseUrl}${path}`, request, mayCache ? options.cacheMs ?? (path === "/instruments" ? 60_000 : 0) : 0, options.bypassCache)
+    : request();
 }
 
-export function apiGet<T>(path: string): Promise<T> {
-  return apiRequest<T>(path);
+export function apiGet<T>(path: string, options: Pick<ApiRequestOptions, "cacheMs" | "bypassCache"> = {}): Promise<T> {
+  return apiRequest<T>(path, options);
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {

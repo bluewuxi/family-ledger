@@ -125,7 +125,7 @@ export async function listValuationRatesToUsdForDates(
   const { data, error } = await supabase.rpc("latest_valuation_rates_to_usd_for_dates", {
     as_of_dates: uniqueDates,
     from_currencies: uniqueCurrencies.length > 0 ? uniqueCurrencies : null
-  });
+  }, { get: true });
 
   if (error) {
     logDependencyError("fxRateRepository.listValuationRatesToUsdForDates", error, []);

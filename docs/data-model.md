@@ -316,3 +316,9 @@ Distribution amounts retain missing/negative rows. Pie charts and percentages ar
 Migration `202610120001_api_error_tracking.sql` adds operational tables `api_error_groups` and `api_error_events`. Groups retain redacted summaries, unique fingerprints, observed first/last UTC instants and counts, status, recurrence, resolution time, notes and the latest human editor/time. Event rows retain only source identifiers, UTC occurrence time, request ID and a legacy flag; the `(log_group, log_stream, event_id)` primary key prevents duplicate observations. Full logs remain in CloudWatch.
 
 `observe_api_errors(jsonb)` serializes overlapping group updates and increments counts only after inserting a new event. `update_api_error_status` changes state and actor metadata under a row lock. Both functions use invoker security and are callable only by `service_role`; RLS is enabled and anon/authenticated clients have no access. Lambda authorizes all access as admin. Saved summaries and metadata have no 30-day deletion policy and are intentionally outside the financial-ledger backup table list; Supabase database backup/recovery governs these operational records.
+
+## Account Performance and Price Reads (2026-10-12)
+
+Account headline investment profit uses dashboard principal semantics scoped to the account and valuation business date. Missing historical principal FX makes profit unavailable independently of available asset values. Position unrealized calculations are unchanged. Current holdings include cash, so account detail has no duplicate cash table.
+
+`latest_price_candidates(jsonb)` batches the former per-instrument top-20 price candidates. Existing provider preference and two-distinct-price-date selection remain in shared code. The migration adds a read function only; persisted financial amounts and historical snapshots are unchanged.

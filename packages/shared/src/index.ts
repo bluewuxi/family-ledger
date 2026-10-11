@@ -422,6 +422,7 @@ export interface Currency {
 }
 
 export interface InvestmentAccount {
+  hasTransactions?: boolean;
   id: string;
   name: string;
   broker: string | null;
@@ -988,6 +989,7 @@ export interface SnapshotComparison {
 }
 
 export interface DashboardSummary {
+  quoteRefreshWarnings?: string[];
   investmentPerformance?: InvestmentPerformance;
   valuationMetadata?: ValuationMetadata;
   reportingCurrency: SnapshotDisplayCurrency;
@@ -1033,6 +1035,7 @@ export interface ValuedHoldingSummary extends HoldingSummary {
 }
 
 export interface HoldingsValuationSummary {
+  quoteRefreshWarnings?: string[];
   investmentPerformance?: InvestmentPerformance;
   valuationMetadata?: ValuationMetadata;
   reportingCurrency: SnapshotDisplayCurrency;
@@ -1106,9 +1109,12 @@ export interface AccountDetailSnapshotPoint {
   date: string;
   snapshotDate: string | null;
   marketValue: string | null;
+  totalInvestment?: string | null;
 }
 
 export interface AccountDetailTrend {
+  principalPoints?: PortfolioPrincipalPoint[];
+  principalWarnings?: PortfolioTrendWarning[];
   range: PortfolioTrendRange;
   rangeStart: string;
   rangeEnd: string;
@@ -1118,6 +1124,10 @@ export interface AccountDetailTrend {
 }
 
 export interface AccountDetailSummary {
+  quoteRefreshWarnings?: string[];
+  investmentPerformance?: InvestmentPerformance;
+  valuedAt?: string;
+  warnings?: AccountDetailWarning[];
   reportingCurrency: SnapshotDisplayCurrency;
   account: InvestmentAccount;
   currentValue: AccountDetailCurrentValue;
@@ -1993,6 +2003,7 @@ export interface ApiError {
     | "VALIDATION_ERROR"
     | "NOT_FOUND"
     | "INTERNAL_ERROR"
+    | "DEPENDENCY_UNAVAILABLE"
     | "CONFLICT"
     | "DATA_SOURCE_DATE_UNAVAILABLE"
     | "DATA_SOURCE_UNAVAILABLE";
@@ -2070,3 +2081,6 @@ export interface ApiErrorEventDetail {
   legacy: boolean;
 }
 export interface ApiErrorEventsPage { items: ApiErrorEventDetail[]; pagination: Pagination; }
+
+export interface AccountTotal { accountId: string; marketValue: string | null; currency: SnapshotDisplayCurrency; snapshotDate: string; }
+export interface AccountDetailWarning { code: string; instrumentId?: string; instrumentShortName?: string; currency?: CurrencyCode; date?: string; message: string; }

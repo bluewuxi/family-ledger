@@ -1,6 +1,7 @@
+import { PageBackLink } from "../components/PageBackLink";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { useParams } from "react-router-dom";
+import { RefreshCw } from "lucide-react";
 import {
   ASSET_TYPE_LABELS,
   MARKET_REGION_LABELS,
@@ -91,10 +92,7 @@ export function HoldingDetailPage() {
     <section>
       <header className="page-header account-header holding-detail-header">
         <div>
-          <Link className="text-button holding-detail-back" to="/holdings">
-            <ArrowLeft size={16} aria-hidden="true" />
-            <span>返回持仓总览</span>
-          </Link>
+          <PageBackLink to="/holdings" label="持仓总览" />
           <PageTitle route="/holdings">持仓详情</PageTitle>
           <p>
             {detail

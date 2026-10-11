@@ -1,6 +1,6 @@
 # Investment Overview Specification
 
-This document consolidates the dashboard, holdings overview, and asset-snapshot changes agreed on 2026-10-08. API DTOs are documented in [api.md](api.md), valuation semantics in [data-model.md](data-model.md), and verification in [local-testing.md](local-testing.md).
+This document consolidates the dashboard, holdings overview, and asset-snapshot changes agreed on 2026-10-08, with account-detail and navigation refinements agreed on 2026-10-12. API DTOs are documented in [api.md](api.md), valuation semantics in [data-model.md](data-model.md), and verification in [local-testing.md](local-testing.md).
 
 ## Portfolio Performance
 
@@ -9,7 +9,7 @@ This document consolidates the dashboard, holdings overview, and asset-snapshot 
 - Principal includes manual opening positions/balances, deposits, and withdrawals under the existing rules and exact transaction-date FX. Generated settlement cash does not constitute principal. Matched portfolio-internal transfers cancel in the aggregate.
 - Dashboard and investment holdings share current/delayed quotes, five-minute caching, provider deadlines, and stored-price fallback. API calculations use Decimal; performance amounts and ratios are decimal strings or null. Missing principal FX invalidates performance but does not invalidate independently available market values. Missing valuation inputs prevent partial portfolio totals.
 - Holdings headline performance always covers all investment accounts and ignores table filters. Filtered market value, cash, and count are marked `筛选结果`. Position/detail P&L labels use `未实现盈亏`; closed positions are not added to the table.
-- Valuation status reports current/delayed quotes, stored-price fallback, missing inputs, actual price/FX date ranges, and acquisition times. Expected FundRock publication lag alone is not a failure. Historical snapshots and detail/report paths retain stored prices.
+- Valuation status reports current/delayed quotes, stored-price fallback, missing inputs, actual price/FX date ranges, and acquisition times. Expected FundRock publication lag alone is not a failure. Historical snapshots and reports retain stored prices; account detail supports cached valuation followed by explicit quote refresh.
 
 ## Dashboard Composition and Trends
 
@@ -23,6 +23,22 @@ This document consolidates the dashboard, holdings overview, and asset-snapshot 
 - Existing positive/negative colors and principal styling are retained. The supplied reference informs curve rendering and interaction only.
 - On wide screens, trend and latest ten trades occupy the left and right columns; the two distribution panels follow. At widths up to 1100px, these panels stack. Tabs and controls fit narrow layouts and have at least 44px tap height.
 
+## Account Detail
+
+- Headline `投资收益` is the account's current total assets minus its cumulative net investment. Reuse dashboard principal events, transaction-date FX, missing-data rules, and the same valuation business date. Position rows retain their existing unrealized gain/loss calculation; account profit is not allocated to positions.
+- The account trend panel uses the dashboard's `期间盈利` and `资产趋势` semantics and shared chart helpers. Default to period profit and one year; retain a valid saved range preference. Offer one month, three months, one year, three years, five years, and inception.
+- Place `趋势范围` in the trend panel's upper-right corner. It controls only the chart; changing it must not reload the whole page, refresh market quotes, or alter headline metrics, holdings, or recent transactions. Range loading and errors stay inside the panel, with stale-response protection.
+- The chart inherits the page's `报告币种`; do not add a separate chart currency selector or duplicate currency badge. Keep the current endpoint connected to its immediately preceding valid historical point, real missing-data gaps, gain/loss colors, and valuation/snapshot hover details. Internal color-crossing points have no axis label or tooltip; only the live endpoint may use `当前`.
+- On desktop and tablet where space permits, align the page title and account context on the left and the reporting currency, refresh, and edit actions on the right. On phones, stack the header, use a full-width currency control, and place the two action buttons side by side with at least 44px tap height.
+- Current holdings already include cash. Do not render a separate cash-balance table. Place recent transactions below holdings in a full-width panel; keep data tables horizontally scrollable on narrow screens.
+- Remove the holdings table's `数据提示` column. Collect deduplicated holding, valuation, snapshot, and principal-FX warnings at the bottom, including negative positions/balances and relevant instrument, currency, date, and reason. Preserve estimated-price markers, price dates, and sources in the price column.
+
+## Shared Back Navigation
+
+- All existing page-level return-to-parent links use the shared `PageBackLink` component: a small left arrow followed by the destination name, muted text, no button border, background, or shadow.
+- Place the link above the page title and align its left edge with the title. Highlight its text on hover, retain a visible keyboard focus outline, and provide a minimum 44px click/tap area. The accessible name includes the return action.
+- Apply this pattern to account detail (`投资账户`), holding detail (`持仓总览`), and password recovery (`登录`). Preserve each destination route. Dedicated actions such as `返回编辑` remain action buttons.
+
 ## Distributions
 
 - `证券账户与现金` reports securities by investment account plus one pooled cash row. Cash account location is not a separate distribution.
@@ -34,7 +50,7 @@ This document consolidates the dashboard, holdings overview, and asset-snapshot 
 - Viewer and admin can query investment snapshots by date and reporting currency, refresh, and paginate in descending date order with twenty rows per page. The default snapshot date range remains three months, independently of the dashboard's one-year default.
 - Columns are snapshot date, net assets, change from the previous persisted snapshot, change percentage, and data status. Explain that net-value movement includes funding and is not investment profit.
 - Optional snapshot API pagination/comparison parameters preserve legacy behavior when absent. Comparisons are keyed by snapshot ID and use the previous persisted snapshot in the same scope, including predecessors outside the page or date filter. Each snapshot uses its own saved FX. Missing values yield unavailable comparisons; non-positive predecessor assets yield an unavailable percentage.
-- This release adds no database tables, migrations, historical rebuild, snapshot editing, or repair controls.
+- The 2026-10-08 snapshot-maintenance scope adds no database tables, migrations, historical rebuild, snapshot editing, or repair controls. Subsequent loading-performance work is a separate scope.
 
 ## Acceptance and Release
 

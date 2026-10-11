@@ -87,6 +87,20 @@ export function TransactionsPage() {
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [holdingsSummary, setHoldingsSummary] = useState<HoldingsValuationSummary | null>(null);
   const requestSequence = useRef(0);
+  const balanceSequence = useRef(0);
+  const referenceData = useRef<{ accounts: InvestmentAccount[]; instruments: Instrument[] } | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(true);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+  useEffect(() => { void loadBalances(); return () => { balanceSequence.current++; requestSequence.current++; }; }, []);
+  async function loadBalances() {
+    const id = ++balanceSequence.current;
+    setBalanceLoading(true); setBalanceError(null); setHoldingsSummary(null);
+    try {
+      const data = await apiGet<HoldingsResponse>("/holdings?quoteMode=cached");
+      if (id === balanceSequence.current) setHoldingsSummary(data);
+    } catch (failure) { if (id === balanceSequence.current) setBalanceError(toErrorMessage(failure)); }
+    finally { if (id === balanceSequence.current) setBalanceLoading(false); }
+  }
   const createMenuRef = useRef<HTMLDivElement>(null);
   const [appliedFilters, setAppliedFilters] = useState<TransactionFilters>(emptyFilters);
   const [pageSize, setPageSize] = useState(50);
@@ -233,14 +247,12 @@ export function TransactionsPage() {
           sortBy: nextSortBy, sortDirection: nextDirection,
           excludeGeneratedCashLegs: "true", includeLinkedCashLegs: "true" })}`
       );
-      const holdingsRequest = apiGet<HoldingsResponse>("/holdings");
-      const [transactionData, accountData, instrumentData, holdingsData] = await Promise.all([
+      const [transactionData, references] = await Promise.all([
         transactionRequest,
-        apiGet<AccountsResponse>("/accounts"),
-        apiGet<InstrumentsResponse>("/instruments"),
-        holdingsRequest
+        referenceData.current ? Promise.resolve(referenceData.current) : Promise.all([
+          apiGet<AccountsResponse>("/accounts"), apiGet<InstrumentsResponse>("/instruments")
+        ]).then(([accountData, instrumentData]) => ({ accounts: accountData.accounts, instruments: instrumentData.instruments }))
       ]);
-
       if (requestId !== requestSequence.current) return;
       if (nextOffset > 0 && transactionData.pagination.total <= nextOffset) {
         const lastOffset = Math.max(0, Math.ceil(transactionData.pagination.total / nextLimit) - 1) * nextLimit;
@@ -257,9 +269,9 @@ export function TransactionsPage() {
       setTransactions(transactionData.transactions);
       setCashLegs(transactionData.linkedCashLegs ?? []);
 
-      setAccounts(accountData.accounts);
-      setInstruments(instrumentData.instruments);
-      setHoldingsSummary(holdingsData);
+      referenceData.current = references;
+      setAccounts(references.accounts);
+      setInstruments(references.instruments);
       setExpandedTransactionIds(new Set());
     } catch (requestError) {
       if (requestId === requestSequence.current) setError(toErrorMessage(requestError));
@@ -274,6 +286,7 @@ export function TransactionsPage() {
       return;
     }
 
+    if ((form.transactionType === "buy" || form.transactionType === "sell" || form.transactionType === "withdrawal") && (balanceLoading || !holdingsSummary)) { setError("余额尚未加载完成，请重试加载后再保存。"); return; }
     setSaving(true);
     setError(null);
 
@@ -316,6 +329,7 @@ export function TransactionsPage() {
         : await apiPost<TransactionResponse>("/transactions", payload);
 
       void data;
+      void loadBalances();
       await loadPageData();
       closeDrawer();
     } catch (requestError) {
@@ -341,6 +355,7 @@ export function TransactionsPage() {
 
     try {
       await apiDelete<DeleteTransactionResponse>(`/transactions/${transaction.id}`);
+      void loadBalances();
       await loadPageData();
 
       if (editingTransactionId === transaction.id) {
@@ -470,7 +485,7 @@ export function TransactionsPage() {
     accounts.length === 0 ||
     eligibleInstruments.length === 0 ||
     Boolean(bankCashInstrumentError) ||
-    Boolean(tradeAvailability.error);
+    Boolean(tradeAvailability.error) || ((form.transactionType === "buy" || form.transactionType === "sell" || form.transactionType === "withdrawal") && (balanceLoading || !holdingsSummary));
 
   return (
     <section>
@@ -646,7 +661,8 @@ export function TransactionsPage() {
         onClose={closeDrawer}
         footer={
           <>
-          {error ? <p className="form-error transaction-save-error" role="alert">{error}</p> : null}
+          {balanceError ? <p className="form-error">余额加载失败：{balanceError} <button type="button" className="text-button" onClick={() => void loadBalances()}>重试</button></p> : null}
+      {error ? <p className="form-error transaction-save-error" role="alert">{error}</p> : null}
           {drawerMode === "view" ? (
             <button className="secondary-button" type="button" onClick={closeDrawer}>
               <X size={17} aria-hidden="true" />
@@ -719,7 +735,7 @@ export function TransactionsPage() {
                 ))}
               </select>
             )}
-            {tradeAvailability.label ? (
+            {!balanceLoading && holdingsSummary && tradeAvailability.label ? (
               <span className={tradeAvailability.error ? "transaction-availability-label has-error" : "transaction-availability-label"}>
                 {tradeAvailability.label}
                 {tradeAvailability.error ? ` ${tradeAvailability.error}` : ""}
@@ -729,7 +745,7 @@ export function TransactionsPage() {
 
           {isBankCashAccount ? (
             <div className="bank-cash-balance-panel wide-field">
-              <span>当前余额：{selectedAccount?.baseCurrency ?? "-"} {formatDisplayAmount(bankCashBalance?.quantity ?? "0")}</span>
+              <span>当前余额：{balanceLoading ? "加载中..." : !holdingsSummary ? "--" : `${selectedAccount?.baseCurrency ?? "-"} ${formatDisplayAmount(bankCashBalance?.quantity ?? "0")}`}</span>
               {bankCashInstrumentError ? <span className="bank-cash-balance-warning">{bankCashInstrumentError}</span> : null}
               {bankCashBalance?.warnings.includes("NEGATIVE_POSITION") ? (
                 <span className="bank-cash-balance-warning">现金余额为负，请检查交易记录。</span>
@@ -765,6 +781,7 @@ export function TransactionsPage() {
             <input className="readonly-display-input" value={selectedInstrument?.currency ?? "-"} disabled />
           </label>
 
+          {balanceLoading ? <p role="status">正在加载可用余额与持仓...</p> : null}
           {isTrade ? (
             <label>
               结算币种

@@ -1,7 +1,10 @@
+import { PageBackLink } from "../components/PageBackLink";
+import { AccountTrendChart } from "../components/AccountTrendChart";
+import { useValuation } from "../lib/useValuation";
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, type NavigateFunction } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowLeft, Edit3, RefreshCw } from "lucide-react";
+import { Edit3, RefreshCw } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
   ASSET_TYPE_LABELS,
@@ -67,48 +70,39 @@ export function AccountDetailPage() {
   const navigate = useNavigate();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
-  const [trendRange, setTrendRange] = useState<PortfolioTrendRange>("3m");
+  const [trendRange, setTrendRange] = useState<PortfolioTrendRange>("1y");
   const [controlsInitialized, setControlsInitialized] = useState(false);
   const [controlsManuallySelected, setControlsManuallySelected] = useState(false);
-  const [detail, setDetail] = useState<AccountDetailSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [trendView, setTrendView] = useState<"profit" | "assets">("profit");
+  const { data: response, loading, refreshing, error, reload } = useValuation<AccountDetailResponse>(accountId && controlsInitialized ? `/accounts/${encodeURIComponent(accountId)}/detail?currency=${reportingCurrency}&trendRange=1y&recentLimit=10` : null);
+  const detail = response?.accountDetail ?? null;
+  const [selectedTrend, setSelectedTrend] = useState<AccountDetailSummary["trend"] | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!detail || !accountId) return;
+    let active = true;
+    setSelectedTrend(null);
+    setTrendError(null);
+    if (detail.trend.range === trendRange) { setTrendLoading(false); return; }
+    setTrendLoading(true);
+    void apiGet<AccountDetailResponse>(`/accounts/${encodeURIComponent(accountId)}/detail?currency=${reportingCurrency}&trendRange=${trendRange}&recentLimit=10&quoteMode=cached`)
+      .then(result => { if (active) setSelectedTrend(result.accountDetail.trend); })
+      .catch(failure => { if (active) setTrendError(failure instanceof Error ? failure.message : "账户趋势加载失败，请重试。"); })
+      .finally(() => { if (active) setTrendLoading(false); });
+    return () => { active = false; };
+  }, [accountId, detail, reportingCurrency, trendRange]);
+  const chartDetail = detail ? { ...detail, trend: selectedTrend ?? detail.trend } : null;
 
   useEffect(() => {
     if (!preferencesLoading && !controlsManuallySelected) {
       setReportingCurrency(readStoredDisplayCurrency(accountDetailCurrencyStorageKey) ?? toDisplayCurrency(preferences.preferredCurrency));
-      setTrendRange(readStoredTrendRange() ?? "3m");
+      setTrendRange(readStoredTrendRange() ?? "1y");
       setControlsInitialized(true);
     }
   }, [controlsManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
-  useEffect(() => {
-    if (controlsInitialized) {
-      void loadDetail(reportingCurrency, trendRange);
-    }
-  }, [accountId, controlsInitialized, reportingCurrency, trendRange]);
-
-  async function loadDetail(currency: SnapshotDisplayCurrency, range: PortfolioTrendRange) {
-    if (!accountId) {
-      setError("账户地址缺少账户信息。");
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await apiGet<AccountDetailResponse>(
-        `/accounts/${encodeURIComponent(accountId)}/detail?currency=${currency}&trendRange=${range}&recentLimit=10`
-      );
-      setDetail(data.accountDetail);
-    } catch (requestError) {
-      setError(toErrorMessage(requestError));
-    } finally {
-      setLoading(false);
-    }
-  }
+  async function loadDetail(_currency: SnapshotDisplayCurrency, _range: PortfolioTrendRange) { await reload(); }
 
   const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
   const pageLoading = loading || !controlsInitialized;
@@ -125,12 +119,9 @@ export function AccountDetailPage() {
 
   return (
     <section>
-      <header className="page-header account-header holding-detail-header">
+      <header className="page-header account-header holding-detail-header account-detail-header">
         <div>
-          <Link className="text-button holding-detail-back" to="/accounts">
-            <ArrowLeft size={16} aria-hidden="true" />
-            <span>返回投资账户</span>
-          </Link>
+          <PageBackLink to="/accounts" label="投资账户" />
           <PageTitle route="/accounts">账户详情</PageTitle>
           <p>
             {detail
@@ -150,6 +141,53 @@ export function AccountDetailPage() {
             }}
             disabled={!controlsInitialized}
           />
+
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => void loadDetail(reportingCurrency, trendRange)}
+            disabled={pageLoading}
+          >
+            <RefreshCw size={17} aria-hidden="true" />
+            <span>刷新</span>
+          </button>
+          <button className="secondary-button" type="button" onClick={() => navigate("/accounts")}>
+            <Edit3 size={17} aria-hidden="true" />
+            <span>返回编辑</span>
+          </button>
+        </div>
+      </header>
+
+      {refreshing && !loading ? <p role="status">正在更新行情，当前显示已有估值。</p> : null}
+      {error ? <p className="form-error">{error}</p> : null}
+
+      {pageLoading ? (
+        <LoadingBlock label="正在加载账户详情" />
+      ) : detail ? (
+        <>
+          <div className="metric-grid holdings-metrics account-detail-metrics">
+            <MetricCard label="当前总额" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.marketValue)} />
+            <MetricCard label="现金" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.cashMarketValue)} />
+            <MetricCard label="非现金资产" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.nonCashMarketValue)} />
+            <MetricCard
+              label="投资收益"
+              currency={activeCurrency}
+              value={formatNullableSignedAmount(detail.investmentPerformance?.investmentProfit ?? null)}
+              toneClass={signedToneClass(detail.investmentPerformance?.investmentProfit ?? null, preferences.gainColorScheme, 3)}
+            />
+            <MetricCard label="当前持仓数" value={String(detail.currentValue.holdingCount)} />
+            <MetricCard label="最新快照日期" value={detail.latestSnapshot?.snapshotDate ?? "--"} />
+          </div>
+
+          <section className="account-detail-grid">
+            <article className="flow-card chart-panel account-detail-trend-panel">
+              <div className="chart-section-header">
+                <div>
+                  <h2>账户趋势</h2>
+                  <p>
+                    {trendRangeLabels[chartDetail?.trend.range ?? detail.trend.range]} · 估值参考日 {detail.currentValue.valuationBusinessDate}
+                  </p>
+                </div>
           <label className="chart-range-select account-detail-range-select">
             趋势范围
             <select
@@ -169,87 +207,12 @@ export function AccountDetailPage() {
               ))}
             </select>
           </label>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => void loadDetail(reportingCurrency, trendRange)}
-            disabled={pageLoading}
-          >
-            <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
-          </button>
-          <button className="secondary-button" type="button" onClick={() => navigate("/accounts")}>
-            <Edit3 size={17} aria-hidden="true" />
-            <span>返回编辑</span>
-          </button>
-        </div>
-      </header>
-
-      {error ? <p className="form-error">{error}</p> : null}
-
-      {pageLoading ? (
-        <LoadingBlock label="正在加载账户详情" />
-      ) : detail ? (
-        <>
-          <div className="metric-grid holdings-metrics account-detail-metrics">
-            <MetricCard label="当前总额" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.marketValue)} />
-            <MetricCard label="现金" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.cashMarketValue)} />
-            <MetricCard label="非现金资产" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.nonCashMarketValue)} />
-            <MetricCard
-              label="未实现收益"
-              currency={activeCurrency}
-              value={formatNullableSignedAmount(detail.currentValue.unrealizedGain)}
-              toneClass={signedToneClass(detail.currentValue.unrealizedGain, preferences.gainColorScheme, 3)}
-            />
-            <MetricCard label="当前持仓数" value={String(detail.currentValue.holdingCount)} />
-            <MetricCard label="最新快照日期" value={detail.latestSnapshot?.snapshotDate ?? "--"} />
-          </div>
-
-          <section className="account-detail-grid">
-            <article className="flow-card chart-panel account-detail-trend-panel">
-              <div className="chart-section-header">
-                <div>
-                  <h2>账户趋势</h2>
-                  <p>
-                    {trendRangeLabels[detail.trend.range]} · 估值参考日 {detail.currentValue.valuationBusinessDate}
-                  </p>
-                </div>
-                <span className="chart-currency-indicator">
-                  <CurrencyFlagIcon currency={activeCurrency} />
-                  {activeCurrency}
-                </span>
               </div>
-              {!chartHasValues ? (
-                <div className="empty-chart-state">暂无账户快照数据</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={chartRows} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
-                    <defs>
-                      <linearGradient id="accountTrendFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="8%" stopColor="var(--color-chart-line)" stopOpacity={0.28} />
-                        <stop offset="95%" stopColor="var(--color-chart-line)" stopOpacity={0.04} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-                    <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={24} />
-                    <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatCompactAmount(value)} width={68} />
-                    <Tooltip
-                      contentStyle={chartTooltipContentStyle}
-                      formatter={(value) => [formatChartAmount(value, activeCurrency), "账户净值"]}
-                      labelFormatter={(label) => String(label)}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="var(--color-chart-line)"
-                      strokeWidth={2.4}
-                      fill="url(#accountTrendFill)"
-                      connectNulls
-                      dot={false}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
+              <div className="trend-tabs" role="tablist" aria-label="账户趋势">
+                {(["profit", "assets"] as const).map(view => <button type="button" role="tab" aria-selected={trendView === view} key={view} onClick={() => setTrendView(view)} onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); const next = event.key === "Home" ? "profit" : event.key === "End" ? "assets" : view === "profit" ? "assets" : "profit"; setTrendView(next); event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next === "profit" ? 0 : 1]?.focus(); } }} tabIndex={trendView === view ? 0 : -1}>{view === "profit" ? "期间盈利" : "资产趋势"}</button>)}
+              </div>
+              {trendError ? <p className="form-error">{trendError}</p> : null}
+              {trendLoading ? <LoadingBlock label="正在加载账户趋势" /> : chartDetail ? <AccountTrendChart detail={chartDetail} view={trendView} gainColorScheme={preferences.gainColorScheme} /> : null}
             </article>
 
             <article className="flow-card holding-detail-panel">
@@ -282,13 +245,12 @@ export function AccountDetailPage() {
                     <th className="numeric-cell">最新价格</th>
                     <th className="numeric-cell">市值 ({activeCurrency})</th>
                     <th className="numeric-cell">未实现收益</th>
-                    <th>数据提示</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.holdings.length === 0 ? (
                     <tr>
-                      <td colSpan={9}>暂无当前持仓或现金余额。</td>
+                      <td colSpan={8}>暂无当前持仓或现金余额。</td>
                     </tr>
                   ) : (
                     detail.holdings.map((holding) => (
@@ -311,7 +273,6 @@ export function AccountDetailPage() {
                         <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme, 3)}`}>
                           {formatNullableSignedAmount(holding.unrealizedGain)}
                         </td>
-                        <td>{formatHoldingWarnings(holding)}</td>
                       </tr>
                     ))
                   )}
@@ -320,51 +281,14 @@ export function AccountDetailPage() {
             </div>
           </section>
 
-          <section className="account-detail-grid">
-            <article className="flow-card holding-detail-panel">
-              <div className="holding-detail-section-header">
-                <h2>现金余额</h2>
-                <span>{detail.cashBalances.length} 项</span>
-              </div>
-              <div className="table-wrap">
-                <table className="holding-detail-table">
-                  <thead>
-                    <tr>
-                      <th>现金标的</th>
-                      <th>币种</th>
-                      <th className="numeric-cell">余额</th>
-                      <th className="numeric-cell">折合 ({activeCurrency})</th>
-                      <th>数据提示</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.cashBalances.length === 0 ? (
-                      <tr>
-                        <td colSpan={5}>暂无现金余额。</td>
-                      </tr>
-                    ) : (
-                      detail.cashBalances.map((cash) => (
-                        <tr key={cash.instrumentId}>
-                          <td>{cash.instrumentSymbol ? `${cash.instrumentSymbol} - ${cash.instrumentShortName}` : cash.instrumentShortName}</td>
-                          <td>{cash.currency}</td>
-                          <td className="numeric-cell">{formatDisplayAmount(cash.balance)}</td>
-                          <td className="numeric-cell">{formatNullableAmount(cash.marketValue)}</td>
-                          <td>{cash.holdingWarnings.length + cash.valuationWarnings.length === 0 ? "正常" : "需检查"}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
+          <section>
             <article className="flow-card holding-detail-panel">
               <div className="holding-detail-section-header">
                 <h2>最近交易</h2>
                 <span>10 条</span>
               </div>
               <div className="table-wrap">
-                <table className="holding-detail-table">
+                <table className="holding-detail-table account-recent-table">
                   <thead>
                     <tr>
                       <th>日期</th>
@@ -396,22 +320,10 @@ export function AccountDetailPage() {
             </article>
           </section>
 
-          {detail.valuationWarnings.length || detail.snapshotWarnings.length ? (
+          {detail.warnings?.length ? (
             <section className="dashboard-warning-panel" aria-label="数据提示">
-              <h2>数据提示</h2>
-              <p>缺少必要数据的指标显示为 --。请优先补齐价格、汇率或成本基础。</p>
-              <div className="holding-warnings">
-                {detail.valuationWarnings.map((warning) => (
-                  <span className="warning-pill" key={`valuation:${warning.code}:${warning.instrumentId}:${warning.currency}`}>
-                    {formatDashboardWarning(warning)}
-                  </span>
-                ))}
-                {detail.snapshotWarnings.map((warning) => (
-                  <span className="warning-pill" key={`snapshot:${warning.code}:${warning.instrumentId}:${warning.currency}`}>
-                    {formatSnapshotWarning(warning)}
-                  </span>
-                ))}
-              </div>
+              <h2>数据提示</h2><p>缺少必要数据的指标显示为 --。请补齐对应价格、汇率或成本基础。</p>
+              <div className="holding-warnings">{detail.warnings.map((warning, index) => <span className="warning-pill" key={index}>{[warning.instrumentShortName, warning.currency, warning.date, warning.message].filter(Boolean).join(" · ")}</span>)}</div>
             </section>
           ) : null}
         </>

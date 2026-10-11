@@ -27,7 +27,7 @@ import { listValuationRatesForHoldings } from "./valuationMarketDataService";
 import { getCurrentInvestmentPortfolio } from "./dashboardService";
 import { ApiRequestError } from "../utils/apiError";
 
-export async function getHoldings(input: { currency?: string; user?: AuthenticatedUser; purpose?: AccountPurpose } = {}): Promise<HoldingsValuationSummary> {
+export async function getHoldings(input: { currency?: string; user?: AuthenticatedUser; purpose?: AccountPurpose; quoteMode?: string } = {}): Promise<HoldingsValuationSummary> {
   if ((input.purpose ?? "investment") === "investment") {
     return (await getCurrentInvestmentPortfolio(input)).holdings;
   }

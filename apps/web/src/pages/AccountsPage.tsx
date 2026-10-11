@@ -1,4 +1,4 @@
-import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
@@ -130,7 +130,11 @@ export function AccountsPage() {
   const [accountHoldings, setAccountHoldings] = useState<ValuedHoldingSummary[]>([]);
   const [holdingsReportingCurrency, setHoldingsReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [instruments, setInstruments] = useState<Instrument[]>([]);
-  const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
+  const accountSequence = useRef(0);
+  const holdingsSequence = useRef(0);
+  const [auxError, setAuxError] = useState<string | null>(null);
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [totalsLoading, setTotalsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,43 +161,42 @@ export function AccountsPage() {
   );
   const isDrawerReadOnly = drawerMode === "view";
   const editingAccountHasHistory = editingAccountId
-    ? transactions.some((transaction) => transaction.accountId === editingAccountId)
+    ? accounts.find(account => account.id === editingAccountId)?.hasTransactions ?? false
     : false;
   const holdingsByAccount = useMemo(() => groupHoldingsByAccount(accountHoldings), [accountHoldings]);
 
+  const totalsSequence = useRef(0);
+  useEffect(() => { void loadAccounts(); }, []);
   useEffect(() => {
-    if (!preferencesLoading) {
-      void loadAccounts();
-    }
-  }, [preferencesLoading, fallbackSnapshotCurrency]);
+    if (preferencesLoading || !accounts.length) return;
+    const id = ++totalsSequence.current;
+    setTotalsLoading(true);
+    void loadAccountTotals(accounts, fallbackSnapshotCurrency).then(totals => { if (id === totalsSequence.current) setAccountTotals(totals); })
+      .catch(failure => { if (id === totalsSequence.current) setAuxError(toErrorMessage(failure)); })
+      .finally(() => { if (id === totalsSequence.current) setTotalsLoading(false); });
+    return () => { totalsSequence.current++; };
+  }, [accounts, preferencesLoading, fallbackSnapshotCurrency]);
 
   async function loadAccounts() {
-    setLoading(true);
-    setError(null);
-
+    const id = ++accountSequence.current;
+    holdingsSequence.current++; totalsSequence.current++;
+    setLoading(true); setError(null); setAuxError(null); setAccountHoldings([]); setExpandedAccountId(null);
     try {
-      const [accountData, instrumentData, transactionData, holdingsData] = await Promise.all([
-        apiGet<AccountsResponse>("/accounts"),
-        apiGet<InstrumentsResponse>("/instruments"),
-        apiGet<TransactionsResponse>("/transactions"),
-        apiGet<HoldingsResponse>(`/holdings?currency=${fallbackSnapshotCurrency}`)
-      ]);
-      setUser(accountData.user);
-      setAccounts(accountData.accounts);
-      setInstruments(instrumentData.instruments);
-      setTransactions(transactionData.transactions);
-      setAccountHoldings(holdingsData.holdings);
-      setHoldingsReportingCurrency(holdingsData.reportingCurrency);
-      setExpandedAccountId((current) =>
-        current && accountData.accounts.some((account) => account.id === current) ? current : null
-      );
-      setAccountTotals(await loadAccountTotals(accountData.accounts, fallbackSnapshotCurrency));
-    } catch (requestError) {
-      setError(toErrorMessage(requestError));
-    } finally {
+      const accountData = await apiGet<AccountsResponse>("/accounts");
+      if (id !== accountSequence.current) return;
+      setUser(accountData.user); setAccounts(accountData.accounts);
       setLoading(false);
-    }
+    } catch (failure) { if (id === accountSequence.current) setError(toErrorMessage(failure)); }
+    finally { if (id === accountSequence.current) setLoading(false); }
   }
+
+  async function loadOpeningInstruments() {
+    try { const data = await apiGet<InstrumentsResponse>("/instruments"); setInstruments(data.instruments); }
+    catch (failure) { setAuxError(toErrorMessage(failure)); }
+  }
+
+  useEffect(() => { if (includeOpeningAssets && drawerOpen) void loadOpeningInstruments(); }, [includeOpeningAssets, drawerOpen]);
+  useEffect(() => () => { accountSequence.current++; holdingsSequence.current++; totalsSequence.current++; }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -331,7 +334,15 @@ export function AccountsPage() {
   }
 
   function toggleAccountHoldings(accountId: string) {
-    setExpandedAccountId((current) => (current === accountId ? null : accountId));
+    if (expandedAccountId === accountId) { setExpandedAccountId(null); holdingsSequence.current++; setHoldingsLoading(false); return; }
+    setExpandedAccountId(accountId);
+    const id = ++holdingsSequence.current;
+    setHoldingsLoading(true); setAuxError(null);
+    void apiGet<HoldingsResponse>(`/holdings?currency=${fallbackSnapshotCurrency}&quoteMode=cached`).then(data => {
+      if (id !== holdingsSequence.current) return;
+      setAccountHoldings(data.holdings); setHoldingsReportingCurrency(data.reportingCurrency);
+    }).catch(failure => { if (id === holdingsSequence.current) setAuxError(toErrorMessage(failure)); })
+      .finally(() => { if (id === holdingsSequence.current) setHoldingsLoading(false); });
   }
 
   function openHoldingDetail(holding: ValuedHoldingSummary) {
@@ -417,6 +428,7 @@ export function AccountsPage() {
         </div>
       </header>
 
+      {auxError ? <p className="form-error">辅助数据加载失败：{auxError} <button type="button" className="text-button" onClick={() => void loadAccounts()}>重试</button></p> : null}
       {error ? <p className="form-error">{error}</p> : null}
 
       {!isAdmin && !loading && user ? (
@@ -492,7 +504,7 @@ export function AccountsPage() {
                       <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
                       <td>{ACCOUNT_PURPOSE_LABELS[account.purpose]}</td>
                       <td>{account.baseCurrency}</td>
-                      <td className="numeric-cell">{formatAccountTotal(accountTotals.get(account.id))}</td>
+                      <td className="numeric-cell">{totalsLoading ? "加载中..." : formatAccountTotal(accountTotals.get(account.id))}</td>
                       <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
                       <td>
                         <div className="table-actions">
@@ -524,7 +536,7 @@ export function AccountsPage() {
                     {isExpanded ? (
                       <tr className="account-holdings-row">
                         <td colSpan={9}>
-                          {renderAccountHoldings(
+                          {holdingsLoading ? <p role="status">正在加载持仓...</p> : renderAccountHoldings(
                             accountHoldingsForRow,
                             holdingsReportingCurrency,
                             preferences.gainColorScheme,
@@ -690,7 +702,7 @@ export function AccountsPage() {
                     value={extraPassword}
                     onChange={(event) => setExtraPassword(event.target.value)}
                     disabled={revealedTradingPassword !== null || passwordLoading || saving}
-                    required
+                    placeholder="仅查看交易密码时填写"
                   />
                 </label>
                 <button
@@ -877,58 +889,9 @@ function formatInstrument(instrument: Instrument): string {
   return instrument.symbol ? `${instrument.symbol} - ${instrument.shortName}` : instrument.shortName;
 }
 
-async function loadAccountTotals(
-  accounts: InvestmentAccount[],
-  fallbackCurrency: SnapshotDisplayCurrency
-): Promise<Map<string, AccountTotalDisplay>> {
-  if (accounts.length === 0) {
-    return new Map();
-  }
-
-  const displayCurrencies = unique([
-    fallbackCurrency,
-    ...accounts
-      .map((account) => account.baseCurrency)
-      .filter((currency): currency is SnapshotDisplayCurrency =>
-        SNAPSHOT_DISPLAY_CURRENCIES.includes(currency as SnapshotDisplayCurrency)
-      )
-  ]);
-  const snapshotsByCurrency = new Map<SnapshotDisplayCurrency, PortfolioSnapshotSummary>();
-
-  await Promise.all(
-    displayCurrencies.map(async (currency) => {
-      const data = await apiGet<PortfolioSnapshotsResponse>(
-        `/portfolio-snapshots?currency=${currency}&limit=1&order=desc`
-      );
-      const latestSnapshot = data.snapshots[0];
-
-      if (latestSnapshot) {
-        snapshotsByCurrency.set(currency, latestSnapshot);
-      }
-    })
-  );
-
-  const totals = new Map<string, AccountTotalDisplay>();
-
-  for (const account of accounts) {
-    const preferredCurrency = SNAPSHOT_DISPLAY_CURRENCIES.includes(account.baseCurrency as SnapshotDisplayCurrency)
-      ? (account.baseCurrency as SnapshotDisplayCurrency)
-      : fallbackCurrency;
-    const accountSnapshot =
-      snapshotsByCurrency.get(preferredCurrency)?.accounts.find((snapshotAccount) => snapshotAccount.accountId === account.id) ??
-      snapshotsByCurrency.get(fallbackCurrency)?.accounts.find((snapshotAccount) => snapshotAccount.accountId === account.id);
-
-    if (accountSnapshot) {
-      totals.set(account.id, {
-        currency: accountSnapshot.currency,
-        marketValue: accountSnapshot.marketValue
-      });
-    }
-  }
-
-
-
-  return totals;
+async function loadAccountTotals(_accounts: InvestmentAccount[], fallbackCurrency: SnapshotDisplayCurrency): Promise<Map<string, AccountTotalDisplay>> {
+  const data = await apiGet<{ totals: Array<{ accountId: string; currency: SnapshotDisplayCurrency; marketValue: string | null }> }>(`/accounts/totals?currency=${fallbackCurrency}`);
+  return new Map(data.totals.map(total => [total.accountId, { currency: total.currency, marketValue: total.marketValue }]));
 }
 
 function formatAccountTotal(total: AccountTotalDisplay | undefined): string {

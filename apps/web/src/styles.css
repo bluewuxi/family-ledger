@@ -2695,8 +2695,30 @@ tr.editing-row td {
   padding: 14px 16px;
 }
 
-.holding-detail-back {
-  margin-bottom: 8px;
+.page-back-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 44px;
+  margin-bottom: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.page-back-link:hover {
+  color: var(--color-brand-walnut);
+}
+
+.page-back-link:focus-visible {
+  outline: 2px solid var(--color-brand-gold);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .holding-detail-metrics {
@@ -2721,6 +2743,37 @@ tr.editing-row td {
 
 .account-detail-controls {
   align-items: end;
+}
+
+.account-detail-header .account-detail-controls {
+  display: flex;
+  flex-wrap: wrap;
+  width: auto;
+  max-width: none;
+}
+
+.account-detail-header .account-detail-controls > * {
+  width: auto;
+}
+
+.account-detail-trend-panel .chart-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.account-detail-trend-panel .account-detail-range-select {
+  display: grid;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 108px;
+  width: auto;
+  font-size: 14px;
+}
+
+.account-detail-trend-panel .account-detail-range-select select {
+  width: 100%;
+  min-height: 44px;
 }
 
 .account-detail-range-select {
@@ -4829,4 +4882,23 @@ tr.editing-row td {
   .api-error-filters button { flex: 1 1 100%; }
   .api-error-filters label { flex-basis: 100%; }
   .api-errors-panel .pagination-controls { flex-wrap: wrap; }
+}
+
+/* Account cash context leaves more room for recent transactions. */
+.chart-tooltip { padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; }
+@media (max-width: 767px) { .trend-tabs button { min-height: 44px; } }
+
+.account-recent-table { min-width: 640px; }
+
+/* Keep account controls compact while preserving phone tap targets. */
+@media (max-width: 639px) {
+  .account-detail-header .account-detail-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .account-detail-header .account-detail-controls .currency-select { grid-column: 1 / -1; width: 100%; }
+  .account-detail-header .account-detail-controls > button { width: 100%; min-height: 44px; }
+  .account-detail-trend-panel .chart-section-header > div { min-width: 0; }
+}
+@media (min-width: 640px) {
+  .account-detail-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+  .account-detail-header .account-detail-controls { align-items: flex-end; flex-shrink: 0; }
+  .account-detail-header .account-detail-controls > button { min-height: 44px; height: 44px; }
 }

@@ -1,3 +1,8 @@
+import { getInvestmentPerformance, completeInvestmentPerformance } from "./investmentPerformanceService";
+import { refreshDashboardQuotes } from "./dashboardService";
+import { parseQuoteMode } from "./quoteMode";
+import { buildPortfolioTrend } from "./portfolioSnapshotService";
+import { timed } from "../utils/timing";
 import Decimal from "decimal.js";
 import {
   getAppBusinessDate,
@@ -39,8 +44,12 @@ export async function getAccountDetail(input: {
   currency?: string;
   trendRange?: string;
   recentLimit?: string;
+  quoteMode?: string;
   user?: AuthenticatedUser;
 }): Promise<AccountDetailSummary> {
+  parseQuoteMode(input.quoteMode);
+  const quoteRefreshWarnings: string[] = [];
+  const now = new Date();
   const accountId = requiredUuid(input.accountId, "accountId");
   const [reportingCurrency, trendRange, recentLimit] = await Promise.all([
     resolveReportingCurrency(input),
@@ -53,13 +62,15 @@ export async function getAccountDetail(input: {
     throw new ApiRequestError("NOT_FOUND", "Account was not found.", 404);
   }
 
-  const valuationBusinessDate = getAppBusinessDate();
-  const [transactions, accounts, instruments, trend] = await Promise.all([
-    listTransactions(),
-    listAccounts(),
+  const valuationBusinessDate = getAppBusinessDate(now);
+  const [transactions, instruments, trendRows] = await Promise.all([
+    timed("account.transactions", () => listTransactions({ accountId, to: valuationBusinessDate })),
     listInstruments(),
-    buildAccountTrend({ accountId, currency: reportingCurrency, range: trendRange, today: valuationBusinessDate })
+    timed("account.snapshots", () => listAccountSnapshotTrendRows({ accountId, currency: reportingCurrency, from: earliestDate, to: valuationBusinessDate, order: "asc" }))
   ]);
+  const accounts = [account];
+  const performanceRequest = () => getInvestmentPerformance({ totalAssets: null, transactions, currency: reportingCurrency, businessDate: valuationBusinessDate });
+  const trendRequest = () => buildAccountTrend({ accountId, currency: reportingCurrency, range: trendRange, today: valuationBusinessDate, rows: trendRows, transactions });
   const accountTransactions = transactions.filter((transaction) => transaction.accountId === accountId);
   const preliminaryHoldings = calculateHoldings(transactions, accounts, instruments)
     .filter((holding) => holding.accountId === accountId);
@@ -69,18 +80,22 @@ export async function getAccountDetail(input: {
       .map((holding) => ({ instrumentId: holding.instrumentId, currency: holding.currency })),
     (instrument) => instrument.instrumentId
   );
-  const [prices, fxRates] = await Promise.all([
+  const [prices, fxRates, preliminaryPerformance, trend] = await Promise.all([
     listLatestPrices(securityInstruments),
     listValuationRatesForHoldings({
       valuationDate: valuationBusinessDate,
       transactions: accountTransactions,
       holdings: preliminaryHoldings,
       reportingCurrency
-    })
+    }),
+    performanceRequest(), trendRequest()
   ]);
   const holdings = calculateHoldings(transactions, accounts, instruments, fxRates)
     .filter((holding) => holding.accountId === accountId);
-  const valuation = calculateHoldingsValuation(holdings, prices, fxRates, reportingCurrency);
+  const quotes = await timed("account.quotes", () => refreshDashboardQuotes({ holdings, instruments, now, quoteMode: input.quoteMode, quoteRefreshWarnings }));
+  const valuation = calculateHoldingsValuation(holdings, prices, fxRates, reportingCurrency, quotes);
+  const investmentPerformance = completeInvestmentPerformance(preliminaryPerformance, valuation.totalMarketValue);
+  const warnings = collectAccountWarnings(valuation.holdings, valuation.warnings, trendRows.filter(row => trend.points.some(point => point.snapshotDate === row.snapshotDate)).flatMap(row => row.warnings.map(warning => ({ ...warning, date: row.snapshotDate ?? undefined }))), investmentPerformance.warnings);
   const recentTransactions = buildRecentTransactions(accountTransactions, recentLimit);
   const latestSnapshot = trend.points
     .filter((point): point is AccountDetailSnapshotPoint & { snapshotDate: string } => point.snapshotDate !== null)
@@ -88,6 +103,7 @@ export async function getAccountDetail(input: {
     [0] ?? null;
 
   return {
+    quoteRefreshWarnings, investmentPerformance, valuedAt: now.toISOString(), warnings,
     reportingCurrency,
     account,
     currentValue: {
@@ -115,6 +131,7 @@ export async function buildAccountTrend(input: {
   range: PortfolioTrendRange;
   today?: string;
   rows?: Array<AccountDetailSnapshotPoint & { warnings: SnapshotWarning[] }>;
+  transactions?: InvestmentTransaction[];
 }): Promise<AccountDetailTrend> {
   const rangeEnd = input.today ?? getAppBusinessDate();
   const rows =
@@ -125,6 +142,15 @@ export async function buildAccountTrend(input: {
       currency: input.currency,
       order: "asc"
     });
+  if (input.transactions) {
+    const principalTransactions = input.transactions.filter(transaction => transaction.transactionSource === "manual" && ["opening_position", "opening_balance", "deposit", "withdrawal"].includes(transaction.transactionType));
+    const portfolioTrend = await buildPortfolioTrend({ currency: input.currency, range: input.range, today: rangeEnd,
+      snapshots: rows.map(toPortfolioSnapshotSummary), principalTransactions });
+    return { range: input.range, rangeStart: portfolioTrend.summary.rangeStart, rangeEnd, currency: input.currency,
+      points: portfolioTrend.points.map(point => ({ date: point.date, snapshotDate: point.snapshotDate, marketValue: point.portfolioValue, totalInvestment: point.totalInvestment })),
+      principalPoints: portfolioTrend.principalPoints, principalWarnings: portfolioTrend.summary.warnings,
+      warnings: collectSampledSnapshotWarnings(rows, portfolioTrend.points) };
+  }
   const firstSnapshotDate = rows.find((row) => row.marketValue !== null)?.snapshotDate ?? rows[0]?.snapshotDate ?? null;
   const rangeStart = input.range === "inception"
     ? (firstSnapshotDate ?? rangeEnd)
@@ -324,4 +350,15 @@ function uniqueSnapshotWarnings(warnings: SnapshotWarning[]): SnapshotWarning[] 
   }
 
   return [...unique.values()];
+}
+
+function collectAccountWarnings(holdings: ValuedHoldingSummary[], valuation: DashboardWarning[], snapshots: Array<SnapshotWarning & { date?: string }>, principal: import("@family-ledger/shared").PortfolioTrendWarning[]): import("@family-ledger/shared").AccountDetailWarning[] {
+  const warnings: import("@family-ledger/shared").AccountDetailWarning[] = [];
+  for (const holding of holdings) for (const code of holding.warnings) warnings.push({ code, instrumentId: holding.instrumentId, instrumentShortName: holding.instrumentShortName, currency: holding.currency,
+    message: code === "NEGATIVE_POSITION" ? "负数余额/持仓，请核对交易记录" : "成本不可用" });
+  const labels: Record<string, string> = { MISSING_LATEST_PRICE: "缺少最新价格", MISSING_PREVIOUS_PRICE: "缺少前一收盘价", MISSING_FX_RATE: "缺少估值汇率", COST_BASIS_UNAVAILABLE: "成本不可用", MISSING_PRICE: "缺少历史价格", MISSING_PRINCIPAL_FX_RATE: "缺少本金日期汇率" };
+  for (const warning of [...valuation, ...holdings.flatMap(holding => holding.valuationWarnings)]) warnings.push({ ...warning, message: labels[warning.code] ?? warning.code });
+  for (const warning of snapshots) warnings.push({ ...warning, message: `快照${labels[warning.code] ?? warning.code}` });
+  for (const warning of principal) warnings.push({ code: warning.code, currency: warning.currency, date: warning.transactionDate, message: "缺少本金日期汇率" });
+  return [...new Map(warnings.map(warning => [JSON.stringify(warning), warning])).values()];
 }
