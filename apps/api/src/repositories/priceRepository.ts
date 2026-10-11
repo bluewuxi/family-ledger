@@ -51,7 +51,8 @@ export async function listLatestPrices(instruments: HeldInstrumentPriceKey[]): P
 
   const supabase = await getSupabaseAdmin();
   const { data, error } = await supabase.rpc("latest_price_candidates", {
-    price_keys: instruments.map(key => ({ instrument_id: key.instrumentId, currency: key.currency }))
+    // GET RPC arrays otherwise use PostgreSQL array syntax instead of JSON.
+    price_keys: JSON.stringify(instruments.map(key => ({ instrument_id: key.instrumentId, currency: key.currency })))
   }, { get: true });
   if (error?.code === "PGRST202") {
     // Rolling compatibility: use the former read path until the migration is applied.
