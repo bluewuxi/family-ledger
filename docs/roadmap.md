@@ -1,9 +1,9 @@
 # Roadmap
 
-## Pending Deployment: API Error Tracking (2026-10-12)
+## Test Deployed: API Error Tracking (2026-10-12)
 
-- Implemented locally: structured redacted raw-error diagnostics, reviewed INFO/WARN/ERROR classification, admin-only ERROR queries and handling state under `数据维护`, atomic observation deduplication and recurrence tracking, and a 30-day policy for project CloudWatch groups.
-- Migration and infrastructure changes are prepared but not applied. Commit/push and deployment are not part of this implementation request. Authenticated responsive verification was deferred by the user.
+- Deployed to test under issue #109: structured redacted raw-error diagnostics, reviewed INFO/WARN/ERROR classification, admin-only ERROR queries and handling state under `数据维护`, atomic observation deduplication and recurrence tracking, and a 30-day policy for project CloudWatch groups.
+- Applied the additive migration and verified restricted database access. CloudFormation reached `UPDATE_COMPLETE`; all six test log groups retain 30 days. Live API authorization, CloudWatch query, summaries and event details passed. Authenticated responsive verification was deferred by the user. Production was not deployed.
 
 ## Stage 0: Project Foundation
 
