@@ -1,8 +1,9 @@
 # Roadmap
 
-## Hotfix Ready for Test: Transaction Balances and Opening Entries (2026-10-12)
+## Test Deployed: Transaction Balances and Opening Entries Hotfix (2026-10-12)
 
-- Transaction forms now load explicit native cash balances for both investment and daily-expense accounts. Missing balance/configuration data blocks saving instead of displaying zero. Bank transactions default to deposit, with opening balance last; create/update validation and a partial unique index allow only one opening balance per account. The test migration is applied without changing financial records. Focused service/frontend and disposable PostgreSQL checks, typecheck and build passed. Test API/web deployment is pending; authenticated browser checks were skipped at the user's request.
+- Deployed to test under issue #112: transaction forms load explicit native cash balances for investment and daily-expense accounts. Missing balance/configuration data blocks saving instead of displaying zero. Bank transactions default to deposit, with opening balance last; create/update validation and a partial unique index allow only one opening balance per account.
+- The test migration applied without changing financial records. Focused service/frontend and disposable PostgreSQL checks, typecheck and build passed. CloudFormation reached `UPDATE_COMPLETE`, Lambda update succeeded, and CloudFront invalidation completed. Live health/auth checks, viewer/admin balances, Hong NZD balance parity (`80094`) and duplicate-opening rejection passed. Authenticated browser checks were skipped at the user's request. Production was not deployed.
 
 ## Test Deployed: API Error Tracking (2026-10-12)
 

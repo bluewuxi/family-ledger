@@ -1,5 +1,9 @@
 # Deployment
 
+## Test transaction balance hotfix (2026-10-12, issue #112)
+
+Applied `202610120002_single_account_opening_balance.sql` after confirming no existing duplicate opening balances. The partial unique index is valid; no financial records were rewritten. Committed and pushed the API/web hotfix to `test`, reviewed a non-replacing CloudFormation change set, and deployed infrastructure and web assets. CloudFormation reached `UPDATE_COMPLETE`, the API Lambda update was successful, and CloudFront invalidation completed. Live checks confirmed health, unauthorized rejection, viewer/admin balance access, Hong NZD cash balance `80094` matching account detail, and HTTP 400 `VALIDATION_ERROR` for a duplicate opening balance. Stage-one database readiness passed. Typecheck, build, focused transaction balance checks and disposable PostgreSQL index tests passed. Browser/mobile verification was skipped at the user's request. Production was not deployed.
+
 ## Total-assets daily ratio and connected live curves (2026-10-08, #108)
 
 Implementation commit `6511c76` was pushed to `test`. The reviewed change set had no deletions or replacements; scheduler changes were target dependency references without schedule-expression changes. The change set was executed directly, CloudFormation reached `UPDATE_COMPLETE`, API Lambda was active with a successful update, web deployment succeeded, and CloudFront invalidation completed.
