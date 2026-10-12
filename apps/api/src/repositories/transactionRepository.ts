@@ -413,6 +413,11 @@ export async function commitTransactionWrite(input: {
     update_derived_data: input.updateDerivedData
   });
   if (error) {
+    if (error.code === "23505" && (error.message.includes("transactions_one_opening_balance_per_account") ||
+      (error.details === "transaction" && input.transaction?.transactionType === "opening_balance"))) {
+      logDependencyError("transactionRepository.commitTransactionWrite", error, ["23505"]);
+      throw new ApiRequestError("VALIDATION_ERROR", "此账户已有期初余额，请编辑原记录；日常资金转入请选择入金。", 400);
+    }
     logDependencyError("transactionRepository.commitTransactionWrite", error,
       ["price", "snapshot"].includes(error.details) ? [] : ["40001", "40P01", "P0002", "42501", "23503", "23514", "22P02"]);
     const stage = ["transaction", "cash", "price", "snapshot"].includes(error.details) ? error.details : null;

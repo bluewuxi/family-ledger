@@ -11,7 +11,7 @@ import {
   type AdjustmentDirection,
   type AuthenticatedUser,
   type CreateInvestmentTransactionInput,
-  type HoldingsValuationSummary,
+  type TransactionBalancesResponse,
   type Instrument,
   type InvestmentAccount,
   type InvestmentTransaction,
@@ -19,7 +19,6 @@ import {
   type TransactionsResponse,
   type TransactionSortBy,
   type TransactionSortDirection,
-  type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
 import { PageTitle } from "../components/PageTitle";
@@ -27,6 +26,7 @@ import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiCl
 import { addDecimalStrings, compareDecimalStrings, multiplyDecimalStrings, normalizeDecimalString, toScaledBigInt, fromScaledBigInt } from "../lib/transactionDecimal";
 import { formatDisplayAmount } from "../lib/numberFormat";
 import { isInteractiveRowTarget, isRowActivationKey } from "../lib/tableInteraction";
+import { validateTransactionBalances } from "../lib/transactionBalances";
 
 interface AccountsResponse {
   user: AuthenticatedUser;
@@ -37,7 +37,7 @@ interface InstrumentsResponse {
   instruments: Instrument[];
 }
 
-interface HoldingsResponse extends HoldingsValuationSummary {}
+interface HoldingsResponse extends TransactionBalancesResponse {}
 
 interface TransactionResponse {
   transaction: InvestmentTransaction;
@@ -75,8 +75,8 @@ type DrawerMode = "create" | "view" | "modify";
 const today = getLocalDateString();
 
 const emptyFilters: TransactionFilters = { from: "", to: "", accountId: "", instrumentId: "", transactionType: "" };
-const editableTransactionTypes = TRANSACTION_TYPES.filter((transactionType) => transactionType !== "tax");
-const bankCashTransactionTypes: TransactionType[] = ["opening_balance", "deposit", "withdrawal", "interest", "adjustment"];
+const editableTransactionTypes = [...TRANSACTION_TYPES.filter((transactionType) => transactionType !== "tax" && transactionType !== "opening_balance"), "opening_balance" as const];
+const bankCashTransactionTypes: TransactionType[] = ["deposit", "withdrawal", "interest", "adjustment", "opening_balance"];
 
 export function TransactionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -85,7 +85,7 @@ export function TransactionsPage() {
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
-  const [holdingsSummary, setHoldingsSummary] = useState<HoldingsValuationSummary | null>(null);
+  const [holdingsSummary, setHoldingsSummary] = useState<TransactionBalancesResponse | null>(null);
   const requestSequence = useRef(0);
   const balanceSequence = useRef(0);
   const referenceData = useRef<{ accounts: InvestmentAccount[]; instruments: Instrument[] } | null>(null);
@@ -96,7 +96,8 @@ export function TransactionsPage() {
     const id = ++balanceSequence.current;
     setBalanceLoading(true); setBalanceError(null); setHoldingsSummary(null);
     try {
-      const data = await apiGet<HoldingsResponse>("/holdings?quoteMode=cached");
+      const data = await apiGet<HoldingsResponse>("/transactions/balances");
+      validateTransactionBalances(data);
       if (id === balanceSequence.current) setHoldingsSummary(data);
     } catch (failure) { if (id === balanceSequence.current) setBalanceError(toErrorMessage(failure)); }
     finally { if (id === balanceSequence.current) setBalanceLoading(false); }
@@ -213,7 +214,7 @@ export function TransactionsPage() {
 
     const nextTransactionType = bankCashTransactionTypes.includes(form.transactionType)
       ? form.transactionType
-      : "opening_balance";
+      : "deposit";
     const nextInstrumentId = bankCashInstrument?.id ?? "";
 
     if (form.transactionType === nextTransactionType && form.instrumentId === nextInstrumentId) {
@@ -286,7 +287,7 @@ export function TransactionsPage() {
       return;
     }
 
-    if ((form.transactionType === "buy" || form.transactionType === "sell" || form.transactionType === "withdrawal") && (balanceLoading || !holdingsSummary)) { setError("余额尚未加载完成，请重试加载后再保存。"); return; }
+    if (balanceLoading || !holdingsSummary) { setError("余额尚未加载完成，请重试加载后再保存。"); return; }
     setSaving(true);
     setError(null);
 
@@ -378,7 +379,7 @@ export function TransactionsPage() {
 
     setEditingTransactionId(null);
     setDrawerMode("create");
-    setForm(emptyForm(accountId, isBankAccount ? "opening_balance" : "buy", matchingCashInstrument?.id ?? ""));
+    setForm(emptyForm(accountId, isBankAccount ? "deposit" : "buy", matchingCashInstrument?.id ?? ""));
     setDrawerOpen(true);
   }
 
@@ -405,7 +406,7 @@ export function TransactionsPage() {
 
   function changeTransactionType(transactionType: TransactionType) {
     const nextTransactionType = isBankCashAccount && !bankCashTransactionTypes.includes(transactionType)
-      ? "opening_balance"
+      ? "deposit"
       : transactionType;
     const isOpeningType = nextTransactionType === "opening_position" || nextTransactionType === "opening_balance";
 
@@ -485,7 +486,7 @@ export function TransactionsPage() {
     accounts.length === 0 ||
     eligibleInstruments.length === 0 ||
     Boolean(bankCashInstrumentError) ||
-    Boolean(tradeAvailability.error) || ((form.transactionType === "buy" || form.transactionType === "sell" || form.transactionType === "withdrawal") && (balanceLoading || !holdingsSummary));
+    Boolean(tradeAvailability.error) || balanceLoading || !holdingsSummary;
 
   return (
     <section>
@@ -745,13 +746,14 @@ export function TransactionsPage() {
 
           {isBankCashAccount ? (
             <div className="bank-cash-balance-panel wide-field">
-              <span>当前余额：{balanceLoading ? "加载中..." : !holdingsSummary ? "--" : `${selectedAccount?.baseCurrency ?? "-"} ${formatDisplayAmount(bankCashBalance?.quantity ?? "0")}`}</span>
+              <span>当前余额：{balanceLoading ? "加载中..." : !holdingsSummary ? "--" : `${selectedAccount?.baseCurrency ?? "-"} ${bankCashBalance ? formatDisplayAmount(bankCashBalance.quantity) : "--"}`}</span>
               {bankCashInstrumentError ? <span className="bank-cash-balance-warning">{bankCashInstrumentError}</span> : null}
               {bankCashBalance?.warnings.includes("NEGATIVE_POSITION") ? (
                 <span className="bank-cash-balance-warning">现金余额为负，请检查交易记录。</span>
               ) : null}
             </div>
           ) : null}
+          {tradeAvailability.error && !tradeAvailability.label ? <p className="form-error wide-field" role="alert">{tradeAvailability.error}</p> : null}
 
           <label>
             {isOpeningTransaction ? "期初日期" : "交易日期"}
@@ -942,18 +944,18 @@ function getBankCashInstrumentError(
 }
 
 function findCashBalance(
-  holdingsSummary: HoldingsValuationSummary | null,
+  holdingsSummary: TransactionBalancesResponse | null,
   accountId: string,
   instrumentId: string
-): ValuedHoldingSummary | null {
+): TransactionBalancesResponse["cashBalances"][number] | null {
   return (
-    holdingsSummary?.holdings.find((holding) => holding.accountId === accountId && holding.instrumentId === instrumentId) ?? null
+    holdingsSummary?.cashBalances?.find((holding) => holding.accountId === accountId && holding.instrumentId === instrumentId) ?? null
   );
 }
 
 interface TradeAvailabilityInput {
   form: TransactionFormState;
-  holdingsSummary: HoldingsValuationSummary | null;
+  holdingsSummary: TransactionBalancesResponse | null;
   selectedAccount: InvestmentAccount | undefined;
   selectedInstrument: Instrument | undefined;
   accountCashInstrument: Instrument | null;
@@ -967,10 +969,14 @@ function getTradeAvailability(input: TradeAvailabilityInput): { label: string | 
     return { label: null, error: null };
   }
 
+  if (!holdingsSummary) return { label: null, error: null };
+  const cashBalance = accountCashInstrument ? findCashBalance(holdingsSummary, selectedAccount.id, accountCashInstrument.id) : null;
+  if (!cashBalance) {
+    return { label: null, error: "账户余额数据缺失或现金标的异常，无法保存，请刷新或联系管理员。" };
+  }
+
   if (form.transactionType === "buy") {
-    const currentCashQuantity = accountCashInstrument
-      ? findCashBalance(holdingsSummary, selectedAccount.id, accountCashInstrument.id)?.quantity ?? "0"
-      : "0";
+    const currentCashQuantity = cashBalance.quantity;
     const cashQuantity = addBackEditedBuyCash(currentCashQuantity, selectedAccount, editingTransaction);
     const label = `可用资金：${selectedAccount.baseCurrency} ${formatDisplayAmount(cashQuantity)}`;
     const requiredAmount =

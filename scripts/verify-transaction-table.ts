@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 
 import { normalizeDecimalString, addDecimalStrings, compareDecimalStrings } from "../apps/web/src/lib/transactionDecimal";
+import { validateTransactionBalances } from "../apps/web/src/lib/transactionBalances";
 
 async function main(): Promise<void> {
 assert.equal(normalizeDecimalString(12.5), "12.5");
@@ -26,6 +27,7 @@ const row = {
   fee: 0, tax: 0, settlement_amount: 246.25,
   transaction_source: "manual", linked_transaction_id: null,
   currency: "USD", settlement_currency: "USD",
+  created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z",
 };
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (input) => {
@@ -41,7 +43,7 @@ globalThis.fetch = async (input) => {
 
 try {
   const result = await build({
-    stdin: { contents: 'export { getTransactions } from "./apps/api/src/services/transactionService";', resolveDir: process.cwd() },
+    stdin: { contents: 'export { getTransactions, getTransactionBalances, assertSingleOpeningBalance } from "./apps/api/src/services/transactionService";', resolveDir: process.cwd() },
     bundle: true, platform: "node", format: "cjs", write: false,
     plugins: [{ name: "test-database", setup(builder) {
       builder.onLoad({ filter: /[/\\]db[/\\]supabaseServer\.ts$/ }, () => ({
@@ -52,7 +54,7 @@ try {
   });
   const file = join(directory, "verification.cjs");
   await writeFile(file, result.outputFiles[0]!.text);
-  const { getTransactions } = createRequire(join(process.cwd(), "package.json"))(file);
+  const { getTransactions, getTransactionBalances, assertSingleOpeningBalance } = createRequire(join(process.cwd(), "package.json"))(file);
   for (const sortBy of ["tradeDate", "settlementDate", "instrument", "transactionType"]) {
     for (const sortDirection of ["asc", "desc"]) {
       requests.length = 0;
@@ -97,7 +99,46 @@ try {
   for (const query of [{ sortBy: "price" }, { sortDirection: "sideways" }, { includeLinkedCashLegs: "maybe" }]) {
     await assert.rejects(() => getTransactions(query), { code: "VALIDATION_ERROR" });
   }
-  console.log("Transaction table verification: success");
+  // Transaction forms must include daily-expense bank balances, without changing investment scope.
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requests.push(url);
+    const data = url.pathname.endsWith("investment_accounts")
+      ? ["investment", "daily_expense", "education", "empty"].map(purpose => ({ id: purpose, name: purpose, purpose: purpose === "empty" ? "daily_expense" : purpose, base_currency: "NZD", account_type: "bank", market_region: "NZ" }))
+      : url.pathname.endsWith("instruments")
+        ? [{ id: "cash", symbol: "CASH_NZD", name: "NZD Cash", short_name: "NZD cash", asset_type: "cash", currency: "NZD" }]
+        : ["investment", "daily_expense"].flatMap(account_id => [
+          { ...row, account_id, instrument_id: "cash", transaction_type: "opening_balance", quantity: null, gross_amount: "80000", currency: "NZD" },
+          { ...row, account_id, instrument_id: "cash", transaction_type: "withdrawal", quantity: null, gross_amount: "79906", currency: "NZD" },
+          { ...row, account_id, instrument_id: "cash", transaction_type: "deposit", quantity: null, gross_amount: "80000", currency: "NZD" }
+        ]);
+    return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+  };
+  requests.length = 0;
+  const balances = await getTransactionBalances();
+  assert.equal(balances.holdings.find((h: { accountId: string }) => h.accountId === "daily_expense")?.quantity, "80094");
+  assert.equal(balances.cashBalances.find((h: { accountId: string }) => h.accountId === "daily_expense")?.quantity, "80094");
+  assert.equal(balances.cashBalances.find((h: { accountId: string }) => h.accountId === "empty")?.quantity, "0");
+  validateTransactionBalances(balances);
+  assert.throws(() => validateTransactionBalances({ ...balances, cashBalances: undefined }));
+  assert.throws(() => validateTransactionBalances({ ...balances, cashBalances: [...balances.cashBalances, balances.cashBalances[0]] }));
+  assert.throws(() => validateTransactionBalances({ ...balances, cashBalances: [{ ...balances.cashBalances[0], quantity: undefined }] }));
+  assert.equal(balances.holdings.some((h: { accountId: string }) => h.accountId === "education"), false);
+  const balanceQuery = requests.find(url => url.pathname.endsWith("transactions"))!.searchParams;
+  assert.equal(balanceQuery.get("investment_accounts.purpose"), "neq.education");
+  assert.ok(balanceQuery.get("trade_date")?.startsWith("lte."));
+  const opening = { accountId: "daily_expense", transactionType: "opening_balance" };
+  const existing = { ...opening, id: "existing" };
+  assert.throws(() => assertSingleOpeningBalance(opening, [existing]), { code: "VALIDATION_ERROR" });
+  assert.throws(() => assertSingleOpeningBalance(opening, [{ ...existing, instrumentId: "other-cash" }]), { code: "VALIDATION_ERROR" });
+  assert.doesNotThrow(() => assertSingleOpeningBalance(opening, [existing], "existing"));
+  assert.doesNotThrow(() => assertSingleOpeningBalance({ ...opening, accountId: "other" }, [existing]));
+  assert.doesNotThrow(() => assertSingleOpeningBalance({ ...opening, transactionType: "deposit" }, [existing]));
+  const balanceFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => new URL(String(input)).pathname.endsWith("instruments")
+    ? new Response("[]", { headers: { "Content-Type": "application/json" } }) : balanceFetch(input, init);
+  await assert.rejects(() => getTransactionBalances(), { code: "INTERNAL_ERROR" });
+  console.log("Transaction table and cross-purpose balance verification: success");
 } finally {
   globalThis.fetch = originalFetch;
   await rm(directory, { recursive: true, force: true });

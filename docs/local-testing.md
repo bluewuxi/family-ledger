@@ -1,5 +1,8 @@
 # Local Testing
 
+Transaction balance hotfix checks: run `corepack pnpm verify:transaction-table` for investment/daily-expense balances, explicit zero accounts, malformed responses, cash-configuration failures, and opening-balance create/edit rules. Run `corepack pnpm exec tsx scripts/verify-opening-balance-db.ts` for the partial unique index in a disposable local PostgreSQL cluster. Apply the test-only migration with `corepack pnpm exec tsx scripts/apply-transaction-hotfix-schema.ts`; it stops if existing duplicate opening balances are found and never changes financial records.
+After deployment, run `corepack pnpm exec tsx scripts/smoke-transaction-hotfix-test.ts` to verify live authentication, viewer/admin balances, account-detail parity and duplicate-opening rejection. The installed unique index protects the duplicate probe; no financial records are changed. Temporary authentication sessions send no email and are signed out afterward.
+
 ## Education reserve acceptance
 
 Run `corepack pnpm verify:education-reserve`, `corepack pnpm verify:education-reserve-db`, `corepack pnpm verify:backup`, and existing spending/account-purpose/time checks before typecheck/build. The PostgreSQL verification creates an isolated temporary local database without using project credentials; it covers concurrent refunds, stale updates, legacy guards, exact values, RLS, combined reports, and rollback-only backup restoration.

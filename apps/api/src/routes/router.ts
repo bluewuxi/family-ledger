@@ -18,6 +18,7 @@ import {
 } from "../services/accountTradingPasswordService";
 import { getDashboard } from "../services/dashboardService";
 import { getAccountPurposeOverview, getHoldingDetail, getHoldings } from "../services/holdingService";
+import { getTransactionBalances } from "../services/transactionService";
 import {
   getDataMaintenanceBackupRuns,
   getDataMaintenanceFxRates,
@@ -111,6 +112,10 @@ const routes: Record<string, RouteHandler> = {
     const user = await requireRole(event, "viewer");
     const result = await getTransactions(event.queryStringParameters ?? {});
     return success({ user, transactions: result.items, pagination: result.pagination, ...(result.linkedCashLegs ? { linkedCashLegs: result.linkedCashLegs } : {}) });
+  },
+  "GET /transactions/balances": async (event) => {
+    await requireRole(event, "viewer");
+    return success(await getTransactionBalances());
   },
   "POST /transactions": async (event) => {
     const user = await requireRole(event, "admin");

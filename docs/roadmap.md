@@ -1,5 +1,9 @@
 # Roadmap
 
+## Hotfix Ready for Test: Transaction Balances and Opening Entries (2026-10-12)
+
+- Transaction forms now load explicit native cash balances for both investment and daily-expense accounts. Missing balance/configuration data blocks saving instead of displaying zero. Bank transactions default to deposit, with opening balance last; create/update validation and a partial unique index allow only one opening balance per account. The test migration is applied without changing financial records. Focused service/frontend and disposable PostgreSQL checks, typecheck and build passed. Test API/web deployment is pending; authenticated browser checks were skipped at the user's request.
+
 ## Test Deployed: API Error Tracking (2026-10-12)
 
 - Deployed to test under issue #109: structured redacted raw-error diagnostics, reviewed INFO/WARN/ERROR classification, admin-only ERROR queries and handling state under `数据维护`, atomic observation deduplication and recurrence tracking, and a 30-day policy for project CloudWatch groups.

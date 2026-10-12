@@ -47,6 +47,39 @@ const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const maxLimit = 200;
 const defaultLimit = 50;
 
+export async function getTransactionBalances(): Promise<import("@family-ledger/shared").TransactionBalancesResponse> {
+  const [accounts, instruments, transactions] = await Promise.all([
+    listAccounts(), listInstruments(), listTransactions({ excludeEducation: true, to: getAppBusinessDate() })
+  ]);
+  const editableAccounts = accounts.filter(account => account.purpose !== "education");
+  const accountCashInstruments = editableAccounts.map(account => {
+    const cash = instruments.filter(instrument => instrument.assetType === "cash" && instrument.currency === account.baseCurrency);
+    if (cash.length !== 1) {
+      const error = new Error("Transaction balance cash instrument is missing or ambiguous.");
+      logCaughtError("transactionService.getTransactionBalances", error);
+      throw new ApiRequestError("INTERNAL_ERROR", "账户现金标的数据异常，无法读取余额，请联系管理员。", 500);
+    }
+    return { account, instrument: cash[0]! };
+  });
+  const holdings = calculateHoldings(transactions, editableAccounts, instruments);
+  const cashBalances = accountCashInstruments.map(({ account, instrument }) => {
+    const holding = holdings.find(item => item.accountId === account.id && item.instrumentId === instrument.id);
+    return { accountId: account.id, instrumentId: instrument.id, quantity: holding?.quantity ?? "0", warnings: holding?.warnings ?? [] };
+  });
+  return { holdings, cashBalances };
+}
+
+export function assertSingleOpeningBalance(input: CreateInvestmentTransactionInput, transactions: InvestmentTransaction[], existingId?: string): void {
+  if (input.transactionType === "opening_balance" && transactions.some(transaction =>
+    transaction.accountId === input.accountId && transaction.transactionType === "opening_balance" && transaction.id !== existingId)) {
+    throw new ApiRequestError("VALIDATION_ERROR", "此账户已有期初余额，请编辑原记录；日常资金转入请选择入金。", 400);
+  }
+}
+
+async function checkOpeningBalance(input: CreateInvestmentTransactionInput, existingId?: string): Promise<void> {
+  if (input.transactionType === "opening_balance") assertSingleOpeningBalance(input, await listTransactions({ accountId: input.accountId, transactionType: "opening_balance" }), existingId);
+}
+
 export async function getTransactions(
   query: Record<string, string | undefined> = {}
 ): Promise<PaginatedResult<InvestmentTransaction> & { linkedCashLegs?: InvestmentTransaction[] }> {
@@ -118,6 +151,7 @@ export async function createInvestmentTransaction(
   const validated = await validateTransaction(input, "grossAmount" in record);
 
   try {
+    await checkOpeningBalance(validated);
     const settlementInput = await withAutomaticSettlement(validated);
     await assertSufficientTradeBalance(settlementInput);
     const transaction = await writeTransactionAtomically({ operation: "create", id: randomUUID(), userId: user.id,
@@ -257,6 +291,7 @@ export async function updateInvestmentTransaction(
   const updateInput = shouldUpdateDerivedData ? await withAutomaticSettlement(validated) : validated;
 
   try {
+    await checkOpeningBalance(updateInput, id);
     if (shouldUpdateDerivedData) {
       await assertSufficientTradeBalance(updateInput, id);
     }

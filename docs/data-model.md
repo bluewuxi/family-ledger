@@ -1,5 +1,7 @@
 # Data Model
 
+Migration `202610120002_single_account_opening_balance.sql` adds the partial unique index `transactions_one_opening_balance_per_account` on `transactions(account_id)` where `transaction_type = 'opening_balance'`. It rejects duplicate account initialization, including concurrent writes and changes to another instrument. It does not modify existing financial records; deployment must stop if duplicates already exist.
+
 ## Education reserve
 
 `education_reserve_funds` represents one logical multi-currency education fund, with no bank-account identities. Its singleton key is constrained to `education`. `legacy_account_id` retains migration provenance; `cutover_at` activates the new write path and database guards on legacy education accounts/transactions.

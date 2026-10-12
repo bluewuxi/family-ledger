@@ -2084,3 +2084,7 @@ export interface ApiErrorEventsPage { items: ApiErrorEventDetail[]; pagination: 
 
 export interface AccountTotal { accountId: string; marketValue: string | null; currency: SnapshotDisplayCurrency; snapshotDate: string; }
 export interface AccountDetailWarning { code: string; instrumentId?: string; instrumentShortName?: string; currency?: CurrencyCode; date?: string; message: string; }
+export interface TransactionBalancesResponse {
+  holdings: HoldingSummary[];
+  cashBalances: Array<Pick<HoldingSummary, "accountId" | "instrumentId" | "quantity" | "warnings">>;
+}
