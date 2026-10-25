@@ -41,6 +41,7 @@ export async function deployTestCi(): Promise<void> {
     const bucket = required("DEPLOY_ARTIFACT_BUCKET");
     const role = required("DEPLOY_EXECUTION_ROLE_ARN");
     stage = "packaging";
+    putState("status", { commit, stage, runUrl, updatedAt: new Date().toISOString() });
     summary(`TEST release ${commit}: checks and baseline gates passed; packaging Lambda artifacts.`);
     // The validation job has a separate filesystem; compile workspace exports on this runner too.
     command("corepack", ["pnpm", "--filter", "@family-ledger/shared", "build"]);
@@ -52,6 +53,8 @@ export async function deployTestCi(): Promise<void> {
     const templateKey = `templates/${commit}-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}.json`;
     aws(["s3api", "put-object", "--bucket", bucket, "--key", templateKey, "--body", ".aws-sam/deployment/packaged.json"]);
     const name = `ci-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`;
+    stage = "change-set-review";
+    putState("status", { commit, stage, runUrl, updatedAt: new Date().toISOString() });
     const created = aws<{ Id: string }>(["cloudformation", "create-change-set", "--cli-input-json", jsonFile("create-change-set.json", {
       StackName: stackName, ChangeSetName: name, ChangeSetType: "UPDATE", RoleARN: role,
       TemplateURL: `https://${bucket}.s3.${region}.amazonaws.com/${templateKey}`,
@@ -69,7 +72,10 @@ export async function deployTestCi(): Promise<void> {
     } while (true);
     const noChanges = detail.Status === "FAILED" && /didn.t contain changes|No updates are to be performed/i.test(detail.StatusReason ?? "");
     if (!noChanges) {
-      if (detail.Status !== "CREATE_COMPLETE" || detail.ExecutionStatus !== "AVAILABLE") throw new Error("CloudFormation did not produce an executable change set.");
+      if (detail.Status !== "CREATE_COMPLETE" || detail.ExecutionStatus !== "AVAILABLE") {
+        const denied = /not authorized to perform: ([A-Za-z0-9:*]+)/.exec(detail.StatusReason ?? "")?.[1];
+        throw new Error(`CloudFormation change set ${name} is not executable (${detail.Status}${denied ? `; denied action ${denied}` : ""}); inspect the change set using operator credentials.`);
+      }
       const changes = [...(detail.Changes ?? [])];
       while (detail.NextToken) {
         detail = aws<ChangeSet>(["cloudformation", "describe-change-set", "--change-set-name", created.Id, "--include-property-values", "--next-token", detail.NextToken]);

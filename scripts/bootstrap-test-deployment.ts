@@ -40,6 +40,7 @@ function main(): void {
       ExecutionRole: { Type: "AWS::IAM::Role", Properties: { AssumeRolePolicyDocument: assume("cloudformation.amazonaws.com"), Policies: [{ PolicyName: "ExistingTestCodeOnly", PolicyDocument: { Version: "2012-10-17", Statement: [
         allow(["lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:UpdateFunctionCode"], functions),
         allow(["s3:GetObject", "s3:GetObjectVersion"], artifactObjects),
+        allow(["cloudformation:CreateChangeSet"], `arn:aws:cloudformation:${region}:aws:transform/Serverless-2016-10-31`),
         allow(["scheduler:GetSchedule", "scheduler:UpdateSchedule"], schedules),
         allow(["iam:PassRole"], arn("iam", `role/${schedulerRole.PhysicalResourceId}`, ""), { Condition: { StringEquals: { "iam:PassedToService": "scheduler.amazonaws.com" } } })
       ] } }] } },

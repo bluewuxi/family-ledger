@@ -36,6 +36,8 @@ This is an operator attestation, not proof that SQL ran. Retain schema/data veri
 
 Source templates, parameters and public runtime configuration must match `infrastructure-approval`. The pipeline also compares live configuration, generated package and actual change-set details. Only existing Lambda code updates pass. A schedule dependency reevaluation is allowed only for its unchanged existing function ARN; additions, deletions, replacements, IAM, runtime/schedule changes and unknown changes stop publication. The inspected change set itself is executed, never regenerated.
 
+The invocation policies use ARNs derived from the existing explicit Lambda function names rather than `GetAtt` dependencies. This preserves exactly the same allowed resources while preventing code-only changes from inducing IAM updates. Introducing or changing a function name still requires independent infrastructure review; do not restore dynamic policy references or grant IAM writes to the automated execution role to bypass this gate.
+
 For independent infrastructure changes, pause push deployment and ensure no run is active. The existing local TEST deployment commands acquire the shared SSM lock automatically; other operator scripts must use `acquireLock` from the deployment runtime. The restricted execution role remains attached to the application stack after automatic deployment: independent infrastructure commands must set `DEPLOY_OPERATOR_ROLE_ARN` to an independently reviewed operator CloudFormation role. The next automatic update restores the restricted role. After successful independent verification register:
 
 ```text

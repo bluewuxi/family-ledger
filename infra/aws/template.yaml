@@ -643,8 +643,8 @@ Resources:
             Action:
               - lambda:InvokeFunction
             Resource:
-              - !GetAtt UpdateFxRatesFunction.Arn
-              - !GetAtt UpdatePricesFunction.Arn
+              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-update-fx-rates
+              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-update-prices
 
   SchedulerExecutionRole:
     Type: AWS::IAM::Role
@@ -666,10 +666,10 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource:
-                  - !GetAtt UpdateFxRatesFunction.Arn
-                  - !GetAtt UpdatePricesFunction.Arn
-                  - !GetAtt GeneratePortfolioSnapshotsFunction.Arn
-                  - !GetAtt BackupLedgerDataFunction.Arn
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-update-fx-rates
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-update-prices
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-portfolio-snapshots
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-backup-ledger-data
       Tags:
         - Key: Project
           Value: family-ledger

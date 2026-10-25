@@ -5,7 +5,8 @@ import { assertCodeOnlyChanges, assertManifest, canonical, decodeState, docsOnly
 import { migrationManifest, infrastructureManifest } from "./deployment-manifests";
 import { publicRuntimeConfig } from "./deployment-manifests";
 import { verifyLiveWeb } from "./deploy-test-ci";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { commitVerifiedRelease } from "./deployment-release";
 import { assertLiveSchedule, resolveSchedule } from "./deployment-schedules";
 import { buildLambdaArtifacts } from "./deployment-build";
@@ -30,6 +31,11 @@ const roleChange = structuredClone(candidate); roleChange.Resources.Api.Properti
 assert.throws(() => assertCodeOnlyChanges([code], current, roleChange));
 const scheduleChange = { ResourceChange: { LogicalResourceId: "Schedule", ResourceType: "AWS::Scheduler::Schedule", Action: "Modify", Replacement: "False", Scope: ["Properties"], Details: [{ ChangeSource: "ResourceReference", Evaluation: "Dynamic", CausingEntity: "Api.Arn", Target: { Attribute: "Properties", Name: "Target", RequiresRecreation: "Never" } }] } };
 assert.doesNotThrow(() => assertCodeOnlyChanges([code, scheduleChange], current, candidate));
+const attributeReference = structuredClone(scheduleChange); attributeReference.ResourceChange.Details[0].ChangeSource = "ResourceAttribute";
+assert.doesNotThrow(() => assertCodeOnlyChanges([code, attributeReference], current, candidate));
+const incidentalIam = structuredClone(code); incidentalIam.ResourceChange.ResourceType = "AWS::IAM::Policy";
+incidentalIam.ResourceChange.Details[0].Target.Name = "PolicyDocument";
+assert.throws(() => assertCodeOnlyChanges([incidentalIam], current, candidate));
 const changedSchedule = structuredClone(candidate); changedSchedule.Resources.Schedule.Properties.ScheduleExpression = "new";
 assert.throws(() => assertCodeOnlyChanges([scheduleChange], current, changedSchedule));
 const unknownReference = structuredClone(scheduleChange); unknownReference.ResourceChange.Details[0].CausingEntity = "Other.Arn";
@@ -71,6 +77,10 @@ async function verifyPublicationChecks(): Promise<void> {
       assert(readFileSync(join(resource.Properties.CodeUri, resource.Properties.Handler.split(".")[0] + ".js")).length > 0);
     }
   }
+  const compiledApi = createRequire(resolve("package.json"))(join(built.Resources.ApiFunction.Properties.CodeUri, "lambda.js")) as { handler: (event: unknown) => Promise<{ statusCode: number; body: string }> };
+  const bundledHealth = await compiledApi.handler({ version: "2.0", rawPath: "/health", headers: {}, requestContext: { requestId: "deployment-bundle-health", http: { method: "GET", path: "/health" } } });
+  assert.equal(bundledHealth.statusCode, 200);
+  assert.equal(JSON.parse(bundledHealth.body).data.status, "ok");
   const config = publicRuntimeConfig();
   const webUrl = "https://release.invalid";
   const fetcher = (broken: string): typeof fetch => async input => {

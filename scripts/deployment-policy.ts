@@ -73,7 +73,7 @@ export function assertCodeOnlyChanges(changes: Change[], current: JsonObject, ca
       const scheduleTarget = props?.Target as JsonObject | undefined;
       const targetArn = scheduleTarget?.Arn as JsonObject | undefined;
       const getAtt = targetArn?.["Fn::GetAtt"];
-      if (r.ResourceType === "AWS::Scheduler::Schedule" && target.Name === "Target" && detail.ChangeSource === "ResourceReference" && causing && source?.Type === "AWS::Serverless::Function" && Array.isArray(getAtt) && getAtt[0] === causing && getAtt[1] === "Arn") continue;
+      if (r.ResourceType === "AWS::Scheduler::Schedule" && target.Name === "Target" && ["ResourceReference", "ResourceAttribute"].includes(detail.ChangeSource ?? "") && causing && source?.Type === "AWS::Serverless::Function" && Array.isArray(getAtt) && getAtt[0] === causing && getAtt[1] === "Arn") continue;
       throw new Error(`Non-code change on ${r.LogicalResourceId}.${target.Name ?? "unknown"} requires independent deployment.`);
     }
   }
