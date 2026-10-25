@@ -431,11 +431,13 @@ When the user asks to commit, push, deploy, release, ship, finish, or use the de
 3. Create a GitHub issue with `gh issue create`.
 4. Commit to `test` with a message that references the issue.
 5. Push `test`.
-6. Deploy to the test environment.
-7. Verify the deployment.
+6. Wait for the GitHub CI and automatic TEST deployment workflow; do not run a duplicate local deployment.
+7. Verify the workflow result and deployment checks. Authenticated visual acceptance remains separate.
 8. Close the GitHub issue only after deployment succeeds.
 
 GitHub CLI authentication is expected to be available for this project.
+
+TEST deployment uses the contract in `docs/test-auto-deployment.md`. Database migrations and non-code infrastructure/configuration changes require independent verification and operator registration before automation can continue. Missing approvals and unknown changes must fail closed. Keep production operator-run. For bootstrap or incident recovery only, use the documented independent deployment procedure and shared deployment lock.
 
 ---
 

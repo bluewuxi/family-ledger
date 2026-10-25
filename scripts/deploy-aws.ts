@@ -4,7 +4,7 @@ import { join } from "node:path";
 import dotenv from "dotenv";
 
 type EnvironmentName = "test" | "prod";
-type CommandName = "certs" | "infra" | "web" | "all" | "change-set";
+type CommandName = "certs" | "infra" | "web" | "all" | "change-set" | "ci";
 
 interface DeploymentParameters {
   EnvironmentName: EnvironmentName;
@@ -40,6 +40,10 @@ if (parameters.EnvironmentName !== environmentName) {
 }
 
 switch (command) {
+  case "ci":
+    if (environmentName !== "test") fail("Automatic deployment is test-only.");
+    void import("./deploy-test-ci").then(m => m.deployTestCi()).catch(() => { console.error("Automatic TEST deployment failed. See the workflow summary."); process.exitCode = 1; });
+    break;
   case "certs":
     assertDeployable(parameters);
     deployCertificates(parameters);
@@ -65,7 +69,7 @@ switch (command) {
 }
 
 function parseCommand(value: string | undefined): CommandName {
-  const commands: CommandName[] = ["certs", "infra", "web", "all", "change-set"];
+  const commands: CommandName[] = ["certs", "infra", "web", "all", "change-set", "ci"];
 
   if (!value || !commands.includes(value as CommandName)) {
     fail(`Usage: tsx scripts/deploy-aws.ts <${commands.join("|")}> <test|prod>`);
@@ -125,9 +129,9 @@ function deployCertificates(parameters: DeploymentParameters): void {
     "--template-file",
     join("infra", "aws", "certificates.yaml"),
     "--parameter-overrides",
-    parameterOverride("EnvironmentName", parameters.EnvironmentName),
-    parameterOverride("HostedZoneId", parameters.HostedZoneId),
-    parameterOverride("WebDomainName", parameters.WebDomainName),
+    `EnvironmentName=${parameters.EnvironmentName}`,
+    `HostedZoneId=${parameters.HostedZoneId}`,
+    `WebDomainName=${parameters.WebDomainName}`,
     "--tags",
     "Project=family-ledger",
     `Environment=${parameters.EnvironmentName}`
@@ -222,8 +226,12 @@ function deployWeb(parameters: DeploymentParameters): void {
   const webBucketName = getStackOutput(parameters.AppRegion, appStackName(parameters.EnvironmentName), "WebBucketName");
   const distributionId = getStackOutput(parameters.AppRegion, appStackName(parameters.EnvironmentName), "WebDistributionId");
 
-  run("aws", ["s3", "sync", join("apps", "web", "dist"), `s3://${webBucketName}`, "--delete", "--region", parameters.AppRegion]);
-  run("aws", ["cloudfront", "create-invalidation", "--distribution-id", distributionId, "--paths", "/*"]);
+  // Publish immutable assets before the entry point; retain old assets for already-open pages.
+  run("aws", ["s3", "sync", join("apps", "web", "dist", "assets"), `s3://${webBucketName}/assets`, "--cache-control", "public,max-age=31536000,immutable", "--region", parameters.AppRegion]);
+  run("aws", ["s3", "sync", join("apps", "web", "dist"), `s3://${webBucketName}`, "--exclude", "assets/*", "--exclude", "index.html", "--cache-control", "no-cache", "--region", parameters.AppRegion]);
+  run("aws", ["s3", "cp", join("apps", "web", "dist", "index.html"), `s3://${webBucketName}/index.html`, "--cache-control", "no-cache", "--content-type", "text/html", "--region", parameters.AppRegion]);
+  const invalidation = JSON.parse(run("aws", ["cloudfront", "create-invalidation", "--distribution-id", distributionId, "--paths", "/*", "--output", "json"])) as { Invalidation: { Id: string } };
+  run("aws", ["cloudfront", "wait", "invalidation-completed", "--distribution-id", distributionId, "--id", invalidation.Invalidation.Id]);
 }
 
 function loadDeploymentEnv(environmentName: EnvironmentName): Record<string, string> {
@@ -233,7 +241,9 @@ function loadDeploymentEnv(environmentName: EnvironmentName): Record<string, str
     fail(`Missing ${envPath}.`);
   }
 
-  return dotenv.parse(readFileSync(envPath, "utf8"));
+  const values = dotenv.parse(readFileSync(envPath, "utf8"));
+  for (const key of ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_API_BASE_URL"]) if (process.env[key]) values[key] = process.env[key]!;
+  return values;
 }
 
 function getCertificateArn(parameters: DeploymentParameters): string {

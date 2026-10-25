@@ -74,7 +74,11 @@
     "apply:education-reserve-schema:test": "tsx scripts/apply-education-reserve-schema.ts",
     "repair:kernel-nta:test": "tsx scripts/repair-kernel-nta-history.ts",
     "apply:kernel-nta-schema:test": "tsx scripts/apply-kernel-nta-schema.ts",
-    "verify:loading": "tsx scripts/verify-loading-performance.ts"
+    "verify:loading": "tsx scripts/verify-loading-performance.ts",
+    "deploy:ci:test": "tsx scripts/deploy-aws.ts ci test",
+    "deploy:bootstrap:test": "tsx scripts/bootstrap-test-deployment.ts",
+    "deploy:register:test": "tsx scripts/register-test-deployment.ts",
+    "verify:deployment": "tsc -p tsconfig.deployment.json && tsx scripts/verify-deployment.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",
@@ -84,6 +88,7 @@
     "esbuild": "^0.28.0",
     "iconv-lite": "^0.7.3",
     "tsx": "^4.22.3",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "yaml": "2.8.3"
   }
 }

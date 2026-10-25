@@ -1,5 +1,11 @@
 # Deployment
 
+## Automatic TEST delivery
+
+Routine `test` pushes are validated and deployed by GitHub Actions once enabled. See [TEST automatic deployment](test-auto-deployment.md) for OIDC bootstrap, full-manifest migration approvals, code-only change sets, independent changes, failure recovery and deployment verification. Do not duplicate a running workflow with a local deployment. Historical procedures below describe past releases or operator-run changes; they do not bypass the automatic release gates. Production remains operator-run.
+
+Bootstrap verification for issue #113: the existing TEST stack was `UPDATE_COMPLETE`; the normalized deployed template and checked-in configuration matched. Read-only database checks confirmed readiness, exact bodies for 36 current migration-defined functions, absence of three retired functions, a valid unique opening-balance index and restricted price-RPC execution. Existing live API health/auth, public runtime configuration, HTML and entry assets matched the local application build. No migrations were replayed or financial rows modified. The separate delivery stack and branch-restricted GitHub Environment were created; the first automated release is recorded after its verification.
+
 ## Test transaction balance hotfix (2026-10-12, issue #112)
 
 Applied `202610120002_single_account_opening_balance.sql` after confirming no existing duplicate opening balances. The partial unique index is valid; no financial records were rewritten. Committed and pushed the API/web hotfix to `test`, reviewed a non-replacing CloudFormation change set, and deployed infrastructure and web assets. CloudFormation reached `UPDATE_COMPLETE`, the API Lambda update was successful, and CloudFront invalidation completed. Live checks confirmed health, unauthorized rejection, viewer/admin balance access, Hong NZD cash balance `80094` matching account detail, and HTTP 400 `VALIDATION_ERROR` for a duplicate opening balance. Stage-one database readiness passed. Typecheck, build, focused transaction balance checks and disposable PostgreSQL index tests passed. Browser/mobile verification was skipped at the user's request. Production was not deployed.

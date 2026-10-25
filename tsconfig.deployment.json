@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["scripts/deployment-*.ts", "scripts/deploy-test-ci.ts", "scripts/deploy-aws.ts", "scripts/bootstrap-test-deployment.ts", "scripts/register-test-deployment.ts", "scripts/verify-deployment.ts"]
+}

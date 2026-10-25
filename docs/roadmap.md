@@ -1,5 +1,9 @@
 # Roadmap
 
+## TEST delivery automation
+
+Implementation in progress: GitHub CI for `test`/`main`/PR, OIDC TEST deployment, complete migration approvals, conservative code-only change-set gates, publication verification and operator recovery. See [TEST automatic deployment](test-auto-deployment.md). Live bootstrap and first controlled release must be verified before marking this delivered.
+
 ## Test Deployed: Transaction Balances and Opening Entries Hotfix (2026-10-12)
 
 - Deployed to test under issue #112: transaction forms load explicit native cash balances for investment and daily-expense accounts. Missing balance/configuration data blocks saving instead of displaying zero. Bank transactions default to deposit, with opening balance last; create/update validation and a partial unique index allow only one opening balance per account.
