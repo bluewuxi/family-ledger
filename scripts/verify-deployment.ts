@@ -62,6 +62,7 @@ const fullManifest = migrationManifest();
 assert.deepEqual(decodeState(encodeState({ commit: "a".repeat(40), files: fullManifest })), { commit: "a".repeat(40), files: fullManifest });
 assert(infrastructureManifest()["public-runtime-config"]);
 assert(docsOnly(["docs/deployment.md", "AGENTS.md"]));
+assert(docsOnly(["infra/aws/README.md", "packages/shared/README.md"]));
 for (const paths of [[], ["docs/deployment.md", "supabase/migrations/new.sql"], ["packages/shared/src/index.ts"], ["pnpm-lock.yaml"], [".github/workflows/ci.yml"]]) assert(!docsOnly(paths));
 assert.equal(canonical(parseTemplate("Value: !GetAtt Api.Arn\n")), canonical({ Value: { "Fn::GetAtt": ["Api", "Arn"] } }));
 assert.equal(canonical(parseTemplate("Value: !Sub '${Name}'\n")), canonical({ Value: { "Fn::Sub": "${Name}" } }));

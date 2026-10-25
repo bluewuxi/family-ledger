@@ -21,7 +21,7 @@ export function assertManifest(actual: Manifest, approved: Manifest, name: strin
   if (changed.length) throw new Error(`${name} requires independent verification and registration: ${changed.join(", ")}`);
 }
 export function docsOnly(paths: string[]): boolean {
-  return paths.length > 0 && paths.every(p => p.startsWith("docs/") || ["AGENTS.md", "README.md"].includes(p));
+  return paths.length > 0 && paths.every(p => p.startsWith("docs/") || p.endsWith(".md"));
 }
 export function parseTemplate(text: string): JsonObject {
   const names: Record<string, string> = { Ref: "Ref", GetAtt: "Fn::GetAtt", Sub: "Fn::Sub", Join: "Fn::Join", If: "Fn::If", Equals: "Fn::Equals", Not: "Fn::Not", And: "Fn::And", Or: "Fn::Or", Select: "Fn::Select", FindInMap: "Fn::FindInMap", GetAZs: "Fn::GetAZs", ImportValue: "Fn::ImportValue", Split: "Fn::Split", Base64: "Fn::Base64", Condition: "Condition" };
