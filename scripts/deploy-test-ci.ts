@@ -65,7 +65,9 @@ export async function deployTestCi(): Promise<void> {
     let detail: ChangeSet;
     const deadline = Date.now() + 10 * 60_000;
     do {
-      detail = aws<ChangeSet>(["cloudformation", "describe-change-set", "--change-set-name", created.Id, "--include-property-values"]);
+      // Use the executable change listing. Property-value previews expand unchanged intrinsics
+      // into KNOWN_AFTER_APPLY placeholders and can invent unrelated apparent changes.
+      detail = aws<ChangeSet>(["cloudformation", "describe-change-set", "--change-set-name", created.Id]);
       if (!["CREATE_PENDING", "CREATE_IN_PROGRESS"].includes(detail.Status)) break;
       if (Date.now() > deadline) throw new Error("Change set creation timed out.");
       await pause(5000);
@@ -78,7 +80,7 @@ export async function deployTestCi(): Promise<void> {
       }
       const changes = [...(detail.Changes ?? [])];
       while (detail.NextToken) {
-        detail = aws<ChangeSet>(["cloudformation", "describe-change-set", "--change-set-name", created.Id, "--include-property-values", "--next-token", detail.NextToken]);
+        detail = aws<ChangeSet>(["cloudformation", "describe-change-set", "--change-set-name", created.Id, "--next-token", detail.NextToken]);
         changes.push(...(detail.Changes ?? []));
       }
       assertCodeOnlyChanges(changes, live, candidate);
