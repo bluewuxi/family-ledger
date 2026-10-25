@@ -16,7 +16,7 @@ The bootstrap sets Environment variables `AWS_REGION`, `DEPLOY_ROLE_ARN`, `DEPLO
 
 The execution role can also read the exact S3 objects used by currently deployed Lambda packages, discovered during bootstrap. This preserves CloudFormation's ability to restore the previous code during a failed first update, without granting access to unrelated buckets or ledger backups. This is stack-update recovery, not automatic rollback after a failed application smoke check.
 
-Read-only permissions include the existing hosted-zone parameter validation and CloudFormation's Lambda stabilization reads, restricted to the configured zone/functions. DNS records, runtime settings, API configuration and IAM policies remain unwritable. A fully completed update rollback is a stable retry state; in-progress or failed rollback states remain blocked.
+Read-only permissions include the existing hosted-zone parameter validation, existing IAM role metadata/policy reads for ARN resolution, and CloudFormation's Lambda stabilization reads, restricted to the configured zone/roles/functions. DNS records, runtime settings, API configuration and IAM policies remain unwritable. A fully completed update rollback is a stable retry state; in-progress or failed rollback states remain blocked.
 
 Independently confirm current migration effects, live infrastructure and the existing release. At a clean `test` checkout initialize the baseline:
 

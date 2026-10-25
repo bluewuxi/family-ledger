@@ -23,6 +23,7 @@ function main(): void {
   });
   const schedules = resources.filter(r => r.ResourceType === "AWS::Scheduler::Schedule").map(r => arn("scheduler", `schedule/default/${r.PhysicalResourceId}`));
   const schedulerRole = resources.find(r => r.LogicalResourceId === "SchedulerExecutionRole")!;
+  const existingRoles = resources.filter(r => r.ResourceType === "AWS::IAM::Role").map(r => arn("iam", `role/${r.PhysicalResourceId}`, ""));
   const webBucket = output(live, "WebBucketName");
   const distribution = output(live, "WebDistributionId");
   const providers = aws<{ OpenIDConnectProviderList: { Arn: string }[] }>(["iam", "list-open-id-connect-providers"]).OpenIDConnectProviderList;
@@ -50,6 +51,7 @@ function main(): void {
         allow(["s3:GetObject", "s3:GetObjectVersion"], [artifactObjects, ...previousCodeObjects]),
         allow(["cloudformation:CreateChangeSet"], `arn:aws:cloudformation:${region}:aws:transform/Serverless-2016-10-31`),
         allow(["route53:GetHostedZone"], `arn:aws:route53:::hostedzone/${readParameters().HostedZoneId}`),
+        allow(["iam:GetRole", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:GetRolePolicy"], existingRoles),
         allow(["scheduler:GetSchedule", "scheduler:UpdateSchedule"], schedules),
         allow(["iam:PassRole"], arn("iam", `role/${schedulerRole.PhysicalResourceId}`, ""), { Condition: { StringEquals: { "iam:PassedToService": "scheduler.amazonaws.com" } } })
       ] } }] } },
