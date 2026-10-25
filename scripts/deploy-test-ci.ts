@@ -40,6 +40,8 @@ export async function deployTestCi(): Promise<void> {
     const role = required("DEPLOY_EXECUTION_ROLE_ARN");
     stage = "packaging";
     summary(`TEST release ${commit}: checks and baseline gates passed; packaging Lambda artifacts.`);
+    // The validation job has a separate filesystem; compile workspace exports on this runner too.
+    command("corepack", ["pnpm", "--filter", "@family-ledger/shared", "build"]);
     command("sam", ["validate", "--template", "infra/aws/template.yaml", "--region", region]);
     command("sam", ["build", "--template", "infra/aws/template.yaml"]);
     command("sam", ["package", "--template-file", ".aws-sam/build/template.yaml", "--s3-bucket", bucket, "--s3-prefix", "lambda", "--output-template-file", ".aws-sam/deployment/packaged.json", "--use-json", "--region", region]);

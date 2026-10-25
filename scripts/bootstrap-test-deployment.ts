@@ -1,4 +1,4 @@
-import { aws, command, getStack, jsonFile, output, region, stackName, statePrefix, summary } from "./deployment-runtime";
+import { acquireLock, aws, command, getStack, jsonFile, output, region, stackName, statePrefix, summary } from "./deployment-runtime";
 
 /** Operator-run bootstrap, separate from the application stack and inaccessible to CI. */
 function main(): void {
@@ -70,7 +70,12 @@ function main(): void {
   for (const [key, val] of Object.entries({ AWS_REGION: region, DEPLOY_ROLE_ARN: value("DeployRoleArn"), DEPLOY_EXECUTION_ROLE_ARN: value("ExecutionRoleArn"), DEPLOY_ARTIFACT_BUCKET: value("ArtifactBucket") })) command("gh", ["variable", "set", key, "--env", "test", "--body", val]);
   summary("TEST bootstrap and restricted GitHub environment configured. Automatic deployment remains controlled by TEST_AUTO_DEPLOY_ENABLED; establish verified baselines before enabling it.");
 }
-try { main(); } catch (error) {
+let releaseLock: (() => void) | undefined;
+try {
+  if (process.env.GITHUB_ACTIONS) throw new Error("Bootstrap is operator-only.");
+  releaseLock = acquireLock(`operator:bootstrap:${Date.now()}`);
+  main();
+} catch (error) {
   console.error(error instanceof Error && !("stderr" in error) ? error.message : "Bootstrap command failed; inspect the private local command result and CloudFormation stack events.");
   process.exitCode = 1;
-}
+} finally { releaseLock?.(); }

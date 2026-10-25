@@ -13,8 +13,10 @@ export function command(file: string, args: string[]): string {
       { encoding: "utf8", windowsHide: true, maxBuffer: 32 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, AWS_PAGER: "" } });
   } catch (error) {
     const stderr = error && typeof error === "object" && "stderr" in error ? String(error.stderr) : "";
+    const stdout = error && typeof error === "object" && "stdout" in error ? String(error.stdout) : "";
     const code = /An error occurred \(([A-Za-z0-9_.-]+)\)/.exec(stderr)?.[1] ?? "command-failure";
-    throw new Error(`${file} ${args.slice(0, file === "aws" ? 2 : 1).join(" ")} failed (${code}); inspect the operation with operator credentials.`);
+    const builder = /([A-Za-z]+Builder:[A-Za-z]+)/.exec(stderr + stdout)?.[1];
+    throw new Error(`${file} ${args.slice(0, file === "aws" ? 2 : 1).join(" ")} failed (${code}${builder ? `, ${builder}` : ""}); inspect the operation with operator credentials.`);
   }
 }
 export function aws<T = Record<string, unknown>>(args: string[]): T {

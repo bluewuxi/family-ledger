@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import dotenv from "dotenv";
+import { acquireLock } from "./deployment-runtime";
 
 type EnvironmentName = "test" | "prod";
 type CommandName = "certs" | "infra" | "web" | "all" | "change-set" | "ci";
@@ -39,6 +40,9 @@ if (parameters.EnvironmentName !== environmentName) {
   fail(`Parameter file environment ${parameters.EnvironmentName} does not match requested ${environmentName}.`);
 }
 
+const releaseLock = environmentName === "test" && command !== "ci" && process.env.GITHUB_ACTIONS !== "true"
+  ? acquireLock(`operator:${command}:${Date.now()}`) : undefined;
+try {
 switch (command) {
   case "ci":
     if (environmentName !== "test") fail("Automatic deployment is test-only.");
@@ -67,6 +71,7 @@ switch (command) {
     createInfrastructureChangeSet(parameters);
     break;
 }
+} finally { releaseLock?.(); }
 
 function parseCommand(value: string | undefined): CommandName {
   const commands: CommandName[] = ["certs", "infra", "web", "all", "change-set", "ci"];
@@ -154,6 +159,7 @@ function deployInfrastructure(parameters: DeploymentParameters): void {
     "--capabilities",
     "CAPABILITY_IAM",
     "CAPABILITY_NAMED_IAM",
+    ...(process.env.DEPLOY_OPERATOR_ROLE_ARN ? ["--role-arn", process.env.DEPLOY_OPERATOR_ROLE_ARN] : []),
     "--parameter-overrides",
     appParameterOverridesFile(parameters, certificateArn),
     "--tags",
@@ -178,6 +184,7 @@ function createInfrastructureChangeSet(parameters: DeploymentParameters): void {
     "--capabilities",
     "CAPABILITY_IAM",
     "CAPABILITY_NAMED_IAM",
+    ...(process.env.DEPLOY_OPERATOR_ROLE_ARN ? ["--role-arn", process.env.DEPLOY_OPERATOR_ROLE_ARN] : []),
     "--no-execute-changeset",
     "--parameter-overrides",
     appParameterOverridesFile(parameters, certificateArn),
