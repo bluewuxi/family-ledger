@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { assertCodeOnlyChanges, assertManifest, canonical, docsOnly, infrastructureShape, parseTemplate, sha256, type JsonObject } from "./deployment-policy";
 import { infrastructureManifest, migrationManifest, publicRuntimeConfig, type Approval } from "./deployment-manifests";
-import { acquireLock, aws, command, getStack, getState, headSha, jsonFile, output, putState, readParameters, region, stackName, summary } from "./deployment-runtime";
+import { acquireLock, aws, command, getStack, getState, headSha, isStableStack, jsonFile, output, putState, readParameters, region, stackName, summary } from "./deployment-runtime";
 import { commitVerifiedRelease, type Release } from "./deployment-release";
 import { assertLiveSchedule, resolveSchedule } from "./deployment-schedules";
 import { buildLambdaArtifacts } from "./deployment-build";
@@ -28,7 +28,7 @@ export async function deployTestCi(): Promise<void> {
     if (docsOnly(changed)) { summary("Documentation-only change; no deployment performed."); return; }
     putState("status", { commit, stage, runUrl, updatedAt: new Date().toISOString() });
     const stack = getStack();
-    if (!["UPDATE_COMPLETE", "CREATE_COMPLETE"].includes(stack.StackStatus)) throw new Error("TEST stack is not ready for a new deployment; independent recovery required.");
+    if (!isStableStack(stack.StackStatus)) throw new Error("TEST stack is not ready for a new deployment; independent recovery required.");
     const p = readParameters();
     for (const [key, value] of Object.entries(p)) {
       if (["AppRegion", "CertificateRegion"].includes(key) || value === "") continue;

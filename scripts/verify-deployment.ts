@@ -10,11 +10,14 @@ import { createRequire } from "node:module";
 import { commitVerifiedRelease } from "./deployment-release";
 import { assertLiveSchedule, resolveSchedule } from "./deployment-schedules";
 import { buildLambdaArtifacts } from "./deployment-build";
+import { isStableStack } from "./deployment-runtime";
 
 const current = { Resources: {
   Api: { Type: "AWS::Serverless::Function", Properties: { CodeUri: "s3://old/code", FunctionName: "test-api", Role: "existing-role" } },
   Schedule: { Type: "AWS::Scheduler::Schedule", Properties: { Target: { Arn: { "Fn::GetAtt": ["Api", "Arn"] } }, ScheduleExpression: "existing" } }
 } };
+for (const status of ["CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"]) assert(isStableStack(status));
+for (const status of ["UPDATE_IN_PROGRESS", "UPDATE_ROLLBACK_FAILED", "ROLLBACK_COMPLETE", "DELETE_COMPLETE"]) assert(!isStableStack(status));
 const candidate = structuredClone(current);
 candidate.Resources.Api.Properties.CodeUri = "s3://new/code";
 const code = { ResourceChange: { LogicalResourceId: "Api", ResourceType: "AWS::Lambda::Function", Action: "Modify", Replacement: "False", Scope: ["Properties"], Details: [{ ChangeSource: "DirectModification", Evaluation: "Static", Target: { Attribute: "Properties", Name: "Code", RequiresRecreation: "Never" } }] } };

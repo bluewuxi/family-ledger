@@ -1,4 +1,4 @@
-import { acquireLock, aws, command, getStack, jsonFile, output, region, stackName, statePrefix, summary } from "./deployment-runtime";
+import { acquireLock, aws, command, getStack, isStableStack, jsonFile, output, readParameters, region, stackName, statePrefix, summary } from "./deployment-runtime";
 import { parseTemplate, type JsonObject } from "./deployment-policy";
 
 /** Operator-run bootstrap, separate from the application stack and inaccessible to CI. */
@@ -11,7 +11,7 @@ function main(): void {
   const account = aws<{ Account: string }>(["sts", "get-caller-identity"]).Account;
   const arn = (service: string, resource: string, location = region) => `arn:aws:${service}:${location}:${account}:${resource}`;
   const live = getStack();
-  if (live.StackStatus !== "UPDATE_COMPLETE") throw new Error("Bootstrap requires a stable existing TEST stack.");
+  if (!isStableStack(live.StackStatus)) throw new Error("Bootstrap requires a stable existing TEST stack.");
   const resources = aws<{ StackResourceSummaries: { LogicalResourceId: string; ResourceType: string; PhysicalResourceId: string }[] }>(["cloudformation", "list-stack-resources", "--stack-name", stackName]).StackResourceSummaries;
   const functions = resources.filter(r => r.ResourceType === "AWS::Lambda::Function").map(r => arn("lambda", `function:${r.PhysicalResourceId}`));
   const templateBody = aws<{ TemplateBody: string | JsonObject }>(["cloudformation", "get-template", "--stack-name", stackName, "--template-stage", "Original"]).TemplateBody;
@@ -46,9 +46,10 @@ function main(): void {
       } },
       ArtifactPolicy: { Type: "AWS::S3::BucketPolicy", Properties: { Bucket: { Ref: "Artifacts" }, PolicyDocument: { Version: "2012-10-17", Statement: [{ Effect: "Deny", Principal: "*", Action: "s3:*", Resource: [artifactArn, artifactObjects], Condition: { Bool: { "aws:SecureTransport": "false" } } }] } } },
       ExecutionRole: { Type: "AWS::IAM::Role", Properties: { AssumeRolePolicyDocument: assume("cloudformation.amazonaws.com"), Policies: [{ PolicyName: "ExistingTestCodeOnly", PolicyDocument: { Version: "2012-10-17", Statement: [
-        allow(["lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:UpdateFunctionCode"], functions),
+        allow(["lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:GetFunctionCodeSigningConfig", "lambda:GetFunctionRecursionConfig", "lambda:GetRuntimeManagementConfig", "lambda:GetFunctionScalingConfig", "lambda:UpdateFunctionCode"], functions),
         allow(["s3:GetObject", "s3:GetObjectVersion"], [artifactObjects, ...previousCodeObjects]),
         allow(["cloudformation:CreateChangeSet"], `arn:aws:cloudformation:${region}:aws:transform/Serverless-2016-10-31`),
+        allow(["route53:GetHostedZone"], `arn:aws:route53:::hostedzone/${readParameters().HostedZoneId}`),
         allow(["scheduler:GetSchedule", "scheduler:UpdateSchedule"], schedules),
         allow(["iam:PassRole"], arn("iam", `role/${schedulerRole.PhysicalResourceId}`, ""), { Condition: { StringEquals: { "iam:PassedToService": "scheduler.amazonaws.com" } } })
       ] } }] } },

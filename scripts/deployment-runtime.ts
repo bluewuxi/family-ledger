@@ -6,6 +6,7 @@ import { decodeState, encodeState } from "./deployment-policy";
 export const region = process.env.AWS_REGION || "ap-southeast-2";
 export const statePrefix = "/family-ledger/test-deployment";
 export const stackName = "family-ledger-test";
+export const isStableStack = (status: string): boolean => ["CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"].includes(status);
 export function command(file: string, args: string[]): string {
   const windows = process.platform === "win32" && ["sam", "corepack"].includes(file);
   try {

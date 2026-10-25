@@ -1,5 +1,5 @@
 import { infrastructureManifest, migrationManifest, approval } from "./deployment-manifests";
-import { acquireLock, command, getStack, headSha, putState, summary } from "./deployment-runtime";
+import { acquireLock, command, getStack, headSha, isStableStack, putState, summary } from "./deployment-runtime";
 
 function main(): void {
   if (process.env.GITHUB_ACTIONS) throw new Error("Registration is operator-only, never a deployment workflow operation.");
@@ -8,7 +8,7 @@ function main(): void {
   if (command("git", ["branch", "--show-current"]).trim() !== "test" || command("git", ["status", "--porcelain"]).trim()) throw new Error("Registration requires a clean test checkout at the independently verified commit.");
   const release = acquireLock(`operator:${commit}:${Date.now()}`);
   try {
-    if (!["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(getStack().StackStatus)) throw new Error("Stack is not stable; recover before registration.");
+    if (!isStableStack(getStack().StackStatus)) throw new Error("Stack is not stable; recover before registration.");
     if (kind !== "infrastructure") putState("migration-approval", approval(migrationManifest(), evidence));
     if (kind !== "migrations") putState("infrastructure-approval", approval(infrastructureManifest(), evidence));
     if (kind === "bootstrap") putState("last-success", { commit, confirmedAt: new Date().toISOString(), runUrl: evidence, artifactDigest: "independently-verified-bootstrap" });
