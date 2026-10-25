@@ -2,7 +2,7 @@
 
 ## TEST delivery automation
 
-Implementation in progress: GitHub CI for `test`/`main`/PR, OIDC TEST deployment, complete migration approvals, conservative code-only change-set gates, publication verification and operator recovery. See [TEST automatic deployment](test-auto-deployment.md). Live bootstrap and first controlled release must be verified before marking this delivered.
+Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC TEST deployment, complete migration approvals, conservative code-only change-set gates, publication verification and operator recovery. The first full release and identical-commit retry passed with matching artifact digests; empty backend changes are handled safely. Read-only database baseline and restricted IAM boundaries were verified. Historical SQL was not replayed and production was not deployed. See [TEST automatic deployment](test-auto-deployment.md).
 
 ## Test Deployed: Transaction Balances and Opening Entries Hotfix (2026-10-12)
 
