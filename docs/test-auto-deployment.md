@@ -14,6 +14,8 @@ Run `corepack pnpm deploy:bootstrap:test` with operator AWS/GitHub credentials. 
 
 The bootstrap sets Environment variables `AWS_REGION`, `DEPLOY_ROLE_ARN`, `DEPLOY_EXECUTION_ROLE_ARN` and `DEPLOY_ARTIFACT_BUCKET`. No AWS identifiers are committed. Public web configuration comes from checked-in public values, optionally overridden by `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; use identical values during infrastructure registration. No private environment files or financial data are uploaded as workflow artifacts. Actions and SAM CLI are pinned; AWS CLI v2 comes from the fixed Ubuntu runner image.
 
+The execution role can also read the exact S3 objects used by currently deployed Lambda packages, discovered during bootstrap. This preserves CloudFormation's ability to restore the previous code during a failed first update, without granting access to unrelated buckets or ledger backups. This is stack-update recovery, not automatic rollback after a failed application smoke check.
+
 Independently confirm current migration effects, live infrastructure and the existing release. At a clean `test` checkout initialize the baseline:
 
 ```text
