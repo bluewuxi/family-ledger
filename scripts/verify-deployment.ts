@@ -7,6 +7,8 @@ import { publicRuntimeConfig } from "./deployment-manifests";
 import { verifyLiveWeb } from "./deploy-test-ci";
 import { join } from "node:path";
 import { commitVerifiedRelease } from "./deployment-release";
+import { assertLiveSchedule, resolveSchedule } from "./deployment-schedules";
+import { buildLambdaArtifacts } from "./deployment-build";
 
 const current = { Resources: {
   Api: { Type: "AWS::Serverless::Function", Properties: { CodeUri: "s3://old/code", FunctionName: "test-api", Role: "existing-role" } },
@@ -34,6 +36,12 @@ const unknownReference = structuredClone(scheduleChange); unknownReference.Resou
 assert.throws(() => assertCodeOnlyChanges([unknownReference], current, candidate));
 const directSchedule = structuredClone(scheduleChange); directSchedule.ResourceChange.Details[0].ChangeSource = "DirectModification";
 assert.throws(() => assertCodeOnlyChanges([directSchedule], current, candidate));
+const desired = resolveSchedule({ Target: { Arn: { "Fn::GetAtt": ["Api", "Arn"] } }, State: { "Fn::If": ["ScheduledJobsEnabled", "ENABLED", "DISABLED"] } }, { EnableScheduledJobs: "true" }, { Api: "existing-api-arn" }) as Record<string, unknown>;
+assert.deepEqual(desired, { Target: { Arn: "existing-api-arn" }, State: "ENABLED" });
+assert.doesNotThrow(() => assertLiveSchedule(desired, { ...desired, GroupName: "default", ActionAfterCompletion: "NONE" }));
+assert.throws(() => assertLiveSchedule(desired, { ...desired, State: "DISABLED" }));
+assert.throws(() => assertLiveSchedule(desired, { ...desired, EndDate: "unexpected" }));
+assert.throws(() => resolveSchedule({ "Fn::GetAtt": ["Unknown", "Arn"] }, {}, {}));
 assert.throws(() => assertCodeOnlyChanges([{}], current, candidate));
 assert.throws(() => assertCodeOnlyChanges([{ ResourceChange: { ...code.ResourceChange, Details: [] } }], current, candidate));
 for (const files of [{ a: "new" }, { a: "old", b: "new" }, {}] as Record<string, string>[]) assert.throws(() => assertManifest(files, { a: "old" }, "Migration manifest"));
@@ -56,6 +64,13 @@ for (const path of [".github/workflows/ci.yml", ".github/workflows/deploy-test.y
 console.log("Deployment verification passed: complete migration manifests, conservative change-set classification, packaging equivalence, documentation filtering, state encoding and pinned workflows.");
 
 async function verifyPublicationChecks(): Promise<void> {
+  const built = JSON.parse(readFileSync(await buildLambdaArtifacts(), "utf8"));
+  assert.equal(canonical(infrastructureShape(built)), canonical(infrastructureShape(template)));
+  for (const resource of Object.values(built.Resources) as { Type: string; Properties: { CodeUri: string; Handler: string } }[]) {
+    if (resource.Type === "AWS::Serverless::Function") {
+      assert(readFileSync(join(resource.Properties.CodeUri, resource.Properties.Handler.split(".")[0] + ".js")).length > 0);
+    }
+  }
   const config = publicRuntimeConfig();
   const webUrl = "https://release.invalid";
   const fetcher = (broken: string): typeof fetch => async input => {

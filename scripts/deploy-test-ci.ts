@@ -4,6 +4,8 @@ import { assertCodeOnlyChanges, assertManifest, canonical, docsOnly, infrastruct
 import { infrastructureManifest, migrationManifest, publicRuntimeConfig, type Approval } from "./deployment-manifests";
 import { acquireLock, aws, command, getStack, getState, headSha, jsonFile, output, putState, readParameters, region, stackName, summary } from "./deployment-runtime";
 import { commitVerifiedRelease, type Release } from "./deployment-release";
+import { assertLiveSchedule, resolveSchedule } from "./deployment-schedules";
+import { buildLambdaArtifacts } from "./deployment-build";
 
 interface ChangeSet { Status: string; StatusReason?: string; ExecutionStatus?: string; Changes?: Parameters<typeof assertCodeOnlyChanges>[0]; NextToken?: string; }
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -43,8 +45,8 @@ export async function deployTestCi(): Promise<void> {
     // The validation job has a separate filesystem; compile workspace exports on this runner too.
     command("corepack", ["pnpm", "--filter", "@family-ledger/shared", "build"]);
     command("sam", ["validate", "--template", "infra/aws/template.yaml", "--region", region]);
-    command("sam", ["build", "--template", "infra/aws/template.yaml"]);
-    command("sam", ["package", "--template-file", ".aws-sam/build/template.yaml", "--s3-bucket", bucket, "--s3-prefix", "lambda", "--output-template-file", ".aws-sam/deployment/packaged.json", "--use-json", "--region", region]);
+    const buildTemplate = await buildLambdaArtifacts();
+    command("sam", ["package", "--template-file", buildTemplate, "--s3-bucket", bucket, "--s3-prefix", "lambda", "--output-template-file", ".aws-sam/deployment/packaged.json", "--use-json", "--region", region]);
     const candidate = JSON.parse(readFileSync(".aws-sam/deployment/packaged.json", "utf8"));
     if (canonical(infrastructureShape(live)) !== canonical(infrastructureShape(candidate))) throw new Error("SAM packaging introduced a non-code infrastructure change.");
     const templateKey = `templates/${commit}-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}.json`;
@@ -74,6 +76,22 @@ export async function deployTestCi(): Promise<void> {
         changes.push(...(detail.Changes ?? []));
       }
       assertCodeOnlyChanges(changes, live, candidate);
+      const affectedSchedules = changes.map(c => c.ResourceChange).filter(r => r?.ResourceType === "AWS::Scheduler::Schedule");
+      if (affectedSchedules.length) {
+        const listed = aws<{ StackResourceSummaries: { LogicalResourceId: string; ResourceType: string; PhysicalResourceId: string }[] }>(["cloudformation", "list-stack-resources", "--stack-name", stackName]).StackResourceSummaries;
+        const arns: Record<string, string> = {};
+        for (const r of listed) {
+          if (r.ResourceType === "AWS::Lambda::Function") arns[r.LogicalResourceId] = aws<{ FunctionArn: string }>(["lambda", "get-function-configuration", "--function-name", r.PhysicalResourceId]).FunctionArn;
+          if (r.ResourceType === "AWS::IAM::Role") arns[r.LogicalResourceId] = `arn:aws:iam::${role.split(":")[4]}:role/${r.PhysicalResourceId}`;
+        }
+        const params = Object.fromEntries(stack.Parameters.map(p => [p.ParameterKey, p.ParameterValue]));
+        for (const schedule of affectedSchedules) {
+          const resource = (live.Resources as Record<string, JsonObject>)[schedule!.LogicalResourceId!];
+          const expected = resolveSchedule(resource.Properties, params, arns) as JsonObject;
+          const actual = aws<JsonObject>(["scheduler", "get-schedule", "--name", String(expected.Name)]);
+          assertLiveSchedule(expected, actual);
+        }
+      }
       stage = "backend-updating";
       putState("status", { commit, stage, runUrl, updatedAt: new Date().toISOString() });
       aws(["cloudformation", "execute-change-set", "--change-set-name", created.Id]);

@@ -52,6 +52,7 @@ function main(): void {
         allow(["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], [artifactObjects, `arn:aws:s3:::${webBucket}/*`]),
         allow(["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"], arn("cloudfront", `distribution/${distribution}`, "")),
         allow(["lambda:GetFunction", "lambda:GetFunctionConfiguration"], functions),
+        allow(["scheduler:GetSchedule"], schedules),
         allow(["ssm:GetParameter"], ["migration-approval", "infrastructure-approval", "last-success", "status", "lock"].map(k => arn("ssm", `parameter${statePrefix}/${k}`))),
         allow(["ssm:PutParameter"], ["last-success", "status", "lock"].map(k => arn("ssm", `parameter${statePrefix}/${k}`))),
         allow(["ssm:DeleteParameter"], arn("ssm", `parameter${statePrefix}/lock`))
