@@ -465,6 +465,28 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: !Ref AWS::StackName
+          version: "1.0"
+        paths:
+          /{proxy+}:
+            x-amazon-apigateway-any-method:
+              responses: {}
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                payloadFormatVersion: "2.0"
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-api/invocations
+          /:
+            x-amazon-apigateway-any-method:
+              responses: {}
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                payloadFormatVersion: "2.0"
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-api/invocations
       CorsConfiguration:
         AllowOrigins:
           - !Sub https://${WebDomainName}

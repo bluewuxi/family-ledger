@@ -36,6 +36,9 @@ assert.doesNotThrow(() => assertCodeOnlyChanges([code, attributeReference], curr
 const incidentalIam = structuredClone(code); incidentalIam.ResourceChange.ResourceType = "AWS::IAM::Policy";
 incidentalIam.ResourceChange.Details[0].Target.Name = "PolicyDocument";
 assert.throws(() => assertCodeOnlyChanges([incidentalIam], current, candidate));
+const incidentalApi = structuredClone(code); incidentalApi.ResourceChange.ResourceType = "AWS::ApiGatewayV2::Api";
+incidentalApi.ResourceChange.Details[0].Target.Name = "Body";
+assert.throws(() => assertCodeOnlyChanges([incidentalApi], current, candidate));
 const changedSchedule = structuredClone(candidate); changedSchedule.Resources.Schedule.Properties.ScheduleExpression = "new";
 assert.throws(() => assertCodeOnlyChanges([scheduleChange], current, changedSchedule));
 const unknownReference = structuredClone(scheduleChange); unknownReference.ResourceChange.Details[0].CausingEntity = "Other.Arn";
