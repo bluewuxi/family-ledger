@@ -73,6 +73,21 @@ Run the Stage 1 test smoke check:
 corepack pnpm smoke:stage1:test
 ```
 
+## Delivery request examples
+
+These examples illustrate intent; they are not required command phrases. See [delivery scope and workflow](docs/project-workflow.md#delivery-scope-and-workflow) for the authoritative procedure and authorization boundaries.
+
+| Example request | Execution scope |
+| --- | --- |
+| "Fix this issue and summarize the result." | Make and validate the changes, then summarize; leave changes local without creating an issue, committing, or pushing. |
+| "Commit these changes." | Validate, review, create a GitHub issue, and commit locally; stop before pushing. |
+| "Push these changes to test." | Complete necessary commit preparation, push `test`, and monitor CI and the configured automatic TEST deployment. |
+| "Use the default delivery workflow for these changes." | Run the complete project delivery workflow and close the issue after the required verification. |
+| "Deploy the current committed version to TEST." | Deploy the identified committed version through the existing mechanism; exclude uncommitted local changes. |
+| "Release this." | Clarify the target environment before deployment. |
+
+Database migrations, data repairs, independent infrastructure/configuration changes, and manual deployments require explicit authorization as described in the workflow. For documentation-only deployment skips and separate authenticated visual acceptance, see [completion reporting](docs/project-workflow.md#completion-reporting).
+
 ## Supabase Migrations
 
 Migration files live under:

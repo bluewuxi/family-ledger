@@ -1,204 +1,34 @@
-# AGENTS.md
+# Project Rules
 
-## Project Overview
+## Product and scope
 
-Project name: `family-ledger`
-Chinese product name: `金财屋`
-English product name: `Family Ledger`
+- Repository/package: `family-ledger`. User-facing names: `金财屋` / `Family Ledger`; never display the repository name as the product name.
+- This Simplified Chinese family investment ledger serves usually no more than three family members and tracks US stocks/ETFs, Hong Kong stocks, China A-share ETFs/funds, NZ PIE funds, and cash accounts.
+- Keep the product simple: `viewer` is read-only; `admin` can read, write, update, delete, and manage access. Do not add complex RBAC, teams, organizations, workspaces, invitations, or permission matrices unless explicitly requested.
+- Do not introduce an always-on backend, unnecessary microservices, or a full early-stage tax engine. Do not use DynamoDB for the core ledger unless explicitly requested. Price scraping requires a clear data-source decision.
 
-`family-ledger` is the repository/package name only. Do not show `family-ledger` as user-facing UI text.
+## Architecture and code boundaries
 
-This is a Simplified Chinese family investment ledger web app for a very small number of users, usually no more than 3 family members.
+- Serverless stack: CloudFront/private S3 → API Gateway → Lambda API → Supabase Postgres; EventBridge Scheduler → Lambda jobs → Postgres. Frontend: React, TypeScript, Vite; identity: Supabase Auth.
+- `apps/web` owns UI, routing, forms, formatting, basic client validation, API calls, and Auth token acquisition. It must not write investment tables directly, hold server secrets, or be authoritative for investment/tax calculations or permissions. Keep API calls in client/service modules and components focused.
+- `apps/api` verifies tokens, loads users/roles, authorizes requests, validates input, applies business rules, and returns stable DTOs. Keep HTTP parsing in thin `handlers/` / `routes/`, business logic in `services/`, database access in `repositories/`, and token/role checks in `auth/`; use `db/` and `utils/` for supporting code. Repositories must not decide business rules.
+- `apps/jobs` owns trusted batch prices, FX, snapshots, recalculations, and future reports. Never commit or log secrets. Migrations in `supabase/migrations` enforce persistence, foreign keys, checks, uniqueness, indexes, and integrity; keep the schema simple and readable. Seed data lives in `supabase/seed`; AWS infrastructure in `infra/aws`.
+- Shared enum-like values, DTOs, validators, and reusable calculations belong in `packages/shared/src/index.ts`. Update stable cross-layer types first, then affected API, jobs, frontend, migrations, seeds, and docs as needed.
+- Use TypeScript strict mode, explicit types, stable DTOs, small functions, clear boundaries, shared validation where useful, and minimal dependencies. Avoid hidden global state and `any` without a clear reason.
 
-The app tracks:
+## Auth and API contracts
 
-- US stocks and ETFs
-- Hong Kong stocks
-- China A-share ETFs/funds
-- New Zealand PIE funds
-- Cash accounts
+- Use Supabase Auth for identity and `user_roles` for permissions. The frontend sends `Authorization: Bearer <token>`; Lambda verifies the token, loads the role, and authorizes the request. Frontend checks are UI hints only; RLS is defensive, not a substitute for API authorization.
+- General endpoint policy: GET allows viewer/admin; POST/PUT/PATCH/DELETE and maintenance/job endpoints require admin.
+- Success: `{ "success": true, "data": {} }`. Failure: `{ "success": false, "error": { "code": "ERROR_CODE", "message": "Human readable message" } }`.
+- Prefer stable codes: `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `NOT_FOUND`, `INTERNAL_ERROR`. Never expose secrets or internal stack traces in responses.
 
-Keep the product simple. The app has only two roles:
+## Language and financial data
 
-- `viewer`: read-only access
-- `admin`: read, write, update, delete, and manage access
-
-Do not introduce complex RBAC, teams, organizations, workspaces, invitations, or permission matrices unless explicitly requested.
-
----
-
-## Architecture
-
-The project uses a serverless architecture:
-
-```text
-CloudFront + private S3 static assets
-  -> API Gateway
-  -> Lambda API
-  -> Supabase Postgres
-
-EventBridge Scheduler
-  -> Lambda scheduled jobs
-  -> Supabase Postgres
-```
-
-Main components:
-
-- Frontend: React + TypeScript + Vite
-- API: AWS API Gateway + Lambda
-- Scheduled jobs: AWS EventBridge Scheduler + Lambda
-- Database: Supabase Postgres
-- Auth: Supabase Auth
-- UI language: Simplified Chinese
-- Repository style: monorepo
-
-There is no always-on backend server. The Lambda API is the primary business and authorization layer. Supabase RLS may be used defensively, but frontend checks are never security boundaries.
-
----
-
-## Repository Structure
-
-Keep frontend, API, jobs, and shared types clearly separated:
-
-```text
-family-ledger/
-  apps/
-    web/       # React + TypeScript + Vite frontend
-    api/       # API Gateway + Lambda API project
-    jobs/      # EventBridge Scheduler-triggered Lambda jobs
-
-  packages/
-    shared/    # Shared TypeScript types, constants, validators, calculations
-
-  supabase/
-    migrations/
-    seed/
-
-  infra/
-    aws/
-
-  docs/
-  scripts/
-  .github/
-    workflows/
-```
-
-Use `docs/roadmap.md` as the source of truth for implementation status and staged priorities.
-
----
-
-## Business Logic Boundaries
-
-Business logic must not live only in the frontend.
-
-Frontend (`apps/web`) is responsible for:
-
-- Chinese UI
-- Routing
-- Forms
-- Display formatting
-- Basic client-side validation
-- Calling Lambda API endpoints
-- Using Supabase Auth for login and token acquisition
-
-Frontend must not:
-
-- Directly write investment business tables
-- Contain authoritative investment calculations
-- Enforce permissions as the only security layer
-- Use Supabase service role keys or server-side secrets
-- Contain tax calculation as the source of truth
-
-Lambda API (`apps/api`) is responsible for:
-
-- Verifying Supabase access tokens
-- Loading the current user and role
-- Enforcing `viewer` / `admin` permissions
-- Validating requests
-- Applying business rules
-- Calling repository functions
-- Returning stable API DTOs
-
-Preferred API structure:
-
-```text
-apps/api/src/
-  handlers/
-  routes/
-  services/
-  repositories/
-  auth/
-  db/
-  utils/
-```
-
-Rules:
-
-- Put HTTP event parsing in handlers/routes.
-- Put business logic in services.
-- Put database access in repositories.
-- Put auth and role checks in `auth/`.
-- Keep handlers thin.
-- Do not let repositories decide business rules.
-
-Scheduled jobs (`apps/jobs`) are responsible for trusted batch work such as prices, FX rates, portfolio snapshots, recalculations, and future report generation. Jobs may use server-side secrets, but secrets must never be committed or logged.
-
-Database migrations are responsible for persistence, foreign keys, check constraints, unique constraints, indexes, and data integrity. Keep schema simple and readable.
-
----
-
-## Auth And Permissions
-
-Use Supabase Auth for identity and the `user_roles` table for application permissions.
-
-General rule:
-
-```text
-GET endpoints: viewer and admin
-POST/PUT/PATCH/DELETE endpoints: admin only
-maintenance/job endpoints: admin only
-```
-
-Expected auth flow:
-
-```text
-Frontend logs in with Supabase Auth
-  -> Frontend receives access token
-  -> Frontend calls Lambda API with Authorization: Bearer <token>
-  -> Lambda verifies token
-  -> Lambda loads user role
-  -> Lambda authorizes request
-```
-
-Do not add a more complex role system unless explicitly requested.
-
----
-
-## Language And UI
-
-Write all new or updated repository content in English, including specification documents, implementation plans saved in the repository, README files, project instructions, and code comments.
-
-Use Chinese only where required, such as user-facing UI strings, Chinese product names, exact UI label references in documentation, and source data or quotations that must retain their original language. Keep the surrounding explanations in English.
-
-Conversational plans and progress updates may be in Chinese; this does not change the English requirement for repository files.
-
-The user-facing app must be in Simplified Chinese.
-
-Use Chinese labels such as:
-
-- 登录
-- 财富足迹
-- 投资账户
-- 投资标的
-- 交易记录
-- 持仓总览
-- 设置
-- 总资产
-- 最新变动
-- 未实现收益
-- 账户数量
-
-Code identifiers should remain in English, for example `InvestmentAccount`, `Instrument`, `InvestmentTransaction`, and `PortfolioSnapshot`.
+- Write new/updated repository content, specifications, plans, README files, instructions, comments, and identifiers in English. Chinese is reserved for user-facing text, product names, exact UI labels, and source data/quotations requiring it; keep surrounding explanations in English. Conversation may be in Chinese.
+- The app UI must use Simplified Chinese, including established labels such as 登录, 财富足迹, 投资账户, 投资标的, 交易记录, 持仓总览, 设置, 总资产, 最新变动, 未实现收益, and 账户数量.
+- Persist money, quantity, price, FX, and tax values with PostgreSQL `numeric`, never floating-point types. Use decimal libraries, database numeric calculations, or documented integer minor units for important authoritative calculations; avoid careless TypeScript floating-point arithmetic.
+- Do not implement tax logic casually. Use 税务辅助, 税务估算, or 税务记录; avoid compliance guarantees such as 自动报税, 准确报税, or 税务申报系统.
 
 ## Mobile UI Guidelines
 
@@ -209,34 +39,8 @@ Treat mobile layout as a first-class requirement for every web UI change.
 - Prefer stacked controls, wrapped actions, and clear spacing on narrow screens; text and controls must not overlap or depend on hover-only affordances.
 - Keep data-heavy pages as horizontally scrollable tables unless a task explicitly asks for a mobile card/list redesign.
 - Drawers, dialogs, filters, pagination, tabs, and footer content must fit common phone widths without clipping important actions.
-- For meaningful frontend changes, verify mobile behavior at `320x740`, `393x852`, `430x932`, `768x1024`, and a desktop width before considering the task complete.
+- For meaningful frontend changes, visual acceptance requires checks at `320x740`, `393x852`, `430x932`, `768x1024`, and a desktop width. Report implementation, deployment, and visual acceptance separately. User-deferred visual acceptance does not block reporting implementation or deployment completion, but remains pending and must never be claimed as passed.
 - The app requires login before authenticated pages such as the dashboard can be viewed. Do not repeatedly try to bypass or directly open those pages during browser verification. If visual verification of an authenticated page is needed, ask the user whether they want to verify it. If they say yes, provide the local app URL, wait for the user to log in and confirm the target page is ready, then continue browser checks from that state.
-
----
-
-## Financial Data
-
-Use precise numeric handling.
-
-- Do not use floating-point types for persisted money, quantity, price, FX rate, or tax values.
-- Database values should use PostgreSQL `numeric`.
-- TypeScript code should avoid careless floating-point calculations for authoritative results.
-- Prefer decimal libraries, database numeric calculations, or documented integer minor-unit approaches for important calculations.
-- Do not implement tax logic casually.
-
-For tax-related features, use wording such as:
-
-- 税务辅助
-- 税务估算
-- 税务记录
-
-Avoid wording that implies guaranteed tax compliance, such as:
-
-- 自动报税
-- 准确报税
-- 税务申报系统
-
----
 
 ## Date And Time Handling
 
@@ -254,8 +58,6 @@ Treat date and time handling as a cross-layer product rule.
 - Avoid ad hoc `new Date().toISOString().slice(0, 10)` for app business dates or UI date defaults. Use shared time helpers from `packages/shared`.
 - When adding date/time behavior, update focused verification scripts such as `verify:time-policy` and document any new semantics.
 
----
-
 ## Dashboard Calculation and Chart Contracts
 
 - `本日变动` uses only instruments with a quote or estimated price for the current app business day. Older quotes, delayed published fund unit prices, and historical closes alone do not qualify for the numerator. Eligibility is based on data kind/date, not a market or fund exclusion list.
@@ -263,197 +65,36 @@ Treat date and time handling as a cross-layer product rule.
 - Both period-profit and asset-trend curves connect the current dynamic valuation endpoint to its immediately preceding valid point. Preserve real missing-data gaps, saved closes, gain/loss coloring, and hover details; do not split the endpoint into an isolated marker-only series or fabricate intermediate quotes.
 - Keep [the investment overview specification](docs/investment-overview-spec.md), [API semantics](docs/api.md), `verify:dashboard`, and `verify:portfolio-trend` aligned with these contracts. Changes to these rules require an explicit user request.
 
-## Shared Types
+## Secrets and deployment boundaries
 
-Shared enum-like values, DTOs, and reusable calculations live in `packages/shared/src/index.ts`.
+- Authorization to push `test` includes its configured CI and automatic TEST deployment; monitor and verify them without asking again. Manual deployment, bootstrap/recovery, enabling automation, database migration application, data repair, and independent infrastructure/configuration changes require separate explicit authorization. Do not substitute manual deployment or bypass gates when automation is disabled, blocked, or fails. Production remains operator-run; clarify ambiguous release targets. Do not hard-code AWS account IDs, bucket names, ARNs, secrets, or credentials.
+- Frontend environment variables may contain public values only. Resolve server-side secrets from AWS SSM Parameter Store or Secrets Manager at runtime in API/jobs/server-side scripts. Never expose server-side Supabase keys to the frontend, bundles, logs, or Git.
+- Use the existing `test` branch for routine work; do not create feature branches unless explicitly requested. Follow workspace checks and implementation procedures in [Project Workflow](docs/project-workflow.md).
+- Implementation requests, including "finish" or "complete the task," authorize changes, validation, and a summary, not issue creation, commits, pushes, or deployment. Execute delivery only when explicitly requested or already authorized in the conversation. Commit-only stops locally; push includes necessary commit preparation and monitoring CI/automatic TEST deployment. The default delivery workflow includes issue creation, validation, review, commit with `Refs #<issue-number>`, push, deployment verification, and issue closure. A request to deploy the current version does not include uncommitted edits. See [delivery scope and workflow](docs/project-workflow.md#delivery-scope-and-workflow) for execution boundaries and documentation-only closure.
+- [TEST automatic deployment](docs/test-auto-deployment.md) governs release mechanics. Do not duplicate automatic deployment locally. Database migrations and non-code infrastructure/configuration changes require independent verification and operator registration; missing approvals and unknown changes fail closed. Production remains operator-run. Bootstrap/incident recovery use the documented independent procedure and shared deployment lock.
+- Before applying migrations, read the [Windows migration procedure](docs/project-workflow.md#applying-database-migrations-on-windows), including installed `psql` discovery, SSM password resolution, and post-apply schema verification.
 
-When adding stable domain values or cross-layer DTOs, update shared types first and then update API, jobs, frontend, migrations, seed data, and docs as needed. Keep shared types practical and stable.
+## Validation and documentation
 
----
-
-## API Responses
-
-Use a consistent API response shape.
-
-Success:
-
-```json
-{
-  "success": true,
-  "data": {}
-}
-```
-
-Failure:
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human readable message"
-  }
-}
-```
-
-Prefer stable error codes such as:
-
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `VALIDATION_ERROR`
-- `NOT_FOUND`
-- `INTERNAL_ERROR`
-
-Do not leak secrets or internal stack traces in API responses.
-
----
-
-## AWS And Secrets
-
-Do not deploy AWS resources unless explicitly requested.
-
-Do not hard-code:
-
-- AWS account IDs
-- bucket names
-- ARNs
-- secrets
-- credentials
-
-Frontend environment variables may contain public values only. Server-side secret values must live in AWS SSM Parameter Store or AWS Secrets Manager and be resolved only by API/jobs/server-side scripts at runtime.
-
-Never expose server-side Supabase keys to `apps/web`, frontend bundles, logs, or Git.
-
----
-
-## Database Migrations And Tools
-
-Supabase migrations live in `supabase/migrations`.
-
-When applying migrations from Windows, do not assume `psql` is unavailable just because `Get-Command psql` fails. First search common install locations, for example:
+For code changes, run these checks before reporting implementation completion, plus focused verification for affected behavior:
 
 ```powershell
-Get-ChildItem "C:\Program Files\PostgreSQL" -Recurse -Filter psql.exe -ErrorAction SilentlyContinue
-Get-ChildItem "C:\Program Files" -Recurse -Filter psql.exe -ErrorAction SilentlyContinue
-```
-
-If found, run `psql.exe` by full path or temporarily add its `bin` folder to `PATH` for the session. Use the Supabase DB connection values from the environment files and resolve the database password from AWS SSM. Do not print database passwords, service keys, or connection strings containing secrets.
-
-Only fall back to a temporary Node `pg` client when `psql` cannot be found or cannot run. Keep migration SQL idempotent where practical, and verify the target schema after applying it.
-
----
-
-## Coding Standards
-
-Use TypeScript strict mode.
-
-Prefer:
-
-- Small functions
-- Clear module boundaries
-- Explicit types
-- Stable DTOs
-- Shared validation where useful
-- Minimal dependencies
-- No hidden global state
-
-Avoid `any` unless there is a clear reason.
-
-For React:
-
-- Keep components focused.
-- Put API calls in service/client modules.
-- Avoid large components with mixed UI, data fetching, and business logic.
-- Use Chinese UI text and English code identifiers.
-
-For Lambda API:
-
-- Handlers parse requests and return responses.
-- Services handle business logic.
-- Repositories access Supabase/Postgres.
-- Auth utilities verify identity and roles.
-
----
-
-## Testing And Validation
-
-Before considering a task complete, run:
-
-```bash
 corepack pnpm typecheck
 corepack pnpm build
 ```
 
-When adding business logic, add focused tests or verification scripts where practical. Do not add a complex test framework before the core structure needs it.
+For documentation/instruction-only changes, review meaning, consistency, links, and `git diff --check`; validate changed skills with their validator. Typecheck/build are not required unless executable behavior or build inputs are affected. Read-only analysis requires evidence review, not a build. Mixed changes use all applicable checks. When adding business logic, add focused tests/verification scripts where practical; do not introduce a complex test framework before needed. Follow [Project Workflow](docs/project-workflow.md#validation) and [local testing](docs/local-testing.md). Report blockers accurately.
 
----
+Keep documentation concise, accurate, and consistent with code; update it when architecture, schema, API, auth, deployment, or roadmap decisions change. Read the relevant source before changing its area:
 
-## Documentation
+| Source | Purpose |
+| --- | --- |
+| [Architecture](docs/architecture.md) | System design and boundaries |
+| [Auth](docs/auth.md) | Identity and access |
+| [API](docs/api.md) | API semantics and DTOs |
+| [Data model](docs/data-model.md) | Schema and integrity |
+| [Deployment](docs/deployment.md) / [TEST contract](docs/test-auto-deployment.md) | Deployment operations and automation gates |
+| [Roadmap](docs/roadmap.md) | Source of truth for implementation status and staged priorities |
+| [Project Workflow](docs/project-workflow.md) | Implementation, local verification, migration tools, and delivery procedures |
 
-Update documentation when architecture, schema, API, auth, deployment, or roadmap decisions change.
-
-Important docs:
-
-```text
-docs/architecture.md
-docs/auth.md
-docs/api.md
-docs/data-model.md
-docs/deployment.md
-docs/roadmap.md
-docs/local-testing.md
-```
-
-Keep docs concise and accurate. Do not leave docs contradicting code.
-
----
-
-## Default Development Workflow
-
-Use the existing `test` branch for routine work. Do not create feature branches unless explicitly requested.
-
-When implementing a feature, prefer small slices:
-
-1. Update shared types and validation.
-2. Add or update database migration if needed.
-3. Add repository methods.
-4. Add service logic.
-5. Add API route/handler.
-6. Add frontend API client.
-7. Add frontend page/component.
-8. Update docs.
-9. Run typecheck/build.
-
-When the user asks to commit, push, deploy, release, ship, finish, or use the default delivery workflow:
-
-1. Run validation.
-2. Review changed files.
-3. Create a GitHub issue with `gh issue create`.
-4. Commit to `test` with a message that references the issue.
-5. Push `test`.
-6. Wait for the GitHub CI and automatic TEST deployment workflow; do not run a duplicate local deployment.
-7. Verify the workflow result and deployment checks. Authenticated visual acceptance remains separate.
-8. Close the GitHub issue only after deployment succeeds.
-
-GitHub CLI authentication is expected to be available for this project.
-
-TEST deployment uses the contract in `docs/test-auto-deployment.md`. Database migrations and non-code infrastructure/configuration changes require independent verification and operator registration before automation can continue. Missing approvals and unknown changes must fail closed. Keep production operator-run. For bootstrap or incident recovery only, use the documented independent deployment procedure and shared deployment lock.
-
----
-
-## What Not To Do
-
-Do not:
-
-- Build a full tax engine in early stages.
-- Add complex RBAC.
-- Add teams/workspaces/organizations.
-- Put business logic only in React components.
-- Let frontend write investment tables directly.
-- Use DynamoDB for the core investment ledger unless explicitly requested.
-- Add an always-on backend server.
-- Add unnecessary microservices.
-- Hard-code real AWS/Supabase credentials.
-- Use floating-point values as authoritative persisted financial data.
-- Implement price scraping without a clear data-source decision.
-- Over-engineer the first version.
+The [adopted policy decisions](docs/rules-cleanup-decisions.md) record the approved cleanup changes. SuperPowers is not enabled; business contracts, the routine `test` branch, login requirements, and deployment mechanisms remain in place.
