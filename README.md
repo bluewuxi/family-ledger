@@ -1,8 +1,14 @@
-# family-ledger
+# 金财屋 / Family Ledger
 
 `family-ledger`（金财屋 / Family Ledger）是一个中文家庭投资账务 Web 应用，用于少数家庭成员跟踪美股/ETF、港股、A 股 ETF/基金、新西兰 PIE 基金和现金账户。
 
-当前状态：已完成基础 monorepo、Supabase schema、Supabase Auth 登录、viewer/admin 角色查询、Lambda API、账户/标的/交易 CRUD、持仓计算、仪表盘摘要、价格/汇率维护任务、投资组合快照、数据备份状态监控和操作员备份/恢复校验脚本。税务辅助、用户导出报表、生产环境正式运行和告警体系仍未实现。
+Family Ledger (金财屋), maintained in the `family-ledger` repository, is a Chinese-language family investment ledger for a small number of family members tracking US stocks/ETFs, Hong Kong stocks, China A-share ETFs/funds, NZ PIE funds, and cash accounts.
+
+The bilingual project description above is the sole documentation-language exception. The rest of this README and other documentation use English prose; Chinese product names, UI labels, and required source quotations remain allowed.
+
+## Current status and documentation
+
+Implemented areas include authentication and viewer/admin access, investment account/instrument/transaction management, holdings and performance charts, scheduled market data and snapshots, spending imports, education reserves, monthly family reviews, backup tooling, API error tracking, and automatic TEST delivery. Tax assistance, user-facing CSV export, production operation, and alarm/DLQ hardening remain pending. See the [roadmap](docs/roadmap.md) for status and outstanding acceptance, and the [documentation map](docs/README.md) for maintained contracts and historical records.
 
 ## Stack
 

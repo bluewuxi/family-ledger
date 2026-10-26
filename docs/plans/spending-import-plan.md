@@ -1,8 +1,8 @@
 # Daily income and spending redesign plan
 
-Status: deployed to test on 2026-09-27 (#91); user will perform UI acceptance testing.
+Status: Implemented; deployed to TEST on 2026-09-27 (#91). Bank-import acceptance remains delegated to the user. This historical plan records original empty-table cutover assumptions, not restrictions on current data or authorization for new operations.
 
-This document records the implementation plan. `docs/spending.md` now specifies the new implementation; the test environment now runs this schema and implementation.
+This document records the implementation plan. [spending specification](../specs/spending.md) defines the maintained product contract; the test environment now runs this schema and implementation.
 
 ## Scope and release assumption
 

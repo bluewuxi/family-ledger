@@ -26,6 +26,7 @@
 ## Language and financial data
 
 - Write new/updated repository content, specifications, plans, README files, instructions, comments, and identifiers in English. Chinese is reserved for user-facing text, product names, exact UI labels, and source data/quotations requiring it; keep surrounding explanations in English. Conversation may be in Chinese.
+- The sole documentation-language exception is the opening project description in the root README: retain its Chinese description and provide an equivalent English description alongside it. All other documentation prose must be English, subject to the user-facing labels, product names, and source quotations above.
 - The app UI must use Simplified Chinese, including established labels such as 登录, 财富足迹, 投资账户, 投资标的, 交易记录, 持仓总览, 设置, 总资产, 最新变动, 未实现收益, and 账户数量.
 - Persist money, quantity, price, FX, and tax values with PostgreSQL `numeric`, never floating-point types. Use decimal libraries, database numeric calculations, or documented integer minor units for important authoritative calculations; avoid careless TypeScript floating-point arithmetic.
 - Do not implement tax logic casually. Use 税务辅助, 税务估算, or 税务记录; avoid compliance guarantees such as 自动报税, 准确报税, or 税务申报系统.
@@ -63,7 +64,7 @@ Treat date and time handling as a cross-layer product rule.
 - `本日变动` uses only instruments with a quote or estimated price for the current app business day. Older quotes, delayed published fund unit prices, and historical closes alone do not qualify for the numerator. Eligibility is based on data kind/date, not a market or fund exclusion list.
 - Its percentage is `todayChange / totalAssets * 100`, using current total investment assets in the same reporting currency. Total assets include cash and instruments excluded from the daily-change numerator, valued using their latest available prices. Never replace this denominator with participating instruments, their preceding value, net investment, or a previous snapshot. Missing/non-positive total assets yield an unavailable percentage.
 - Both period-profit and asset-trend curves connect the current dynamic valuation endpoint to its immediately preceding valid point. Preserve real missing-data gaps, saved closes, gain/loss coloring, and hover details; do not split the endpoint into an isolated marker-only series or fabricate intermediate quotes.
-- Keep [the investment overview specification](docs/investment-overview-spec.md), [API semantics](docs/api.md), `verify:dashboard`, and `verify:portfolio-trend` aligned with these contracts. Changes to these rules require an explicit user request.
+- Keep [the investment overview specification](docs/specs/investment-overview.md), [API semantics](docs/api.md), `verify:dashboard`, and `verify:portfolio-trend` aligned with these contracts. Changes to these rules require an explicit user request.
 
 ## Secrets and deployment boundaries
 
@@ -97,4 +98,4 @@ Keep documentation concise, accurate, and consistent with code; update it when a
 | [Roadmap](docs/roadmap.md) | Source of truth for implementation status and staged priorities |
 | [Project Workflow](docs/project-workflow.md) | Implementation, local verification, migration tools, and delivery procedures |
 
-The [adopted policy decisions](docs/rules-cleanup-decisions.md) record the approved cleanup changes. SuperPowers is not enabled; business contracts, the routine `test` branch, login requirements, and deployment mechanisms remain in place.
+The [adopted policy decisions](docs/decisions/rules-cleanup-decisions.md) record the approved cleanup changes. SuperPowers is not enabled. Its [project compatibility rules](docs/project-workflow.md#superpowers-compatibility) preserve authorization boundaries, review of uncommitted work, business contracts, the routine `test` branch, and login/viewport requirements; generic skill workflows cannot expand delivery scope.

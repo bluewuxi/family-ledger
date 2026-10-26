@@ -10,7 +10,7 @@ Migration `202610120002_single_account_opening_balance.sql` adds the partial uni
 
 Balances are derived with exact decimals: opening + contributions + refunds - expenses - withdrawals - exchange out + exchange in. Education spending is expenses minus refunds. Date/category filters change period summaries, not current balances or lifetime spending. Education funds do not enter investment holdings, snapshots, investment monthly summaries, or daily bank-statement rows. The purpose-filtered combined cashflow report shows separate daily/education totals and omits internal transfers from consumption.
 
-Backup version 7 adds Kernel NTA refresh state and metadata; version 6 introduced both reserve tables and exports both amount fields as strings. Versions 1–5 remain supported according to their existing restrictions. Restore accounts/transactions before reserve funds/entries, inside one transaction with deferred self-reference checks. On restoration into an occupied database, clear reserve entries/funds before legacy transactions/accounts to remove references and active legacy-write guards. Older backups need the empty singleton fund initialized before reviewed education migration; they do not contain new education history.
+Backup version 7 adds Kernel NTA refresh state and metadata; version 6 introduced both reserve tables and exports both amount fields as strings. Versions 2–6 retain version-specific compatibility restrictions; version-1 restoration remains outside supported operational scope. See [backup and restore](operations/backup-restore.md). Restore accounts/transactions before reserve funds/entries, inside one transaction with deferred self-reference checks. On restoration into an occupied database, clear reserve entries/funds before legacy transactions/accounts to remove references and active legacy-write guards. Older backups need the empty singleton fund initialized before reviewed education migration; they do not contain new education history.
 
 `金财屋` / `Family Ledger` is a single-family shared ledger. Core business data is shared by the family, not owned by individual users.
 
@@ -290,7 +290,7 @@ RLS is enabled as a defensive layer.
 
 ## Spending imports
 
-See [daily income/spending specification](spending.md). The empty-table redesign migration is `20260926090000_redesign_spending_imports.sql`; the original deployed migration remains unchanged.
+See [daily income/spending specification](specs/spending.md). The empty-table redesign migration is `20260926090000_redesign_spending_imports.sql`; the original deployed migration remains unchanged.
 
 `spending_accounts` stores supported bank format, account currency and optional identity suffix. `account_statements` stores import/document batches, exact-version CSV/PDF references, encoding/parser version, server preview/token, commit decisions and audit counts. `statement_rows` stores account, nullable batch/record number, calendar transaction date, signed numeric(20,6) amount, classification, tag/notes, immutable source metadata/fingerprint and edited status.
 

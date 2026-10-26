@@ -949,7 +949,7 @@ Transaction validation errors return `VALIDATION_ERROR`. Missing transactions re
 
 ## Spending API
 
-The `/spending` API uses the standard success/error envelope. GET requires active viewer/admin; all mutations require admin. Money is a decimal string. `statements` now means import/document batches. See [spending specification](spending.md).
+The `/spending` API uses the standard success/error envelope. GET requires active viewer/admin; all mutations require admin. Money is a decimal string. `statements` now means import/document batches. See [spending specification](specs/spending.md).
 
 | Route | Purpose |
 | --- | --- |

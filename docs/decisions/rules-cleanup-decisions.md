@@ -1,6 +1,6 @@
 # Rules Cleanup: Adopted Policy Decisions
 
-Approved by the user on 2026-10-27. All seven decisions below are active through [AGENTS.md](../AGENTS.md) and [Project Workflow](project-workflow.md). This record supersedes the former pending proposals. Business contracts, the routine `test` branch, deployment mechanisms, and login/viewport requirements remain in place. SuperPowers is not enabled.
+Approved by the user on 2026-10-27. All seven decisions below are active through [AGENTS.md](../../AGENTS.md) and [Project Workflow](../project-workflow.md). This record supersedes the former pending proposals. Business contracts, the routine `test` branch, deployment mechanisms, and login/viewport requirements remain in place. SuperPowers is not enabled.
 
 | Topic | Adopted decision |
 | --- | --- |
@@ -19,4 +19,8 @@ Approved by the user on 2026-10-27. All seven decisions below are active through
 - The local `family-ledger-workflow` skill loads these tracked sources rather than duplicating their procedures. Its local path is only a fallback locator for a checkout not already identified by the task.
 - `docs/test-auto-deployment.md` remains the authority for deployment mechanics, locks, independent verification, and operator registration. No CI, deployment script, or infrastructure changes are made by this policy update.
 
-Any later SuperPowers adoption must separately resolve branch/worktree handling, planning/approval scope, verification commands, and delivery ownership.
+## Documentation and SuperPowers preparation (2026-10-27)
+
+Subsequent user-approved preparation establishes the lightweight [documentation structure](../README.md) and [SuperPowers compatibility rules](../project-workflow.md#superpowers-compatibility). Formal plans are version-controlled, small contract-restoring hotfixes do not require retrospective plans, and the root README's bilingual opening description is the sole documentation-prose language exception. Maintained contracts, plans, operations, decisions, and historical release evidence have separate locations and responsibilities.
+
+The compatibility rules resolve workspace defaults, planning/approval scope, commit authorization, review of uncommitted changes, verification, delegated authority, and delivery ownership. The local workflow skill's decision-document reference is updated to this location. Browser acceptance retains real user login; the existing local bypass mechanism is not an acceptance path. These decisions do not install or enable SuperPowers. Actual distribution/version verification and helper-script checks remain part of a separately authorized activation.

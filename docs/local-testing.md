@@ -120,47 +120,16 @@ For account CRUD testing, use `admin`. For read-only verification, use `viewer`.
 
 Admin users can also manage existing Auth users from Settings. User creation remains in the Supabase console. If Supabase refuses to send reset emails in a hosted test project, configure custom SMTP or add the test recipients to the Supabase project's allowed/team email settings.
 
-## Optional Local Auth Bypass
+## Authenticated browser acceptance
 
-For local browser verification only, the app can bypass the login screen and call the local API as `ricky.yu@outlook.com` with `admin` role.
+Use real Supabase Auth for browser verification. Obtain the user's agreement, provide the local URL, and wait for their login and target-page confirmation before inspecting authenticated pages. Keep both local auth-bypass flags disabled in the API/web processes and local environment files. Existing bypass sessions and mockups do not satisfy authenticated visual acceptance.
 
-Enable it only in `.env.local`:
-
-```text
-VITE_LOCAL_AUTH_BYPASS=true
-FAMILY_LEDGER_LOCAL_AUTH_BYPASS=true
-LOCAL_AUTH_BYPASS_EMAIL=ricky.yu@outlook.com
-```
-
-Then restart both:
-
-```powershell
-corepack pnpm dev:api
-corepack pnpm dev:web:local
-```
-
-For Codex/browser debugging, prefer enabling the bypass only for the current terminal process instead of editing `.env.local`. This keeps the local-only back door temporary and avoids accidentally leaving bypass flags enabled:
-
-```powershell
-$env:FAMILY_LEDGER_LOCAL_AUTH_BYPASS = "true"
-$env:LOCAL_AUTH_BYPASS_EMAIL = "ricky.yu@outlook.com"
-corepack pnpm dev:api
-```
-
-In a second terminal:
-
-```powershell
-$env:VITE_LOCAL_AUTH_BYPASS = "true"
-corepack pnpm dev:web:local
-```
-
-If an old local API or Vite process is already running and you need to verify current code without disturbing it, start an isolated pair on alternate ports:
+If the standard ports are occupied, start a separate API/web pair with authentication still enabled. In the API terminal:
 
 ```powershell
 $env:LOCAL_API_PORT = "3001"
 $env:LOCAL_WEB_ORIGIN = "http://127.0.0.1:5182"
-$env:FAMILY_LEDGER_LOCAL_AUTH_BYPASS = "true"
-$env:LOCAL_AUTH_BYPASS_EMAIL = "ricky.yu@outlook.com"
+$env:FAMILY_LEDGER_LOCAL_AUTH_BYPASS = "false"
 corepack pnpm dev:api
 ```
 
@@ -168,27 +137,19 @@ In a second terminal:
 
 ```powershell
 $env:VITE_API_BASE_URL = "http://127.0.0.1:3001"
-$env:VITE_LOCAL_AUTH_BYPASS = "true"
+$env:VITE_LOCAL_AUTH_BYPASS = "false"
 corepack pnpm --filter @family-ledger/web exec vite --host 127.0.0.1 --port 5182
 ```
 
-Open `http://127.0.0.1:5182`. The app should show a `本地调试登录：ricky.yu@outlook.com` banner and authenticated pages should load without the login screen.
+Provide `http://127.0.0.1:5182/login` to the user and wait for readiness. A local API may still use the shared TEST database; changing ports does not isolate data or authorize test writes.
 
-The bypass works only when all local gates pass:
+## Existing local auth-bypass mechanism
 
-- Vite is running in development mode.
-- The browser host is `localhost` or `127.0.0.1`.
-- `VITE_API_BASE_URL` points to `localhost` or `127.0.0.1`.
-- The API is reached through `scripts/local-api.ts`, whose Lambda event uses `requestContext.accountId = "local"`.
-- The API source IP and host are loopback/local.
-- The fixed local-only bearer token matches.
-- `ricky.yu@outlook.com` exists in Supabase Auth.
+The code retains a development-only bypass controlled by `VITE_LOCAL_AUTH_BYPASS`, `FAMILY_LEDGER_LOCAL_AUTH_BYPASS`, and `LOCAL_AUTH_BYPASS_EMAIL`. This is implementation reference, not an instruction to enable it during agent/browser verification. Do not use it to avoid the user-login handoff or to claim authenticated acceptance. This documentation change does not remove or modify the mechanism.
 
-Run `corepack pnpm verify:local-auth-bypass` when changing this behavior or if the bypass stops working.
+Its gates include Vite development mode, loopback browser/API addresses, the local API adapter's event metadata, a matching local-only token, and an existing configured Auth user. Run `corepack pnpm verify:local-auth-bypass` when changing those gates; synthetic gate verification is separate from browser acceptance.
 
-Do not add these bypass variables to `.env.test`, `.env.prod`, deployment parameters, CloudFormation, or generated `config.json`. Remote test and production must continue to use real Supabase Auth.
-
-Disable it by removing or commenting both bypass flags and restarting the local API and web dev server.
+Never add bypass variables to `.env.test`, `.env.prod`, deployment parameters, CloudFormation, or generated `config.json`. To disable an existing bypass, set both flags to false or remove them from the environment files and process environments, then restart the API and web server. Remote TEST and production use real Supabase Auth.
 
 ## Common Failures
 
@@ -239,7 +200,7 @@ corepack pnpm verify:time-policy
 corepack pnpm verify:backup
 ```
 
-The in-process Kernel check uses synthetic NZX NTA lists. It verifies published-time eligibility, amendments, cross-year requests, weekday mapping, missing-date omission, direct decimal anchor ratios and actual revision priority. The database check applies all three Kernel migrations in an isolated loopback PostgreSQL cluster and verifies atomic replacement, manual-price protection, repeated refreshes, failed-write rollback, pending snapshot state and restricted RPC access. See [Kernel NTA repair](kernel-nta-repair.md) for test-only dry-run and cutover commands.
+The in-process Kernel check uses synthetic NZX NTA lists. It verifies published-time eligibility, amendments, cross-year requests, weekday mapping, missing-date omission, direct decimal anchor ratios and actual revision priority. The database check applies all three Kernel migrations in an isolated loopback PostgreSQL cluster and verifies atomic replacement, manual-price protection, repeated refreshes, failed-write rollback, pending snapshot state and restricted RPC access. See [Kernel NTA repair](operations/kernel-nta-repair.md) for test-only dry-run and cutover commands.
 
 `scripts/verify-snapshot-atomicity.sql` is an integration check for an **empty, disposable local PostgreSQL database**. Run it with `psql -v ON_ERROR_STOP=1 -f scripts/verify-snapshot-atomicity.sql` and explicit local connection arguments. It creates minimal schema/roles, applies the real migration twice, and verifies retries, rollback after account-write failure, empty-account replacement, and RPC execution permissions. Do not run this fixture against test or production business data.
 
@@ -295,7 +256,7 @@ The test snapshot audit covers every calendar day from the first transaction thr
 
 Run `verify:account-purposes`, `verify:backup`, and `pnpm exec tsx scripts/verify-purpose-read-paths.ts` (the last is read-only against test). The snapshot comparison SQL uses a single repeatable-read snapshot and exact numeric equality; it must pass before cutover. Test contains real data: never create business fixtures or rebuild history there just to verify a release.
 
-The completed cutover was rehearsed by restoring a pre-cutover public-schema archive into an isolated local Postgres cluster and applying the actual cutover SQL. Future restore rehearsals use post-cutover version-2 backups as described in `backup-restore.md`; do not rerun the cutover migration against a database already using the view. Run `scripts/verify-snapshot-atomicity.sql` and `scripts/verify-snapshot-permissions.sql` against the isolated post-cutover database. The permission test uses local Auth fixtures. `pnpm exec tsx scripts/verify-snapshot-concurrency.ts` targets only the rehearsal cluster on loopback port 55439.
+The completed cutover was rehearsed by restoring a pre-cutover public-schema archive into an isolated local Postgres cluster and applying the actual cutover SQL. Future restore rehearsals use post-cutover version-2 backups as described in `operations/backup-restore.md`; do not rerun the cutover migration against a database already using the view. Run `scripts/verify-snapshot-atomicity.sql` and `scripts/verify-snapshot-permissions.sql` against the isolated post-cutover database. The permission test uses local Auth fixtures. `pnpm exec tsx scripts/verify-snapshot-concurrency.ts` targets only the rehearsal cluster on loopback port 55439.
 
 `corepack pnpm verify:dashboard-quote-timeout` checks both live providers without network calls: the real six-second deadline for a stalled first request, preservation of completed quotes when fetch or body reading times out, no new requests after expiry, and continued rejection of non-timeout HTTP/invalid-response errors. This complements `verify:dashboard`, which checks quote caching and stored-close fallback.
 

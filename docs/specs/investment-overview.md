@@ -1,6 +1,8 @@
 # Investment Overview Specification
 
-This document consolidates the dashboard, holdings overview, and asset-snapshot changes agreed on 2026-10-08, with account-detail and navigation refinements agreed on 2026-10-12. API DTOs are documented in [api.md](api.md), valuation semantics in [data-model.md](data-model.md), and verification in [local-testing.md](local-testing.md).
+This document consolidates the dashboard, holdings overview, and asset-snapshot changes agreed on 2026-10-08, with account-detail and navigation refinements agreed on 2026-10-12. API DTOs are documented in [api.md](../api.md), valuation semantics in [data-model.md](../data-model.md), and verification in [local-testing.md](../local-testing.md).
+
+Status: maintained product contract. Dated implementation, deployment, and visual acceptance evidence is recorded in [deployment](../deployment.md); outstanding acceptance is tracked in [roadmap](../roadmap.md).
 
 ## Portfolio Performance
 
@@ -52,10 +54,8 @@ This document consolidates the dashboard, holdings overview, and asset-snapshot 
 - Optional snapshot API pagination/comparison parameters preserve legacy behavior when absent. Comparisons are keyed by snapshot ID and use the previous persisted snapshot in the same scope, including predecessors outside the page or date filter. Each snapshot uses its own saved FX. Missing values yield unavailable comparisons; non-positive predecessor assets yield an unavailable percentage.
 - The 2026-10-08 snapshot-maintenance scope adds no database tables, migrations, historical rebuild, snapshot editing, or repair controls. Subsequent loading-performance work is a separate scope.
 
-## Acceptance and Release
+## Acceptance Criteria
 
 - Required example: investment 100, realized loss 20, and current unrealized gain 5 produce cumulative investment profit -15. Dashboard and holdings agree at the same inputs and quote time; date ranges and holdings filters do not change headline performance.
 - Focused checks cover principal flows, opening imports, closed positions, income/costs, multi-currency FX, missing inputs, empty/negative assets, gaps, live endpoints, sparse hover selection, and snapshot comparison boundaries. Run typecheck, build, and the documented related verification scripts.
-- Dashboard authenticated local visual acceptance passed at 320x740, 393x852, 430x932, 768x1024, and desktop on 2026-10-08. Separate holdings/snapshot-tab authenticated visual acceptance is not claimed by this result.
-- The subsequent dashboard display hotfix (#106) defers authenticated responsive visual checks at the user's request; the earlier acceptance does not cover the hotfix.
-- Delivery uses the existing test branch and test environment; release outcome is recorded in [deployment.md](deployment.md). Production and ledger data migrations are outside this release.
+- Meaningful UI changes require authenticated visual checks at 320x740, 393x852, 430x932, 768x1024, and a desktop width, following the user-login procedure in AGENTS.md. Earlier acceptance applies only to the verified scope and version; report unperformed checks as pending or user-deferred.

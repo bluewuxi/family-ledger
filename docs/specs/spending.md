@@ -1,6 +1,6 @@
 # Daily income and spending
 
-The CSV redesign and 2026-10-01 suffix/cancellation enhancements are deployed to test (#96). Automated release verification passed; authenticated mobile UI acceptance remains pending user login. See [implementation plan](spending-import-plan.md).
+Status: maintained product contract. The CSV redesign (#91) and suffix/cancellation enhancements (#96) were delivered to TEST. General family cashflow responsive acceptance passed under #103; bank-specific import/preview/undo acceptance remains separate. See the [historical implementation plan](../plans/spending-import-plan.md) and [release evidence](../releases/test-release-history.md#family-cashflow-and-transaction-ui-release-2026-10-06).
 
 ## Scope and model
 
@@ -64,7 +64,7 @@ Confirmation copies the validated exact source version to a retained prefix. CSV
 
 `verify:spending-db`: isolated local PostgreSQL migration, empty-table guard, exact aggregates, duplicate multiplicity, atomic failure/retry/concurrent imports, manual entries, bulk edits, undo isolation, RLS and backup restoration. Never loads personal files or writes test/production data.
 
-Backup version 4 handles this schema and exports spending amounts as text. Older backups remain readable, but restoring any pre-v4 spending records is rejected; empty legacy spending tables need no conversion. Investment restore behavior stays intact.
+Backup version 4 introduced this schema and text serialization for spending amounts; later formats retain it. See [backup and restore](../operations/backup-restore.md) for the current format. Older backups remain readable, but restoring any pre-v4 spending records is rejected; empty legacy spending tables need no conversion. Investment restore behavior stays intact.
 
 Before release run typecheck/build, spending/database/time-policy/backup checks, then authenticated UI checks at the required phone/tablet/desktop sizes. Applying this migration is a breaking API/schema cutover: stop old spending writes, verify emptiness, apply migration, deploy compatible API/jobs/web and storage lifecycle together, and verify before allowing personal imports.
 Account format/currency/identity can be corrected when only draft/preview batches exist. Corrections expire those batches and clear previews; start a new import afterwards. Transactions and completed/document history continue to lock these fields.
