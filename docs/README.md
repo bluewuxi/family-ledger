@@ -40,12 +40,14 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 | Current progress | [Roadmap](roadmap.md): implemented/pending work and outstanding acceptance |
 | Deployment | [TEST automatic deployment](test-auto-deployment.md): release gates and recovery; [deployment](deployment.md): current operational entry point; [historical TEST releases](releases/test-release-history.md): dated delivery evidence and one-time procedures |
 | Backup and repair | [Backup and restore](operations/backup-restore.md), [Kernel NTA repair](operations/kernel-nta-repair.md); data changes and migration application require separate authorization |
+| Development skills | [Superpowers](operations/superpowers.md): installed version, desktop coverage, daily prompts, helper caveats, and recovery controls |
 
 ## Plans and decisions
 
+- [Superpowers adoption plan](plans/2026-10-27-superpowers-adoption.md) records the authorized adoption, version review, Windows helper checks, activation, and controlled pilot evidence.
 - [Spending import plan](plans/spending-import-plan.md) and [education reserve plan](plans/education-reserve-unification-plan.md) preserve completed implementation history. Their original empty-data assumptions, backup versions, and release permissions are historical.
 - [Adopted cleanup decisions](decisions/rules-cleanup-decisions.md) record policy rationale; active procedures are maintained in AGENTS.md and the project workflow.
 - Formal plans belong in version control and reach GitHub through authorized commit/push work. Temporary drafts, private mappings, backups, and diagnostic output remain in ignored local locations.
 - Plan status should be explicit: Draft, Approved, Implemented, or Superseded. Link the maintained specification and, when available, delivery evidence. Design approval does not imply implementation or delivery authorization.
 
-When documents disagree, reconcile the affected maintained sources against implementation and release evidence. Do not silently change business contracts or infer live environment state from local code. SuperPowers remains disabled; [project compatibility rules](project-workflow.md#superpowers-compatibility) define the approved preparation and checks required before separately authorized activation.
+When documents disagree, reconcile the affected maintained sources against implementation and release evidence. Do not silently change business contracts or infer live environment state from local code. SuperPowers 7.0.1 is enabled for the Codex desktop workflow; [usage and verified coverage](operations/superpowers.md) and [project compatibility rules](project-workflow.md#superpowers-compatibility) define its boundaries.
