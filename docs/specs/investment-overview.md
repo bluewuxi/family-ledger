@@ -2,7 +2,7 @@
 
 This document consolidates the dashboard, holdings overview, and asset-snapshot changes agreed on 2026-10-08, with account-detail and navigation refinements agreed on 2026-10-12. API DTOs are documented in [api.md](../api.md), valuation semantics in [data-model.md](../data-model.md), and verification in [local-testing.md](../local-testing.md).
 
-Status: maintained product contract. Dated implementation, deployment, and visual acceptance evidence is recorded in [deployment](../deployment.md); outstanding acceptance is tracked in [roadmap](../roadmap.md).
+Status: maintained product contract. Dated implementation, deployment, and visual acceptance evidence is recorded in [TEST release history](../releases/test-release-history.md); outstanding acceptance is tracked in [roadmap](../roadmap.md).
 
 ## Portfolio Performance
 
@@ -15,7 +15,9 @@ Status: maintained product contract. Dated implementation, deployment, and visua
 
 ## Dashboard Composition and Trends
 
-- Main cards are current valuation, investment profit with its asset-share ratio, `本日变动`, and cash. Daily trade count and account count are secondary statistics. Daily movement includes only instruments with current-business-day quotes or estimated prices, on current quantities. Cash is excluded; lagged fund prices and historical closes alone do not qualify. US/UK session dates map to the following app business date. Older provider dates contribute no daily movement, and the percentage is daily movement divided by current total investment assets, including cash and excluded instruments. Missing/non-positive total assets produce an unavailable percentage.
+- Main cards are current valuation, investment profit with its asset-share ratio, `本日变动`, and cash. Daily trade count and account count are secondary statistics.
+- Daily movement includes only instruments with quotes or estimated prices for the current app business day, on current quantities. Eligibility depends on data kind/date, not a market or fund exclusion list. Cash is excluded; older quotes, delayed published fund unit prices, and confirmed historical closes alone do not qualify. US/UK session dates map to the following app business date; older provider dates contribute no daily movement.
+- Its percentage is `todayChange / totalAssets * 100`, using current total investment assets in the same reporting currency. The denominator includes cash and instruments excluded from the numerator, valued at their latest available prices. Never replace it with participating instruments, their preceding value, net investment, or a previous snapshot. Missing/non-positive total assets produce an unavailable percentage.
 - The chart card has `期间盈利` and `资产趋势` tabs. Profit is selected initially and the default range is one year. Switching tabs preserves range and reuses fetched data.
 - Period profit is the change in assets minus net investment from the selected period's first valid valuation. It starts at zero, excludes direct principal changes, reports the actual starting date when needed, and has no period return percentage. Headline lifetime profit is independent of this range.
 - Asset view shows net assets and stepped `累计净投入`. The full historical curve retains all stored snapshot dates for every range. Missing valuations remain gaps. Current valuation is a distinct endpoint connected to its immediately preceding valid point in both chart tabs, including gain/loss color crossings. Retain real gaps and saved closes; do not render the endpoint as an isolated marker-only series or fabricate intermediate live prices.
@@ -24,6 +26,8 @@ Status: maintained product contract. Dated implementation, deployment, and visua
 - Recent trades use a bounded panel matching the trend panel height, with internal scrolling and a persistent `更多...` link to the full transaction page. The panels stack on narrow screens.
 - Existing positive/negative colors and principal styling are retained. The supplied reference informs curve rendering and interaction only.
 - On wide screens, trend and latest ten trades occupy the left and right columns; the two distribution panels follow. At widths up to 1100px, these panels stack. Tabs and controls fit narrow layouts and have at least 44px tap height.
+
+Changes to these daily-change calculation and chart contracts require an explicit user request. Keep this specification, [API semantics](../api.md#dashboard-read-api), and the focused `verify:dashboard` / `verify:portfolio-trend` checks aligned; commands are maintained in [local testing](../local-testing.md#validation).
 
 ## Account Detail
 
@@ -35,11 +39,7 @@ Status: maintained product contract. Dated implementation, deployment, and visua
 - Current holdings already include cash. Do not render a separate cash-balance table. Place recent transactions below holdings in a full-width panel; keep data tables horizontally scrollable on narrow screens.
 - Remove the holdings table's `数据提示` column. Collect deduplicated holding, valuation, snapshot, and principal-FX warnings at the bottom, including negative positions/balances and relevant instrument, currency, date, and reason. Preserve estimated-price markers, price dates, and sources in the price column.
 
-## Shared Back Navigation
-
-- All existing page-level return-to-parent links use the shared `PageBackLink` component: a small left arrow followed by the destination name, muted text, no button border, background, or shadow.
-- Place the link above the page title and align its left edge with the title. Highlight its text on hover, retain a visible keyboard focus outline, and provide a minimum 44px click/tap area. The accessible name includes the return action.
-- Apply this pattern to account detail (`投资账户`), holding detail (`持仓总览`), and password recovery (`登录`). Preserve each destination route. Dedicated actions such as `返回编辑` remain action buttons.
+Shared navigation and responsive conventions follow [frontend guidelines](../frontend-guidelines.md), including the [shared back-navigation pattern](../frontend-guidelines.md#shared-back-navigation).
 
 ## Distributions
 
@@ -52,10 +52,11 @@ Status: maintained product contract. Dated implementation, deployment, and visua
 - Viewer and admin can query investment snapshots by date and reporting currency, refresh, and paginate in descending date order with twenty rows per page. The default snapshot date range remains three months, independently of the dashboard's one-year default.
 - Columns are snapshot date, net assets, change from the previous persisted snapshot, change percentage, and data status. Explain that net-value movement includes funding and is not investment profit.
 - Optional snapshot API pagination/comparison parameters preserve legacy behavior when absent. Comparisons are keyed by snapshot ID and use the previous persisted snapshot in the same scope, including predecessors outside the page or date filter. Each snapshot uses its own saved FX. Missing values yield unavailable comparisons; non-positive predecessor assets yield an unavailable percentage.
-- The 2026-10-08 snapshot-maintenance scope adds no database tables, migrations, historical rebuild, snapshot editing, or repair controls. Subsequent loading-performance work is a separate scope.
+
+The original implementation boundary is recorded with the [2026-10-08 release](../releases/test-release-history.md#total-assets-daily-ratio-and-connected-live-curves-2026-10-08-108); it does not authorize future schema changes or repairs.
 
 ## Acceptance Criteria
 
 - Required example: investment 100, realized loss 20, and current unrealized gain 5 produce cumulative investment profit -15. Dashboard and holdings agree at the same inputs and quote time; date ranges and holdings filters do not change headline performance.
 - Focused checks cover principal flows, opening imports, closed positions, income/costs, multi-currency FX, missing inputs, empty/negative assets, gaps, live endpoints, sparse hover selection, and snapshot comparison boundaries. Run typecheck, build, and the documented related verification scripts.
-- Meaningful UI changes require authenticated visual checks at 320x740, 393x852, 430x932, 768x1024, and a desktop width, following the user-login procedure in AGENTS.md. Earlier acceptance applies only to the verified scope and version; report unperformed checks as pending or user-deferred.
+- Meaningful UI changes require [authenticated browser acceptance](../local-testing.md#authenticated-browser-acceptance), including all five viewports and the user-login handoff. Earlier acceptance applies only to the verified scope and version; report unperformed checks as pending or user-deferred.

@@ -62,7 +62,7 @@ Production uses the same sequence with the `:prod` suffix after creating a local
 
 This section documents the production schedule and retry policy.
 
-Scheduled jobs use EventBridge Scheduler, not EventBridge Rules, so cron expressions are evaluated in the configured timezone instead of being hand-converted to UTC. The default timezone is `Asia/Shanghai`.
+Scheduled jobs use EventBridge Scheduler, not EventBridge Rules, so cron expressions are evaluated in the configured timezone instead of being hand-converted to UTC. The default timezone is `Asia/Shanghai`. Shared instant/calendar/business-date conventions are maintained in the [time policy](time-policy.md).
 
 Configure the FX update Lambda handler exported as `updateFxRates` from `apps/jobs` with:
 

@@ -1,6 +1,6 @@
 # Rules Cleanup: Adopted Policy Decisions
 
-Approved by the user on 2026-10-27. All seven decisions below are active through [AGENTS.md](../../AGENTS.md) and [Project Workflow](../project-workflow.md). This record supersedes the former pending proposals. Business contracts, the routine `test` branch, deployment mechanisms, and login/viewport requirements remain in place. SuperPowers is not enabled.
+Approved by the user on 2026-10-27. All seven decisions below are active through [AGENTS.md](../../AGENTS.md) and [Project Workflow](../project-workflow.md). This record supersedes the former pending proposals. Business contracts, the routine `test` branch, deployment mechanisms, and login/viewport requirements remain in place. Superpowers was not enabled during this preparation stage; [subsequent authorized adoption](#subsequent-authorized-adoption-2026-10-27) records its later activation and current operating guidance.
 
 | Topic | Adopted decision |
 | --- | --- |

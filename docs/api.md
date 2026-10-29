@@ -12,7 +12,9 @@ Entry fields: `entryDate`, `entryType`, `currency`, positive exact decimal strin
 
 Default account/transaction listings hide legacy education accounts. Old education rows remain available for historical inspection but cannot be changed through account, transaction, or linked settlement write paths. New education-purpose bank/investment accounts cannot be created. Investment holdings and monthly investment summaries filter investment-purpose accounts; default portfolio snapshot API output does likewise. Education records never write investment business tables.
 
-The Lambda API returns a consistent JSON shape.
+## Response contract
+
+The Lambda API returns a consistent JSON shape. Identity and authorization follow [Auth](auth.md#enforcement) and the endpoint-specific permissions below, including documented viewer exceptions. Never expose secrets or internal stack traces in responses.
 
 Success:
 

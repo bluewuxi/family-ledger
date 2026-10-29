@@ -124,6 +124,10 @@ Admin users can also manage existing Auth users from Settings. User creation rem
 
 Use real Supabase Auth for browser verification. Obtain the user's agreement, provide the local URL, and wait for their login and target-page confirmation before inspecting authenticated pages. Keep both local auth-bypass flags disabled in the API/web processes and local environment files. Existing bypass sessions and mockups do not satisfy authenticated visual acceptance.
 
+Authenticated pages require login. Do not repeatedly try to bypass login or directly open protected pages before the user's target-page confirmation. Use `http://127.0.0.1:5181` unless occupied; see the startup sections above for the local API/web commands.
+
+For meaningful frontend changes, check `320x740`, `393x852`, `430x932`, `768x1024`, and a desktop width. Follow [frontend guidelines](frontend-guidelines.md) and the affected product specification's acceptance criteria. Report implementation, deployment, and visual acceptance separately under [completion reporting](project-workflow.md#completion-reporting). User-deferred visual acceptance does not block reporting implementation/deployment completion, but remains pending and must never be claimed as passed. Builds, deployment checks, mockups, and subagent reports do not substitute for authenticated visual acceptance.
+
 If the standard ports are occupied, start a separate API/web pair with authentication still enabled. In the API terminal:
 
 ```powershell
@@ -178,6 +182,8 @@ Cause: the Auth user has no active application role, or has `viewer` when attemp
 Check `public.user_roles` in the test project and assign the intended active role.
 
 ## Validation
+
+Dashboard and shared investment valuation changes require the applicable `corepack pnpm verify:dashboard` and `corepack pnpm verify:portfolio-trend` checks. Their protected behavior is defined in [investment overview](specs/investment-overview.md#dashboard-composition-and-trends); date/time changes also follow [time policy](time-policy.md#verification).
 
 Snapshot/profit regression checks:
 

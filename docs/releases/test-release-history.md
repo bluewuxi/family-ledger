@@ -1,6 +1,6 @@
 # Historical TEST Releases
 
-This record preserves release evidence and one-time procedures from 2026-09-22 through 2026-10-26. Statements about environment contents, backup formats, permissions, and outstanding checks apply to their dated scope. Commands below are historical context, not a current deployment checklist or authorization to repeat a cutover. Use [current deployment guidance](../deployment.md), the [TEST contract](../test-auto-deployment.md), and [project workflow](../project-workflow.md) for new operations.
+This record preserves release evidence and one-time procedures from 2026-09-06 through 2026-10-26. Statements about environment contents, backup formats, permissions, and outstanding checks apply to their dated scope. Commands below are historical context, not a current deployment checklist or authorization to repeat a cutover. Use [current deployment guidance](../deployment.md), the [TEST contract](../test-auto-deployment.md), and [project workflow](../project-workflow.md) for new operations.
 
 ## Automatic TEST delivery commissioning (2026-10-26)
 
@@ -16,9 +16,11 @@ Applied `202610120002_single_account_opening_balance.sql` after confirming no ex
 
 ## Total-assets daily ratio and connected live curves (2026-10-08, #108)
 
+Historical implementation boundary from the [investment overview specification](../specs/investment-overview.md): the 2026-10-08 snapshot-maintenance scope added no database tables, migrations, historical rebuild, snapshot editing, or repair controls. Subsequent loading-performance work was a separate scope.
+
 Implementation commit `6511c76` was pushed to `test`. The reviewed change set had no deletions or replacements; scheduler changes were target dependency references without schedule-expression changes. The change set was executed directly, CloudFormation reached `UPDATE_COMPLETE`, API Lambda was active with a successful update, web deployment succeeded, and CloudFront invalidation completed.
 
-Daily movement eligibility is unchanged, but its percentage now divides by current total investment assets, including cash and instruments excluded from the numerator. Both trend tabs use connected color-aware curve series for the live endpoint; regression fixtures cover same-day saved close/live pairs, zero crossings, and actual gaps. Durable contracts are recorded in AGENTS.md, the API documentation, and the investment overview specification. This supersedes the denominator introduced in #107.
+Daily movement eligibility is unchanged, but its percentage now divides by current total investment assets, including cash and instruments excluded from the numerator. Both trend tabs use connected color-aware curve series for the live endpoint; regression fixtures cover same-day saved close/live pairs, zero crossings, and actual gaps. At delivery these contracts were recorded in AGENTS.md, the API documentation, and the investment overview specification; their current maintained owners are the [investment overview specification](../specs/investment-overview.md#dashboard-composition-and-trends) and [API documentation](../api.md#dashboard-read-api). This supersedes the denominator introduced in #107.
 
 Typecheck, full build, dashboard, portfolio-trend, time-policy, and database-readiness checks passed. A server-side diagnostic using test data returned total assets CNY `5201534.46`, daily movement `35340.28`, and the corrected percentage `0.68`; quotes can change between diagnostic runs. Live HTML/runtime configuration and all six entry assets matched the local test build. API health returned HTTP 200, and unauthenticated dashboard requests returned HTTP 401. Authenticated responsive visual checks remain deferred at the user's earlier request; chart verification here is fixture-based, not browser visual acceptance.
 
@@ -55,6 +57,8 @@ Production deployment uses SAM/CloudFormation templates under `infra/aws` when e
 The initial additive account-purpose/header/view migration was applied to the test database. All 119 snapshots (2026-05-22 through 2026-09-21) passed exact USD, percentage, FX, metadata, timestamp and warning-multiset comparison in one read-only repeatable-read transaction. All 952 account snapshot rows had headers. No empty snapshots or populated legacy NZD aggregate columns existed in this dataset. A rolled-back source metadata update verified header synchronization. The original aggregate table and writer remained in place during this phase.
 
 ### Test cutover completed — 2026-09-23
+
+The staged rollout first kept synchronized headers and `portfolio_snapshots_v` alongside the original table, then performed the separately verified cutover below. This summary was relocated from the architecture document; it records the original rollout, not a new operation.
 
 After a five-hour pause, fresh verification included the newly written 2026-09-22 snapshot: all 120 snapshots and 960 account rows passed exact parity. A new ledger backup and public-schema archive were taken and validated; the archive was restored and the cutover rehearsed locally before applying it to test. Compatible API/jobs/web code was deployed first, with the destructive migration released separately.
 
@@ -188,3 +192,7 @@ Local authenticated account-detail refinements were reviewed with the user. Full
 Issue #111 deployed `d609ea8` to test. GET RPC array parameters are explicitly serialized to JSON so the installed JSONB batch-price function no longer rejects a PostgreSQL array literal with `22P02`. Local transaction balance retry recovered while preserving the open edit form.
 
 Real test-database GET RPC, loading, holdings, transaction-table, typecheck and build checks passed. The reviewed change set had no deletions or replacements, the stack reached `UPDATE_COMPLETE`, and web publication/CloudFront invalidation completed. Authenticated deployed cached holdings, dashboard and account totals returned successful results using temporary test sessions that were closed locally afterward. No email, schema change, financial record mutation or production deployment occurred.
+
+## FundRock date repair (2026-09-06)
+
+Historical evidence relocated from the data model: after a full ledger backup, TEST history repair corrected 27 transposed FundRock dates and rebuilt 107 daily snapshots from 2026-05-22 through 2026-09-05. Uncollected prices from failed provider runs were not fabricated; valuations carried the latest stored published price. This records the original repair and is not authorization to repeat it.
