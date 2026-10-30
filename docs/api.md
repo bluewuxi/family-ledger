@@ -1048,7 +1048,7 @@ The API emits `api-diagnostic` JSON inside the existing Lambda text format. INFO
 
 ## Snapshot scope compatibility limitation
 
-The intended compatibility contract keeps `snapshots` scoped by the explicit purpose, or all accounts when omitted; optional `trend` is investment-only. A known unresolved optimization in non-paginated `includeTrend=true` requests with omitted purpose instead returns investment-only snapshots. Pagination takes a different path. Callers requiring investment scope should pass `purpose=investment` explicitly. This documentation does not fix the option-dependent behavior; see [G2](plans/2026-10-30-rules-review-and-remediation.md#g2--snapshot-option-independent-scope-open-p2).
+The intended compatibility contract keeps `snapshots` scoped by the explicit purpose, or all accounts when omitted; optional `trend` is investment-only. The local G2 fix restricts the investment-history optimization to explicit `purpose=investment`. With omitted purpose, snapshot rows retain all-account scope while the optional trend is built independently from investment history. Pagination/comparison flags preserve that scope. This fix is not yet deployed; the prior deployed optimization may still return investment-only snapshots for non-paginated trend requests with omitted purpose. Investment-facing callers should continue to pass `purpose=investment` explicitly. See [G2](plans/2026-10-30-rules-review-and-remediation.md#g2--snapshot-option-independent-scope-open-p2).
 
 ## Write retries
 

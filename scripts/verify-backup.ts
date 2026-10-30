@@ -38,6 +38,7 @@ async function main(): Promise<void> {
 
 async function runSelfTests(): Promise<void> {
   const rows = sampleBackupRows();
+  assert.throws(() => createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: { ...rows, transactions: [{ gross_amount: 12345678901234.123 }] } }), /decimal string/);
   const backupObject = createLedgerBackupObject({
     environment: "test",
     generatedAt: "2026-05-29T01:00:00.000Z",
@@ -45,7 +46,29 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 7);
+  assert.equal(backupObject.payload.manifest.version, 8);
+  const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
+  const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
+  assert.equal((prepareLedgerRestoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
+  const v7 = structuredClone(exact.payload); v7.manifest.version = 7;
+  (v7.tables.transactions[0] as Record<string, unknown>).gross_amount = 123.5;
+  const rehash = (payload: LedgerBackupPayload) => {
+    const hash = (value: unknown) => createHash("sha256").update(stableStringify(value)).digest("hex");
+    for (const table of payload.manifest.tables) table.checksumSha256 = hash(payload.tables[table.name]);
+    const { payloadChecksumSha256: _p, fileChecksumSha256: _f, ...manifest } = payload.manifest;
+    payload.manifest.payloadChecksumSha256 = hash({ manifest, tables: payload.tables });
+    payload.manifest.fileChecksumSha256 = hash({ manifest: { ...manifest, payloadChecksumSha256: payload.manifest.payloadChecksumSha256 }, tables: payload.tables });
+  };
+  const legacyShape = structuredClone(exact.payload);
+  legacyShape.manifest.tables = legacyShape.manifest.tables.map(t => t.name === "portfolio_snapshot_headers" ? { ...t, name: "portfolio_snapshots" } : t);
+  legacyShape.manifest.tableOrder = legacyShape.manifest.tableOrder.map(t => t === "portfolio_snapshot_headers" ? "portfolio_snapshots" : t);
+  legacyShape.tables.portfolio_snapshots = legacyShape.tables.portfolio_snapshot_headers;
+  delete (legacyShape.tables as Partial<LedgerBackupRows>).portfolio_snapshot_headers;
+  rehash(legacyShape);
+  assert.throws(() => validateLedgerBackupPayload(legacyShape), /table list/);
+  rehash(v7); validateLedgerBackupPayload(v7);
+  v7.manifest.version = 8; rehash(v7);
+  assert.throws(() => validateLedgerBackupPayload(v7), /decimal string/);
   const version5 = structuredClone(backupObject.payload);
   version5.manifest.version = 5;
   const educationTables = ["education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];

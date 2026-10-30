@@ -1,10 +1,11 @@
+import { validateBackupFinancialValues } from "./backupFinancialValues";
 import { accountLast4, sanitizeSpendingMetadata } from "@family-ledger/shared";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 7;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261007130000_kernel_nta_target_configuration";
+export const LEDGER_BACKUP_VERSION = 8;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261031090000_lossless_ledger_backup";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -22,7 +23,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -57,6 +58,7 @@ export function createLedgerBackupObject(input: {
   rows: LedgerBackupRows;
 }): LedgerBackupObject {
   const legacy = Array.isArray(input.rows.portfolio_snapshots);
+  if (!legacy) validateBackupFinancialValues(input.rows);
   const tableDefinitions = LEDGER_BACKUP_TABLES.filter((table) => !legacy || ![
     "spending_accounts",
     "account_statements",
@@ -145,7 +147,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -176,7 +178,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
     .filter((name) => payload.manifest.version >= 6 || !["education_reserve_funds", "education_reserve_entries"].includes(name));
   const manifestTableNames = payload.manifest.tables.map((table) => table.name);
   const legacyTableNames = currentTableNames.map((name) => name === "portfolio_snapshot_headers" ? "portfolio_snapshots" : name);
-  const acceptsLegacySnapshots = JSON.stringify(manifestTableNames) === JSON.stringify(legacyTableNames);
+  const acceptsLegacySnapshots = payload.manifest.version < 8 && JSON.stringify(manifestTableNames) === JSON.stringify(legacyTableNames);
   const expectedTableNames = acceptsLegacySnapshots ? legacyTableNames : currentTableNames;
   const payloadTableNames = Object.keys(payload.tables).sort();
   const sortedExpectedTableNames = [...expectedTableNames].sort();
@@ -193,6 +195,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
     throw new Error("Backup table order does not match the expected ledger tables.");
   }
 
+  if (payload.manifest.version >= 8) validateBackupFinancialValues(payload.tables);
   let totalRows = 0;
 
   for (const table of payload.manifest.tables) {

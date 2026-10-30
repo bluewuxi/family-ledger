@@ -345,3 +345,11 @@ Classify by behavior, not command name. Local ports do not isolate the shared TE
 | Operator mutation | apply-schema scripts, repair apply/fix, role SQL, manual backup, deploy/bootstrap/register | Separate applicable authorization, reviewed target/backup, existing locks and verification |
 
 Schema application is never an implicit prerequisite to running routine checks against shared TEST. Read repair command examples as operator references requiring explicit authorization; reviewing a dry-run alone does not grant it. Push scope covers configured automatic deployment checks, not arbitrary live smoke mutations. For operations follow [Project Workflow](project-workflow.md#delivery-scope-and-workflow) and the [TEST contract](test-auto-deployment.md).
+
+## Backup precision verification
+
+Run `corepack pnpm verify:backup` and `corepack pnpm verify:backup-precision-db` for format-8 changes. The DB check uses only a disposable loopback cluster and synthetic records, not project credentials. It validates the new migration/RPC path and exact numeric round-trip; it is not a full ledger restore rehearsal.
+
+Snapshot scope regression is included in `corepack pnpm verify:portfolio-trend`. It injects synthetic service reads, covers omitted/investment/daily-expense/legacy-education scopes with trend/pagination/comparison flags, ordering/latest limits and cache bypass, and performs no live reads or writes. `corepack pnpm verify:loading` separately verifies history-cache identity, deduplication and invalidation.
+
+For the current-format full-schema/full-table synthetic recovery rehearsal, run `corepack pnpm verify:backup-restore-db`. It uses two databases in a temporary loopback PostgreSQL cluster, real migrations and exporter, gzip/CLI decoding, exact re-export equality, Auth dependency rejection and late-failure rollback. It performs no cloud or shared TEST access; external recovery dependencies remain separately unverified.

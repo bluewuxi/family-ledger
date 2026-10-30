@@ -6,6 +6,7 @@ import { buildColorSplitProfitChartData, buildColorSplitTrendChartData } from ".
 import { convertSnapshotAmount } from "@family-ledger/shared";
 import type { ExchangeRateRecord, InvestmentTransaction, PortfolioSnapshotSummary } from "@family-ledger/shared";
 import {
+  getPortfolioSnapshotsResponse,
   paginateSnapshotHistory,
   buildPortfolioTrend,
   buildSampledPortfolioPoints,
@@ -41,6 +42,7 @@ const snapshots: PortfolioSnapshotSummary[] = [
 void main();
 
 async function main(): Promise<void> {
+  await verifySnapshotScope();
   const liveCurve = buildTrendChartData([
     {date:"2026-10-06",portfolioValue:120,totalInvestment:100},
     {date:"2026-10-07",portfolioValue:110,totalInvestment:100}
@@ -327,3 +329,40 @@ assert.ok(weeklyHover.has(hoverFixture[89]!.date));
 assert.equal(selectTrendHoverDates(hoverFixture, "1y").size, 4);
 assert.equal(selectTrendHoverDates([{ date: "2026-04-01", value: 0, snapshotValue: null, liveValue: null, totalInvestment: 0 }], "1y").size, 0);
 assert.ok(selectTrendHoverDates([{ date: "2026-04-01", value: 10, snapshotValue: null, liveValue: 10, totalInvestment: 0, isSynthetic: true }], "1y").has("2026-04-01"));
+
+async function verifySnapshotScope(): Promise<void> {
+  const days = ["2026-05-01", "2026-05-02", "2026-05-03"];
+  const rows = (purpose?: string) => days.map(day => snapshot(day, purpose === "investment" ? "100" : purpose === "daily_expense" ? "20" : purpose === "education" ? "5" : "125"));
+  const calls: string[] = [];
+  const trend = await buildPortfolioTrend({ currency: "USD", range: "1m", today: days[2], snapshots: rows("investment"), principalTransactions: [], exactFxRates: [] });
+  const dependencies: NonNullable<Parameters<typeof getPortfolioSnapshotsResponse>[1]> = {
+    listPortfolioSnapshots: async input => {
+      calls.push(input.purpose ?? "all");
+      let result = rows(input.purpose).filter(row => row.snapshotDate >= input.from && row.snapshotDate <= input.to);
+      if(input.order === "desc") result.reverse();
+      return input.limit === undefined ? result : result.slice(0,input.limit);
+    },
+    loadPortfolioHistory: async (_user, _currency, _to, bypass) => { calls.push(bypass ? "raw-bypass" : "raw-cache"); return { snapshots: rows("investment"), principalTransactions: [] }; },
+    buildPortfolioTrend: async input => { assert(!input.snapshots || input.snapshots.every(row => row.marketValue === "100")); return trend; }
+  };
+  for(const purpose of [undefined,"investment","daily_expense","education"]) {
+    for(const bypassCache of [undefined,"true"]) {
+      const input = { from: days[0], to: days[2], currency: "USD", purpose, bypassCache };
+      const plain = await getPortfolioSnapshotsResponse(input,dependencies);
+      for(const flags of [{includeTrend:"true"},{offset:"0"},{includeComparison:"true"},{offset:"0",includeTrend:"true",includeComparison:"true"}]) {
+        const response = await getPortfolioSnapshotsResponse({...input,...flags},dependencies);
+        assert.deepEqual(response.snapshots,plain.snapshots, "scope changed");
+        if(flags.includeTrend) assert.deepEqual(response.trend,trend);
+      }
+      const page = await getPortfolioSnapshotsResponse({...input,from:days[1],order:"desc",limit:"1",offset:"1",includeTrend:"true",includeComparison:"true"},dependencies);
+      assert.equal(page.snapshots[0]?.snapshotDate,days[1]);
+      assert.equal(page.comparisons?.[page.snapshots[0]!.id]?.previousSnapshotDate,days[0]);
+      const latest = await getPortfolioSnapshotsResponse({to:days[2],currency:"USD",purpose,order:"desc",limit:"1",includeTrend:"true",bypassCache},dependencies);
+      assert.equal(latest.snapshots[0]?.snapshotDate,days[2]);
+    }
+  }
+  assert(calls.includes("raw-cache") && calls.includes("raw-bypass"));
+  const defaults = await getPortfolioSnapshotsResponse({currency:"USD",includeTrend:"true"},dependencies);
+  assert.deepEqual(defaults.snapshots,[]);
+  await assert.rejects(getPortfolioSnapshotsResponse({currency:"USD",purpose:"invalid"},dependencies));
+}

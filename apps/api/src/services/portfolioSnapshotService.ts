@@ -69,26 +69,26 @@ export async function getPortfolioSnapshotsResponse(input: {
   includeComparison?: string;
   trendRange?: string;
   user?: AuthenticatedUser;
-}): Promise<PortfolioSnapshotsResponse> {
+}, dependencies = { listPortfolioSnapshots, loadPortfolioHistory, buildPortfolioTrend }): Promise<PortfolioSnapshotsResponse> {
   const query = await resolveSnapshotQuery(input);
   const includeComparison = optionalBoolean("includeComparison", input.includeComparison);
   const paginated = input.offset !== undefined || includeComparison;
-  if (!paginated && optionalBoolean("includeTrend", input.includeTrend) && (!input.purpose || input.purpose === "investment")) {
-    const history = await loadPortfolioHistory(input.user?.id, query.currency, query.to, optionalBoolean("bypassCache", input.bypassCache));
+  if (!paginated && optionalBoolean("includeTrend", input.includeTrend) && input.purpose === "investment") {
+    const history = await dependencies.loadPortfolioHistory(input.user?.id, query.currency, query.to, optionalBoolean("bypassCache", input.bypassCache));
     const snapshots = history.snapshots.filter(snapshot => snapshot.snapshotDate >= query.from && snapshot.snapshotDate <= query.to);
     if (query.order === "desc") snapshots.reverse();
     return { snapshots: query.limit === undefined ? snapshots : snapshots.slice(0, query.limit),
-      trend: await buildPortfolioTrend({ currency: query.currency, range: optionalTrendRange(input.trendRange), today: query.to,
+      trend: await dependencies.buildPortfolioTrend({ currency: query.currency, range: optionalTrendRange(input.trendRange), today: query.to,
         snapshots: history.snapshots, principalTransactions: history.principalTransactions }) };
   }
   let result: PortfolioSnapshotsResponse;
   if (paginated) {
     const offset = input.offset === undefined ? 0 : Number(input.offset);
     if (!Number.isSafeInteger(offset) || offset < 0) throw new ApiRequestError("VALIDATION_ERROR", "offset must be a non-negative integer.", 400);
-    const history = await listPortfolioSnapshots({ from: earliestDate, to: query.to, currency: query.currency, order: "asc", purpose: optionalAccountPurpose(input.purpose) });
+    const history = await dependencies.listPortfolioSnapshots({ from: earliestDate, to: query.to, currency: query.currency, order: "asc", purpose: optionalAccountPurpose(input.purpose) });
     result = paginateSnapshotHistory(history, { ...query, offset, limit: query.limit ?? 20 }, includeComparison);
   } else {
-    result = { snapshots: await listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) }) };
+    result = { snapshots: await dependencies.listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) }) };
   }
 
   if (!optionalBoolean("includeTrend", input.includeTrend)) {
@@ -97,7 +97,7 @@ export async function getPortfolioSnapshotsResponse(input: {
 
   return {
     ...result,
-    trend: await buildPortfolioTrend({
+    trend: await dependencies.buildPortfolioTrend({
       currency: query.currency,
       range: optionalTrendRange(input.trendRange),
       today: query.to, userId: input.user?.id, bypassCache: optionalBoolean("bypassCache", input.bypassCache)

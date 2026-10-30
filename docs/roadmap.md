@@ -125,9 +125,9 @@ Deployed to TEST under #110 from `a38f899`; focused verification, typecheck/buil
 
 The [review/remediation plan](plans/2026-10-30-rules-review-and-remediation.md#implementation-gap-register-retained-in-this-plan-outside-tasks-1-6) retains these items outside completed documentation work:
 
-- G1 (P1, open): lossless serialization of all financial numeric backup fields before JavaScript decoding; versioned writer/reader compatibility and exact database round-trip verification required.
-- G2 (P2, open): snapshot membership currently changes on the omitted-purpose trend fast path. Preserve all-account default compatibility and investment-only trend while making flags scope-independent.
-- G3 (open evidence verification): reconcile historical rehearsal evidence with current-format complete restore requirements; file validation is not restoration proof.
-- G4 (proposed hardening): define extra-password attempt budget/cooldown/scope/recovery and durable enforcement before claiming abuse protection. Existing role/scrypt checks remain; no global lockout has been implemented.
+- G1 (P1, implemented locally; migration/deployment pending): lossless serialization of all financial numeric backup fields before JavaScript decoding; versioned writer/reader compatibility and exact database round-trip verification required.
+- G2 (P2, implemented locally; deployment pending): the investment cached fast path now requires explicit investment purpose. Omitted-purpose snapshots keep all-account scope, and trends remain investment-only. Synthetic service regression covers trend/pagination/comparison flags, explicit scopes, latest ordering and cache bypass.
+- G3 (local synthetic verification complete; external operator evidence pending): current version-8 recovery verified through all real migrations and all 21 nonempty backup tables, actual gzip/dry-run/transactional load, exact re-export equality, Auth dependency rejection and late-failure rollback. Real S3/Auth/SSM recovery is not established by this fixture.
+- G4 (deferred by user pending major Auth redesign): define extra-password attempt budget/cooldown/scope/recovery and durable enforcement before claiming abuse protection. Existing role/scrypt checks remain; no global lockout has been implemented.
 
-These items were not fixed, migrated, deployed, or verified against live data by the documentation remediation.
+The documentation remediation did not fix these items. Subsequent G1 local implementation adds version-8 numeric strings and isolated verification; no online migration or deployment has been performed. G2 is implemented locally with deployment pending; G3 has local synthetic recovery evidence, external operator checks remain pending, and G4 is deferred pending the Auth redesign.

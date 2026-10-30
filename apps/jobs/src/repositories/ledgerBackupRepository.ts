@@ -37,6 +37,9 @@ export async function exportLedgerTables(input: { excludedJobRunId?: string | nu
     throw new Error("Failed to export ledger backup snapshot.");
   }
 
+  if ((data as Record<string, unknown>).__financial_numeric_encoding !== "decimal-strings-v1") {
+    throw new Error("Backup exporter requires the lossless decimal migration.");
+  }
   return normalizeLedgerBackupRows(data);
 }
 

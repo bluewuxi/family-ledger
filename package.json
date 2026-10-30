@@ -55,6 +55,8 @@
     "verify:time-policy": "tsx scripts/verify-time-policy.ts",
     "verify:market-close-repair": "tsx scripts/verify-market-close-repair.ts",
     "verify:snapshot-audit": "tsx scripts/verify-test-snapshots.ts",
+    "verify:backup-restore-db": "tsx scripts/verify-backup-restore-db.ts",
+    "verify:backup-precision-db": "tsx scripts/verify-backup-precision-db.ts",
     "verify:backup": "tsx scripts/verify-backup.ts",
     "backfill:account-trading-passwords": "tsx scripts/backfill-account-trading-password-placeholders.ts",
     "repair:market-close-history": "tsx scripts/repair-market-close-history.ts",

@@ -1,0 +1,23 @@
+export const RESTORE_ORDER = [
+  "spending_accounts",
+  "account_statements",
+  "statement_rows",
+  "currencies",
+  "profiles",
+  "user_roles",
+  "investment_accounts",
+  "instruments",
+  "kernel_price_anchors", "kernel_nta_refresh_state",
+  "exchange_rates",
+  "transactions",
+  "education_reserve_funds",
+  "education_reserve_entries",
+  "instrument_prices",
+  "portfolio_snapshot_headers",
+  "portfolio_account_snapshots",
+  "dashboard_instrument_quotes",
+  "monthly_reviews",
+  "job_runs",
+  "data_provider_runs"
+] as const;
+
