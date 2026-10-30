@@ -58,5 +58,5 @@ The original implementation boundary is recorded with the [2026-10-08 release](.
 ## Acceptance Criteria
 
 - Required example: investment 100, realized loss 20, and current unrealized gain 5 produce cumulative investment profit -15. Dashboard and holdings agree at the same inputs and quote time; date ranges and holdings filters do not change headline performance.
-- Focused checks cover principal flows, opening imports, closed positions, income/costs, multi-currency FX, missing inputs, empty/negative assets, gaps, live endpoints, sparse hover selection, and snapshot comparison boundaries. Run typecheck, build, and the documented related verification scripts.
+- Focused checks cover principal flows, opening imports, closed positions, income/costs, multi-currency FX, missing inputs, empty/negative assets, gaps, live endpoints, every-valid-date hover selection, and snapshot comparison boundaries. Run typecheck, build, and the documented related verification scripts.
 - Meaningful UI changes require [authenticated browser acceptance](../local-testing.md#authenticated-browser-acceptance), including all five viewports and the user-login handoff. Earlier acceptance applies only to the verified scope and version; report unperformed checks as pending or user-deferred.

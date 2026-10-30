@@ -30,7 +30,7 @@ The Lambda checks for active batch jobs before export and again before S3 write.
 
 ## Exact Numeric Values
 
-Version 4 serializes spending amounts as strings. Version 5 also serializes Kernel anchor prices and proxy values as strings. Version 7 adds NTA metadata and pending Kernel snapshot refresh state. The compatibility `proxy_close` value is interpreted using `proxy_value_type`: published NTA for `nta`, historical open for `open`. Older backups restore absent metadata as `open`; restore actual anchor roots before derived references. These values must stay strings throughout verification and restore so JavaScript cannot truncate PostgreSQL `numeric` precision. Existing numeric values from older tables retain their established backup representation.
+Version 4 serializes spending amounts as strings. Version 5 also serializes Kernel anchor prices and proxy values as strings. Version 7 adds NTA metadata and pending Kernel snapshot refresh state. The compatibility `proxy_close` value is interpreted using `proxy_value_type`: published NTA for `nta`, historical open for `open`. Older backups restore absent metadata as `open`; restore actual anchor roots before derived references. These values must stay strings throughout verification and restore so JavaScript cannot truncate PostgreSQL `numeric` precision. Existing numeric values from older tables retain their established backup representation, including JSON numbers for several investment fields. The current bundle is not uniformly lossless: ordinary JavaScript numeric parsing may change high-significance decimals before checksums are generated. Converting an already-parsed number to a string cannot recover lost precision. This is open G1 in the [remediation plan](../plans/2026-10-30-rules-review-and-remediation.md#g1--lossless-backup-serialization-open-p1); no affected live backup has been established by this review.
 
 ## Storage
 
@@ -69,19 +69,19 @@ Before any real restore, run:
 corepack pnpm restore:backup:dry-run -- --file <backup.json.gz>
 ```
 
-The dry run validates checksums, table presence, duplicate primary keys, internal foreign-key relationships, restore order, and required external Supabase Auth user ids. In version 5, `kernel_price_anchors` is restored after instruments and before `instrument_prices`; each anchor must reference the seeded Kernel target and an external creator id.
+The dry run validates a file and can produce normalized output; it does not connect to or load a destination database, verify that Auth users exist there, or prove a successful restore. It validates checksums, table presence, duplicate primary keys, internal foreign-key relationships, restore order, and required external Supabase Auth user ids. In version 5, `kernel_price_anchors` is restored after instruments and before `instrument_prices`; each anchor must reference the seeded Kernel target and an external creator id.
 
 ## Restore Procedure
 
-For an empty isolated rehearsal database:
+For an empty isolated rehearsal database, retain the original backup unchanged. Record source format and target schema/code revisions before loading. `migrationHighWaterMark` is a code-defined format compatibility floor, not a complete source migration attestation; deployment approval uses the full manifest. Never replay migrations against a populated live database.
 
 1. Apply all Supabase migrations through at least the manifest's `migrationHighWaterMark`. Version 5 introduced `20261002090000_add_kernel_price_estimation.sql`; version 6 requires the education schema, and version 7 requires the Kernel NTA schema and target-configuration compatibility migration through `20261007130000_kernel_nta_target_configuration.sql`. Historical proxy-session alignment alone does not establish current-schema readiness.
 2. Recreate Supabase Auth users with matching UUIDs where possible. Otherwise prepare a reviewed mapping for profiles, roles, anchor creators, spending and education audit fields, and job trigger users.
 3. Run `verify:backup` and `restore:backup:dry-run` against the untouched backup file.
-4. Generate normalized rows with `restore:backup:dry-run -- --file <backup.json.gz> --output-tables <normalized-file.json>` and load them in the reported order. Restore snapshot headers and account rows; never insert into the derived `portfolio_snapshots` view.
+4. Generate normalized rows with `restore:backup:dry-run -- --file <backup.json.gz> --output-tables <normalized-file.json>` and load them in the reported dependency order in one transaction with required deferred/self-reference checks. Explicitly resolve schema-created singleton/seed rows and Auth mappings first; abort on unexpected conflicts rather than skipping rows. Restore snapshot headers and account rows; never insert into the derived `portfolio_snapshots` view.
 5. Preserve or remap retained statement S3 object versions separately. Database backups contain metadata, not PDF or CSV bytes.
 6. Recreate or reset SSM trading-password parameters separately; backups do not contain decrypted values.
-7. Run holdings, dashboard, market-data, Kernel estimation, snapshot, backup, typecheck, and build checks.
+7. Compare row identities/counts and exact financial values against a trustworthy source, verify foreign keys/roles, linked cash legs, snapshot structure, pending Kernel state, and expected holdings/valuation. A legacy numeric-only backup cannot prove source precision that was already lost. Run applicable focused checks and typecheck/build when validating changed restore code; these checks alone do not compare restored data. Preserve rehearsal evidence separately from a file dry-run.
 
 The test environment contains real family data. Rehearse restores only in an isolated database. Applying migrations or restoring data to test or production requires a separate authorized deployment operation.
 
@@ -90,3 +90,9 @@ The test environment contains real family data. Rehearse restores only in an iso
 Pre-version-4 backups are validated as originally saved. They restore only when legacy spending tables are empty; nonempty legacy records fail explicitly instead of being silently converted or discarded. Version-4 through version-7 spending rows use the redesigned schema, including nullable `statement_id` for manual rows and exact string amounts.
 
 CSV and PDF metadata includes exact retained S3 versions. Pending upload versions expire after seven days and are not permanent backup sources. Retained source copies survive undo and unlink, but the source bytes remain outside the ledger bundle.
+
+## Recovery evidence and operator cadence
+
+Single-statement consistency, checksums, original numeric fidelity, and successful restoration are separate guarantees. Earlier cutover rehearsals establish only their recorded schema/format scope; current-format full recovery evidence remains G3 pending reconciliation. Reuse compatible evidence before scheduling a new exercise. No live backup was inspected by this documentation work.
+
+Check backup status before authorized destructive repairs. Investigate when there has been no successful backup in 48 hours. Rehearse recovery at least quarterly and after format changes, using isolated targets and protected source files. This operator policy adds no automation or recovery-time guarantee and does not change 30-day retention. Real-backup access and live migration/restore operations require their applicable explicit scope.

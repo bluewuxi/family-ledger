@@ -1,13 +1,13 @@
 # Local Testing
 
-Transaction balance hotfix checks: run `corepack pnpm verify:transaction-table` for investment/daily-expense balances, explicit zero accounts, malformed responses, cash-configuration failures, and opening-balance create/edit rules. Run `corepack pnpm exec tsx scripts/verify-opening-balance-db.ts` for the partial unique index in a disposable local PostgreSQL cluster. Apply the test-only migration with `corepack pnpm exec tsx scripts/apply-transaction-hotfix-schema.ts`; it stops if existing duplicate opening balances are found and never changes financial records.
-After deployment, run `corepack pnpm exec tsx scripts/smoke-transaction-hotfix-test.ts` to verify live authentication, viewer/admin balances, account-detail parity and duplicate-opening rejection. The installed unique index protects the duplicate probe; no financial records are changed. Temporary authentication sessions send no email and are signed out afterward.
+Transaction balance hotfix checks: run `corepack pnpm verify:transaction-table` for investment/daily-expense balances, explicit zero accounts, malformed responses, cash-configuration failures, and opening-balance create/edit rules. Run `corepack pnpm exec tsx scripts/verify-opening-balance-db.ts` for the partial unique index in a disposable local PostgreSQL cluster. Schema application is an operator operation requiring separate authorization; it is not part of routine verification.
+Only with explicit test-write authorization, `corepack pnpm exec tsx scripts/smoke-transaction-hotfix-test.ts` checks live authentication, viewer/admin balances, account-detail parity and duplicate-opening rejection after deployment. It sends a real duplicate-create request; rejection is expected, but the command is not read-only and cannot guarantee no mutation if protections regress. Prefer isolated verification. Temporary authentication sessions send no email and are signed out afterward.
 
 ## Education reserve acceptance
 
 Run `corepack pnpm verify:education-reserve`, `corepack pnpm verify:education-reserve-db`, `corepack pnpm verify:backup`, and existing spending/account-purpose/time checks before typecheck/build. The PostgreSQL verification creates an isolated temporary local database without using project credentials; it covers concurrent refunds, stale updates, legacy guards, exact values, RLS, combined reports, and rollback-only backup restoration.
 
-For browser acceptance, keep auth bypass disabled. Start the local API and web app at `http://127.0.0.1:5181`; ask the user to log in and confirm `/daily-expense` is ready before accessing authenticated pages. Verify 320x740, 393x852, 430x932, 768x1024, and desktop layouts, including filters, currency totals, manual entry drawer, pagination, daily spending filters, and the 收支查询 range buttons. Recording test payments against the connected test database requires an explicit test-data decision; responsive inspection itself is read-only.
+For browser acceptance, keep auth bypass disabled. Start the local API and web app at `http://127.0.0.1:5181`; ask the user to log in and confirm `/daily-expense` is ready before accessing authenticated pages. Verify layouts at the [five required viewports](#authenticated-browser-acceptance), including filters, currency totals, manual entry drawer, pagination, daily spending filters, and the 收支查询 range buttons. Recording test payments against the connected test database requires an explicit test-data decision; responsive inspection itself is read-only.
 
 Use this runbook when starting the app locally for browser testing against the configured test Supabase project.
 
@@ -126,7 +126,7 @@ Use real Supabase Auth for browser verification. Obtain the user's agreement, pr
 
 Authenticated pages require login. Do not repeatedly try to bypass login or directly open protected pages before the user's target-page confirmation. Use `http://127.0.0.1:5181` unless occupied; see the startup sections above for the local API/web commands.
 
-For meaningful frontend changes, check `320x740`, `393x852`, `430x932`, `768x1024`, and a desktop width. Follow [frontend guidelines](frontend-guidelines.md) and the affected product specification's acceptance criteria. Report implementation, deployment, and visual acceptance separately under [completion reporting](project-workflow.md#completion-reporting). User-deferred visual acceptance does not block reporting implementation/deployment completion, but remains pending and must never be claimed as passed. Builds, deployment checks, mockups, and subagent reports do not substitute for authenticated visual acceptance.
+For meaningful frontend changes, check `320x740`, `393x852`, `430x932`, `768x1024`, and a desktop viewport. Record the actual desktop width and height; `1440x1000` is the recommended repeatable baseline. Follow [frontend guidelines](frontend-guidelines.md) and the affected product specification's acceptance criteria. Report implementation, deployment, and visual acceptance separately under [completion reporting](project-workflow.md#completion-reporting). User-deferred visual acceptance does not block reporting implementation/deployment completion, but remains pending and must never be claimed as passed. Builds, deployment checks, mockups, and subagent reports do not substitute for authenticated visual acceptance.
 
 If the standard ports are occupied, start a separate API/web pair with authentication still enabled. In the API terminal:
 
@@ -266,7 +266,7 @@ The completed cutover was rehearsed by restoring a pre-cutover public-schema arc
 
 `corepack pnpm verify:dashboard-quote-timeout` checks both live providers without network calls: the real six-second deadline for a stalled first request, preservation of completed quotes when fetch or body reading times out, no new requests after expiry, and continued rejection of non-timeout HTTP/invalid-response errors. This complements `verify:dashboard`, which checks quote caching and stored-close fallback.
 
-Authenticated browser checks cover dashboard, account purpose selection/filtering, and both purpose pages at 320×740, 393×852, 430×932, 768×1024 and desktop. Let the user log in; inspect forms without saving changes to real accounts. All current purposes remain investment unless the user reclassifies an account.
+Authenticated browser checks cover dashboard, account purpose selection/filtering, and both purpose pages at the [five required viewports](#authenticated-browser-acceptance). Let the user log in; inspect forms without saving changes to real accounts. Inspect current purpose assignments without changing them; reclassification requires an explicit user decision.
 
 ## Spending imports (local)
 
@@ -274,12 +274,12 @@ Run `corepack pnpm verify:spending`, `verify:spending-db`, `verify:time-policy`,
 
 The web entry is `/daily-expense?tab=spending`; existing investment account flows remain at `?tab=accounts`. Verify upload/encoding retry, invalid rows, duplicate keep/skip, import confirmation/history/undo, manual entries, bulk tags/classification, multi-currency charts and drill-down. BNZ 01/02/26 must display 2026-02-01. Refunds reduce spending in their own transaction month; transfers/review remain excluded. Test fixtures only in an isolated environment.
 
-Start the normal local API and web app. The selected backend must have the new migration before functional testing; implementation does not apply live migrations. Keep authentication enabled. The user must log in and confirm the target page is ready before browser inspection. Check 320x740, 393x852, 430x932, 768x1024 and desktop; tables scroll while filters/drawers/actions fit.
+Start the normal local API and web app. The selected backend must have the new migration before functional testing; implementation does not apply live migrations. Keep authentication enabled. The user must log in and confirm the target page is ready before browser inspection. Check the [five required viewports](#authenticated-browser-acceptance); tables scroll while filters/drawers/actions fit.
 
 Actual storage checks require STATEMENT_BUCKET_NAME, its deployed lifecycle/CORS configuration, and PutObject/GetObject/GetObjectVersion permissions. CSV/PDF uploads use signed POSTs; confirmation copies validated versions to retained keys. No personal statements are uploaded for verification. Shared test schema/API must be released together; do not apply the breaking schema change solely to test an unreleased local UI against the old deployed API.
-The user requested skipping remaining authenticated UI/mobile checks for this release (2026-09-27) and will perform acceptance testing in test. Local desktop transaction view and manual-entry form opened successfully; mobile and populated chart/preview checks are not claimed.
+Historical acceptance scope is recorded in [local verification observations](releases/test-release-history.md#historical-local-verification-observations).
 
-Spending suffix/cancellation changes: run verify:spending, verify:spending-db, verify:backup, verify:time-policy, typecheck and build. Database verification uses an isolated local PostgreSQL instance with synthetic records, including legacy migration and cancel/commit concurrency. Authenticated UI acceptance must cover 320x740, 393x852, 430x932, 768x1024 and desktop after the user logs in: own/counterparty filters, literal description search, preview/history counts, cancellation, zero/last-page pagination, and horizontal table scrolling.
+Spending suffix/cancellation changes: run verify:spending, verify:spending-db, verify:backup, verify:time-policy, typecheck and build. Database verification uses an isolated local PostgreSQL instance with synthetic records, including legacy migration and cancel/commit concurrency. Authenticated UI acceptance must cover the [five required viewports](#authenticated-browser-acceptance) after the user logs in: own/counterparty filters, literal description search, preview/history counts, cancellation, zero/last-page pagination, and horizontal table scrolling.
 
 
 ### Transaction table regression checks
@@ -303,34 +303,45 @@ Family cashflow navigation acceptance: verify all three tabs, per-tab filter res
 
 UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. Released to test under #103 on 2026-10-06 after authenticated visual acceptance.
 
-## Cashflow UI visual acceptance — 2026-10-06
-
-Authenticated read-only checks covered daily spending, education, cashflow reports, and transactions at 320x740, 393x852, 430x932, 768x1024, and 1440x1000. Checked mobile navigation, page overflow, table scroll containers, the three entry drawers, footer/pagination, draft date application, empty results, scope switching, advanced filters, and linked cash-row expansion. No financial records were submitted, imported, edited, or deleted. Viewer-role and intentional server-failure scenarios were not exercised in this browser session.
-
-Fixed narrow-screen tab clipping, scope button wrapping, background leaf contrast, 24px mobile cash-row expansion buttons, empty-result pagination wording, and the transaction form hint grid span. Screenshots and layout measurements are retained locally in ignored `tmp/ui-visual-acceptance/`.
+Historical cashflow checks are recorded in [release evidence](releases/test-release-history.md#historical-local-verification-observations).
 
 ## Investment Overview Acceptance
 
 Run typecheck/build and verify:holdings, verify:dashboard, verify:dashboard-quote-timeout, verify:portfolio-trend, verify:portfolio-snapshots, verify:account-purposes, and verify:time-policy. Dashboard verification covers a sold loss followed by a new profitable position, fully closed positions, cash income/fees/tax, internal/external flows, opening entries, exact FX, and unavailable ratios. Trend verification covers snapshot comparison across pagination and filter boundaries. Time-policy verification covers independent live markers without fabricated midpoints and clamped calendar-month date defaults.
 
-For authenticated UI acceptance, obtain the user's agreement, start the local app at http://127.0.0.1:5181, and wait for the user to log in and confirm the target page. Check dashboard, holdings, and the data-maintenance asset-snapshot tab at 320x740, 393x852, 430x932, 768x1024, and desktop. Verify four main cards, fixed cumulative profit while changing ranges/filters, default period-profit view, no fetch on view-only toggles, complete price/FX status, horizontal tables, twenty-row snapshot pagination, and 44px controls. Do not bypass login.
+For authenticated UI acceptance, obtain the user's agreement, start the local app at http://127.0.0.1:5181, and wait for the user to log in and confirm the target page. Check dashboard, holdings, and the data-maintenance asset-snapshot tab at the [five required viewports](#authenticated-browser-acceptance). Verify four main cards, fixed cumulative profit while changing ranges/filters, default period-profit view, no fetch on view-only toggles, complete price/FX status, horizontal tables, twenty-row snapshot pagination, and 44px controls. Do not bypass login.
 
-Dashboard trend defaults to one year with profit/assets tabs. The complete curve is retained; hover nodes use daily selection for one month, weekly selection for intermediate ranges, and monthly selection for at least one year, including the first and latest valid points. Permanent markers are hidden. Desktop places recent trades beside the trend, with distributions below; narrow layouts stack these panels.
+Dashboard trend defaults to one year with profit/assets tabs. Preserve every stored curve point and allow tooltips on every valid dated point. Synthetic color crossings have no tooltip; retain real gaps and the connected live endpoint. Follow the [investment contract](specs/investment-overview.md#dashboard-composition-and-trends).
 
-Local dashboard visual checks passed on 2026-10-08 at 320x740, 393x852, 430x932, 768x1024, and desktop using the existing authenticated session. Verified one-year default, preserved range on tab changes, hidden permanent dots, selected-node tooltip, no tooltip on unselected dates, current-value tooltip, stacked narrow panels, 44px tabs, and no page-level horizontal overflow. Holdings and snapshot-tab visual acceptance from the broader investment overview remains separate.
+Historical acceptance scope is recorded in [local verification observations](releases/test-release-history.md#historical-local-verification-observations).
 
 ## API Error Tracking Verification
 
-After a test deployment, run `corepack pnpm exec tsx scripts/smoke-api-errors-test.ts` for live API health, admin/viewer authorization, CloudWatch observation, summaries and event-detail reads. It creates temporary test authentication sessions without sending email and signs out only those sessions. It saves newly observed event metadata but does not edit handling states or financial records.
+With authorization covering temporary Auth sessions and operational observation writes, `corepack pnpm exec tsx scripts/smoke-api-errors-test.ts` checks live API health, admin/viewer authorization, CloudWatch observation, summaries and event-detail reads after TEST deployment. It creates temporary test authentication sessions without sending email and signs out only those sessions. It saves newly observed event metadata but does not edit handling states or financial records. It is not a read-only check or browser acceptance.
 
 Run `corepack pnpm verify:api-error-logging` for diagnostic fields/causes, redaction, levels, request isolation, legacy ERROR parsing, query cursors, real route authorization and the unchanged role-query 500 response. SDK/auth responses are synthetic; no external account is used. Run `corepack pnpm verify:api-error-db` for the actual migration, concurrent deduplication, recurrence after resolution, old-event behavior, state editing, constraints and restricted database access in a disposable local PostgreSQL cluster. It never uses project database credentials. Set `POSTGRES_BIN` if PostgreSQL server tools are outside the default Windows installation or PATH.
 
-Also run typecheck/build, `verify:log-retention`, `verify:api-health`, `verify:dashboard-quote-timeout`, `verify:spending`, `verify:account-secrets`, and `sam validate --lint --template infra/aws/template.yaml --region <configured-region>`. The retention verification executes the actual inline handler with synthetic AWS/CloudFormation responses and performs no cloud mutation. After deployment, an admin can query new errors, continue every CloudWatch page, inspect original diagnostics, resolve a group and confirm genuine later recurrence reopens it. A viewer must not see the tab or access its endpoints. Inspect the table, filters, pagination and detail drawer at 320x740, 393x852, 430x932, 768x1024 and desktop after user login confirmation. The user deferred authenticated visual verification for the 2026-10-12 implementation; it is not claimed as passed.
+Also run typecheck/build, `verify:log-retention`, `verify:api-health`, `verify:dashboard-quote-timeout`, `verify:spending`, `verify:account-secrets`, and `sam validate --lint --template infra/aws/template.yaml --region <configured-region>`. The retention verification executes the actual inline handler with synthetic AWS/CloudFormation responses and performs no cloud mutation. After deployment, an admin can query new errors, continue every CloudWatch page, inspect original diagnostics, resolve a group and confirm genuine later recurrence reopens it. A viewer must not see the tab or access its endpoints. Inspect the table, filters, pagination and detail drawer at the [five required viewports](#authenticated-browser-acceptance) after user login confirmation. Historical deferral is recorded in [release evidence](releases/test-release-history.md#historical-local-verification-observations).
 
 ## Loading and Account Detail Verification (2026-10-12)
 
 Run `corepack pnpm verify:loading` for bounded read retries, cancellation, read deduplication, cache bypass, and user/write invalidation. Also run account-detail, account-secrets, dashboard, holdings, portfolio-trend, transaction-table, dashboard-quote-timeout, API-error-logging, typecheck, and build checks.
 
-The additive batch-price function is delivered in `202610120002_loading_performance.sql`. Apply it to test with `corepack pnpm exec tsx scripts/apply-loading-performance-schema.ts`; this verifies restricted execution privileges and reloads the PostgREST schema without changing financial rows.
+The additive batch-price function is delivered in `202610120002_loading_performance.sql`. Schema application is separately authorized operator work, not a validation step.
 
-Local account-detail browser checks covered chart range isolation and the revised navigation/layout. These checks do not establish authenticated visual acceptance for every affected page or a measured real-world speedup; no before/after percentage is claimed.
+Historical acceptance scope is recorded in [local verification observations](releases/test-release-history.md#historical-local-verification-observations).
+
+## Command effects
+
+Classify by behavior, not command name. Local ports do not isolate the shared TEST database. Existing authorization persists within its scope.
+
+| Class | Examples and effects | Boundary |
+| --- | --- | --- |
+| Local fixtures/build | Focused synthetic checks, typecheck/build | No live data/credentials |
+| Disposable PostgreSQL | spending/education DB checks, snapshot SQL fixtures | Isolated loopback database only |
+| Live reads/local output | snapshot audit, purpose read-path check, Kernel dry-run (may fetch providers) | Confirm TEST target; protect ignored output |
+| Live identity/operational writes | API-error smoke creates Auth sessions and persists observations | Scope must cover those effects; close only its sessions; not browser acceptance |
+| Attempted financial write | transaction-hotfix smoke sends duplicate-create probe | Expected rejection does not make it read-only; prefer isolated verification; requires applicable test-write authorization |
+| Operator mutation | apply-schema scripts, repair apply/fix, role SQL, manual backup, deploy/bootstrap/register | Separate applicable authorization, reviewed target/backup, existing locks and verification |
+
+Schema application is never an implicit prerequisite to running routine checks against shared TEST. Read repair command examples as operator references requiring explicit authorization; reviewing a dry-run alone does not grant it. Push scope covers configured automatic deployment checks, not arbitrary live smoke mutations. For operations follow [Project Workflow](project-workflow.md#delivery-scope-and-workflow) and the [TEST contract](test-auto-deployment.md).

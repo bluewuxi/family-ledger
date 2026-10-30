@@ -120,3 +120,14 @@ UI refinement: filters use draft values and explicit 查询/重置 actions. Appl
 Implemented cached-first valuation with explicit refresh, parallel quote providers and batch writes, batch latest-price candidates, staged accounts/transaction dependencies, shared instrument/history reads, and bounded future-JWT read recovery. Account detail now shows investment profit and dashboard-compatible trend tabs; range controls belong to the chart panel, cash remains in holdings, recent trades span the available width, and parent links share one component. Spec: [investment overview](specs/investment-overview.md).
 
 Deployed to TEST under #110 from `a38f899`; focused verification, typecheck/build, and live release checks passed. See the [release record](releases/test-release-history.md#staged-investment-loading-and-account-detail-release-2026-10-12). Full authenticated cross-page responsive acceptance and comparable real-world before/after latency measurements remain outstanding and must not be inferred from the local account-detail checks.
+
+## Open rules-review follow-ups
+
+The [review/remediation plan](plans/2026-10-30-rules-review-and-remediation.md#implementation-gap-register-retained-in-this-plan-outside-tasks-1-6) retains these items outside completed documentation work:
+
+- G1 (P1, open): lossless serialization of all financial numeric backup fields before JavaScript decoding; versioned writer/reader compatibility and exact database round-trip verification required.
+- G2 (P2, open): snapshot membership currently changes on the omitted-purpose trend fast path. Preserve all-account default compatibility and investment-only trend while making flags scope-independent.
+- G3 (open evidence verification): reconcile historical rehearsal evidence with current-format complete restore requirements; file validation is not restoration proof.
+- G4 (proposed hardening): define extra-password attempt budget/cooldown/scope/recovery and durable enforcement before claiming abuse protection. Existing role/scrypt checks remain; no global lockout has been implemented.
+
+These items were not fixed, migrated, deployed, or verified against live data by the documentation remediation.

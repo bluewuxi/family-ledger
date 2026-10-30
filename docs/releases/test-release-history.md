@@ -196,3 +196,21 @@ Real test-database GET RPC, loading, holdings, transaction-table, typecheck and 
 ## FundRock date repair (2026-09-06)
 
 Historical evidence relocated from the data model: after a full ledger backup, TEST history repair corrected 27 transposed FundRock dates and rebuilt 107 daily snapshots from 2026-05-22 through 2026-09-05. Uncollected prices from failed provider runs were not fabricated; valuations carried the latest stored published price. This records the original repair and is not authorization to repeat it.
+
+## Historical local verification observations
+
+Moved from the repeatable local-testing runbook on 2026-10-31. These observations retain their original scope and do not authorize or satisfy future acceptance. Relative scratch paths name historical local artifacts.
+
+The user requested skipping remaining authenticated UI/mobile checks for this release (2026-09-27) and will perform acceptance testing in test. Local desktop transaction view and manual-entry form opened successfully; mobile and populated chart/preview checks are not claimed.
+
+Local dashboard visual checks passed on 2026-10-08 at 320x740, 393x852, 430x932, 768x1024, and desktop using the existing authenticated session. Verified one-year default, preserved range on tab changes, hidden permanent dots, selected-node tooltip, no tooltip on unselected dates, current-value tooltip, stacked narrow panels, 44px tabs, and no page-level horizontal overflow. Holdings and snapshot-tab visual acceptance from the broader investment overview remains separate.
+
+For the 2026-10-12 loading/account-detail work, local account-detail browser checks covered chart range isolation and the revised navigation/layout. These checks do not establish authenticated visual acceptance for every affected page or a measured real-world speedup; no before/after percentage is claimed.
+
+### Cashflow UI visual acceptance — 2026-10-06
+
+Authenticated read-only checks covered daily spending, education, cashflow reports, and transactions at 320x740, 393x852, 430x932, 768x1024, and 1440x1000. Checked mobile navigation, page overflow, table scroll containers, the three entry drawers, footer/pagination, draft date application, empty results, scope switching, advanced filters, and linked cash-row expansion. No financial records were submitted, imported, edited, or deleted. Viewer-role and intentional server-failure scenarios were not exercised in this browser session.
+
+Fixed narrow-screen tab clipping, scope button wrapping, background leaf contrast, 24px mobile cash-row expansion buttons, empty-result pagination wording, and the transaction form hint grid span. Screenshots and layout measurements are retained locally in ignored `tmp/ui-visual-acceptance/`.
+
+For API Error Tracking on 2026-10-12, the user deferred authenticated visual verification; it is not claimed as passed.

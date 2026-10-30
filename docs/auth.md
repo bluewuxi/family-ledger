@@ -28,9 +28,14 @@ The expected number of users is no more than 3 family members. Complex RBAC, org
 
 Lambda API enforces permissions. Frontend role checks are UI hints only.
 
-- GET endpoints: `viewer` and `admin`
-- POST/PUT/PATCH/DELETE endpoints: `admin` only, except `PATCH /settings/preferences`, which lets each authenticated `viewer` or `admin` update their own display preferences, and `POST /accounts/:id/trading-password/reveal`, which is available to `viewer` and `admin` after the extra password check
-- maintenance/job endpoints: `admin` only
+Explicit endpoint permissions take precedence over HTTP-method defaults; see [API](api.md) for the endpoint contracts.
+
+- Public: `GET /health` only.
+- Active viewer/admin: ordinary ledger reads and sanitized data-source, anchor, FX, price, job-run and backup-status reads.
+- Admin only: user management, extra-password gate settings, error tracking (including GET), ledger mutations, and maintenance/job triggers.
+- Viewer exceptions: `PATCH /settings/preferences` updates only the caller's preferences; `POST /accounts/:id/trading-password/reveal` requires the initialized extra-password gate and a matching extra password for either role.
+
+Admin users cannot change their own access through the user-management endpoint. These application roles do not grant uniform direct database privileges; [RLS and grants](data-model.md#rls) remain table-specific.
 
 No active `user_roles` row means access denied. Admin users can pause/resume existing Supabase Auth users and maintain their `viewer` / `admin` role from the Settings page.
 
@@ -61,3 +66,7 @@ values ('<auth-user-id>', 'admin', true)
 on conflict (user_id)
 do update set role = excluded.role, is_active = true;
 ```
+
+## Secret boundaries
+
+Service keys, database credentials, signing material, and extra-password verifiers never enter client responses. Only the account trading password may be returned by the explicitly gated reveal endpoint; ordinary account DTOs, logs, backups, and persistent browser storage exclude it. API responses already use no-store headers. Extra-password throttling remains an [open hardening decision](roadmap.md#open-rules-review-follow-ups); no global lockout guarantee is made.

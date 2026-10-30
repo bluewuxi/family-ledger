@@ -192,11 +192,11 @@ Portfolio snapshots are durable but repairable daily valuation records generated
 - Each snapshot stores `usd_to_nzd_rate` and `usd_to_cny_rate` used at generation time so historical display values remain stable when later FX data changes.
 - API reads can display stored USD canonical amounts as `USD`, `NZD`, or `CNY`.
 - The data-maintenance `资产快照` tab compares each row's displayed `marketValue` with the previous persisted snapshot's displayed `marketValue` in the selected display currency. It does not use `dailyChange` or `dailyChangePct`, because those fields describe latest-price movement versus previous price inside a single snapshot valuation. Weekend or holiday snapshots are shown if they exist; changes may be zero or may reflect FX, cash, or other input changes.
-- Dashboard trend charts can request trend points from the snapshot API. Portfolio value uses every stored snapshot date in the selected range, including long ranges. Weekly/monthly selection limits interactive chart nodes only; it never removes curve data. Principal-event dates resolve against the full snapshot history. A carried snapshot is unavailable if any principal event occurred after its date and through the target date; this prevents deposits/withdrawals without a matching valuation from appearing as profit/loss. With no intervening principal event, targets can carry the latest previous snapshot and retain its actual `snapshotDate`.
+- Dashboard trend charts can request trend points from the snapshot API. Portfolio value uses every stored snapshot date in the selected range, including long ranges. Every valid dated point supports hover/touch; synthetic color crossings do not create tooltip dates. Principal-event dates resolve against the full snapshot history. A carried snapshot is unavailable if any principal event occurred after its date and through the target date; this prevents deposits/withdrawals without a matching valuation from appearing as profit/loss. With no intervening principal event, targets can carry the latest previous snapshot and retain its actual `snapshotDate`.
 - The default period-profit chart shows the change in `资产净值 - 累计净投入` since its first available point in the selected range. Missing valuations remain gaps; current valuation is an independent endpoint and no intermediate live values are fabricated. The dashboard defaults to one year and shares the selected range between its profit/assets tabs. Top-level cumulative profit is computed independently by the API from current investment assets minus all manual net principal through the app business date; it does not depend on chart sampling or range.
 - Current valuation is a distinct visible endpoint connected to its immediately preceding valid point under the [investment trend contract](specs/investment-overview.md#dashboard-composition-and-trends); it is not an isolated marker-only series. Decorative live midpoints are not generated. Historical gaps remain gaps.
 - The dashboard `累计净投入` line is derived from manual principal events only: `期初持仓`, `期初余额`, `入金`, and `出金`. Generated buy/sell/dividend cash legs, dividends, interest, fees, tax, and adjustments are excluded. Principal is converted with exact trade-date valuation FX into the selected display currency; missing FX is a data quality issue and makes the principal line and `投资盈利` unavailable until fixed.
-- The expected historical series includes every stored market-data price date on or after the first transaction date where required NZD and CNY valuation FX is available, plus existing snapshot dates. Operator repair may insert missing expected dates and rewrite mismatched derived values.
+- Historical audit/repair coverage includes existing snapshot dates plus every calendar date from the first transaction through the last completed app business date with NZD and CNY valuation rates available on or before that date, including weekends/month ends. This does not change scheduled cadence. Future prices and incomplete-day snapshots require inspection before repair; `--from` restricts writes, not the earlier inputs needed for calculation. Operator repair may insert missing expected dates and rewrite mismatched derived values.
 
 Snapshot generation uses as-of data:
 
@@ -286,7 +286,8 @@ Tax-specific tables are intentionally deferred until tax-assist requirements are
 RLS is enabled as a defensive layer.
 
 - Active `viewer` or `admin` users can read shared business tables.
-- Active `admin` users can write shared business tables.
+- Application admins mutate through Lambda. Direct privileges vary: legacy core-table policies are not a universal grant; spending/education revoke authenticated writes and use service-only mutation RPCs.
+- Error-tracking tables deny anon/authenticated access; Lambda authorizes those reads and writes as admin.
 - Lambda API remains the primary business authorization layer.
 - Frontend must not write business tables directly.
 
@@ -298,7 +299,7 @@ See [daily income/spending specification](specs/spending.md). The empty-table re
 
 Income/refund amounts are positive; spending is negative. Excluded/review rows do not enter income/spending totals. SQL aggregates exact decimal-string results over all filtered rows, independently by currency. There is no statement month, is_spending switch, original amount/currency, balance or reconciliation field.
 
-A partial unique index prevents the same account/source hash from being committed twice. Account locks serialize import commits, undo and row edits. Preview tokens and duplicate-count rechecks prevent stale/concurrent imports; imported source identities remain immutable. Undo preserves source/audit metadata. Manual rows have null statement_id and row_number. An account's format/currency/identity is immutable after use.
+A partial unique index prevents the same account/source hash from being committed twice. Account locks serialize import commits, undo and row edits. Preview tokens and duplicate-count rechecks prevent stale/concurrent imports; imported source identities remain immutable. Undo preserves source/audit metadata. Manual rows have null statement_id and row_number. Account format/currency/identity is locked by transaction rows or committed/undone/document batches. Pending-only corrections invalidate previews; see [spending](specs/spending.md#scope-and-model).
 
 Backup version 4 includes the new shapes and exports row amounts as strings. Older backups with empty spending tables restore without conversion; nonempty legacy spending tables are rejected. Source bytes remain in separately retained S3 versions. Viewer/admin access and API-only writes remain enforced.
 ### Spending suffix/cancellation additions (2026-10-01)
@@ -326,3 +327,5 @@ Migration `202610120001_api_error_tracking.sql` adds operational tables `api_err
 Account headline investment profit uses dashboard principal semantics scoped to the account and valuation business date. Missing historical principal FX makes profit unavailable independently of available asset values. Position unrealized calculations are unchanged. Current holdings include cash, so account detail has no duplicate cash table.
 
 `latest_price_candidates(jsonb)` batches the former per-instrument top-20 price candidates. Existing provider preference and two-distinct-price-date selection remain in shared code. The migration adds a read function only; persisted financial amounts and historical snapshots are unchanged.
+
+Backup consistency does not imply uniformly exact numeric encoding or verified recovery. Current format limitations and operator acceptance are maintained in [backup and restore](operations/backup-restore.md#exact-numeric-values).

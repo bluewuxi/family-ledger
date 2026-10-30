@@ -10,11 +10,11 @@
 
 Entry fields: `entryDate`, `entryType`, `currency`, positive exact decimal string `amount`, nullable `expenseCategory`, `relatedExpenseId`, `targetCurrency`, `targetAmount`, and `notes`. Types: `opening_balance`, `contribution`, `expense`, `refund`, `withdrawal`, `exchange`. Expense/refund categories: `tuition`, `accommodation`, `living_allowance`, `other`. Exchanges require a different target currency and a positive target amount; other types cannot supply target fields. Only refunds may reference an expense. Unavailable/stale records return `NOT_FOUND`/`CONFLICT`; invalid relationships return `VALIDATION_ERROR`.
 
-Default account/transaction listings hide legacy education accounts. Old education rows remain available for historical inspection but cannot be changed through account, transaction, or linked settlement write paths. New education-purpose bank/investment accounts cannot be created. Investment holdings and monthly investment summaries filter investment-purpose accounts; default portfolio snapshot API output does likewise. Education records never write investment business tables.
+Default account/transaction listings hide legacy education accounts. Old education rows remain available for historical inspection but cannot be changed through account, transaction, or linked settlement write paths. New education-purpose bank/investment accounts cannot be created. Investment holdings and monthly investment summaries filter investment-purpose accounts; ordinary snapshot reads without a purpose filter retain all-account compatibility; investment UI explicitly requests `purpose=investment`. Education records never write investment business tables.
 
 ## Response contract
 
-The Lambda API returns a consistent JSON shape. Identity and authorization follow [Auth](auth.md#enforcement) and the endpoint-specific permissions below, including documented viewer exceptions. Never expose secrets or internal stack traces in responses.
+The Lambda API returns a consistent JSON shape. Identity and authorization follow [Auth](auth.md#enforcement) and the endpoint-specific permissions below, including documented viewer exceptions. Never expose infrastructure/service secrets or internal stack traces. The only application-secret response exception is [gated account trading-password reveal](#account-trading-password-api).
 
 Success:
 
@@ -46,6 +46,8 @@ Stable error codes:
 - `DATA_SOURCE_DATE_UNAVAILABLE`
 - `DATA_SOURCE_UNAVAILABLE`
 - `INTERNAL_ERROR`
+- `CONFLICT` (HTTP 409 for stale state)
+- `DEPENDENCY_UNAVAILABLE` (HTTP 503 for exhausted eligible dependency retries)
 
 ## Public
 
@@ -385,13 +387,15 @@ Dividend transactions are displayed as investment income context. They do not ch
 
 ### Account Purposes and Overview API
 
-Each account has one current `purpose`: `investment`, `daily_expense`, or `education`. Account create/update DTOs accept this field. Omitted create purpose defaults to investment; omitted update purpose is unchanged. Changing purpose immediately changes historical query membership without snapshot rewrites.
+Each account has one current `purpose`: `investment`, `daily_expense`, or `education`. Account create/update DTOs accept investment or daily-expense purposes; new education assignment is blocked after reserve cutover. Omitted create purpose defaults to investment; omitted update purpose is unchanged. Changing purpose immediately changes historical query membership without snapshot rewrites.
 
 | Read surface | Account scope |
 | --- | --- |
 | Dashboard and portfolio trend (including `includeTrend`) | Current investment accounts only |
-| Account management, holdings and monthly family reports | All purposes |
-| Portfolio snapshots and transactions | All purposes by default; optional `purpose` filter |
+| Account listing/totals and ordinary transactions | Investment and daily-expense; legacy education excluded by default |
+| Holdings and monthly investment reports | Investment only |
+| Ordinary portfolio snapshots | All persisted account rows by default; optional `purpose` filter |
+| Account detail | Selected account; legacy history remains read-only |
 | Daily expense / education overview | Requested purpose only |
 
 `GET /account-purpose-overview` is available to authenticated viewers and admins. It requires `purpose=daily_expense|education` and accepts optional `currency`, `accountId`, `from`, and `to`. It returns `overview.balances` (all accounts of that purpose with current balances and display currency) and `overview.flows` (manual deposits and withdrawals only). The page filters balance rows by selected account. API account/date filters apply to flows; dates do not change current balances. Dates must be valid `YYYY-MM-DD` values with `from <= to`; an account outside the selected purpose is rejected with `VALIDATION_ERROR`.
@@ -401,6 +405,8 @@ Each account has one current `purpose`: `investment`, `daily_expense`, or `educa
 Responses use `Cache-Control: no-store`; there is no aggregate dashboard cache. The instrument quote cache is independent of account membership. Account writes remain admin-only; purpose pages link to the existing transaction workflow.
 
 ### Account Detail Read API
+
+Account detail accepts `quoteMode=cached|refresh`: cached uses stored prices and valid quote cache without provider calls; refresh explicitly updates quotes with stored-price fallback.
 
 `GET /accounts/:id/detail?currency=NZD|USD|CNY&trendRange=1m|3m|1y|3y|5y|inception&recentLimit=1..50` is available to authenticated `viewer` and `admin` users.
 
@@ -471,7 +477,7 @@ The value bridge remains:
 资产变化 = 净投入 + 现金校准 + 估值变动
 ```
 
-`月初资产` uses the latest portfolio snapshot before the selected month. `月末资产` uses the latest portfolio snapshot on or before the selected month's last day. `净投入` normally uses manual opening, deposit, and withdrawal transactions in the month; generated buy/sell/dividend cash legs are excluded. `现金校准` uses manual cash `adjustment` transactions in the month, direction-aware. `估值变动` is the residual after subtracting net principal flow and cash calibration from asset change; it covers price movement, FX movement, and other valuation effects.
+`月初资产` requires a snapshot exactly on the day before the selected month. `月末资产` requires exactly the earlier of calendar month-end and the last completed app business date. An earlier selected row retains its date but has unavailable valuation and `SNAPSHOT_DATE_MISMATCH`; it is not an initialization baseline. Transactions stop at that same closing date. `净投入` normally uses manual opening, deposit, and withdrawal transactions in the month; generated buy/sell/dividend cash legs are excluded. `现金校准` uses manual cash `adjustment` transactions in the month, direction-aware. `估值变动` is the residual after subtracting net principal flow and cash calibration from asset change; it covers price movement, FX movement, and other valuation effects.
 
 Dividend transactions and `dividendSummary` are still returned for API compatibility and audit use. The web monthly review intentionally does not render a separate dividend section, so family members stay focused on `净投入`, `现金校准`, and `估值变动`. Generated dividend cash deposits are included in snapshots and therefore flow into the value bridge through `资产变化`; economically, dividends remain part of the residual `估值变动` rather than new principal.
 
@@ -666,8 +672,6 @@ Create/update response data:
 }
 ```
 
-Update requests cannot change `transactionType`. To correct a record to a different transaction type, delete the original transaction and create a new one.
-
 Delete response data:
 
 ```json
@@ -809,6 +813,8 @@ Delete response data:
 An instrument cannot be deleted after it has transaction or price history. Instrument validation, duplicate identity, and delete-in-use errors return `VALIDATION_ERROR`. Missing instruments return `NOT_FOUND`.
 
 ## Transaction Write APIs
+
+Update requests cannot change `transactionType`. To correct a record to a different transaction type, delete the original transaction and create a new one.
 
 These endpoints require a valid Supabase Bearer token and an active `admin` role:
 
@@ -1005,7 +1011,7 @@ existing defaults. Transaction numeric DTO fields are decimal strings, preservin
 
 ### Investment Overview Performance and Valuation Metadata
 
-GET /dashboard returns dashboard.investmentPerformance and dashboard.valuationMetadata. GET /holdings returns the same objects beside holdings for investment accounts. Both endpoints use the same five-minute quote cache, provider deadline, and stored-price fallback. Existing unrealized fields remain compatible. Other purpose overviews, detail pages, and historical snapshots retain stored-price valuation. Future-dated transactions are excluded from current investment overview valuation.
+GET /dashboard returns dashboard.investmentPerformance and dashboard.valuationMetadata. GET /holdings returns the same objects beside holdings for investment accounts. Both endpoints use the same five-minute quote cache, provider deadline, and stored-price fallback. Existing unrealized fields remain compatible. Other purpose overviews and historical snapshots retain stored-price valuation; account detail supports the staged quote modes described in its endpoint contract. Future-dated transactions are excluded from current investment overview valuation.
 
 InvestmentPerformance contains netInvestment, investmentProfit, profitPercentageOfAssets (percentage units), inceptionDate, and warnings. Numeric values are decimal strings or null. Missing exact principal-date FX invalidates net investment, cumulative profit, and its ratio without invalidating an otherwise available market value. Missing cost basis affects unrealized gain, not cumulative profit when assets and principal remain available.
 
@@ -1039,3 +1045,11 @@ The API emits `api-diagnostic` JSON inside the existing Lambda text format. INFO
 - Account detail includes `investmentPerformance`, principal-aware trend points, and a unified warning collection. Legacy fields remain compatible. Account profit is current assets minus net investment; position unrealized results are unchanged.
 - Read-only Supabase future-issued JWT errors retry after 300, 700, and 1500 milliseconds. Exhaustion returns `DEPENDENCY_UNAVAILABLE` with HTTP 503 rather than treating the session as invalid. Writes and other auth errors do not retry.
 - User-scoped history and instrument caches live in memory for 60 seconds. Requests deduplicate and reject obsolete responses; logout, identity changes, and successful writes invalidate relevant reads. Trading passwords are never cached.
+
+## Snapshot scope compatibility limitation
+
+The intended compatibility contract keeps `snapshots` scoped by the explicit purpose, or all accounts when omitted; optional `trend` is investment-only. A known unresolved optimization in non-paginated `includeTrend=true` requests with omitted purpose instead returns investment-only snapshots. Pagination takes a different path. Callers requiring investment scope should pass `purpose=investment` explicitly. This documentation does not fix the option-dependent behavior; see [G2](plans/2026-10-30-rules-review-and-remediation.md#g2--snapshot-option-independent-scope-open-p2).
+
+## Write retries
+
+Retry semantics are endpoint-specific: education edits/deletes require current record versions; spending commit repeats require the same token and decisions; identical actual Kernel anchors are idempotent. Transaction revision conflicts require refreshed preparation. An unknown transaction commit outcome requires checking saved records before retrying. These contracts do not authorize generic automatic POST retries.

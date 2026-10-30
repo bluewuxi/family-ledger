@@ -61,3 +61,7 @@ Live checks verify API health, unauthenticated rejection, public runtime configu
 For a stale lock, pause automatic pushes, confirm the owning run ended and CloudFormation is stable, inspect/cancel pending runs, then delete only `/family-ledger/test-deployment/lock` using operator credentials. Never remove a lock whose owner might still mutate TEST. Independent application recovery must be registered only after verification.
 
 `verify:deployment` typechecks tooling and tests complete manifests, conservative risk classification, SAM normalization, pinned workflows, smoke-check failures/timeouts and identical-release retries. Live destructive migration/infrastructure rejection is verified with fixtures rather than modifying real financial data for tests.
+
+## Procedure authorization
+
+Bootstrap, registration, lock removal, manual dispatch/recovery, and independent migration/infrastructure work require the applicable explicit scope in [Project Workflow](project-workflow.md#delivery-scope-and-workflow). Command examples are operational references, not authorization. Existing push authorization covers configured automatic delivery and monitoring; failed or disabled automation must not be bypassed.

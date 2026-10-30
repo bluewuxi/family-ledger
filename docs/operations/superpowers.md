@@ -8,7 +8,7 @@ The selected distribution is `superpowers@openai-curated-remote`, installed thro
 
 The plugin has global installation scope. The family-ledger adaptations apply when this project's instructions are loaded; installing it does not copy those adaptations to other projects. Installation is local tooling state, not an application deployment or a repository dependency.
 
-Verified coverage is the Codex desktop chat and its fresh subagent contexts: all 15 Superpowers skills were visible in their supplied catalogs. Separate CLI sessions and CLI prompt inspection did not discover these remote skills, despite installed/enabled metadata. CLI automatic use is not accepted by this adoption; do not infer it from desktop success or silently add another installation as a workaround.
+The following coverage is the dated 2026-10-27 observation, not a guarantee for every later catalog/runtime. Verified coverage is the Codex desktop chat and its fresh subagent contexts: all 15 Superpowers skills were visible in their supplied catalogs. Separate CLI sessions and CLI prompt inspection did not discover these remote skills, despite installed/enabled metadata. CLI automatic use is not accepted by this adoption; do not infer it from desktop success or silently add another installation as a workaround.
 
 ## Open follow-up: CLI skill discovery
 

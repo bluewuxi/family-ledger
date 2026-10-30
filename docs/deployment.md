@@ -47,7 +47,7 @@ corepack pnpm sam:validate
 corepack pnpm sam:build
 ```
 
-Test deployment sequence:
+Operator-only TEST bootstrap/recovery sequence (requires separate authorization; routine pushes use automatic delivery and must not substitute these commands for blocked/failed automation):
 
 ```bash
 corepack pnpm deploy:certs:test
@@ -60,7 +60,7 @@ Production uses the same sequence with the `:prod` suffix after creating a local
 
 ## Scheduled Jobs
 
-This section documents the production schedule and retry policy.
+This section documents configured default schedules and retry policy; production remains operator-run and has not been verified by this document.
 
 Scheduled jobs use EventBridge Scheduler, not EventBridge Rules, so cron expressions are evaluated in the configured timezone instead of being hand-converted to UTC. The default timezone is `Asia/Shanghai`. Shared instant/calendar/business-date conventions are maintained in the [time policy](time-policy.md).
 
@@ -271,23 +271,13 @@ Backend deployment/runtime code should:
 
 1. Read the `*_SSM_PARAM` environment variable.
 2. Call SSM `GetParameter` with decryption enabled.
-3. Use the decrypted value only in Lambda API/jobs runtime memory.
-4. Never expose decrypted values to `apps/web`, logs, frontend bundles, or Git.
+3. Use decrypted infrastructure/service credentials only in backend runtime memory.
+4. Never expose infrastructure/service credentials to clients, logs, bundles, or Git. Account trading-password reveal follows the narrowly scoped Auth exception.
 
-Example CLI retrieval for local backend checks:
-
-```bash
-aws ssm get-parameter \
-  --name "/family-ledger/test_supabase_secret_key" \
-  --with-decryption \
-  --query "Parameter.Value" \
-  --output text
-```
+For local backend checks, resolve secrets inside the backend process and report only safe success/failure metadata. Do not print decrypted parameter values, verifiers, tokens, or secret-bearing connection strings to terminal/tool output. The gated application-secret exception follows [Auth](auth.md#secret-boundaries).
 
 ## CI/CD
 
-Apply `supabase/migrations/20260906000000_atomic_portfolio_snapshot_write.sql` before deploying the API/jobs or running snapshot repair with this code version. Snapshot writers now require its service-role-only RPC and deliberately have no non-atomic fallback. The migration defines the write function only; it does not rebuild or alter existing snapshot values. Historical rebuilding is a separate operation after backup and dry-run review.
-
-Apply `supabase/migrations/20260907010000_link_transaction_generated_prices.sql` before deploying the API. Transaction-created historical price rows now require their source transaction foreign key so edits and deletes cannot leave stale valuation prices behind.
+Historical atomic-snapshot and transaction-price-link migrations are prerequisites of their original releases, not instructions to replay SQL. Current releases use complete-manifest migration verification and operator registration under the [TEST contract](test-auto-deployment.md). Applying migrations and rebuilding history remain independently authorized operations.
 
 GitHub Actions validates pushes to `test`/`main` and pull requests. Authorized `test` pushes also run the configured automatic TEST deployment under the [TEST release contract](test-auto-deployment.md). Historical commissioning and release checks are recorded in [historical TEST releases](releases/test-release-history.md#automatic-test-delivery-commissioning-2026-10-26).

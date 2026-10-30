@@ -25,3 +25,7 @@ The required viewport sizes and user-login handoff are maintained in [local test
 - All existing page-level return-to-parent links use the shared `PageBackLink` component: a small left arrow followed by the destination name, muted text, no button border, background, or shadow.
 - Place the link above the page title and align its left edge with the title. Highlight its text on hover, retain a visible keyboard focus outline, and provide a minimum `44px` click/tap area. The accessible name includes the return action.
 - Apply this pattern to account detail (`投资账户`), holding detail (`持仓总览`), and password recovery (`登录`). Preserve each destination route. Dedicated actions such as `返回编辑` remain action buttons.
+
+## Accessible interaction and states
+
+For changed UI, provide labeled inputs, perceivable field validation, keyboard-operable controls, visible focus, dialog focus entry and return, readable contrast, and explicit loading, empty, and failure states. Apply this baseline proportionally; it does not certify an audit of existing pages. Preserve the required [authenticated acceptance procedure](local-testing.md#authenticated-browser-acceptance).

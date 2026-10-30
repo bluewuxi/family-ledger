@@ -8,7 +8,7 @@ Support exactly CCB debit, CCB credit, and BNZ account CSV exports. PDFs are opt
 
 The three existing table names are retained with new shapes:
 
-- `spending_accounts`: name, source format, currency, optional account/card suffix and active state. Format/currency/identity are immutable after an import batch or transaction exists.
+- `spending_accounts`: name, source format, currency, optional account/card suffix and active state. Format/currency/identity are locked when transaction rows or committed, undone, or document batches exist. Draft/preview batches alone allow corrections and invalidate their previews, tokens, and decisions; cancelled history alone does not activate the completed-history guard.
 - `account_statements`: an import/document batch, not a monthly statement. Stores source/version/hash, encoding, parser version, preview token, decisions, counts, observed transaction range and audit user/timestamps. States: draft, preview, committed, undone, document, cancelled.
 - `statement_rows`: account, optional batch/record number, date, description, signed amount, classification, one tag, notes, immutable source metadata/fingerprint and edited flag. Manual transactions need no batch.
 

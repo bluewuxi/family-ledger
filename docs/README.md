@@ -56,3 +56,7 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 - Plan status should be explicit: Draft, Approved, Implemented, or Superseded. Link the maintained specification and, when available, delivery evidence. Design approval does not imply implementation or delivery authorization.
 
 When documents disagree, reconcile the affected maintained sources against implementation and release evidence. Do not silently change business contracts or infer live environment state from local code. Superpowers is enabled for the Codex desktop workflow; [usage and verified coverage](operations/superpowers.md) and [project compatibility rules](project-workflow.md#superpowers-compatibility) define its boundaries.
+
+## Rules review remediation
+
+The [2026-10-30 review and plan](plans/2026-10-30-rules-review-and-remediation.md) records documentation remediation and separately open implementation/evidence items. Auth owns access exceptions; API owns DTOs/compatibility; product specifications own formulas and visible behavior; data model owns persistence; time policy owns date conventions; local testing owns commands and login/viewports; the TEST contract owns release gates. Other documents summarize and link rather than copying complete contracts.
