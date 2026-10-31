@@ -1,6 +1,6 @@
 # TEST Authentication Cutover — 2026-10-31
 
-Status: In progress. Operator explicitly authorized commit/push, CloudFormation updates, SQL migrations, user initialization and required deployment registration. Production excluded.
+Status: TEST deployed and automatically verified; real-login visual acceptance pending. Operator explicitly authorized commit/push, CloudFormation updates, SQL migrations, user initialization and required deployment registration. Production excluded.
 
 Issue: #120. Exact release commit and CI run are recorded when available.
 
@@ -15,11 +15,11 @@ Issue: #120. Exact release commit and CI run are recorded when available.
 
 ## Pending execution and acceptance
 
-- Inspect and execute the exact reviewed TEST change set, then verify auth-table/IAM/config and live synthetic auth behavior.
-- Initialize admin through private interactive input; other user receives an undisclosed random temporary password and inactive access.
-- Register complete migration/infrastructure manifests at a clean committed revision; resume configured automatic publication and monitor it.
+- Completed: reviewed TEST change set execution and auth-table/IAM/config/live synthetic verification.
+- Completed: private admin initialization/activation and undisclosed random temporary credential for the inactive other user.
+- Completed: clean-revision migration/infrastructure registration, restored automatic publication and successful workflow monitoring.
 - Real-user browser acceptance remains pending. No bypass or operator-created test session substitutes for the user's login/readiness handoff.
-- Restore original API/jobs concurrency and verify scheduled operations/backup compatibility. Retain all old Supabase identities during the rollback window.
+- Completed: original API/jobs concurrency restored and live backup verified. Old Supabase identities retained during the rollback window.
 
 No live completion claim is established by this in-progress record. Private backup contents, user mappings, generated passwords, tokens, AWS credentials and service secrets must not be attached here.
 
@@ -28,3 +28,11 @@ No live completion claim is established by this in-progress record. Private back
 The reviewed change set completed UPDATE_COMPLETE: new auth table/API role, coordinated Lambda code/configuration, auth routes/stage throttles and CSP header policy; no replacements/deletions. API and jobs concurrency restored to original values. Synthetic live login/session, viewer denial, real concurrent DDB CAS and revoked-session checks passed; synthetic user/session/credential removed. TTL enabled. API Lambda reports at configured 512 MiB showed maximum memory 335 MiB; observed cold login request about 3.04 seconds including dependency work (not a general performance guarantee).
 
 The new backup Lambda completed successfully with 5,988 exported rows; downloaded private v9 backup validation passed. Administrator password initialization remains pending due the interactive-window handoff; other existing user initialized with an undisclosed random temporary password and inactive access. No user password or token appears in this record.
+
+## Automatic delivery and user initialization
+
+Release commit: 251572a4bee658e895b1df45c4d00197fb26b536. GitHub run: [TEST CI 41188714539](https://github.com/bluewuxi/family-ledger/actions/runs/41188714539). The first attempt rolled back because the original code-only execution role lacked iam:GetRole for the newly added API role. The existing deployment bootstrap refreshed its current-resource read/artifact scopes; no auth-table write or infrastructure-mutation rights were added to CI. Rerunning the same failed workflow completed successfully with health/auth/runtime config/HTML/asset checks and stage verified. No manual frontend publication bypass was used.
+
+Administrator credential initialization succeeded via the user's native masked-input handoff; service-only first-admin activation succeeded. Other existing user remains inactive with an undisclosed random temporary password. Both original identities are retained. API/jobs original concurrency restored and automatic TEST publication re-enabled.
+
+Real user first-password-change and authenticated five-viewport acceptance are pending the user's readiness confirmation. Old Supabase identities/sign-in configuration remain retained for rollback; old tokens cannot access the new API or private database tables. No production change was performed.

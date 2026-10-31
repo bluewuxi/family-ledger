@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` for sequential execution, or `superpowers:subagent-driven-development` only when that execution method is selected. Follow the project workflow instead of automatic commits or worktrees.
 
-**Status:** Local implementation complete; isolated validation passed. Live DDB/Lambda integration, operator cutover and real-login visual acceptance remain pending as detailed below. Design approved on 2026-10-31. No commit, deployment or live operation authorized.
+**Status:** TEST deployed and automatically verified under subsequent explicit authorization. User initialization and live DDB/API/backup checks passed. Real-login visual acceptance remains pending; see execution evidence below.
 
 **Goal:** Replace Supabase Auth with Lambda/DynamoDB opaque sessions while preserving user IDs, roles and ledger data.
 
@@ -144,3 +144,7 @@ Unchecked execution items that mention these checks remain pending; this record 
 The user approved local random-password generation and first-admin activation; no commit/deployment/live user creation was authorized. Added --random-password for provision/reset: cryptographic 24-byte generation, no output or external plaintext persistence, temporary-password policy retained. Added activate-first-admin using UUID/email/role/credential checks, session invalidation before SQL activation, and service-role-only revision-checked RPC in 20261031110000_first_admin_activation.sql. Another active admin is rejected; activation never promotes a viewer. Provisioning now advances existing access revisions rather than resetting them.
 
 Observed failing focused verification before the helper existed, followed by passing helper and disposable SQL checks. Password generation uniqueness/format, missing/expired credentials, wrong email/role, invalidation/activation failure, SQL role grants, stale revisions, other-admin guard and repeat activation are covered. CLI-specific TypeScript checks, root typecheck/build and independent scoped review passed. Cloud provisioning and actual user initialization remain pending; use the updated TEST and recovery runbooks.
+
+## TEST execution follow-through
+
+Explicit TEST execution authorization was received after local implementation. SQL/CloudFormation changes, native private administrator initialization/activation, other-user random temporary provisioning, real DDB/API checks and v9 backup verification completed. Automatic release 251572a passed in [run 41188714539](https://github.com/bluewuxi/family-ledger/actions/runs/41188714539) after the code-only role read-resource snapshot was refreshed. Real-login viewport acceptance remains pending. See [execution evidence](../releases/2026-10-31-auth-test-cutover.md); earlier local coverage limits are historical and do not claim a live PITR recovery drill.

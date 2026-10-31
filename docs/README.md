@@ -48,7 +48,7 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
-- [AWS authentication design](specs/2026-10-31-auth-migration-design.md) and [implementation plan](plans/2026-10-31-auth-migration.md) propose the selected Lambda/DynamoDB opaque-session migration. Design is Approved and local implementation evidence is recorded in the plan; live cutover has not been performed. Account visibility is deferred.
+- [AWS authentication design](specs/2026-10-31-auth-migration-design.md) and [implementation plan](plans/2026-10-31-auth-migration.md) propose the selected Lambda/DynamoDB opaque-session migration. Design is Approved and local implementation evidence is recorded in the plan; TEST cutover and automatic verification completed; real-login visual acceptance remains pending. Account visibility is deferred.
 - [Superpowers adoption plan](plans/2026-10-27-superpowers-adoption.md) records the authorized adoption, version review, Windows helper checks, activation, and controlled pilot evidence.
 - [Agent instruction organization plan](plans/2026-10-30-agent-instruction-organization.md) tracks the authorized documentation reorganization and rule-coverage checks; consult its status for implementation progress.
 - [Spending import plan](plans/spending-import-plan.md) and [education reserve plan](plans/education-reserve-unification-plan.md) preserve completed implementation history. Their original empty-data assumptions, backup versions, and release permissions are historical.

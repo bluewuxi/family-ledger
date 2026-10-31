@@ -131,3 +131,7 @@ The [review/remediation plan](plans/2026-10-30-rules-review-and-remediation.md#i
 - G4 (deferred by user pending major Auth redesign): define extra-password attempt budget/cooldown/scope/recovery and durable enforcement before claiming abuse protection. Existing role/scrypt checks remain; no global lockout has been implemented.
 
 The documentation remediation did not fix these items. Subsequent G1 local implementation adds version-8 numeric strings and isolated verification; no online migration or deployment has been performed. G2 is implemented locally with deployment pending; G3 has local synthetic recovery evidence, external operator checks remain pending, and G4 is deferred pending the Auth redesign.
+
+## AWS authentication TEST delivery
+
+TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. Infrastructure, SQL, user initialization, live synthetic authentication, backup and automatic release verification passed. Real-user first-change/login and five-viewport visual acceptance remain pending; see [cutover evidence](releases/2026-10-31-auth-test-cutover.md). Account visibility remains deferred; production is unchanged.
