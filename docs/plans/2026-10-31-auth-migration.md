@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` for sequential execution, or `superpowers:subagent-driven-development` only when that execution method is selected. Follow the project workflow instead of automatic commits or worktrees.
 
-**Status:** TEST deployed and automatically verified under subsequent explicit authorization. User initialization and live DDB/API/backup checks passed. Real-login visual acceptance remains pending; see execution evidence below.
+**Status:** TEST deployed and automatically verified under subsequent explicit authorization. User initialization and live DDB/API/backup checks passed. Real-login visual acceptance passed; see execution evidence below.
 
 **Goal:** Replace Supabase Auth with Lambda/DynamoDB opaque sessions while preserving user IDs, roles and ledger data.
 

@@ -1,6 +1,6 @@
 # TEST Authentication Cutover — 2026-10-31
 
-Status: TEST deployed and automatically verified; real-login visual acceptance pending. Operator explicitly authorized commit/push, CloudFormation updates, SQL migrations, user initialization and required deployment registration. Production excluded.
+Status: TEST deployed, automatically verified, and authenticated visual acceptance passed. Operator explicitly authorized commit/push, CloudFormation updates, SQL migrations, user initialization and required deployment registration. Production excluded.
 
 Issue: #120. Exact release commit and CI run are recorded when available.
 
@@ -42,3 +42,11 @@ Real user first-password-change and authenticated five-viewport acceptance are p
 The user confirmed successful first password change/re-login and dashboard readiness. Read-only inspection verified populated dashboard data, admin settings, retained user roles, inactive other user and the separate trading-password gate. Settings was visually checked at 320x740, 393x852, 430x932, 768x1024 and 1440x1000; no page-level horizontal overflow was measured, and password inputs met the 44px height baseline.
 
 Acceptance found Settings -> 修改登录密码 changed the URL but left the protected layout blank. The protected wrapper read window.location without subscribing to router changes. The corrective change uses unconditional useLocation; typecheck/build/frontend auth fixtures and focused independent review passed. Automatic corrective delivery and live click-through confirmation are recorded after completion; until then this finding remains an outstanding acceptance item.
+
+## Final acceptance
+
+Final application release: 27196c61eee3694b30e9a4d53a25b36bffa94dfd; [automatic verification run 41189766691](https://github.com/bluewuxi/family-ledger/actions/runs/41189766691) succeeded. The reactive route fix was first released in aa5a6e0; 27196c6 adds the shared 44px back link. Read-only live click-through on the final version passed Settings -> change-password -> Settings -> dashboard without reload or credential submission.
+
+Authenticated Settings and change-password layouts were inspected at 320x740, 393x852, 430x932, 768x1024 and desktop 1440x1000. No page-level overflow was measured; the shared back link is 44px high. Temporary viewport overrides were reset. The user performed the real initial password change and re-login, and confirmed dashboard readiness before inspection. No auth bypass, user permission change, password reset or ledger mutation was used for visual acceptance.
+
+Implementation, TEST deployment, real DDB/API integration, live v9 backup validation and authenticated visual acceptance passed. Old provider identities remain retained for rollback, and production remains unchanged. Historical pending statements above describe their respective execution stages; this final acceptance supersedes them.
