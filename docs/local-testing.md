@@ -331,3 +331,7 @@ Run `corepack pnpm verify:backup` and `corepack pnpm verify:backup-precision-db`
 Snapshot scope regression is included in `corepack pnpm verify:portfolio-trend`. It injects synthetic service reads, covers omitted/investment/daily-expense/legacy-education scopes with trend/pagination/comparison flags, ordering/latest limits and cache bypass, and performs no live reads or writes. `corepack pnpm verify:loading` separately verifies history-cache identity, deduplication and invalidation.
 
 For the current-format full-schema/full-table synthetic recovery rehearsal, run `corepack pnpm verify:backup-restore-db`. It uses two databases in a temporary loopback PostgreSQL cluster, real migrations and exporter, gzip/CLI decoding, exact re-export equality, Auth dependency rejection and late-failure rollback. It performs no cloud or shared TEST access; external recovery dependencies remain separately unverified.
+
+## Password navigation regression
+
+During authenticated acceptance, follow Settings -> 修改登录密码 without reloading the page. The change-password form must render immediately; returning to the dashboard must render the ledger again. Forced temporary-password sessions remain restricted before private providers mount. Inspect forms without entering/submitting credentials; actual password changes require the user's handoff.

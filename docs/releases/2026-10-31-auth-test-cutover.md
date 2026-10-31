@@ -36,3 +36,9 @@ Release commit: 251572a4bee658e895b1df45c4d00197fb26b536. GitHub run: [TEST CI 4
 Administrator credential initialization succeeded via the user's native masked-input handoff; service-only first-admin activation succeeded. Other existing user remains inactive with an undisclosed random temporary password. Both original identities are retained. API/jobs original concurrency restored and automatic TEST publication re-enabled.
 
 Real user first-password-change and authenticated five-viewport acceptance are pending the user's readiness confirmation. Old Supabase identities/sign-in configuration remain retained for rollback; old tokens cannot access the new API or private database tables. No production change was performed.
+
+## Real-login acceptance and corrective navigation change
+
+The user confirmed successful first password change/re-login and dashboard readiness. Read-only inspection verified populated dashboard data, admin settings, retained user roles, inactive other user and the separate trading-password gate. Settings was visually checked at 320x740, 393x852, 430x932, 768x1024 and 1440x1000; no page-level horizontal overflow was measured, and password inputs met the 44px height baseline.
+
+Acceptance found Settings -> 修改登录密码 changed the URL but left the protected layout blank. The protected wrapper read window.location without subscribing to router changes. The corrective change uses unconditional useLocation; typecheck/build/frontend auth fixtures and focused independent review passed. Automatic corrective delivery and live click-through confirmation are recorded after completion; until then this finding remains an outstanding acceptance item.

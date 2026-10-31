@@ -1,5 +1,5 @@
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { LoadingState } from "./components/LoadingState";
 import { AuthProvider, useAuth } from "./lib/authContext";
@@ -57,6 +57,7 @@ export function App() {
 }
 
 function ProtectedApp() {
+  const location = useLocation();
   const { session, loading, error, retry } = useAuth();
 
   if (loading) {
@@ -73,7 +74,7 @@ function ProtectedApp() {
     return <Navigate to="/login" replace />;
   }
 
-  if (session.mustChangePassword || window.location.pathname === "/change-password") return <ChangePasswordPage />;
+  if (session.mustChangePassword || location.pathname === "/change-password") return <ChangePasswordPage />;
 
   return (
     <PreferencesProvider>
