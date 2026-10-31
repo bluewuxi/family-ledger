@@ -1,107 +1,35 @@
-import { logDependencyError, logAuthenticationError } from "../utils/errorLogging";
 import type { ManagedUser, UserRole } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
-
-interface UserRoleRow {
-  user_id: string;
-  role: UserRole;
-  is_active: boolean;
+import { getAppUserById } from "./appUserRepository";
+import { ApiRequestError } from "../utils/apiError";
+export interface UserAccess { user_id:string; role:UserRole; is_active:boolean; access_revision:number; }
+export class ManagedUserNotFoundError extends Error { constructor(){super("Managed user was not found.");} }
+export async function getUserAccess(userId:string):Promise<UserAccess|null> {
+ const db=await getSupabaseAdmin();
+ const {data,error}=await db.from("user_roles").select("user_id,role,is_active,access_revision").eq("user_id",userId).maybeSingle<UserAccess>();
+ if(error) throw new ApiRequestError("DEPENDENCY_UNAVAILABLE","用户服务暂时不可用。",503);
+ return data;
 }
-
-export class ManagedUserNotFoundError extends Error {
-  override readonly name = "ManagedUserNotFoundError";
-  constructor() {
-    super("Managed user was not found.");
-  }
+export async function listManagedUsers():Promise<ManagedUser[]> {
+ const db=await getSupabaseAdmin();
+ const [{data:users,error:ue},{data:roles,error:re}]=await Promise.all([
+  db.from("app_users").select("id,email,created_at"), db.from("user_roles").select("user_id,role,is_active")
+ ]);
+ if(ue||re) throw new ApiRequestError("DEPENDENCY_UNAVAILABLE","用户服务暂时不可用。",503);
+ return (users??[]).map(user=>{const role=roles?.find(row=>row.user_id===user.id);return {id:user.id,email:user.email,createdAt:user.created_at,lastSignInAt:null,role:role?.role??null,isActive:role?.is_active??false};}).sort((a,b)=>(a.email??"").localeCompare(b.email??""));
 }
-
-export async function listManagedUsers(): Promise<ManagedUser[]> {
-  const supabase = await getSupabaseAdmin();
-  const [{ data: authData, error: authError }, { data: roleRows, error: roleError }] = await Promise.all([
-    supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    supabase.from("user_roles").select("user_id, role, is_active").returns<UserRoleRow[]>()
-  ]);
-  logDependencyError("managedUserRepository.listManagedUsers.auth", authError);
-  logDependencyError("managedUserRepository.listManagedUsers.roles", roleError);
-  if (authError) {
-    throw new Error("Failed to list Supabase Auth users.");
-  }
-
-  if (roleError) {
-    throw new Error("Failed to list user roles.");
-  }
-
-  const rolesByUserId = new Map((roleRows ?? []).map((row) => [row.user_id, row]));
-
-  return authData.users
-    .map((authUser) => {
-      const role = rolesByUserId.get(authUser.id);
-      return {
-        id: authUser.id,
-        email: authUser.email ?? null,
-        role: role?.role ?? null,
-        isActive: role?.is_active ?? false,
-        createdAt: authUser.created_at,
-        lastSignInAt: authUser.last_sign_in_at ?? null
-      };
-    })
-    .sort((left, right) => {
-      const leftEmail = left.email ?? "";
-      const rightEmail = right.email ?? "";
-      return leftEmail.localeCompare(rightEmail) || left.id.localeCompare(right.id);
-    });
-}
-
-export async function updateManagedUserRole(
-  userId: string,
-  input: { role?: UserRole; isActive?: boolean }
-): Promise<ManagedUser> {
-  const supabase = await getSupabaseAdmin();
-  const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(userId);
-
-  if (authUserError || !authUserData.user) {
-    logAuthenticationError("managedUserRepository.updateManagedUserRole", authUserError);
-    throw new ManagedUserNotFoundError();
-  }
-
-  const { data: existingRole, error: existingRoleError } = await supabase
-    .from("user_roles")
-    .select("user_id, role, is_active")
-    .eq("user_id", userId)
-    .maybeSingle<UserRoleRow>();
-
-  if (existingRoleError) {
-    logDependencyError("managedUserRepository.updateManagedUserRole", existingRoleError, []);
-    throw new Error("Failed to load existing user role.");
-  }
-
-  const payload: { user_id: string; role: UserRole; is_active?: boolean } = {
-    user_id: userId,
-    role: input.role ?? existingRole?.role ?? "viewer"
-  };
-
-  if (input.isActive !== undefined) {
-    payload.is_active = input.isActive;
-  }
-
-  const { data: role, error: roleError } = await supabase
-    .from("user_roles")
-    .upsert(payload, { onConflict: "user_id" })
-    .select("user_id, role, is_active")
-    .single<UserRoleRow>();
-
-  if (roleError) {
-    logDependencyError("managedUserRepository.updateManagedUserRole", roleError, []);
-    throw new Error("Failed to update user role.");
-  }
-
-  const authUser = authUserData.user;
-  return {
-    id: authUser.id,
-    email: authUser.email ?? null,
-    role: role.role,
-    isActive: role.is_active,
-    createdAt: authUser.created_at,
-    lastSignInAt: authUser.last_sign_in_at ?? null
-  };
+export async function updateManagedUserRole(userId:string,input:{role?:UserRole;isActive?:boolean},expected?:UserAccess|null):Promise<ManagedUser> {
+ const identity=await getAppUserById(userId);
+ if(!identity) throw new ManagedUserNotFoundError();
+ const current=expected===undefined ? await getUserAccess(userId):expected;
+ const db=await getSupabaseAdmin();
+ const payload={user_id:userId,role:input.role??current?.role??"viewer",is_active:input.isActive??current?.is_active??false,access_revision:(current?.access_revision??0)+1};
+ const query=current ? db.from("user_roles").update(payload).eq("user_id",userId).eq("access_revision",current.access_revision):db.from("user_roles").insert(payload);
+ const {data,error}=await query.select("user_id,role,is_active").maybeSingle();
+ if(error) {
+  if(error.code==="23505") throw new ApiRequestError("CONFLICT","用户权限已变化，请刷新重试。",409);
+  throw new ApiRequestError("DEPENDENCY_UNAVAILABLE","用户服务暂时不可用。",503);
+ }
+ if(!data) throw new ApiRequestError("CONFLICT","用户权限已变化，请刷新重试。",409);
+ return {id:identity.id,email:identity.email,createdAt:identity.createdAt,lastSignInAt:null,role:data.role,isActive:data.is_active};
 }

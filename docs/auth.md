@@ -1,72 +1,39 @@
 # Auth
 
-Supabase Auth provides identity. The frontend uses Supabase Auth for email/password login and access token acquisition only.
-
-Expected flow:
-
-```text
-Frontend login with Supabase Auth
-  -> frontend receives access token
-  -> frontend calls Lambda API with Authorization: Bearer <token>
-  -> Lambda verifies token with Supabase Auth
-  -> Lambda loads role from user_roles
-  -> Lambda authorizes request
-```
+The API Lambda authenticates opaque random session tokens using an environment-specific DynamoDB table. Supabase remains the server-side Postgres provider; it is not the identity provider. Stable UUIDs live in `app_users`; `profiles` stores preferences and `user_roles` stores authoritative access. See the [approved design](specs/2026-10-31-auth-migration-design.md) for storage and concurrency details and [cutover](operations/auth-cutover.md) for separately authorized deployment steps.
 
 ## Roles
 
-Only two application roles exist:
-
-- `viewer`: read-only access
-- `admin`: read, write, update, delete, and manage access
-
-These roles apply to access to the shared family ledger. They do not mean users own separate investment data.
-
-The expected number of users is no more than 3 family members. Complex RBAC, organizations, teams, workspaces, invitations, and permission matrices are intentionally avoided.
+Only `viewer` and `admin` exist. Ledger data is shared; user references are audit identities, not ownership. Viewer is read-only except the endpoint exceptions below. Admin manages ledger data and access. Account visibility is deferred; do not add teams or permission matrices.
 
 ## Enforcement
 
-Lambda API enforces permissions. Frontend role checks are UI hints only.
+Lambda enforces access on every request; frontend checks are UI hints. Every protected request checks session expiry/purpose, current credential version, application identity, active role and endpoint permissions. No active role means denied. No cross-request permission cache. Already-authorized in-flight work can finish after a concurrent revocation.
 
-Explicit endpoint permissions take precedence over HTTP-method defaults; see [API](api.md) for the endpoint contracts.
+- Public: `GET /health` and rate-limited `POST /auth/login`; logout is idempotent for invalid sessions and provides no data access.
+- Full active viewer/admin: ordinary ledger and sanitized maintenance/status reads.
+- Admin only: user management, password reset of another user, gate settings, error tracking including reads, ledger mutations, maintenance/job triggers.
+- Viewer exceptions: `PATCH /settings/preferences` changes only the caller's preferences; `POST /accounts/:id/trading-password/reveal` requires the initialized shared extra-password gate and matching extra password for either role.
+- Restricted temporary-password sessions: session status, password change and logout only; every other protected endpoint returns `PASSWORD_CHANGE_REQUIRED`.
 
-- Public: `GET /health` only.
-- Active viewer/admin: ordinary ledger reads and sanitized data-source, anchor, FX, price, job-run and backup-status reads.
-- Admin only: user management, extra-password gate settings, error tracking (including GET), ledger mutations, and maintenance/job triggers.
-- Viewer exceptions: `PATCH /settings/preferences` updates only the caller's preferences; `POST /accounts/:id/trading-password/reveal` requires the initialized extra-password gate and a matching extra password for either role.
+Admin cannot change their own access or reset their own password through user management. Pause writes SQL inactive first then revokes DDB sessions; resume revokes sessions before conditional SQL activation. SQL access revisions reject stale concurrent changes. Resume never revives old sessions. RLS remains enabled; cutover revokes private direct `anon`/`authenticated` access so old Supabase tokens cannot bypass the API. Jobs/API retain trusted database access.
 
-Admin users cannot change their own access through the user-management endpoint. These application roles do not grant uniform direct database privileges; [RLS and grants](data-model.md#rls) remain table-specific.
+## Password and session lifecycle
 
-No active `user_roles` row means access denied. Admin users can pause/resume existing Supabase Auth users and maintain their `viewer` / `admin` role from the Settings page.
+Passwords contain 8–128 Unicode characters, at most 512 UTF-8 bytes, with no composition rule. They are salted scrypt verifiers in DDB, never plaintext or reversible ciphertext. Users change their own password by providing the current password. Admin reset requires the admin's current password and sets a 24-hour temporary password; next login allows only password change. Temporary sessions expire in 10 minutes or with the temporary password, whichever comes first. Change/reset increments the credential version and invalidates all prior sessions.
 
-The server-side Supabase key is stored in AWS SSM Parameter Store and must never be exposed to `apps/web`. Browser Supabase sessions use `sessionStorage` so tokens do not persist after the browser session ends.
+A full token has 256 random bits and a fixed 12-hour lifetime. Only its SHA-256 hash is stored server-side. Browser tokens use `sessionStorage`; no JWT signing key, refresh token, persistent local storage or token URL. DynamoDB TTL only cleans records; server timestamps enforce expiry. Browser session restoration may preserve session storage; the fixed server expiry remains authoritative.
 
-Trading account passwords are protected by a second shared password gate. The gate is an SSM SecureString parameter whose value is either `empty` before first setup or a salted scrypt verifier of the extra password. Admins maintain the extra password from Settings. A viewer can reveal a trading password only if they know this extra password after it has been initialized; updating the stored trading password remains admin-only. There is no paid WAF-based lockout in the default stack; keep the extra password strong.
+Login throttling uses atomic fixed 15-minute DDB windows: 10 attempts per normalized email, 100 per trusted source IP, and 5 per authenticated password-operation actor. Gateway also limits auth mutation routes. Failures and successes count. There is no permanent account lock or claim of comprehensive attack protection. Dependency failure denies requests with sanitized 503 rather than reporting bad passwords.
 
-## User Management
+## User management and recovery
 
-Create Auth users in the Supabase console. The app intentionally does not create, invite, edit email addresses, or delete Auth users. For this family ledger, keep the expected user count to no more than three.
+No public registration, invitations, email editing UI, email recovery or social login. Operators provision users and recover the administrator using masked-input tooling; see [recovery](operations/auth-recovery.md). Settings lists existing app users, manages roles/active status, changes the caller's password and resets another user's password. Login recovery guidance asks users to contact an administrator.
 
-Admins can manage existing users through the Lambda API:
-
-- View Supabase Auth users.
-- Set role to `viewer` or `admin`.
-- Pause access by setting `user_roles.is_active = false`.
-- Resume access by setting `user_roles.is_active = true`.
-
-Password reset is self-service from the login screen. Supabase Auth sends reset emails and redirects the user back to the app to set a new password. Configure Supabase SMTP or allowed recipient settings in the Supabase project as needed.
-
-## First Admin
-
-After creating the first Supabase Auth user, assign the initial admin role from trusted SQL tooling such as the Supabase SQL Editor:
-
-```sql
-insert into public.user_roles (user_id, role, is_active)
-values ('<auth-user-id>', 'admin', true)
-on conflict (user_id)
-do update set role = excluded.role, is_active = true;
-```
+Ledger backups contain stable application identities, roles and preferences, not credentials/sessions. Old backups need explicit reviewed identity mappings. DDB recovery must discard all old verifiers and sessions, including inactive users, before fresh credential provisioning. Do not directly reconnect a restored auth table.
 
 ## Secret boundaries
 
-Service keys, database credentials, signing material, and extra-password verifiers never enter client responses. Only the account trading password may be returned by the explicitly gated reveal endpoint; ordinary account DTOs, logs, backups, and persistent browser storage exclude it. API responses already use no-store headers. Extra-password throttling remains an [open hardening decision](roadmap.md#open-rules-review-follow-ups); no global lockout guarantee is made.
+Server database/service credentials and the trading-password gate verifier remain in AWS SSM and never enter frontend configuration, responses or logs. Auth passwords, tokens, verifiers and sensitive request bodies never enter logs or ledger backups. A newly issued session token is returned only by login and held in browser session storage.
+
+Trading account passwords retain the independent shared extra-password gate. Its SSM SecureString is `empty` before setup or a salted scrypt verifier. Only the explicitly gated reveal endpoint may return an account trading password. Ordinary DTOs, logs, backups and persistent browser storage exclude it. Admin alone updates account trading passwords and the gate. Extra-password throttling remains a separate open hardening decision.

@@ -1,3 +1,4 @@
+import { getCurrentSession } from "../lib/authClient";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Banknote,
@@ -96,8 +97,8 @@ export function Layout({ children }: LayoutProps) {
 
   async function handleSignOut() {
     closeMobileSidebar();
-    await signOut();
-    navigate("/login", { replace: true });
+    try { if (await signOut() && !getCurrentSession()) navigate("/login", { replace: true }); }
+    catch { if (!getCurrentSession()) navigate("/login?logoutUnconfirmed=1", { replace: true }); }
   }
 
   return (

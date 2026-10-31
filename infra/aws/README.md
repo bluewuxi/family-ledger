@@ -83,6 +83,8 @@ corepack pnpm backup:ledger:test
 
 ## SSM Parameters
 
+Authentication uses the API's dedicated DynamoDB table, not a signing secret in SSM. CloudFormation injects `AUTH_TABLE_NAME` into the API and exposes `AuthTableName` for authorized operator/local tooling. Set this output only in ignored local configuration when needed; do not commit generated table names. Jobs have no authentication-table access. The auth table is retained on stack deletion/replacement and uses encryption, PITR and TTL cleanup. Database service keys remain server-side SSM values.
+
 Checked-in `.env.test` and `.env.prod` files should store SSM parameter paths rather than decrypted values. Do not put generated bucket names or other deployment outputs in env files; deployment scripts read those values from CloudFormation stack outputs.
 
 Current naming convention:
@@ -94,8 +96,6 @@ Current naming convention:
 /family-ledger/prod_supabase_secret_key
 /family-ledger/test_supabase_url
 /family-ledger/prod_supabase_url
-/family-ledger/test_supabase_jwt_secret
-/family-ledger/prod_supabase_jwt_secret
 ```
 
 Lambda API and jobs should resolve these paths server-side with SSM `GetParameter` and `WithDecryption=true`. The decrypted values must stay in backend runtime memory only.

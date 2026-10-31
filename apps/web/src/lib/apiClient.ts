@@ -1,7 +1,7 @@
 import type { ApiResponse } from "@family-ledger/shared";
 import { isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_TOKEN } from "./localAuthBypass";
 import { getRuntimeConfig } from "./runtimeConfig";
-import { getCurrentSession, notifyAuthSessionExpired } from "./supabase";
+import { getCurrentSession, loadSession, notifyAuthSessionExpired } from "./authClient";
 import { cachedRead, clearReadCache, setReadCacheIdentity } from "./readCache";
 
 export class ApiClientError extends Error {
@@ -54,10 +54,11 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (!response.ok || !body.success) {
     const error = body.success ? null : body.error;
     if (response.status === 401 || error?.code === "UNAUTHORIZED") {
-      notifyAuthSessionExpired();
+      if (getCurrentSession()?.access_token === token) notifyAuthSessionExpired();
       throw new ApiClientError("登录状态已失效，请重新登录。", "MISSING_SESSION", response.status);
     }
 
+    if (error?.code === "PASSWORD_CHANGE_REQUIRED" && getCurrentSession()?.access_token === token) await loadSession();
     throw new ApiClientError(error?.message ?? "API 请求失败。", error?.code ?? "HTTP_ERROR", response.status);
   }
 

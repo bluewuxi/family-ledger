@@ -3,14 +3,14 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { initializeRuntimeConfig } from "./lib/runtimeConfig";
-import { initializeSupabaseClient } from "./lib/supabase";
+import { clearLegacyAuthStorage } from "./lib/authClient";
 import "./styles.css";
 
 const root = createRoot(document.getElementById("root") as HTMLElement);
 
 initializeRuntimeConfig()
-  .then((config) => {
-    initializeSupabaseClient(config);
+  .then(() => {
+    clearLegacyAuthStorage();
     root.render(
       <StrictMode>
         <BrowserRouter>

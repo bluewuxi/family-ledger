@@ -1,3 +1,5 @@
+import { authRoute } from "./authRoutes";
+import { AuthFailure } from "../auth/authErrors";
 import { invalidateHistoryCache } from "../services/historyCache";
 import { getAccountTotals } from "../services/accountService";
 import { logCaughtError, logError, withRequestLogging } from "../utils/errorLogging";
@@ -361,6 +363,7 @@ async function routeRequest(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
       return preflight();
     }
 
+    if (event.rawPath.startsWith("/auth/") || /^\/settings\/users\/[^/]+\/reset-password$/.test(event.rawPath)) return await authRoute(event);
     if (event.rawPath === "/data-maintenance/errors" || event.rawPath.startsWith("/data-maintenance/errors/")) return await apiErrorRoute(event);
     if (event.rawPath === "/education-reserve" || event.rawPath.startsWith("/education-reserve/")) return await educationReserveRoute(event);
     if (event.rawPath === "/cashflows" && event.requestContext.http.method === "GET") {
@@ -391,7 +394,9 @@ async function routeRequest(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
     }
 
     if (error instanceof ApiRequestError) {
-      return failure({ code: error.code, message: error.message }, error.statusCode);
+      const response = failure({ code: error.code, message: error.message }, error.statusCode);
+      if(error instanceof AuthFailure && error.retryAfter) response.headers = {...response.headers, "retry-after":String(error.retryAfter)};
+      return response;
     }
 
     return failure({ code: "INTERNAL_ERROR", message: "Unexpected server error." }, 500);

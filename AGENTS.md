@@ -9,7 +9,7 @@
 
 ## Repository map and universal constraints
 
-- Stack: React/TypeScript/Vite; CloudFront/private S3 → API Gateway → Lambda API → Supabase Postgres; EventBridge Scheduler → Lambda jobs. Supabase Auth provides identity.
+- Stack: React/TypeScript/Vite; CloudFront/private S3 → API Gateway → Lambda API → Supabase Postgres; EventBridge Scheduler → Lambda jobs. Lambda and DynamoDB provide opaque-session authentication.
 - `apps/web` owns UI and Auth token acquisition; business data goes through `apps/api`, which authorizes requests and owns business rules. `apps/jobs` owns trusted batch work; `packages/shared` owns cross-layer contracts/calculations. Migrations, seeds, and AWS infrastructure live in `supabase/migrations`, `supabase/seed`, and `infra/aws`. Follow detailed boundaries in [Architecture](docs/architecture.md#code-organization).
 - The frontend must not write investment tables directly, hold server secrets, or be authoritative for investment/tax calculations or permissions. Server-side role checks are authoritative; frontend checks are UI hints and RLS is defensive.
 - Use strict TypeScript and minimal dependencies. Persist financial values with PostgreSQL `numeric` and use reliable authoritative arithmetic as defined in [Financial Values](docs/data-model.md#financial-values).

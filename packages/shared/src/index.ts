@@ -1999,6 +1999,8 @@ function formatFlexibleDecimal(amount: Decimal, decimalPlaces: number): string {
 export interface ApiError {
   code:
     | "UNAUTHORIZED"
+    | "PASSWORD_CHANGE_REQUIRED"
+    | "RATE_LIMITED"
     | "FORBIDDEN"
     | "VALIDATION_ERROR"
     | "NOT_FOUND"

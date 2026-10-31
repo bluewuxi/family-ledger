@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 export const LEDGER_BACKUP_TABLES = [
+  { name: "app_users", orderColumn: "id" },
   { name: "spending_accounts", orderColumn: "id" },
   { name: "account_statements", orderColumn: "id" },
   { name: "statement_rows", orderColumn: "id" },

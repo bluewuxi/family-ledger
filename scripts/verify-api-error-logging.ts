@@ -1,3 +1,4 @@
+import { AuthStateRepository } from "../apps/api/src/repositories/authStateRepository";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -78,13 +79,15 @@ async function main() {
 
   // Real middleware/router with synthetic SDK responses: no external service or user account.
   process.env.SUPABASE_URL = "https://fixture.supabase.co"; process.env.SUPABASE_SECRET_KEY_SSM_PARAM = "/fixture/key";
-  process.env.AWS_REGION = "ap-southeast-2";
+  process.env.AWS_REGION = "ap-southeast-2"; process.env.AUTH_TABLE_NAME="fixture-auth";
+  AuthStateRepository.prototype.getSession=async()=>({userId:"00000000-0000-4000-8000-000000000001",credentialVersion:1,purpose:"full",expiresAt:Math.floor(Date.now()/1000)+3600});
+  AuthStateRepository.prototype.getCredential=async()=>({credentialVersion:1,mustChangePassword:false,temporaryPasswordExpiresAt:null,verifier:{algorithm:"scrypt",version:1,N:131072,r:8,p:1,salt:"00".repeat(16),hash:"00".repeat(64)},updatedAt:"2026-01-01",lastSignInAt:null});
   SSMClient.prototype.send = (async () => ({ Parameter: { Value: "fixture-service-key" } })) as typeof SSMClient.prototype.send;
   let role: "viewer" | "admin" | "failure" = "viewer";
   let observations: unknown[] = [];
   globalThis.fetch = async (input, options) => {
     const url = String(input instanceof Request ? input.url : input);
-    if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: "00000000-0000-4000-8000-000000000001", email: "fixture@example.invalid" }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/app_users")) return new Response(JSON.stringify({ id: "00000000-0000-4000-8000-000000000001", email: "fixture@example.invalid" }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("user_roles")) return new Response(JSON.stringify(role === "failure" ? raw : { role }), { status: role === "failure" ? 503 : 200, headers: { "content-type": "application/json" } });
     if (url.includes("api_error_groups")) return new Response("[]", { status: 200, headers: { "content-type": "application/json", "content-range": "0-0/0" } });
     if (url.includes("observe_api_errors")) {
@@ -95,15 +98,15 @@ async function main() {
   };
   for (const [method, path] of [["GET", "/data-maintenance/errors"], ["POST", "/data-maintenance/errors/query"], ["GET", "/data-maintenance/errors/00000000-0000-4000-8000-000000000001/events"], ["PATCH", "/data-maintenance/errors/00000000-0000-4000-8000-000000000001"]]) {
     const unauth = await handler(event(method, path)); assert.equal(unauth.statusCode, 401);
-    const viewer = await handler({ ...event(method, path), headers: { authorization: "Bearer fixture-user-token" } }); assert.equal(viewer.statusCode, 403);
+    const viewer = await handler({ ...event(method, path), headers: { authorization: "Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } }); assert.equal(viewer.statusCode, 403);
   }
   role = "failure";
-  const failed = await handler({ ...event("GET", "/portfolio-snapshots"), headers: { authorization: "Bearer fixture-user-token" } });
-  assert.equal(failed.statusCode, 500);
-  assert.deepEqual(JSON.parse(failed.body!), { success: false, error: { code: "INTERNAL_ERROR", message: "Unexpected server error." } });
+  const failed = await handler({ ...event("GET", "/portfolio-snapshots"), headers: { authorization: "Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } });
+  assert.equal(failed.statusCode, 503);
+  assert.deepEqual(JSON.parse(failed.body!), { success: false, error: { code: "DEPENDENCY_UNAVAILABLE", message: "认证服务暂时不可用，请稍后重试。" } });
   assert.ok(output.some(row => row.entry.operation === "userRoleRepository.getUserRole" && (row.entry.error as { code?: string }).code === "08006"));
   role = "admin";
-  assert.equal((await handler({ ...event("GET", "/data-maintenance/errors"), headers: { authorization: "Bearer fixture-user-token" } })).statusCode, 200);
+  assert.equal((await handler({ ...event("GET", "/data-maintenance/errors"), headers: { authorization: "Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } })).statusCode, 200);
   process.env.API_ERROR_LOG_GROUP = "fixture-log-group";
   let cloudPage = 0;
   cloudWatchErrorTransport.send = async command => {
@@ -116,7 +119,7 @@ async function main() {
       { ...text("ERROR", diagnostic("/expired")), eventId: "expired", timestamp: Date.now() - 31 * 86400000 }
     ] : [], nextToken: cloudPage === 1 ? "page-two" : undefined };
   };
-  const queryEvent = { ...event("POST", "/data-maintenance/errors/query"), headers: { authorization: "Bearer fixture-user-token" }, body: "{}" };
+  const queryEvent = { ...event("POST", "/data-maintenance/errors/query"), headers: { authorization: "Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }, body: "{}" };
   const firstPage = await handler(queryEvent); assert.equal(firstPage.statusCode, 200);
   const firstData = JSON.parse(firstPage.body!).data as { observed: number; nextCursor: string; from: string; to: string };
   assert.equal(firstData.observed, 1); assert.equal(observations.length, 1); assert.ok(firstData.nextCursor);

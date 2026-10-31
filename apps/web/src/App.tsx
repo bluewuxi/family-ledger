@@ -1,3 +1,4 @@
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { LoadingState } from "./components/LoadingState";
@@ -42,7 +43,7 @@ function AppRoutes() {
 }
 
 export function App() {
-  // TODO: Add role-based UI display once Lambda API returns viewer/admin role.
+
   return (
     <AuthProvider>
       <Routes>
@@ -56,7 +57,7 @@ export function App() {
 }
 
 function ProtectedApp() {
-  const { session, loading } = useAuth();
+  const { session, loading, error, retry } = useAuth();
 
   if (loading) {
     return (
@@ -66,9 +67,13 @@ function ProtectedApp() {
     );
   }
 
+  if (error) return <main className="login-page"><section className="login-panel"><p role="alert">{error}</p><button onClick={retry}>重试</button></section></main>;
+
   if (!session) {
     return <Navigate to="/login" replace />;
   }
+
+  if (session.mustChangePassword || window.location.pathname === "/change-password") return <ChangePasswordPage />;
 
   return (
     <PreferencesProvider>

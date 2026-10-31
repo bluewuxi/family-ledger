@@ -1,3 +1,4 @@
+import { loginSmokeUser, logoutSmokeUser } from "./smoke-auth";
 import dotenv from "dotenv";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,18 +14,13 @@ async function main() {
   const supabase = createClient(required("SUPABASE_URL"), secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: roles, error } = await supabase.from("user_roles").select("user_id,role");
   if (error) throw new Error("Cannot load test roles.");
-  const sessions: ReturnType<typeof createClient>[] = [];
-  // Generate and consume an admin link locally; this sends no email. Close only the smoke session.
+  const sessions: string[] = [];
   const tokenFor = async (id: string) => {
-    const user = await supabase.auth.admin.getUserById(id);
-    if (user.error || !user.data.user.email) throw new Error("Cannot load test identity.");
-    const link = await supabase.auth.admin.generateLink({ type: "magiclink", email: user.data.user.email });
-    if (link.error || !link.data.properties.hashed_token) throw new Error("Cannot generate smoke authentication.");
-    const sessionClient = createClient(required("SUPABASE_URL"), required("VITE_SUPABASE_ANON_KEY"), { auth: { persistSession: false, autoRefreshToken: false } });
-    const login = await sessionClient.auth.verifyOtp({ type: "magiclink", token_hash: link.data.properties.hashed_token });
-    if (login.error || !login.data.session) throw new Error("Cannot verify smoke authentication.");
-    sessions.push(sessionClient);
-    return login.data.session.access_token;
+    const { data: user, error: identityError } = await supabase.from("app_users").select("email").eq("id", id).single();
+    if (identityError || !user?.email) throw new Error("Cannot load test identity.");
+    const token = await loginSmokeUser(`https://${parameters.ApiDomainName}`, user.email);
+    sessions.push(token);
+    return token;
   };
   const admin = roles?.find(row => row.role === "admin");
   assert.ok(admin, "Test admin is required.");
@@ -55,7 +51,7 @@ async function main() {
   }
   console.log(`Live test API: health, authorization, CloudWatch query, summaries and event details passed; observed ${sync.body.data.observed} new events. Handling states were unchanged.`);
   } finally {
-    for (const client of sessions) await client.auth.signOut({ scope: "local" });
+    for (const token of sessions) await logoutSmokeUser(`https://${parameters.ApiDomainName}`, token);
   }
 }
 

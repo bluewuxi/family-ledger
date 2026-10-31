@@ -1,9 +1,10 @@
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { getSupabaseClient } from "../lib/supabase";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { login } from "../lib/authClient";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,19 +15,12 @@ export function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error: signInError } = await getSupabaseClient().auth.signInWithPassword({
-      email,
-      password
-    });
-
-    setLoading(false);
-
-    if (signInError) {
-      setError("邮箱或密码不正确。");
-      return;
-    }
-
-    navigate("/dashboard", { replace: true });
+    try {
+      const session = await login(email, password);
+      navigate(session.mustChangePassword ? "/change-password" : "/dashboard", { replace: true });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "登录暂时不可用，请稍后重试。");
+    } finally { setPassword(""); setLoading(false); }
   }
 
   return (
@@ -48,6 +42,8 @@ export function LoginPage() {
         </div>
 
         <p className="login-note">透明记录, 共同理解家庭财富变化</p>
+        {params.has("passwordChanged") && <p role="status">密码已修改，请使用新密码登录。</p>}
+        {params.has("logoutUnconfirmed") && <p className="form-error" role="alert">本机已退出，服务器会话撤销未确认。请联系管理员或稍后重试。</p>}
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
@@ -74,7 +70,7 @@ export function LoginPage() {
               required
             />
           </label>
-          {error ? <p className="form-error">{error}</p> : null}
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
           <button type="submit" disabled={loading}>
             {loading ? "登录中..." : "登录"}
           </button>

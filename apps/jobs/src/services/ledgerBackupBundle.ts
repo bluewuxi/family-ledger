@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 8;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261031090000_lossless_ledger_backup";
+export const LEDGER_BACKUP_VERSION = 9;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261031100000_auth_cutover";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -17,13 +17,14 @@ export interface LedgerBackupManifestTable {
 }
 
 export interface LedgerBackupExternalDependencies {
-  supabaseAuthUsers: true;
-  restoreRequiresMatchingAuthUserIdsOrRemap: true;
+  supabaseAuthUsers: boolean;
+  authenticationCredentials?: "external_dynamodb";
+  restoreRequiresMatchingAuthUserIdsOrRemap: boolean;
   userIdFields: string[];
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -60,7 +61,7 @@ export function createLedgerBackupObject(input: {
   const legacy = Array.isArray(input.rows.portfolio_snapshots);
   if (!legacy) validateBackupFinancialValues(input.rows);
   const tableDefinitions = LEDGER_BACKUP_TABLES.filter((table) => !legacy || ![
-    "spending_accounts",
+    "app_users", "spending_accounts",
     "account_statements",
     "statement_rows",
     "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"
@@ -89,8 +90,9 @@ export function createLedgerBackupObject(input: {
     jsonSerialization: JSON_SERIALIZATION,
     tableOrder: tableDefinitions.map((table) => table.name),
     externalDependencies: {
-      supabaseAuthUsers: true,
-      restoreRequiresMatchingAuthUserIdsOrRemap: true,
+      supabaseAuthUsers: legacy,
+      ...(legacy ? {} : { authenticationCredentials: "external_dynamodb" as const }),
+      restoreRequiresMatchingAuthUserIdsOrRemap: legacy,
       userIdFields: [
         "profiles.id",
         ...["spending_accounts", "account_statements", "statement_rows", "education_reserve_funds", "education_reserve_entries"].flatMap((table) => [`${table}.created_by_user_id`, `${table}.updated_by_user_id`]),
@@ -147,7 +149,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, 7, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -172,6 +174,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
   }
 
   const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name)
+    .filter((name) => payload.manifest.version >= 9 || name !== "app_users")
     .filter((name) => payload.manifest.version >= 3 || !["spending_accounts", "account_statements", "statement_rows"].includes(name))
     .filter((name) => payload.manifest.version >= 5 || name !== "kernel_price_anchors")
     .filter((name) => payload.manifest.version >= 7 || name !== "kernel_nta_refresh_state")
@@ -227,9 +230,11 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
     throw new Error("Backup total row count does not match the manifest.");
   }
 
-  if (payload.manifest.externalDependencies.supabaseAuthUsers !== true) {
+  if (payload.manifest.version < 9 && payload.manifest.externalDependencies.supabaseAuthUsers !== true) {
     throw new Error("Backup must declare Supabase Auth users as external dependencies.");
   }
+
+  if (payload.manifest.version >= 9 && (payload.manifest.externalDependencies.supabaseAuthUsers !== false || payload.manifest.externalDependencies.authenticationCredentials !== "external_dynamodb" || payload.manifest.externalDependencies.restoreRequiresMatchingAuthUserIdsOrRemap !== false)) throw new Error("Backup must declare external DynamoDB credentials and internal application identities.");
 
   const {
     payloadChecksumSha256: _payloadChecksumSha256,
@@ -297,7 +302,9 @@ export function stableStringify(value: unknown): string {
 }
 
 /** Validate the original checksums first, then map stored data for the current schema. */
-export function prepareLedgerRestoreRows(payload: LedgerBackupPayload): LedgerBackupRows {
+export interface RestoreIdentity { id: string; email: string; created_at: string; }
+
+export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityMapping?: RestoreIdentity[]): LedgerBackupRows {
   validateLedgerBackupPayload(payload);
   const source = payload.tables as unknown as Record<string, unknown[]>;
   if (payload.manifest.version < 4 && ["spending_accounts", "account_statements", "statement_rows"].some(name => (source[name]?.length ?? 0) > 0)) {
@@ -315,6 +322,25 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload): LedgerBa
       rows[table.name] = structuredClone(source[table.name] ?? []);
     }
   }
+  if (payload.manifest.version < 9) {
+    if (!identityMapping) throw new Error("Legacy backups require an explicit application identity mapping.");
+    rows.app_users = structuredClone(identityMapping);
+  }
+  const identities = new Set<string>();
+  const emails = new Set<string>();
+  for (const value of rows.app_users) {
+    const user = value as Record<string, unknown>;
+    if (typeof user.id !== "string" || !/^[0-9a-f-]{36}$/i.test(user.id) || typeof user.email !== "string" || user.email !== user.email.trim().toLowerCase() || !user.email || typeof user.created_at !== "string" || !Number.isFinite(Date.parse(user.created_at))) throw new Error("Invalid application identity mapping.");
+    if (identities.has(user.id) || emails.has(user.email)) throw new Error("Duplicate application identity mapping.");
+    identities.add(user.id); emails.add(user.email);
+  }
+  for (const [table, values] of Object.entries(rows)) for (const value of values ?? []) {
+    const row = value as Record<string, unknown>;
+    for (const [field, userId] of Object.entries(row)) {
+      if ((field.endsWith("_by_user_id") || (table === "profiles" && field === "id") || (table === "user_roles" && field === "user_id")) && userId !== null && userId !== undefined && !identities.has(String(userId))) throw new Error("Backup references an unmapped application identity.");
+    }
+  }
+  rows.user_roles = rows.user_roles.map(value => ({ ...(value as Record<string, unknown>), access_revision: (value as Record<string, unknown>).access_revision ?? 0 }));
   rows.kernel_price_anchors = rows.kernel_price_anchors.map(value => {
     const a = value as Record<string, unknown>;
     return { ...a, proxy_value_type: a.proxy_value_type ?? "open", proxy_announcement_id: a.proxy_announcement_id ?? null, proxy_published_at: a.proxy_published_at ?? null, derived_from_anchor_id: a.derived_from_anchor_id ?? null };

@@ -16,7 +16,7 @@ Backup version 7 adds Kernel NTA refresh state and metadata; version 6 introduce
 
 Users are accessors/operators only. User-specific tables are limited to:
 
-- `profiles`: Supabase Auth user profile data.
+- `profiles`: application user preferences linked to stable `app_users` UUIDs.
 - `user_roles`: active `viewer` / `admin` access role.
 
 New profile rows default to `preferred_currency = 'CNY'`, `gain_color_scheme = 'red_positive'`, and `ui_theme = 'light'`. Existing saved preferences are not rewritten when defaults change.
@@ -42,7 +42,7 @@ Business tables do not use `user_id` as an ownership field. Where useful, they u
 - `portfolio_snapshots`: read-only aggregate view derived from snapshot headers and account snapshots.
 - `portfolio_account_snapshots`: per-account rows under each daily portfolio snapshot.
 
-Scheduled ledger backups export these public app tables only through the allowlisted `public.export_ledger_backup()` database RPC, which reads all backup tables in one PostgreSQL statement snapshot. The backup deliberately excludes Supabase Auth internals, frontend assets, AWS/SSM secrets, and decrypted trading account passwords. Restoring into a fresh Supabase project therefore requires recreating Auth users first or remapping user-linked rows such as `profiles`, `user_roles`, and audit user ids.
+Scheduled ledger backups export these public app tables only through the allowlisted `public.export_ledger_backup()` database RPC, which reads all backup tables in one PostgreSQL statement snapshot. The backup deliberately excludes Supabase Auth internals, frontend assets, AWS/SSM secrets, and decrypted trading account passwords. Version-9 backups include app_users identities before their dependents; older backups require an explicit reviewed identity mapping. Credentials and sessions remain outside ledger backups.
 
 Trading account passwords are not stored in Postgres. Each account has one SSM SecureString parameter named from the deployment prefix plus the account id. New accounts receive the placeholder value `尚未设置交易密码`; deleting an account also deletes its SSM password parameter after the API confirms the account has no transactions.
 
@@ -329,3 +329,7 @@ Account headline investment profit uses dashboard principal semantics scoped to 
 `latest_price_candidates(jsonb)` batches the former per-instrument top-20 price candidates. Existing provider preference and two-distinct-price-date selection remain in shared code. The migration adds a read function only; persisted financial amounts and historical snapshots are unchanged.
 
 Backup consistency does not imply uniformly exact numeric encoding or verified recovery. Current format limitations and operator acceptance are maintained in [backup and restore](operations/backup-restore.md#exact-numeric-values).
+
+## Application identities
+
+The app_users table owns stable UUIDs and normalized unique login emails. Profiles, user_roles and all audit identity foreign keys reference app_users. user_roles.access_revision supports conditional access changes. DynamoDB stores credentials, opaque sessions and rate limits independently; no financial ledger data is stored there. Final cutover revokes direct private-table/view/RPC access from public, anon and authenticated while preserving trusted service_role access. See [Auth](auth.md).

@@ -72,14 +72,12 @@ async function main(): Promise<void> {
   const awsRegion = requiredEnv("AWS_REGION");
   const supabaseUrl = requiredEnv("SUPABASE_URL");
   const serviceKeyParam = requiredEnv("SUPABASE_SECRET_KEY_SSM_PARAM");
-  const jwtSecretParam = requiredEnv("SUPABASE_JWT_SECRET_SSM_PARAM");
   const dbPasswordParam = requiredEnv("SUPABASE_DB_PASSWORD_SSM_PARAM");
 
   console.log("SSM parameter paths found: yes");
 
   const ssm = new SSMClient({ region: awsRegion });
   const serviceKey = await resolveSecureParameter(ssm, serviceKeyParam);
-  await resolveSecureParameter(ssm, jwtSecretParam);
   await resolveSecureParameter(ssm, dbPasswordParam);
 
   console.log("SSM values resolved: yes");

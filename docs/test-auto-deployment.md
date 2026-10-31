@@ -12,7 +12,7 @@ Only documentation changes skip deployment. Other changes publish backend and fr
 
 Run `corepack pnpm deploy:bootstrap:test` with operator AWS/GitHub credentials. It creates the separate `family-ledger-test-delivery` stack: a private encrypted versioned artifact bucket, a restricted CloudFormation execution role and a GitHub OIDC deployment role. Existing OIDC providers are reused only with the STS audience. The repository's actual OIDC subject prefix is discovered, including immutable identifiers when enabled.
 
-The bootstrap sets Environment variables `AWS_REGION`, `DEPLOY_ROLE_ARN`, `DEPLOY_EXECUTION_ROLE_ARN` and `DEPLOY_ARTIFACT_BUCKET`. No AWS identifiers are committed. Public web configuration comes from checked-in public values, optionally overridden by `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; use identical values during infrastructure registration. No private environment files or financial data are uploaded as workflow artifacts. Actions and SAM CLI are pinned; AWS CLI v2 comes from the fixed Ubuntu runner image.
+The bootstrap sets Environment variables `AWS_REGION`, `DEPLOY_ROLE_ARN`, `DEPLOY_EXECUTION_ROLE_ARN` and `DEPLOY_ARTIFACT_BUCKET`. No AWS identifiers are committed. Public web configuration contains only `apiBaseUrl`, derived from the configured API domain; use identical values during infrastructure registration. No private environment files or financial data are uploaded as workflow artifacts. Actions and SAM CLI are pinned; AWS CLI v2 comes from the fixed Ubuntu runner image.
 
 The execution role can also read the exact S3 objects used by currently deployed Lambda packages, discovered during bootstrap. This preserves CloudFormation's ability to restore the previous code during a failed first update, without granting access to unrelated buckets or ledger backups. This is stack-update recovery, not automatic rollback after a failed application smoke check.
 
@@ -25,6 +25,10 @@ corepack pnpm deploy:register:test bootstrap <full-HEAD-SHA> <verification-evide
 ```
 
 Historical migrations are never replayed by registration. Set repository variable `TEST_AUTO_DEPLOY_ENABLED=true`, manually rerun CI for the first controlled release, then leave it enabled for later pushes. Setting it to `false` pauses push deployment, but does not interrupt an active release or disable explicit dispatch.
+
+## Authentication migration
+
+The opaque-session migration introduces an authentication DynamoDB table, separate API IAM role, API route throttles and Lambda environment settings. These are independent infrastructure changes: apply and verify them only under separate operator authorization, then register the final infrastructure manifest. Apply and verify the complete additive and final cutover SQL migrations before registering the complete migration manifest. Never register an intermediate schema and then change policies/grants/functions without renewed verification/registration. Do not broaden the automatic deployment role to perform this cutover.
 
 ## Independent changes
 

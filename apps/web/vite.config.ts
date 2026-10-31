@@ -17,9 +17,6 @@ export default defineConfig({
             return "react-vendor";
           }
 
-          if (id.includes("node_modules/@supabase")) {
-            return "supabase";
-          }
 
           if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) {
             return "charts";

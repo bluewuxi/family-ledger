@@ -1,3 +1,7 @@
+import { updateUserAccessLifecycle } from "./userAccessLifecycle";
+import { getAuthStateRepository } from "../auth/authRuntime";
+import { normalizeAuthError } from "./authService";
+import { getUserAccess } from "../repositories/managedUserRepository";
 import { logCaughtError } from "../utils/errorLogging";
 import {
   USER_ROLES,
@@ -14,7 +18,8 @@ import {
 import { ApiRequestError } from "../utils/apiError";
 
 export async function getManagedUsers(): Promise<ManagedUser[]> {
-  return listManagedUserRecords();
+  const users = await listManagedUserRecords();
+  try { return await Promise.all(users.map(async user => ({...user,lastSignInAt:(await getAuthStateRepository().getCredential(user.id))?.lastSignInAt??null}))); } catch(error) { logCaughtError("managedUserService.getManagedUsers", new Error("Managed user authentication metadata could not be loaded.")); normalizeAuthError(error); }
 }
 
 export async function updateManagedUser(
@@ -31,14 +36,19 @@ export async function updateManagedUser(
   const input = parseUpdateManagedUserInput(body);
 
   try {
-    return await updateManagedUserRole(id, input);
+    return await updateUserAccessLifecycle(id, input, {
+      getAccess: getUserAccess,
+      updateAccess: updateManagedUserRole,
+      hasCredential: async userId => Boolean(await getAuthStateRepository().getCredential(userId)),
+      invalidateSessions: userId => getAuthStateRepository().invalidateSessions(userId)
+    });
   } catch (error) {
-    logCaughtError("managedUserService.updateManagedUser", error);
+    logCaughtError("managedUserService.updateManagedUser", new Error("Managed user access update failed."));
     if (error instanceof ManagedUserNotFoundError) {
       throw new ApiRequestError("NOT_FOUND", "User was not found.", 404);
     }
 
-    throw error;
+    normalizeAuthError(error);
   }
 }
 

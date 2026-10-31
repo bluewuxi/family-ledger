@@ -16,7 +16,7 @@ Use this runbook when starting the app locally for browser testing against the c
 - Run commands from the repository root.
 - `.env.local` exists locally. It is intentionally ignored by Git and is used only for local debugging.
 - AWS credentials can read the test SSM parameters referenced by `.env.local`.
-- A Supabase Auth test user exists.
+- A provisioned application test user and DDB credential exist (operator setup is separately authorized).
 - That Auth user has an active `viewer` or `admin` row in `public.user_roles`. Account create, edit, and delete testing requires `admin`.
 
 Do not store Auth passwords, Supabase secret keys, or resolved SSM values in the repository.
@@ -26,17 +26,16 @@ Do not store Auth passwords, Supabase secret keys, or resolved SSM values in the
 Before starting the app, confirm these values in `.env.local`:
 
 ```text
-VITE_SUPABASE_URL=<test Supabase project URL>
-VITE_SUPABASE_ANON_KEY=<test publishable/anon key>
 VITE_API_BASE_URL=http://localhost:3000
-SUPABASE_URL=<same test Supabase project URL>
+SUPABASE_URL=<test database API URL>
+AUTH_TABLE_NAME=<operator-provided test auth table name>
 SUPABASE_SECRET_KEY_SSM_PARAM=<test service key SSM parameter path>
 TRADING_PASSWORD_GATE_SSM_PARAM=/family-ledger/test_trading_password_gate
 TRADING_PASSWORD_SSM_PREFIX=/family-ledger/test_trading_account_password_
 AWS_REGION=<SSM parameter region>
 ```
 
-`VITE_SUPABASE_URL` and `SUPABASE_URL` must target the same test project. A stale frontend URL causes login requests to fail before authentication.
+The browser needs only the API URL. The API needs database configuration and AUTH_TABLE_NAME; no cloud resources are created by local startup.
 
 `.env.test` is checked in for deployed test configuration and should point `VITE_API_BASE_URL` at `https://test-fund-api.kidrawer.com`, not the local API adapter.
 
@@ -105,24 +104,11 @@ The adapter handles `OPTIONS` requests and injects local CORS response headers. 
 
 ## Test Auth And Roles
 
-Passwords cannot be recovered from Supabase Auth or from this repository. Use the login page self-service reset flow or reset a test password in the Supabase Dashboard when needed.
-
-After creating a test Auth user, grant application access from trusted SQL tooling:
-
-```sql
-insert into public.user_roles (user_id, role, is_active)
-values ('<auth-user-id>', 'admin', true)
-on conflict (user_id)
-do update set role = excluded.role, is_active = true;
-```
-
-For account CRUD testing, use `admin`. For read-only verification, use `viewer`.
-
-Admin users can also manage existing Auth users from Settings. User creation remains in the Supabase console. If Supabase refuses to send reset emails in a hosted test project, configure custom SMTP or add the test recipients to the Supabase project's allowed/team email settings.
+Use the application login with operator-provisioned credentials. Password changes are self-service with the current password; recovery is an administrator reset. See [auth recovery](operations/auth-recovery.md). User setup, password resets against shared TEST, migrations and infrastructure changes require their separate authorization. Existing viewer/admin endpoint exceptions remain in force.
 
 ## Authenticated browser acceptance
 
-Use real Supabase Auth for browser verification. Obtain the user's agreement, provide the local URL, and wait for their login and target-page confirmation before inspecting authenticated pages. Keep both local auth-bypass flags disabled in the API/web processes and local environment files. Existing bypass sessions and mockups do not satisfy authenticated visual acceptance.
+Use real application session authentication for browser verification. Obtain the user's agreement, provide the local URL, and wait for their login and target-page confirmation before inspecting authenticated pages. Keep both local auth-bypass flags disabled in the API/web processes and local environment files. Existing bypass sessions and mockups do not satisfy authenticated visual acceptance.
 
 Authenticated pages require login. Do not repeatedly try to bypass login or directly open protected pages before the user's target-page confirmation. Use `http://127.0.0.1:5181` unless occupied; see the startup sections above for the local API/web commands.
 
@@ -151,23 +137,15 @@ Provide `http://127.0.0.1:5182/login` to the user and wait for readiness. A loca
 
 The code retains a development-only bypass controlled by `VITE_LOCAL_AUTH_BYPASS`, `FAMILY_LEDGER_LOCAL_AUTH_BYPASS`, and `LOCAL_AUTH_BYPASS_EMAIL`. This is implementation reference, not an instruction to enable it during agent/browser verification. Do not use it to avoid the user-login handoff or to claim authenticated acceptance. This documentation change does not remove or modify the mechanism.
 
-Its gates include Vite development mode, loopback browser/API addresses, the local API adapter's event metadata, a matching local-only token, and an existing configured Auth user. Run `corepack pnpm verify:local-auth-bypass` when changing those gates; synthetic gate verification is separate from browser acceptance.
+Its gates include Vite development mode, loopback browser/API addresses, the local API adapter's event metadata, a matching local-only token, and an existing configured application user. Run `corepack pnpm verify:local-auth-bypass` when changing those gates; synthetic gate verification is separate from browser acceptance.
 
-Never add bypass variables to `.env.test`, `.env.prod`, deployment parameters, CloudFormation, or generated `config.json`. To disable an existing bypass, set both flags to false or remove them from the environment files and process environments, then restart the API and web server. Remote TEST and production use real Supabase Auth.
+Never add bypass variables to `.env.test`, `.env.prod`, deployment parameters, CloudFormation, or generated `config.json`. To disable an existing bypass, set both flags to false or remove them from the environment files and process environments, then restart the API and web server. Remote TEST and production use real application session authentication after the operator cutover.
 
 ## Common Failures
 
-### Login request reports `ERR_NAME_NOT_RESOLVED`
+### Login reports unavailable authentication service
 
-Cause: `VITE_SUPABASE_URL` points to an invalid or stale project hostname.
-
-Check that `VITE_SUPABASE_URL` is reachable and matches `SUPABASE_URL` in `.env.local`, then restart Vite because frontend environment variables are read at startup.
-
-### Browser reports missing `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY`
-
-Cause: Vite was started without loading the root `.env.local` values.
-
-Restart the frontend with `corepack pnpm dev:web:local`.
+Check the local API URL, operator-provided AUTH_TABLE_NAME and access to the target DDB table. Startup does not provision users or tables. Do not use bypass to conceal missing setup.
 
 ### Accounts or other API calls report `ERR_CONNECTION_REFUSED` for `localhost:3000`
 

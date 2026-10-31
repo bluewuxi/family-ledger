@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { prepareLedgerRestoreRows, type LedgerBackupPayload } from "../apps/jobs/src/services/ledgerBackupBundle";
+import { prepareLedgerRestoreRows, type RestoreIdentity, type LedgerBackupPayload } from "../apps/jobs/src/services/ledgerBackupBundle";
 
 import { RESTORE_ORDER } from "../apps/jobs/src/services/ledgerRestoreOrder";
 
@@ -13,7 +13,11 @@ async function main(): Promise<void> {
   const backupFile = parseBackupFile(process.argv.slice(2));
   const payload = readBackupPayload(backupFile);
 
-  payload.tables = prepareLedgerRestoreRows(payload);
+  const mappingIndex=process.argv.indexOf("--identity-mapping");
+  const mappingFile=mappingIndex>=0 ? process.argv[mappingIndex+1] : undefined;
+  if(mappingIndex>=0 && !mappingFile) throw new Error("--identity-mapping requires a JSON file.");
+  const mapping=mappingFile ? JSON.parse(readFileSync(mappingFile,"utf8")) as RestoreIdentity[] : undefined;
+  payload.tables = prepareLedgerRestoreRows(payload,mapping);
   validatePrimaryKeys(payload);
   validateInternalReferences(payload);
 
@@ -31,7 +35,7 @@ async function main(): Promise<void> {
   console.log(`Generated at: ${payload.manifest.generatedAt}`);
   console.log(`Total rows: ${payload.manifest.totalRows}`);
   console.log(`Restore order: ${RESTORE_ORDER.join(", ")}`);
-  console.log(`External Supabase Auth user ids required or remapped: ${externalUserIds.size}`);
+  console.log(`Application user ids validated: ${externalUserIds.size}`);
 }
 
 function readBackupPayload(path: string): LedgerBackupPayload {

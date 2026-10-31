@@ -26,7 +26,7 @@ async function main() {
 
 
     sql(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
-      create table auth.users(id uuid primary key);
+      create table auth.users(id uuid primary key,email text,created_at timestamptz default now());
       create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;`);
     const migrations = readdirSync('supabase/migrations').filter(f=>f.endsWith('.sql')).sort();
     for(const migration of migrations) {
@@ -38,7 +38,7 @@ async function main() {
     const targetArgs = args.map((v,i)=>i>0 && args[i-1]==='-d' ? 'restore_target' : v);
     const targetSql = (input: string) => execFileSync(exe('psql'),targetArgs,{input,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']}).trim();
     const id = (n: number) => '00000000-0000-4000-8000-'+String(n).padStart(12,'0');
-    sql(`insert into auth.users values('${id(1)}');
+    sql(`insert into app_users(id,email) values('${id(1)}','fixture@example.invalid');
       insert into profiles(id,email) values('${id(1)}','fixture@example.invalid');
       insert into user_roles(user_id,role) values('${id(1)}','admin');
       insert into investment_accounts(id,name,account_type,base_currency,created_by_user_id) values('${id(2)}','Fixture','brokerage','USD','${id(1)}');
@@ -83,14 +83,20 @@ async function main() {
     targetSql('truncate '+tables+' cascade');
 
     const inserts = RESTORE_ORDER.map(table => `insert into public.${table} select * from jsonb_populate_recordset(null::public.${table},${literal(restored[table])});`).join('\n');
-    assert.throws(()=>targetSql('begin; set constraints all deferred;'+inserts+' commit;'), /foreign key/);
+    const withoutUsers = inserts.replace(/insert into public.app_users[^\n]+/, '');
+    assert.throws(()=>targetSql('begin; set constraints all deferred;'+withoutUsers+' commit;'), /foreign key/);
     assert.equal(targetSql('select count(*) from profiles'),'0');
-    targetSql(`insert into auth.users values('${id(1)}')`);
     // A failure near the end must roll back the entire load.
     assert.throws(()=>targetSql('begin; set constraints all deferred;'+inserts+' select 1/0; commit;'), /division by zero/);
     for(const table of RESTORE_ORDER) assert.equal(targetSql('select count(*) from '+table),'0',table+' must roll back');
     assert.equal(targetSql('select count(*) from transactions'),'0');
     targetSql('begin; set constraints all deferred;'+inserts+' commit;');
+    assert.equal(targetSql("select count(*) from pg_constraint where confrelid='auth.users'::regclass and connamespace='public'::regnamespace"),'0');
+    for(const role of ['anon','authenticated']) {
+      assert.equal(targetSql(`select has_table_privilege('${role}','public.profiles','select')`),'f');
+      assert.equal(targetSql(`select has_function_privilege('${role}','export_ledger_backup(uuid)','execute')`),'f');
+    }
+    assert.equal(targetSql("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosrc like '%auth.users%'"),'0');
     const after = JSON.parse(targetSql('select export_ledger_backup()'));
     for(const table of RESTORE_ORDER) assert.deepEqual(after[table],exported[table],table+' differs after restore');
     assert.equal(targetSql(`select count(*) from transactions where linked_transaction_id='${id(6)}'`),'1');
@@ -101,7 +107,7 @@ async function main() {
     assert.equal(targetSql(`select sum(case when transaction_type='withdrawal' then -gross_amount else gross_amount end)::text from transactions where instrument_id='${id(3)}'`),'12345678901214.123456');
     assert.equal(targetSql(`select sum(quantity)::text from transactions where instrument_id='${id(4)}'`),'2.0000000000');
     assert.equal(targetSql('select sum(market_value_usd)::text from portfolio_account_snapshots'),'12345678901236.123456');
-    console.log('Current-format full-table restore passed: '+RESTORE_ORDER.length+' tables, '+migrations.length+' real migrations, version '+decoded.manifest.version+', exact data equality, linked cash, pending state, Auth dependencies, privileges and late-failure rollback.');
+    console.log('Current-format full-table restore passed: '+RESTORE_ORDER.length+' tables, '+migrations.length+' real migrations, version '+decoded.manifest.version+', exact data equality, linked cash, pending state, application identity dependencies, privileges and late-failure rollback.');
 
   } finally {
     if(started) execFileSync(exe('pg_ctl'),['-D',data,'-m','immediate','-w','stop'],{windowsHide:true,stdio:'ignore'});

@@ -15,7 +15,7 @@ Implemented areas include authentication and viewer/admin access, investment acc
 - Frontend: React + TypeScript + Vite
 - API: AWS API Gateway + Lambda
 - Jobs: EventBridge-triggered Lambda
-- Database/Auth: Supabase Postgres + Supabase Auth
+- Database/Auth: Supabase Postgres + Lambda/DynamoDB opaque sessions
 - Package manager: pnpm workspaces
 
 ## Environment Files
@@ -24,8 +24,8 @@ Use checked-in `.env.test` for test deployment, checked-in `.env.prod` for produ
 
 Public frontend values may be stored directly:
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+- `AUTH_TABLE_NAME` (server-side only)
+
 - `VITE_API_BASE_URL`
 
 Deployments generate `apps/web/dist/config.json` from the checked-in env file plus `infra/aws/parameters.<env>.json`. Vite env values are still used for local development fallback, but deployed API routing comes from the generated public runtime config.

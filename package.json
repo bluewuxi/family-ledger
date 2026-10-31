@@ -22,6 +22,8 @@
     "sam:build": "sam build --template infra/aws/template.yaml",
     "build": "corepack pnpm --filter @family-ledger/shared build && corepack pnpm --filter @family-ledger/api build && corepack pnpm --filter @family-ledger/jobs build && corepack pnpm --filter @family-ledger/web build",
     "smoke:stage1:test": "tsx scripts/smoke-test-stage1.ts",
+    "verify:auth": "tsx scripts/verify-auth.ts && tsx scripts/verify-auth-service.ts && tsx scripts/verify-auth-state.ts && tsx scripts/verify-auth-routes.ts && tsx scripts/verify-user-access.ts && tsx scripts/verify-auth-user-operations.ts && tsx apps/web/verify-auth-client.ts",
+    "verify:app-users-db": "tsx scripts/verify-app-users-db.ts",
     "verify:api-health": "tsx scripts/verify-api-health.ts",
     "verify:api-error-logging": "tsx scripts/verify-api-error-logging.ts",
     "verify:api-error-db": "tsx scripts/verify-api-error-db.ts",

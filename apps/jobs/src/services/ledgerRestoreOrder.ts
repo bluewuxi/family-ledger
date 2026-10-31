@@ -1,4 +1,5 @@
 export const RESTORE_ORDER = [
+  "app_users",
   "spending_accounts",
   "account_statements",
   "statement_rows",

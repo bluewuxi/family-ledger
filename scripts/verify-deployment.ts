@@ -12,6 +12,22 @@ import { assertLiveSchedule, resolveSchedule } from "./deployment-schedules";
 import { buildLambdaArtifacts } from "./deployment-build";
 import { isStableStack } from "./deployment-runtime";
 
+const authInfrastructure = parseTemplate(readFileSync("infra/aws/template.yaml", "utf8")) as any;
+const authTable = authInfrastructure.Resources.AuthTable;
+assert.equal(authTable.DeletionPolicy, "Retain");
+assert.equal(authTable.UpdateReplacePolicy, "Retain");
+assert.equal(authTable.Properties.BillingMode, "PAY_PER_REQUEST");
+assert.equal(authTable.Properties.PointInTimeRecoverySpecification.PointInTimeRecoveryEnabled, true);
+assert.equal(authTable.Properties.SSESpecification.SSEEnabled, true);
+assert.deepEqual(authTable.Properties.TimeToLiveSpecification, { AttributeName: "expiresAt", Enabled: true });
+assert(!JSON.stringify(authInfrastructure.Resources.LambdaExecutionRole).includes("dynamodb:"), "Jobs role must not access auth state");
+assert(JSON.stringify(authInfrastructure.Resources.ApiExecutionRole).includes("dynamodb:ConditionCheckItem"));
+assert.deepEqual(authInfrastructure.Resources.ApiFunction.Properties.Environment.Variables.AUTH_TABLE_NAME, { Ref: "AuthTable" });
+for (const route of ["POST /auth/login", "POST /auth/change-password", "POST /settings/users/{id}/reset-password"]) {
+  assert.deepEqual(authInfrastructure.Resources.LedgerHttpApi.Properties.RouteSettings[route], { ThrottlingRateLimit: 5, ThrottlingBurstLimit: 10 });
+}
+assert.deepEqual(Object.keys(publicRuntimeConfig()), ["apiBaseUrl"]);
+
 const current = { Resources: {
   Api: { Type: "AWS::Serverless::Function", Properties: { CodeUri: "s3://old/code", FunctionName: "test-api", Role: "existing-role" } },
   Schedule: { Type: "AWS::Scheduler::Schedule", Properties: { Target: { Arn: { "Fn::GetAtt": ["Api", "Arn"] } }, ScheduleExpression: "existing" } }

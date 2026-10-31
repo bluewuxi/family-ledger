@@ -25,3 +25,7 @@ See [Market Data Foundation](data-model.md#market-data-foundation) for confirmed
 ## Verification
 
 When adding date/time behavior, document new semantics and update focused verification such as `corepack pnpm verify:time-policy`. Run the other affected checks listed in [local testing](local-testing.md#validation), including snapshot/trend checks when applicable. Changing an existing business-date contract requires explicit user authorization under [Project Workflow](project-workflow.md#superpowers-compatibility).
+
+## Authentication instants
+
+Session, temporary-password and rate-window expiry use server UTC instants/epoch seconds, independent of portfolio business dates. A full session lasts twelve hours; temporary credentials last twenty-four hours and restricted sessions at most ten minutes. DynamoDB TTL is asynchronous cleanup, never an authorization check.

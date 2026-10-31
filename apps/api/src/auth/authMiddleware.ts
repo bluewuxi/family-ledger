@@ -3,7 +3,7 @@ import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser, UserRole } from "@family-ledger/shared";
 import { getUserRole, UserRoleNotFoundError } from "../repositories/userRoleRepository";
 import { getLocalAuthBypassUser, LocalAuthBypassUserNotFoundError } from "./localAuthBypass";
-import { InvalidTokenError, verifySupabaseJwt } from "./verifySupabaseJwt";
+import { getAuthService, normalizeAuthError } from "../services/authService";
 
 export class ApiAuthError extends Error {
   override readonly name = "ApiAuthError";
@@ -40,18 +40,10 @@ export async function getCurrentUser(event: APIGatewayProxyEventV2): Promise<Aut
       return localBypassUser;
     }
 
-    const user = await verifySupabaseJwt(token);
-    const role = await getUserRole(user.id);
-
-    return {
-      ...user,
-      role
-    };
+    return (await getAuthService().authenticate(token)).user;
   } catch (error) {
     logCaughtError("authMiddleware.getCurrentUser", error);
-    if (error instanceof InvalidTokenError) {
-      throw new ApiAuthError("Authentication is required.");
-    }
+
 
     if (error instanceof UserRoleNotFoundError) {
       throw new ApiAuthError("Active user role is required.", 403);
@@ -61,7 +53,7 @@ export async function getCurrentUser(event: APIGatewayProxyEventV2): Promise<Aut
       throw new ApiAuthError("Local auth bypass user is not configured.", 403);
     }
 
-    throw error;
+    normalizeAuthError(error);
   }
 }
 

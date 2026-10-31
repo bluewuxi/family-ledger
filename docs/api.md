@@ -219,7 +219,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 - `GET /users`
 - `PATCH /users/:id`
 
-`GET /users` lists existing Supabase Auth users with their application role and active status. Users are created in the Supabase console, not through the app.
+`GET /users` lists existing application users with their role, active status and last sign-in metadata from DDB. Operators provision users with the masked-input tool; there is no public registration.
 
 ```json
 {
@@ -247,7 +247,7 @@ These endpoints require a valid Supabase Bearer token and an active `admin` role
 
 The response returns the updated `managedUser`.
 
-Setting `isActive` to `false` pauses application access while preserving the Supabase Auth user and audit history. Admins cannot change their own access from this endpoint.
+Setting `isActive` to `false` pauses application access while preserving the application user and audit history. Admins cannot change their own access from this endpoint.
 
 ### Dashboard Read API
 
@@ -1053,3 +1053,9 @@ The intended compatibility contract keeps `snapshots` scoped by the explicit pur
 ## Write retries
 
 Retry semantics are endpoint-specific: education edits/deletes require current record versions; spending commit repeats require the same token and decisions; identical actual Kernel anchors are idempotent. Transaction revision conflicts require refreshed preparation. An unknown transaction commit outcome requires checking saved records before retrying. These contracts do not authorize generic automatic POST retries.
+
+## Opaque authentication endpoints
+
+Identity and enforcement are maintained in [Auth](auth.md). `POST /auth/login` accepts `{email,password}` and returns `{token,expiresAt,mustChangePassword}` in the ordinary success envelope. `GET /auth/session` returns `{user,expiresAt,mustChangePassword}` for full or password-change-only sessions. `POST /auth/logout` revokes the presented session and is idempotent if invalid. `POST /auth/change-password` accepts `{currentPassword,newPassword}`; success revokes all sessions and requires fresh login. `POST /settings/users/:id/reset-password` requires a full active admin session, accepts `{adminPassword,temporaryPassword}`, and cannot target the caller. Reset does not activate the target user.
+
+Passwords require at least eight characters; auth bodies are capped at 8 KiB. Restricted sessions cannot call other protected routes. Errors include 401 invalid credentials/session, 403 forbidden or `PASSWORD_CHANGE_REQUIRED`, 409 concurrent credential/access conflict, 429 `RATE_LIMITED` with `Retry-After`, and sanitized 503 dependency failure. Responses are no-store. No token/password/verifier is included in diagnostics or ordinary user DTOs.

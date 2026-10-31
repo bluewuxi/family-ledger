@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { PasswordResetForm } from "../components/PasswordResetForm";
 import { type FormEvent, useEffect, useState } from "react";
 import { KeyRound, Power, RefreshCw, Save, ShieldCheck, Users } from "lucide-react";
 import {
@@ -200,7 +202,8 @@ export function SettingsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <PageTitle route="/settings">设置</PageTitle>
+          <Link className="secondary-button" to="/change-password">修改登录密码</Link>
+      <PageTitle route="/settings">设置</PageTitle>
           <p>维护当前用户的显示偏好。管理员可停用访问并维护用户角色。</p>
         </div>
         <button className="secondary-button" type="button" onClick={loadPreferences} disabled={loading || saving || loadingUsers}>
@@ -268,7 +271,7 @@ export function SettingsPage() {
                 <Users size={18} aria-hidden="true" />
                 用户访问
               </h2>
-              <p>Supabase 控制台创建用户后，可在这里维护访问状态和角色。</p>
+              <p>用户由管理员创建，可在这里维护访问状态、角色和登录密码。</p>
             </div>
             <button
               className="secondary-button"
@@ -356,19 +359,19 @@ export function SettingsPage() {
                   <th>角色</th>
                   <th>状态</th>
                   <th>最近登录</th>
-                  <th>操作</th>
+                  <th>重置密码</th><th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingUsers ? (
                   <tr>
-                    <td className="table-loading-cell" colSpan={5}>
+                    <td className="table-loading-cell" colSpan={6}>
                       正在加载用户
                     </td>
                   </tr>
                 ) : managedUsers.length === 0 ? (
                   <tr>
-                    <td className="table-loading-cell" colSpan={5}>
+                    <td className="table-loading-cell" colSpan={6}>
                       暂无用户
                     </td>
                   </tr>
@@ -403,6 +406,7 @@ export function SettingsPage() {
                           </span>
                         </td>
                         <td>{formatDateTime(managedUser.lastSignInAt)}</td>
+                        <td>{!isSelf ? <PasswordResetForm userId={managedUser.id} email={managedUser.email ?? "用户"} /> : "—"}</td>
                         <td>
                           <button
                             className={managedUser.isActive ? "danger-button" : "secondary-button"}

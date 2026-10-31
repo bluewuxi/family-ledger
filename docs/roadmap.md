@@ -73,8 +73,8 @@ Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC 
 - Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
 - Data maintenance UI (implemented: first/default `数据源` tab, Kernel anchor drawer, FX, price, task log, data backup monitor, and data restore instruction tabs with filters and offset pagination where applicable)
 - Settings user preferences (implemented: report default currency, gain/loss color convention, and light/dark theme backed by profiles)
-- User access management (implemented: admins can view existing Supabase Auth users, maintain `viewer`/`admin` role, and pause/resume access)
-- Self-service password reset (implemented: Supabase Auth reset emails with app-hosted new password screen)
+- User access management (implemented: admins can view existing application users, maintain `viewer`/`admin` role, and pause/resume access)
+- Password management: opaque-session migration adds self-change and administrator temporary-password reset; no email recovery. Local implementation verification is separate from operator cutover and authenticated visual acceptance.
 
 ## Stage 5: Tax-Assist and Reports
 

@@ -36,6 +36,16 @@ async function main(): Promise<void> {
   console.log("Backup verification: success");
 }
 
+function restoreRows(payload: LedgerBackupPayload) { return prepareLedgerRestoreRows(payload, []); }
+
+function removeApplicationIdentities(payload: LedgerBackupPayload): void {
+ if(payload.manifest.version >= 9) return;
+ delete (payload.tables as Partial<LedgerBackupRows>).app_users;
+ payload.manifest.tables=payload.manifest.tables.filter(t=>t.name!=="app_users");
+ payload.manifest.tableOrder=payload.manifest.tableOrder.filter(t=>t!=="app_users");
+ payload.manifest.externalDependencies={...payload.manifest.externalDependencies,supabaseAuthUsers:true,restoreRequiresMatchingAuthUserIdsOrRemap:true};
+ delete payload.manifest.externalDependencies.authenticationCredentials;
+}
 async function runSelfTests(): Promise<void> {
   const rows = sampleBackupRows();
   assert.throws(() => createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: { ...rows, transactions: [{ gross_amount: 12345678901234.123 }] } }), /decimal string/);
@@ -46,13 +56,15 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 8);
+  assert.equal(backupObject.payload.manifest.version, 9);
   const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
   const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
-  assert.equal((prepareLedgerRestoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
+  assert.equal((restoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
   const v7 = structuredClone(exact.payload); v7.manifest.version = 7;
   (v7.tables.transactions[0] as Record<string, unknown>).gross_amount = 123.5;
   const rehash = (payload: LedgerBackupPayload) => {
+    removeApplicationIdentities(payload);
+    payload.manifest.totalRows=payload.manifest.tables.reduce((n,t)=>n+t.rowCount,0);
     const hash = (value: unknown) => createHash("sha256").update(stableStringify(value)).digest("hex");
     for (const table of payload.manifest.tables) table.checksumSha256 = hash(payload.tables[table.name]);
     const { payloadChecksumSha256: _p, fileChecksumSha256: _f, ...manifest } = payload.manifest;
@@ -67,19 +79,28 @@ async function runSelfTests(): Promise<void> {
   rehash(legacyShape);
   assert.throws(() => validateLedgerBackupPayload(legacyShape), /table list/);
   rehash(v7); validateLedgerBackupPayload(v7);
+  assert.throws(()=>prepareLedgerRestoreRows(v7),/explicit application identity mapping/);
+  const identityRows={...rows,app_users:[{id:"00000000-0000-4000-8000-000000000001",email:"fixture@example.invalid",created_at:"2026-10-31T00:00:00Z"}],profiles:[{id:"00000000-0000-4000-8000-000000000001"}]};
+  const identityBundle=createLedgerBackupObject({environment:"test",generatedAt:"2026-10-31T00:00:00Z",rows:identityRows});
+  assert.equal(prepareLedgerRestoreRows(identityBundle.payload).app_users.length,1);
+  const legacyIdentity=structuredClone(identityBundle.payload);legacyIdentity.manifest.version=8;rehash(legacyIdentity);
+  assert.throws(()=>prepareLedgerRestoreRows(legacyIdentity,[]),/unmapped application identity/);
+  assert.equal(prepareLedgerRestoreRows(legacyIdentity,identityRows.app_users).app_users.length,1);
+
   v7.manifest.version = 8; rehash(v7);
   assert.throws(() => validateLedgerBackupPayload(v7), /decimal string/);
   const version5 = structuredClone(backupObject.payload);
   version5.manifest.version = 5;
-  const educationTables = ["education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
+  const educationTables = ["app_users","education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
   version5.manifest.tables = version5.manifest.tables.filter(t => !educationTables.includes(t.name));
   version5.manifest.tableOrder = version5.manifest.tableOrder.filter(t => !educationTables.includes(t));
   for (const name of educationTables) delete (version5.tables as unknown as Record<string, unknown>)[name];
+  removeApplicationIdentities(version5);
   const { payloadChecksumSha256: _v5p, fileChecksumSha256: _v5f, ...v5manifest } = version5.manifest;
   const v5hash = (value: unknown) => createHash("sha256").update(stableStringify(value)).digest("hex");
   version5.manifest.payloadChecksumSha256 = v5hash({ manifest: v5manifest, tables: version5.tables });
   version5.manifest.fileChecksumSha256 = v5hash({ manifest: { ...v5manifest, payloadChecksumSha256: version5.manifest.payloadChecksumSha256 }, tables: version5.tables });
-  assert.deepEqual(prepareLedgerRestoreRows(version5).education_reserve_entries, []);
+  assert.deepEqual(restoreRows(version5).education_reserve_entries, []);
   const privateMetadata = { card_number: "6222333344440001", "信用卡卡号": "6222333344440001" };
   const spendingBackup = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-01T00:00:00Z", rows: {
     ...rows,
@@ -88,7 +109,7 @@ async function runSelfTests(): Promise<void> {
       { account_id: "bnz", source_metadata: { "This Party Account": "02-0000-1234567-001", "Other Party Account": "03-9999-7654321-002" } }],
     account_statements: [{ account_id: "credit", status: "preview", preview_token: "old", parser_version: "bank-csv-1", preview: { rows: [{ source_metadata: privateMetadata }], errors: [] } }]
   } });
-  const cleanSpending = prepareLedgerRestoreRows(spendingBackup.payload);
+  const cleanSpending = restoreRows(spendingBackup.payload);
   assert(!JSON.stringify(cleanSpending).includes("6222333344440001"));
   assert.equal((cleanSpending.statement_rows[0] as Record<string, unknown>).account_number_last4, "0001");
   assert.equal((cleanSpending.statement_rows[0] as Record<string, unknown>).fingerprint, "unchanged");
@@ -98,36 +119,39 @@ async function runSelfTests(): Promise<void> {
   assert.equal((cleanSpending.account_statements[0] as Record<string, unknown>).total_count, 1);
   const previous = structuredClone(backupObject.payload);
   previous.manifest.version = 2;
-  const newTables = ["spending_accounts", "account_statements", "statement_rows", "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
+  const newTables = ["app_users","spending_accounts", "account_statements", "statement_rows", "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
   previous.manifest.tables = previous.manifest.tables.filter((table) => !newTables.includes(table.name));
   previous.manifest.tableOrder = previous.manifest.tableOrder.filter((name) => !newTables.includes(name));
   for (const name of newTables) delete (previous.tables as unknown as Record<string, unknown>)[name];
+  removeApplicationIdentities(previous);
   const { payloadChecksumSha256: _oldPayload, fileChecksumSha256: _oldFile, ...oldManifest } = previous.manifest;
   const hash = (value: unknown) => createHash("sha256").update(stableStringify(value)).digest("hex");
   previous.manifest.payloadChecksumSha256 = hash({ manifest: oldManifest, tables: previous.tables });
   previous.manifest.fileChecksumSha256 = hash({ manifest: { ...oldManifest, payloadChecksumSha256: previous.manifest.payloadChecksumSha256 }, tables: previous.tables });
   validateLedgerBackupPayload(previous);
-  assert.deepEqual(prepareLedgerRestoreRows(previous).statement_rows, []);
-  assert.deepEqual(prepareLedgerRestoreRows(previous).account_statements, []);
-  assert.deepEqual(prepareLedgerRestoreRows(previous).spending_accounts, []);
+  assert.deepEqual(restoreRows(previous).statement_rows, []);
+  assert.deepEqual(restoreRows(previous).account_statements, []);
+  assert.deepEqual(restoreRows(previous).spending_accounts, []);
   const asVersion3 = (value: LedgerBackupPayload) => {
     const copy = structuredClone(value);
     copy.manifest.version = 3;
-    const removed = ["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
+    const removed = ["app_users","kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"];
     copy.manifest.tables = copy.manifest.tables.filter((table) => !removed.includes(table.name));
     copy.manifest.tableOrder = copy.manifest.tableOrder.filter((name) => !removed.includes(name));
     delete (copy.tables as unknown as Record<string, unknown>).kernel_price_anchors;
     delete (copy.tables as unknown as Record<string, unknown>).kernel_nta_refresh_state;
     delete (copy.tables as unknown as Record<string, unknown>).education_reserve_funds;
     delete (copy.tables as unknown as Record<string, unknown>).education_reserve_entries;
+    removeApplicationIdentities(copy);
     const {payloadChecksumSha256: _p, fileChecksumSha256: _f, ...manifest} = copy.manifest;
     copy.manifest.payloadChecksumSha256 = hash({manifest,tables:copy.tables});
     copy.manifest.fileChecksumSha256 = hash({manifest:{...manifest,payloadChecksumSha256:copy.manifest.payloadChecksumSha256},tables:copy.tables});
     return copy;
   };
-  assert.deepEqual(prepareLedgerRestoreRows(asVersion3(backupObject.payload)).statement_rows, []);
+  assert.deepEqual(restoreRows(asVersion3(backupObject.payload)).statement_rows, []);
   const version4 = structuredClone(backupObject.payload);
   version4.manifest.version = 4;
+  removeApplicationIdentities(version4);
   delete (version4.tables as unknown as Record<string, unknown>).kernel_nta_refresh_state;
   version4.manifest.tables = version4.manifest.tables.filter((table) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"].includes(table.name));
   version4.manifest.tableOrder = version4.manifest.tableOrder.filter((name) => !["kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state"].includes(name));
@@ -148,11 +172,11 @@ async function runSelfTests(): Promise<void> {
       tables: version4.tables
     });
   }
-  const restoredVersion4 = prepareLedgerRestoreRows(version4);
+  const restoredVersion4 = restoreRows(version4);
   assert.deepEqual(restoredVersion4.kernel_price_anchors, []);
   assert.equal((restoredVersion4.instrument_prices[0] as Record<string, unknown>).is_estimated, false);
   const withLegacySpending = createLedgerBackupObject({environment:"test",generatedAt:"2026-09-26T00:00:00Z",rows:{...rows,spending_accounts:[{id:"old-account"}]}});
-  assert.throws(()=>prepareLedgerRestoreRows(asVersion3(withLegacySpending.payload)),/Legacy spending tables must be empty/);
+  assert.throws(()=>restoreRows(asVersion3(withLegacySpending.payload)),/Legacy spending tables must be empty/);
   const legacySource = { ...rows, portfolio_snapshot_headers: undefined, portfolio_snapshots: [{
     id: "snapshot-id", snapshot_date: "2026-05-29", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7",
     notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z",
@@ -164,14 +188,14 @@ async function runSelfTests(): Promise<void> {
   assert.equal(legacyObject.payload.manifest.version, 1);
   assert.equal(legacyObject.payload.tables.portfolio_snapshots?.length, 1);
   assert.equal("portfolio_snapshot_headers" in legacyObject.payload.tables, false);
-  const restored = prepareLedgerRestoreRows(legacyObject.payload);
+  const restored = restoreRows(legacyObject.payload);
   assert.equal("portfolio_snapshots" in restored, false);
   assert.deepEqual(restored.portfolio_snapshot_headers, [{
     id: "snapshot-id", snapshot_date: "2026-05-29", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7",
     notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z"
   }]);
   assert.equal((restored.investment_accounts[0] as { purpose: string }).purpose, "investment");
-  assert.deepEqual(prepareLedgerRestoreRows(backupObject.payload).portfolio_snapshot_headers, []);
+  assert.deepEqual(restoreRows(backupObject.payload).portfolio_snapshot_headers, []);
   assert.equal(backupObject.key, "backups/test/2026/05/29/family-ledger-test-2026-05-29T01-00-00-000Z.json.gz");
   assert.equal(backupObject.payload.manifest.secretsExcluded, true);
   assert.equal(backupObject.payload.manifest.totalRows, 2);

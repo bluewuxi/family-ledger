@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createServer } from "node:net";
+
+const bin = process.env.POSTGRES_BIN ?? "C:/Program Files/PostgreSQL/17/bin";
+const exe = (name: string) => join(bin, `${name}${process.platform === "win32" ? ".exe" : ""}`);
+const root = mkdtempSync(join(tmpdir(), "ledger-opening-balance-"));
+const cluster = join(root, "data");
+let started = false;
+async function main() {
+  const port = await new Promise<number>(resolve => {
+    const server = createServer(); server.listen(0, "127.0.0.1", () => { const address = server.address(); const port = typeof address === "object" && address ? address.port : 0; server.close(() => resolve(port)); });
+  });
+  execFileSync(exe("initdb"), ["-D", cluster, "-U", "postgres", "-A", "trust", "--encoding=UTF8", "--no-locale"], { windowsHide: true, stdio: "pipe" });
+  execFileSync(exe("pg_ctl"), ["-D", cluster, "-l", join(root, "server.log"), "-o", `-h 127.0.0.1 -p ${port}`, "-w", "start"], { windowsHide: true, stdio: "ignore", timeout: 20000 });
+  started = true;
+  const args = ["-h", "127.0.0.1", "-p", String(port), "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-At"];
+  const sql = (text: string) => execFileSync(exe("psql"), args, { input: text, encoding: "utf8", windowsHide: true, stdio: "pipe" }).trim();
+  sql(`create schema auth; create role anon; create role authenticated; create role service_role;
+    create table auth.users(id uuid primary key,email text,created_at timestamptz default now());
+    create table public.profiles(id uuid primary key references auth.users(id) on delete cascade);
+    create table public.user_roles(user_id uuid references auth.users(id),role text,is_active boolean);
+    create table public.audit(id int primary key,created_by uuid references auth.users(id) on delete restrict);
+    insert into auth.users(id,email) values ('00000000-0000-0000-0000-000000000001',' Admin@Example.com ');
+    insert into profiles values ('00000000-0000-0000-0000-000000000001');
+    insert into audit values (1,'00000000-0000-0000-0000-000000000001');`);
+  const migration = readFileSync("supabase/migrations/202610310001_application_users.sql", "utf8");
+  sql(migration);
+  assert.equal(sql("select email from app_users;"), "admin@example.com");
+  assert.equal(sql("select count(*) from pg_constraint where confrelid='auth.users'::regclass and connamespace='public'::regnamespace;"), "0");
+  assert.equal(sql("select confdeltype from pg_constraint where conrelid='public.audit'::regclass and contype='f';"), "r");
+  assert.throws(() => sql("delete from app_users;"));
+  assert.equal(sql("select count(*) from profiles;"), "1");
+  assert.equal(sql("select count(*) from audit;"), "1");
+  sql("insert into auth.users(id,email) values ('00000000-0000-0000-0000-000000000002','ADMIN@example.com');");
+  assert.throws(() => sql(migration));
+  assert.equal(sql("select count(*) from app_users;"), "1");
+  sql(readFileSync("supabase/migrations/20261031110000_first_admin_activation.sql", "utf8"));
+  const first='00000000-0000-0000-0000-000000000001';
+  const second='00000000-0000-0000-0000-000000000002';
+  sql(`insert into user_roles values ('${first}','admin',false,0);`);
+  assert.throws(()=>sql(`set role authenticated; select activate_first_app_admin('${first}',0);`));
+  sql(`select activate_first_app_admin('${first}',0);`);
+  assert.equal(sql(`select is_active||':'||access_revision from user_roles where user_id='${first}';`),'true:1');
+  assert.throws(()=>sql(`select activate_first_app_admin('${first}',0);`));
+  sql(`select activate_first_app_admin('${first}',1);`);
+  assert.equal(sql(`select access_revision from user_roles where user_id='${first}';`),'2');
+  sql(`insert into app_users(id,email) values ('${second}','other@example.com'); insert into user_roles values ('${second}','admin',false,0);`);
+  assert.throws(()=>sql(`select activate_first_app_admin('${second}',0);`));
+  assert.equal(sql(`select is_active::text from user_roles where user_id='${second}';`),'false');
+  sql(`update user_roles set is_active=false where user_id='${first}'; update user_roles set role='viewer' where user_id='${second}';`);
+  assert.throws(()=>sql(`select activate_first_app_admin('${second}',0);`));
+  console.log("First-admin SQL activation passed: grants, role/existing-admin guards, revisions and safe retry.");
+  console.log("Application identity migration preserves UUIDs/history/FK actions and rejects normalized email collisions.");
+}
+main().catch(error => { console.error(error instanceof Error ? error.message : "Verification failed."); process.exitCode = 1; }).finally(() => {
+  if (started) execFileSync(exe("pg_ctl"), ["-D", cluster, "-m", "immediate", "-w", "stop"], { windowsHide: true, stdio: "ignore" });
+  rmSync(root, { recursive: true, force: true });
+});

@@ -38,9 +38,9 @@ EventBridge Scheduler
 
 ## Boundaries
 
-The frontend uses Supabase only for Auth: login, session reading, and access token acquisition. Business data access goes through the Lambda API.
+The frontend obtains opaque sessions from the Lambda API and keeps tokens in sessionStorage. All business data access also goes through the Lambda API.
 
-The Lambda API verifies the Supabase access token, loads the current user role from `user_roles`, enforces `viewer` / `admin` permissions, and uses a server-side Supabase client for trusted database access.
+The Lambda API verifies opaque sessions against DynamoDB, resolves stable app_users identity, loads the active role from user_roles, enforces viewer/admin permissions, and uses a server-side Supabase client for trusted database access.
 
 The family ledger data is shared. Core business tables do not have per-user ownership; user references on business records are audit fields only.
 

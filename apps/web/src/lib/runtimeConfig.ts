@@ -1,7 +1,5 @@
 export interface RuntimeConfig {
   apiBaseUrl: string;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
 }
 
 type RuntimeConfigInput = Partial<Record<keyof RuntimeConfig, string | undefined>>;
@@ -11,9 +9,7 @@ let runtimeConfig: RuntimeConfig | null = null;
 export async function initializeRuntimeConfig(): Promise<RuntimeConfig> {
   const fileConfig = await loadRuntimeConfigFile();
   const fallbackConfig: RuntimeConfigInput = {
-    apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
-    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-    supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY
+    apiBaseUrl: import.meta.env.VITE_API_BASE_URL
   };
 
   runtimeConfig = normalizeRuntimeConfig({ ...fallbackConfig, ...fileConfig });
@@ -51,9 +47,7 @@ async function loadRuntimeConfigFile(): Promise<RuntimeConfigInput> {
     }
 
     return {
-      apiBaseUrl: readString(value, "apiBaseUrl"),
-      supabaseUrl: readString(value, "supabaseUrl"),
-      supabaseAnonKey: readString(value, "supabaseAnonKey")
+      apiBaseUrl: readString(value, "apiBaseUrl")
     };
   } catch {
     return {};
@@ -62,9 +56,7 @@ async function loadRuntimeConfigFile(): Promise<RuntimeConfigInput> {
 
 function normalizeRuntimeConfig(input: RuntimeConfigInput): RuntimeConfig {
   return {
-    apiBaseUrl: normalizeRequiredUrl(input.apiBaseUrl, "apiBaseUrl"),
-    supabaseUrl: normalizeRequiredUrl(input.supabaseUrl, "supabaseUrl"),
-    supabaseAnonKey: normalizeRequiredString(input.supabaseAnonKey, "supabaseAnonKey")
+    apiBaseUrl: normalizeRequiredUrl(input.apiBaseUrl, "apiBaseUrl")
   };
 }
 

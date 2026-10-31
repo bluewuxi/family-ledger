@@ -7,7 +7,7 @@ Routine `test` pushes are validated and deployed by GitHub Actions. See [TEST au
 ## Frontend
 
 - Build `apps/web` as a static Vite app.
-- Write public runtime configuration to `apps/web/dist/config.json` during `deploy:web:<env>`.
+- Write public runtime configuration containing only `apiBaseUrl` to `apps/web/dist/config.json` during `deploy:web:<env>`. Browser authentication uses the API; Supabase configuration stays server-side.
 - Host static files from a private S3 bucket behind CloudFront.
 - Configure SPA routing fallback to `index.html`.
 - Use CloudFront for TLS, caching, custom domains, and HTTPS redirects.
@@ -19,6 +19,12 @@ Routine `test` pushes are validated and deployed by GitHub Actions. See [TEST au
 - Configure server-side secrets outside Git.
 - Use API Gateway Regional custom domains for HTTPS API endpoints.
 - The API Lambda may asynchronously invoke the FX and price job Lambdas for admin-triggered data maintenance retrieval of market data.
+
+## Authentication infrastructure
+
+The API owns an environment-specific on-demand DynamoDB authentication table with encryption, point-in-time recovery, TTL cleanup and retention on deletion/replacement. Only the API execution role can access authentication items; jobs use the existing separate role. Password/session expiry is checked in code rather than relying on TTL deletion. Login, password change and administrator reset routes have API Gateway limits of 5 requests/second and burst 10, in addition to application rate budgets.
+
+This migration adds resources, IAM and runtime settings and requires separately authorized independent infrastructure verification and registration; it cannot pass the code-only automatic deployment gate. No signing-key SSM parameter is needed. Follow the [authentication cutover](operations/auth-cutover.md) and [recovery](operations/auth-recovery.md) runbooks.
 
 ## Jobs
 
@@ -138,7 +144,7 @@ corepack pnpm verify:backup -- --file <downloaded-backup.json.gz>
 corepack pnpm restore:backup:dry-run -- --file <downloaded-backup.json.gz>
 ```
 
-Restore is intentionally operator-run in V1. For a fresh Supabase project, recreate Supabase Auth users first or remap user-linked rows such as `profiles`, `user_roles`, and audit user ids before loading the public ledger tables. See [`operations/backup-restore.md`](operations/backup-restore.md).
+Restore is intentionally operator-run in V1. Restore version-9 app_users identities before dependent records. Older backups require an explicit reviewed identity mapping; auth credentials are provisioned independently. See [`operations/backup-restore.md`](operations/backup-restore.md).
 
 Historical price repair is dry-run by default:
 
@@ -175,15 +181,13 @@ Do not log decrypted SSM parameter values, Supabase service keys, JWT secrets, d
 
 ## Secrets
 
-Use AWS Secrets Manager or SSM Parameter Store for production secrets such as Supabase secret keys, JWT configuration, and database passwords. Do not hard-code account IDs, ARNs, credentials, or secret values.
+Use AWS Secrets Manager or SSM Parameter Store for production secrets such as Supabase service keys and database passwords. Do not hard-code account IDs, ARNs, credentials, or secret values.
 
 Use checked-in `.env.test` for test deployment, checked-in `.env.prod` for production deployment, and ignored `.env.local` for local debugging.
 
-The deployed web app reads public browser configuration from `/config.json` before creating the Supabase Auth client or calling the Lambda API. `scripts/deploy-aws.ts` creates that file after the Vite build from:
+The deployed web app reads public browser configuration from `/config.json` before calling the Lambda API. `scripts/deploy-aws.ts` creates that file after the Vite build from:
 
 - `ApiDomainName` in `infra/aws/parameters.<env>.json`
-- `VITE_SUPABASE_URL` in `.env.<env>`, falling back to `SupabaseUrl` in `infra/aws/parameters.<env>.json`
-- `VITE_SUPABASE_ANON_KEY` in `.env.<env>`
 
 Vite `VITE_*` variables remain useful for local dev and as a fallback when `/config.json` is absent, but deployment must not depend on Vite embedding the API URL into the JavaScript bundle.
 
@@ -192,7 +196,6 @@ Environment files may store SSM parameter paths, not secret values:
 ```text
 SUPABASE_SECRET_KEY_SSM_PARAM=/family-ledger/test_supabase_secret_key
 SUPABASE_URL_PARAM=/family-ledger/test_supabase_url
-SUPABASE_JWT_SECRET_SSM_PARAM=/family-ledger/test_supabase_jwt_secret
 SUPABASE_DB_PASSWORD_SSM_PARAM=/family-ledger/test_db_password
 TRADING_PASSWORD_GATE_SSM_PARAM=/family-ledger/test_trading_password_gate
 TRADING_PASSWORD_SSM_PREFIX=/family-ledger/test_trading_account_password_
@@ -238,15 +241,13 @@ For Lambda/serverless app traffic, use the transaction pooler port. For migratio
 
 Frontend build:
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
 - `VITE_API_BASE_URL` for local fallback only
 
 Frontend deploy/runtime config generation:
 
 - `ApiDomainName`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_SUPABASE_URL` or `SupabaseUrl`
+
+API Lambda additionally requires `AUTH_TABLE_NAME` from the stack output; jobs have no auth-table access.
 
 API Lambda and jobs Lambda:
 

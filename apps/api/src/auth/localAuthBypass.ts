@@ -1,3 +1,4 @@
+import { findAppUserByEmail } from "../repositories/appUserRepository";
 import { logDependencyError } from "../utils/errorLogging";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser } from "@family-ledger/shared";
@@ -50,19 +51,7 @@ export function isLocalAuthBypassRequest(event: APIGatewayProxyEventV2, token: s
   );
 }
 
-async function findUserByEmail(email: string): Promise<{ id: string; email: string } | null> {
-  const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-
-  if (error) {
-    logDependencyError("localAuthBypass.findUserByEmail", error, []);
-    throw new Error("Failed to list Supabase Auth users for local auth bypass.");
-  }
-
-  const matchedUser = data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
-
-  return matchedUser?.email ? { id: matchedUser.id, email: matchedUser.email } : null;
-}
+async function findUserByEmail(email: string): Promise<{id:string;email:string}|null> { return findAppUserByEmail(email); }
 
 function isLocalHost(value: string): boolean {
   const host = value.trim().toLowerCase().replace(/^\[/, "").replace(/\](:\d+)?$/, "");

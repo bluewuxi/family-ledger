@@ -27,8 +27,6 @@ interface DeploymentParameters {
 
 interface WebRuntimeConfig {
   apiBaseUrl: string;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
 }
 
 const [, , commandArg, environmentArg] = process.argv;
@@ -203,14 +201,8 @@ function deployWeb(parameters: DeploymentParameters): void {
   const deploymentEnv = loadDeploymentEnv(parameters.EnvironmentName);
 
   const runtimeConfig: WebRuntimeConfig = {
-    apiBaseUrl: `https://${parameters.ApiDomainName}`,
-    supabaseUrl: deploymentEnv.VITE_SUPABASE_URL || parameters.SupabaseUrl,
-    supabaseAnonKey: deploymentEnv.VITE_SUPABASE_ANON_KEY ?? ""
+    apiBaseUrl: `https://${parameters.ApiDomainName}`
   };
-
-  if (!runtimeConfig.supabaseUrl || !runtimeConfig.supabaseAnonKey) {
-    fail(`VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required in .env.${parameters.EnvironmentName} for web deploy.`);
-  }
 
   if (deploymentEnv.VITE_API_BASE_URL && normalizeUrl(deploymentEnv.VITE_API_BASE_URL) !== runtimeConfig.apiBaseUrl) {
     fail(`VITE_API_BASE_URL in .env.${parameters.EnvironmentName} must match https://${parameters.ApiDomainName}.`);
@@ -249,7 +241,7 @@ function loadDeploymentEnv(environmentName: EnvironmentName): Record<string, str
   }
 
   const values = dotenv.parse(readFileSync(envPath, "utf8"));
-  for (const key of ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_API_BASE_URL"]) if (process.env[key]) values[key] = process.env[key]!;
+  for (const key of ["VITE_API_BASE_URL"]) if (process.env[key]) values[key] = process.env[key]!;
   return values;
 }
 
@@ -265,9 +257,7 @@ function verifyWebRuntimeConfig(expected: WebRuntimeConfig): void {
   const config = JSON.parse(readFileSync(join("apps", "web", "dist", "config.json"), "utf8")) as WebRuntimeConfig;
 
   if (
-    config.apiBaseUrl !== expected.apiBaseUrl ||
-    config.supabaseUrl !== expected.supabaseUrl ||
-    config.supabaseAnonKey !== expected.supabaseAnonKey
+    config.apiBaseUrl !== expected.apiBaseUrl
   ) {
     fail("Web runtime config does not match the expected deployment configuration.");
   }

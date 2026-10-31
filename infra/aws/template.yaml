@@ -227,6 +227,97 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
 
+  ApiExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub family-ledger-${EnvironmentName}-api-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadApiErrors
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:FilterLogEvents]
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/family-ledger-${EnvironmentName}-api:*
+        - PolicyName: ReadFamilyLedgerParameters
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_*
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_trading_account_password_*
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/family-ledger/${EnvironmentName}_trading_password_gate
+        - PolicyName: StatementAttachments
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion]
+                Resource: !Sub ${StatementBucket.Arn}/statements/*
+        - PolicyName: WriteFamilyLedgerBackups
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub ${LedgerBackupBucket.Arn}/backups/${EnvironmentName}/*
+        - PolicyName: AuthenticationState
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:ConditionCheckItem]
+                Resource: !GetAtt AuthTable.Arn
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  AuthTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: family-ledger
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
   StatementBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -346,7 +437,7 @@ Resources:
         SecurityHeadersConfig:
           ContentSecurityPolicy:
             Override: true
-            ContentSecurityPolicy: !Sub "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://${ApiDomainName} https://*.supabase.co wss://*.supabase.co https://${StatementBucket.RegionalDomainName}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+            ContentSecurityPolicy: !Sub "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://${ApiDomainName} https://${StatementBucket.RegionalDomainName}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
           ContentTypeOptions:
             Override: true
           FrameOptions:
@@ -465,12 +556,46 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default
+      RouteSettings:
+        "POST /auth/login":
+          ThrottlingRateLimit: 5
+          ThrottlingBurstLimit: 10
+        "POST /auth/change-password":
+          ThrottlingRateLimit: 5
+          ThrottlingBurstLimit: 10
+        "POST /settings/users/{id}/reset-password":
+          ThrottlingRateLimit: 5
+          ThrottlingBurstLimit: 10
       DefinitionBody:
         openapi: 3.0.1
         info:
           title: !Ref AWS::StackName
           version: "1.0"
         paths:
+          /auth/login:
+            post:
+              responses: {}
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                payloadFormatVersion: "2.0"
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-api/invocations
+          /auth/change-password:
+            post:
+              responses: {}
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                payloadFormatVersion: "2.0"
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-api/invocations
+          /settings/users/{id}/reset-password:
+            post:
+              responses: {}
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                payloadFormatVersion: "2.0"
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:family-ledger-${EnvironmentName}-api/invocations
           /{proxy+}:
             x-amazon-apigateway-any-method:
               responses: {}
@@ -510,9 +635,10 @@ Resources:
       CodeUri: ../..
       Handler: apps/api/src/handlers/lambda.handler
       Description: !Sub family-ledger ${EnvironmentName} Lambda API.
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt ApiExecutionRole.Arn
       Environment:
         Variables:
+          AUTH_TABLE_NAME: !Ref AuthTable
           ALLOWED_ORIGIN: !Sub https://${WebDomainName}
           API_ERROR_LOG_GROUP: !Sub /aws/lambda/family-ledger-${EnvironmentName}-api
           STATEMENT_BUCKET_NAME: !Ref StatementBucket
@@ -657,7 +783,7 @@ Resources:
     Properties:
       PolicyName: InvokeFamilyLedgerMarketDataJobs
       Roles:
-        - !Ref LambdaExecutionRole
+        - !Ref ApiExecutionRole
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -771,6 +897,9 @@ Resources:
           MaximumRetryAttempts: 2
 
 Outputs:
+  AuthTableName:
+    Description: Authentication table name for authorized operator tooling and local API configuration.
+    Value: !Ref AuthTable
   StatementBucketName:
     Value: !Ref StatementBucket
   WebBucketName:

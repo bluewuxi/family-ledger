@@ -1000,7 +1000,7 @@ export function DataMaintenancePage() {
         <section className="settings-section-header">
           <div>
             <h2>备份范围</h2>
-            <p>备份写入私有加密 S3，保留 30 天；不包含 Supabase Auth 内部表、SSM 参数、服务密钥或交易密码明文。</p>
+            <p>备份写入私有加密 S3，保留 30 天；不包含 认证密码和会话、SSM 参数、服务密钥或交易密码明文。</p>
           </div>
         </section>
 
