@@ -28,6 +28,8 @@ const policy={Version:"2012-10-17",Statement:[
  allow(["route53:GetHostedZone"],[`arn:${partition}:route53:::hostedzone/${readParameters().HostedZoneId}`]),
  allow(["logs:DescribeLogGroups","logs:DescribeLogStreams"],[arn('logs',`log-group:/aws/lambda/${stackName}*`)]),
 ]};
+policy.Statement.push(allow(["iam:PutRolePolicy","iam:DeleteRolePolicy"],[arn("iam",`role/${stackName}-lambda-role`, "")]));
+policy.Statement.push(allow(["cloudfront:GetResponseHeadersPolicy","cloudfront:GetResponseHeadersPolicyConfig","cloudfront:UpdateResponseHeadersPolicy"],ids("AWS::CloudFront::ResponseHeadersPolicy").map(id=>arn("cloudfront",`response-headers-policy/${id}`, ""))));
 const template={AWSTemplateFormatVersion:"2010-09-09",Description:"Dedicated operator-managed TEST authentication cutover execution role; separate from CI.",Resources:{OperatorExecutionRole:{Type:"AWS::IAM::Role",Properties:{AssumeRolePolicyDocument:{Version:"2012-10-17",Statement:[{Effect:"Allow",Principal:{Service:"cloudformation.amazonaws.com"},Action:"sts:AssumeRole"}]},Policies:[{PolicyName:"TestAuthCutover",PolicyDocument:policy}]}}},Outputs:{OperatorRoleArn:{Value:{"Fn::GetAtt":["OperatorExecutionRole","Arn"]}}}};
 mkdirSync('.local/auth-migration',{recursive:true});writeFileSync('.local/auth-migration/operator-template.json',JSON.stringify(template,null,2));
 console.log("Prepared scoped TEST operator template.");

@@ -14,7 +14,7 @@ try {
  if(operation==='maintenance-on') {
   if(existsSync(root+'maintenance.json'))throw new Error('Maintenance snapshot already exists; inspect before retrying.');
   const rows=aws<{StackResourceSummaries:{ResourceType:string;PhysicalResourceId:string}[]}>(['cloudformation','list-stack-resources','--stack-name',stackName]).StackResourceSummaries;
-  const functions=rows.filter(r=>r.ResourceType==='AWS::Lambda::Function'&&r.PhysicalResourceId.startsWith('family-ledger-test-')&&!r.PhysicalResourceId.includes('LogRetention')).map(r=>({name:r.PhysicalResourceId,previous:aws<{ReservedConcurrentExecutions?:number}>(['lambda','get-function-concurrency','--function-name',r.PhysicalResourceId]).ReservedConcurrentExecutions??null}));
+  const functions=rows.filter(r=>r.ResourceType==='AWS::Lambda::Function'&&r.PhysicalResourceId.startsWith('family-ledger-test-')&&!r.PhysicalResourceId.toLowerCase().includes('log-retention')).map(r=>({name:r.PhysicalResourceId,previous:aws<{ReservedConcurrentExecutions?:number}>(['lambda','get-function-concurrency','--function-name',r.PhysicalResourceId]).ReservedConcurrentExecutions??null}));
   writeFileSync(root+'maintenance.json',JSON.stringify(functions));
   for(const f of functions)aws(['lambda','put-function-concurrency','--function-name',f.name,'--reserved-concurrent-executions','0']);
   console.log('TEST API/jobs invocations paused; prior concurrency saved privately.');
