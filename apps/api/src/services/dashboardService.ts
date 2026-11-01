@@ -142,7 +142,7 @@ export async function refreshDashboardQuotes(input: {
   const existingQuotesByInstrument = new Map(existingQuotes.map((quote) => [dashboardQuoteKey(quote.instrumentId, quote.provider), quote]));
   if (parseQuoteMode(input.quoteMode) === "cached") return existingQuotes.filter(quote => !isQuoteStale(quote, input.now));
   const staleInstruments = quoteInstruments.filter((instrument) =>
-    input.quoteMode === "refresh" || isQuoteStale(existingQuotesByInstrument.get(dashboardQuoteKey(instrument.id, providerNameForPriceSource(instrument.priceSource))), input.now)
+    instrument.active !== false && (input.quoteMode === "refresh" || isQuoteStale(existingQuotesByInstrument.get(dashboardQuoteKey(instrument.id, providerNameForPriceSource(instrument.priceSource))), input.now))
   );
   const refreshedQuotes = await fetchAndStoreDashboardQuotes({
     instruments: staleInstruments,

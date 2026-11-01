@@ -40,6 +40,7 @@ interface InstrumentRow {
   price_source: Instrument["priceSource"];
   price_source_symbol: string | null;
   price_source_exchange: string | null;
+  active: boolean;
   price_update_enabled: boolean;
   price_update_priority: number;
   source_url: string | null;
@@ -243,6 +244,7 @@ const instrumentSelect = [
   "price_source",
   "price_source_symbol",
   "price_source_exchange",
+  "active",
   "price_update_enabled",
   "price_update_priority",
   "source_url",
@@ -342,6 +344,7 @@ function mapInstrumentRow(row: InstrumentRow): Instrument {
     priceSource: row.price_source,
     priceSourceSymbol: row.price_source_symbol,
     priceSourceExchange: row.price_source_exchange,
+    active: row.active,
     priceUpdateEnabled: row.price_update_enabled,
     priceUpdatePriority: row.price_update_priority,
     sourceUrl: row.source_url,

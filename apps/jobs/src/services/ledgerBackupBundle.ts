@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 10;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261101093000_account_access_backup";
+export const LEDGER_BACKUP_VERSION = 11;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261101100000_instrument_active";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -24,7 +24,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -150,7 +150,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -345,6 +345,12 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
   if (payload.manifest.version < 10) rows.account_access_policies = rows.app_users.map(value => {
     const user=value as Record<string, unknown>;
     return {user_id:user.id,mode:rows.user_roles.some(r => (r as Record<string,unknown>).user_id===user.id && (r as Record<string,unknown>).role==='admin') ? 'all' : 'selected',revision:0};
+  });
+  rows.instruments = rows.instruments.map(value => {
+    const row = value as Record<string, unknown>;
+    const active = row.active === undefined && payload.manifest.version < 11 ? true : row.active;
+    if (typeof active !== "boolean") throw new Error("Invalid instrument activity in backup.");
+    return { ...row, active };
   });
   validateAccountAccessRestore(rows);
   rows.user_roles = rows.user_roles.map(value => ({ ...(value as Record<string, unknown>), access_revision: (value as Record<string, unknown>).access_revision ?? 0 }));

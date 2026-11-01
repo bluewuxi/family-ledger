@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { SSMClient } from "@aws-sdk/client-ssm";
 import {
   TRADING_PASSWORD_GATE_EMPTY_VALUE,
   TRADING_PASSWORD_PLACEHOLDER,
   createGateSignature,
   getTradingPasswordParameterName,
+  getTradingPasswordGateStatus,
   verifyGateSignature
 } from "../apps/api/src/services/accountTradingPasswordService";
 
@@ -31,6 +33,22 @@ async function main(): Promise<void> {
   assert.equal(await verifyGateSignature("wrong-password", "f5ded19a6388981c8f85c92a87958180"), false);
   assert.equal(TRADING_PASSWORD_PLACEHOLDER, "尚未设置交易密码");
   assert.equal(TRADING_PASSWORD_GATE_EMPTY_VALUE, "empty");
+
+  const originalSend = SSMClient.prototype.send;
+  const previousPath = process.env.TRADING_PASSWORD_GATE_SSM_PARAM;
+  const previousRegion = process.env.AWS_REGION;
+  process.env.AWS_REGION = "ap-southeast-2";
+  process.env.TRADING_PASSWORD_GATE_SSM_PARAM = "/fixture/custom-recovery-path";
+  SSMClient.prototype.send = (async () => ({ Parameter: { Value: signature } })) as typeof SSMClient.prototype.send;
+  try {
+    assert.deepEqual(await getTradingPasswordGateStatus(), { isInitialized: true, parameterPath: "/fixture/custom-recovery-path" });
+  } finally {
+    SSMClient.prototype.send = originalSend;
+    if (previousPath === undefined) delete process.env.TRADING_PASSWORD_GATE_SSM_PARAM;
+    else process.env.TRADING_PASSWORD_GATE_SSM_PARAM = previousPath;
+    if (previousRegion === undefined) delete process.env.AWS_REGION;
+    else process.env.AWS_REGION = previousRegion;
+  }
 
   console.log("Account trading password verification: success");
 }

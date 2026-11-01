@@ -286,9 +286,10 @@ export async function updateInvestmentTransaction(
     notes: patch.notes !== undefined ? patch.notes : existing.notes
   };
 
-  const validated = await validateTransaction(candidate, "grossAmount" in record);
+  const validated = await validateTransaction(candidate, "grossAmount" in record, existing.instrumentId);
   const shouldUpdateDerivedData = isValuationImpactingPatch(patch);
-  const updateInput = shouldUpdateDerivedData ? await withAutomaticSettlement(validated) : validated;
+  const updateInput = shouldUpdateDerivedData && hasSettlementInputChanges(existing, validated)
+    ? await withAutomaticSettlement(validated) : validated;
 
   try {
     await checkOpeningBalance(updateInput, id);
@@ -503,6 +504,7 @@ async function findCashInstrument(currency: CurrencyCode): Promise<Instrument> {
     throw new ApiRequestError("VALIDATION_ERROR", `No ${currency} cash instrument is configured.`, 400);
   }
 
+  if (cashInstrument.active === false) throw new ApiRequestError("VALIDATION_ERROR", "结算现金标的已停用。", 400);
   return cashInstrument;
 }
 
@@ -611,6 +613,17 @@ function rejectTransactionTypeChange(
   if (patch.transactionType !== undefined && patch.transactionType !== existing.transactionType) {
     throw new ApiRequestError("VALIDATION_ERROR", "Transaction type cannot be changed. Delete and recreate the transaction instead.", 400);
   }
+}
+
+export function hasSettlementInputChanges(existing: InvestmentTransaction, next: CreateInvestmentTransactionInput): boolean {
+  const numericFields = new Set(["quantity", "price", "grossAmount", "fee", "tax"]);
+  return (["accountId", "instrumentId", "tradeDate", "settlementDate", "quantity", "price", "grossAmount", "fee", "tax", "currency", "adjustmentDirection"] as const)
+    .some(field => {
+      const before = existing[field] ?? null;
+      const after = next[field] ?? null;
+      if (before === after) return false;
+      return !(numericFields.has(field) && before !== null && after !== null && new Decimal(before).eq(new Decimal(after)));
+    });
 }
 
 function isValuationImpactingPatch(input: UpdateInvestmentTransactionInput): boolean {
@@ -840,7 +853,8 @@ function parseUpdateTransactionInput(record: Record<string, unknown>): UpdateInv
 
 async function validateTransaction(
   input: CreateInvestmentTransactionInput,
-  clientSuppliedGrossAmount: boolean
+  clientSuppliedGrossAmount: boolean,
+  retainedInstrumentId?: string
 ): Promise<CreateInvestmentTransactionInput> {
   if (input.settlementDate && input.settlementDate < input.tradeDate) {
     throw new ApiRequestError("VALIDATION_ERROR", "settlementDate cannot be before tradeDate.", 400);
@@ -860,6 +874,8 @@ async function validateTransaction(
   }
 
   if (account.purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理。", 400);
+
+  assertInstrumentActivity(instrument, retainedInstrumentId);
 
   if (input.currency !== instrument.currency) {
     throw new ApiRequestError("VALIDATION_ERROR", "Transaction currency must match instrument currency.", 400);
@@ -1194,4 +1210,8 @@ function optionalEnum<T extends AdjustmentDirection>(
   }
 
   return value as T;
+}
+
+export function assertInstrumentActivity(instrument: Pick<Instrument, "id" | "active">, retainedInstrumentId?: string): void {
+  if (instrument.active === false && instrument.id !== retainedInstrumentId) throw new ApiRequestError("VALIDATION_ERROR", "投资标的已停用，请选择启用的标的。", 400);
 }

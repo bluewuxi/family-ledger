@@ -4928,3 +4928,57 @@ tr.editing-row td {
   .account-detail-header .account-detail-controls { align-items: flex-end; flex-shrink: 0; }
   .account-detail-header .account-detail-controls > button { min-height: 44px; height: 44px; }
 }
+.settings-user-section {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 18px;
+  margin-bottom: 24px;
+}
+
+.settings-user-section > .settings-section-header {
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.settings-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-user-actions > * {
+  min-height: 44px;
+}
+
+.settings-help-button {
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 8px 0;
+}
+
+.settings-recovery-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.settings-recovery-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+.settings-recovery-dialog code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

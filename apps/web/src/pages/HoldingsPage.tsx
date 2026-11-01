@@ -243,7 +243,7 @@ export function HoldingsPage() {
                   <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
                   <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
                   <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
-                  <td className="numeric-cell">{formatHoldingLatestPrice(holding)}</td>
+                  <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact")}</td>
                   <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue) : "--"}</td>
                   <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme, 3)}`}>
                     {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain) : "--"}

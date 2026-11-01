@@ -61,7 +61,12 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 10);
+  const inactive = createLedgerBackupObject({environment:"test", generatedAt:"2026-11-01T00:00:00Z", rows:{...rows,instruments:[{id:"inactive",active:false}]}});
+  assert.equal((restoreRows(inactive.payload).instruments[0] as Record<string,unknown>).active,false);
+  const legacyActivity = structuredClone(inactive.payload); legacyActivity.manifest.version=10; delete (legacyActivity.tables.instruments[0] as Record<string,unknown>).active;
+  // Rebuild checksums through the existing rehash fixture below for historical payloads.
+
+  assert.equal(backupObject.payload.manifest.version, 11);
   const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
   const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
   assert.equal((restoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
@@ -76,6 +81,8 @@ async function runSelfTests(): Promise<void> {
     payload.manifest.payloadChecksumSha256 = hash({ manifest, tables: payload.tables });
     payload.manifest.fileChecksumSha256 = hash({ manifest: { ...manifest, payloadChecksumSha256: payload.manifest.payloadChecksumSha256 }, tables: payload.tables });
   };
+  rehash(legacyActivity);
+  assert.equal((restoreRows(legacyActivity).instruments[0] as Record<string,unknown>).active,true);
   const legacyShape = structuredClone(exact.payload);
   legacyShape.manifest.tables = legacyShape.manifest.tables.map(t => t.name === "portfolio_snapshot_headers" ? { ...t, name: "portfolio_snapshots" } : t);
   legacyShape.manifest.tableOrder = legacyShape.manifest.tableOrder.map(t => t === "portfolio_snapshot_headers" ? "portfolio_snapshots" : t);

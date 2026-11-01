@@ -48,6 +48,8 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
+- [Manual testing follow-up plan](plans/2026-11-01-manual-testing-follow-up.md) records seven chart, price-label, instrument-activity, monthly-review, and settings findings. Local implementation and TEST activity migration are complete; administrator browser checks are recorded. Restricted-viewer browser acceptance is user-deferred; deployment and clean-commit migration registration remain pending.
+
 - [Account visibility implementation plan](plans/2026-11-01-account-visibility.md) sequences authorization storage, complete read-path scoping, backup compatibility, UI changes, and verification. Local implementation and validation are recorded in the plan; live migration application and delivery remain unauthorized.
 - [Account visibility design](specs/2026-10-31-account-visibility-design.md) records the confirmed viewer account-scope direction and future super-administrator boundary. Design approved and locally implemented; migration application, deployment, and authenticated visual acceptance remain pending.
 - [AWS authentication design](specs/2026-10-31-auth-migration-design.md) and [implementation plan](plans/2026-10-31-auth-migration.md) propose the selected Lambda/DynamoDB opaque-session migration. Design is Approved and local implementation evidence is recorded in the plan; TEST cutover and automatic verification completed; real-login visual acceptance passed. Account visibility is deferred.

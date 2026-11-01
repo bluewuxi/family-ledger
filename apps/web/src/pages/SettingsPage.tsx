@@ -1,7 +1,7 @@
 import { AccountAccessEditor } from "../components/AccountAccessEditor";
 import { Link } from "react-router-dom";
 import { PasswordResetForm } from "../components/PasswordResetForm";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { KeyRound, Power, RefreshCw, Save, ShieldCheck, Users } from "lucide-react";
 import {
   GAIN_COLOR_SCHEME_LABELS,
@@ -38,6 +38,7 @@ interface UpdateManagedUserResponse {
 }
 
 interface TradingPasswordGateResponse {
+  parameterPath?: string;
   isInitialized: boolean;
 }
 
@@ -55,6 +56,7 @@ export function SettingsPage() {
   const [loadingTradingPasswordGate, setLoadingTradingPasswordGate] = useState(false);
   const [savingTradingPasswordGate, setSavingTradingPasswordGate] = useState(false);
   const [tradingPasswordGateInitialized, setTradingPasswordGateInitialized] = useState(false);
+  const [tradingPasswordGateParameterPath, setTradingPasswordGateParameterPath] = useState<string | null>(null);
   const [currentExtraPassword, setCurrentExtraPassword] = useState("");
   const [newExtraPassword, setNewExtraPassword] = useState("");
   const [confirmExtraPassword, setConfirmExtraPassword] = useState("");
@@ -62,6 +64,10 @@ export function SettingsPage() {
   const [userManagementError, setUserManagementError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [userManagementNotice, setUserManagementNotice] = useState<string | null>(null);
+
+  const recoveryDialog = useRef<HTMLDialogElement>(null);
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gateNotice, setGateNotice] = useState<string | null>(null);
 
   const [accessEditor, setAccessEditor] = useState<{ user: ManagedUser; demoting: boolean } | null>(null);
   const isAdmin = user?.role === "admin";
@@ -114,12 +120,14 @@ export function SettingsPage() {
 
   async function loadTradingPasswordGate() {
     setLoadingTradingPasswordGate(true);
+    setGateError(null);
 
     try {
       const data = await apiGet<TradingPasswordGateResponse>("/settings/trading-password-gate");
       setTradingPasswordGateInitialized(data.isInitialized);
+      setTradingPasswordGateParameterPath(data.parameterPath ?? null);
     } catch (requestError) {
-      setUserManagementError(toErrorMessage(requestError));
+      setGateError(toErrorMessage(requestError));
     } finally {
       setLoadingTradingPasswordGate(false);
     }
@@ -174,11 +182,11 @@ export function SettingsPage() {
 
   async function handleTradingPasswordGateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setUserManagementError(null);
-    setUserManagementNotice(null);
+    setGateError(null);
+    setGateNotice(null);
 
     if (newExtraPassword !== confirmExtraPassword) {
-      setUserManagementError("两次输入的新额外密码不一致。");
+      setGateError("两次输入的新额外密码不一致。");
       return;
     }
 
@@ -193,9 +201,9 @@ export function SettingsPage() {
       setCurrentExtraPassword("");
       setNewExtraPassword("");
       setConfirmExtraPassword("");
-      setUserManagementNotice("交易密码额外密码已更新。");
+      setGateNotice("交易密码额外密码已更新。");
     } catch (requestError) {
-      setUserManagementError(toErrorMessage(requestError));
+      setGateError(toErrorMessage(requestError));
     } finally {
       setSavingTradingPasswordGate(false);
     }
@@ -205,8 +213,7 @@ export function SettingsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <Link className="secondary-button" to="/change-password">修改登录密码</Link>
-      <PageTitle route="/settings">设置</PageTitle>
+          <PageTitle route="/settings">设置</PageTitle>
           <p>维护当前用户的显示偏好。管理员可停用访问并维护用户角色。</p>
         </div>
         <button className="secondary-button" type="button" onClick={loadPreferences} disabled={loading || saving || loadingUsers}>
@@ -259,6 +266,7 @@ export function SettingsPage() {
         </label>
 
         <div className="form-actions">
+          {user && !isAdmin ? <Link className="secondary-button" to="/change-password">修改登录密码</Link> : null}
           <button className="primary-button" type="submit" disabled={loading || saving}>
             <Save size={17} aria-hidden="true" />
             <span>{saving ? "保存中..." : "保存偏好"}</span>
@@ -267,170 +275,178 @@ export function SettingsPage() {
       </form>
 
       {isAdmin ? (
-        <section className="settings-user-section" aria-labelledby="user-management-title">
-          <div className="settings-section-header">
-            <div>
-              <h2 id="user-management-title">
-                <Users size={18} aria-hidden="true" />
-                用户访问
-              </h2>
-              <p>用户由管理员创建，可在这里维护访问状态、角色和登录密码。</p>
-            </div>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => {
-                void loadManagedUsers();
-                void loadTradingPasswordGate();
-              }}
-              disabled={loadingUsers || loadingTradingPasswordGate || savingUserId !== null || savingTradingPasswordGate}
-            >
-              <RefreshCw size={17} aria-hidden="true" />
-              <span>刷新用户</span>
-            </button>
-          </div>
-
-          {userManagementError ? <p className="form-error settings-inline-message">{userManagementError}</p> : null}
-          {userManagementNotice ? <p className="form-success settings-inline-message">{userManagementNotice}</p> : null}
-
-          <form className="settings-form trading-gate-form" onSubmit={handleTradingPasswordGateSubmit}>
-            <div className="form-heading">
-              <h2>
-                <KeyRound size={18} aria-hidden="true" />
-                用于查看交易密码的密码
-              </h2>
-              <span>{tradingPasswordGateInitialized ? "已设置" : "首次设置"}</span>
+        <>
+          <section className="settings-user-section" aria-labelledby="user-management-title">
+            <div className="settings-section-header">
+              <div>
+                <h2 id="user-management-title">
+                  <Users size={18} aria-hidden="true" />
+                  用户访问
+                </h2>
+                <p>用户由管理员创建，可在这里维护访问状态、角色和登录密码。</p>
+              </div>
+              <div className="settings-user-actions">
+              <Link className="secondary-button" to="/change-password">修改登录密码</Link>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => { void loadManagedUsers(); }}
+                disabled={loadingUsers || savingUserId !== null}
+              >
+                <RefreshCw size={17} aria-hidden="true" />
+                <span>刷新用户</span>
+              </button>
+              </div>
             </div>
 
-            <p className="form-warning wide-field">
-              如果忘记额外密码，需要到 AWS Console 将 SSM 参数
-              <code>{getTradingPasswordGateParameterName()}</code>
-              重置为 <code>empty</code> 后再回来设置新密码。
-            </p>
+            {userManagementError ? <p className="form-error settings-inline-message">{userManagementError}</p> : null}
+            {userManagementNotice ? <p className="form-success settings-inline-message">{userManagementNotice}</p> : null}
 
-            {tradingPasswordGateInitialized ? (
+            {accessEditor && <AccountAccessEditor key={`${accessEditor.user.id}:${accessEditor.demoting}`} user={accessEditor.user} demoting={accessEditor.demoting} onClose={() => setAccessEditor(null)} onSaved={() => void loadManagedUsers()} />}
+            <div className="table-wrap">
+              <table className="settings-user-table">
+                <thead>
+                  <tr>
+                    <th>邮箱</th>
+                    <th>角色</th>
+                    <th>状态</th>
+                    <th>最近登录</th>
+                    <th>重置密码</th><th>账户范围</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingUsers ? (
+                    <tr>
+                      <td className="table-loading-cell" colSpan={7}>
+                        正在加载用户
+                      </td>
+                    </tr>
+                  ) : managedUsers.length === 0 ? (
+                    <tr>
+                      <td className="table-loading-cell" colSpan={7}>
+                        暂无用户
+                      </td>
+                    </tr>
+                  ) : (
+                    managedUsers.map((managedUser) => {
+                      const isSelf = managedUser.id === user?.id;
+                      const isSavingUser = savingUserId === managedUser.id;
+                      return (
+                        <tr key={managedUser.id}>
+                          <td>
+                            <strong>{managedUser.email ?? "未设置邮箱"}</strong>
+                            {isSelf ? <span className="settings-self-badge">当前用户</span> : null}
+                          </td>
+                          <td>
+                            <label className="sr-only" htmlFor={`role-${managedUser.id}`}>
+                              角色
+                            </label>
+                            <select
+                              id={`role-${managedUser.id}`}
+                              className="settings-role-select"
+                              value={managedUser.role ?? "viewer"}
+                              onChange={(event) => void handleRoleChange(managedUser, event.target.value as UserRole)}
+                              disabled={isSelf || isSavingUser}
+                            >
+                              <option value="admin">管理员</option>
+                              <option value="viewer">查看者</option>
+                            </select>
+                          </td>
+                          <td>
+                            <span className={managedUser.isActive ? "status-pill status-pill-active" : "status-pill status-pill-paused"}>
+                              {managedUser.isActive ? "已启用" : "已停用"}
+                            </span>
+                          </td>
+                          <td>{formatDateTime(managedUser.lastSignInAt)}</td>
+                          <td>{!isSelf ? <PasswordResetForm userId={managedUser.id} email={managedUser.email ?? "用户"} /> : "—"}</td>
+                          <td><button className="secondary-button" type="button" disabled={isSelf || isSavingUser} onClick={() => setAccessEditor({ user: managedUser, demoting: false })}>账户范围</button></td>
+                          <td>
+                            <button
+                              className={managedUser.isActive ? "danger-button" : "secondary-button"}
+                              type="button"
+                              onClick={() => void handleAccessToggle(managedUser)}
+                              disabled={isSelf || isSavingUser}
+                            >
+                              {managedUser.isActive ? <Power size={16} aria-hidden="true" /> : <ShieldCheck size={16} aria-hidden="true" />}
+                              <span>{managedUser.isActive ? "停用" : "启用"}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+            <form className="settings-form trading-gate-form" onSubmit={handleTradingPasswordGateSubmit}>
+              <div className="form-heading">
+                <h2>
+                  <KeyRound size={18} aria-hidden="true" />
+                  用于查看交易密码的密码
+                </h2>
+                <span>{tradingPasswordGateInitialized ? "已设置" : "首次设置"}</span>
+              </div>
+
+              <div className="wide-field settings-gate-help">
+                <button className="settings-help-button" type="button" onClick={() => recoveryDialog.current?.showModal()}>忘记密码？</button>
+              </div>
+              {gateError ? <p className="form-error wide-field" role="alert">{gateError}</p> : null}
+              {gateNotice ? <p className="form-success wide-field" role="status">{gateNotice}</p> : null}
+
+              {tradingPasswordGateInitialized ? (
+                <label>
+                  当前额外密码
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentExtraPassword}
+                    onChange={(event) => setCurrentExtraPassword(event.target.value)}
+                    disabled={loadingTradingPasswordGate || savingTradingPasswordGate}
+                    required
+                  />
+                </label>
+              ) : null}
+
               <label>
-                当前额外密码
+                新额外密码
                 <input
                   type="password"
-                  autoComplete="current-password"
-                  value={currentExtraPassword}
-                  onChange={(event) => setCurrentExtraPassword(event.target.value)}
+                  autoComplete="new-password"
+                  value={newExtraPassword}
+                  onChange={(event) => setNewExtraPassword(event.target.value)}
                   disabled={loadingTradingPasswordGate || savingTradingPasswordGate}
                   required
                 />
               </label>
-            ) : null}
 
-            <label>
-              新额外密码
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={newExtraPassword}
-                onChange={(event) => setNewExtraPassword(event.target.value)}
-                disabled={loadingTradingPasswordGate || savingTradingPasswordGate}
-                required
-              />
-            </label>
+              <label>
+                确认新额外密码
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmExtraPassword}
+                  onChange={(event) => setConfirmExtraPassword(event.target.value)}
+                  disabled={loadingTradingPasswordGate || savingTradingPasswordGate}
+                  required
+                />
+              </label>
 
-            <label>
-              确认新额外密码
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={confirmExtraPassword}
-                onChange={(event) => setConfirmExtraPassword(event.target.value)}
-                disabled={loadingTradingPasswordGate || savingTradingPasswordGate}
-                required
-              />
-            </label>
+              <div className="form-actions">
+                <button className="primary-button" type="submit" disabled={loadingTradingPasswordGate || savingTradingPasswordGate}>
+                  <Save size={17} aria-hidden="true" />
+                  <span>{savingTradingPasswordGate ? "保存中..." : "保存额外密码"}</span>
+                </button>
+              </div>
+            </form>
 
-            <div className="form-actions">
-              <button className="primary-button" type="submit" disabled={loadingTradingPasswordGate || savingTradingPasswordGate}>
-                <Save size={17} aria-hidden="true" />
-                <span>{savingTradingPasswordGate ? "保存中..." : "保存额外密码"}</span>
-              </button>
-            </div>
-          </form>
-
-          {accessEditor && <AccountAccessEditor key={`${accessEditor.user.id}:${accessEditor.demoting}`} user={accessEditor.user} demoting={accessEditor.demoting} onClose={() => setAccessEditor(null)} onSaved={() => void loadManagedUsers()} />}
-          <div className="table-wrap">
-            <table className="settings-user-table">
-              <thead>
-                <tr>
-                  <th>邮箱</th>
-                  <th>角色</th>
-                  <th>状态</th>
-                  <th>最近登录</th>
-                  <th>重置密码</th><th>账户范围</th><th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingUsers ? (
-                  <tr>
-                    <td className="table-loading-cell" colSpan={7}>
-                      正在加载用户
-                    </td>
-                  </tr>
-                ) : managedUsers.length === 0 ? (
-                  <tr>
-                    <td className="table-loading-cell" colSpan={6}>
-                      暂无用户
-                    </td>
-                  </tr>
-                ) : (
-                  managedUsers.map((managedUser) => {
-                    const isSelf = managedUser.id === user?.id;
-                    const isSavingUser = savingUserId === managedUser.id;
-                    return (
-                      <tr key={managedUser.id}>
-                        <td>
-                          <strong>{managedUser.email ?? "未设置邮箱"}</strong>
-                          {isSelf ? <span className="settings-self-badge">当前用户</span> : null}
-                        </td>
-                        <td>
-                          <label className="sr-only" htmlFor={`role-${managedUser.id}`}>
-                            角色
-                          </label>
-                          <select
-                            id={`role-${managedUser.id}`}
-                            className="settings-role-select"
-                            value={managedUser.role ?? "viewer"}
-                            onChange={(event) => void handleRoleChange(managedUser, event.target.value as UserRole)}
-                            disabled={isSelf || isSavingUser}
-                          >
-                            <option value="admin">管理员</option>
-                            <option value="viewer">查看者</option>
-                          </select>
-                        </td>
-                        <td>
-                          <span className={managedUser.isActive ? "status-pill status-pill-active" : "status-pill status-pill-paused"}>
-                            {managedUser.isActive ? "已启用" : "已停用"}
-                          </span>
-                        </td>
-                        <td>{formatDateTime(managedUser.lastSignInAt)}</td>
-                        <td>{!isSelf ? <PasswordResetForm userId={managedUser.id} email={managedUser.email ?? "用户"} /> : "—"}</td>
-                        <td><button className="secondary-button" type="button" disabled={isSelf || isSavingUser} onClick={() => setAccessEditor({ user: managedUser, demoting: false })}>账户范围</button></td>
-                        <td>
-                          <button
-                            className={managedUser.isActive ? "danger-button" : "secondary-button"}
-                            type="button"
-                            onClick={() => void handleAccessToggle(managedUser)}
-                            disabled={isSelf || isSavingUser}
-                          >
-                            {managedUser.isActive ? <Power size={16} aria-hidden="true" /> : <ShieldCheck size={16} aria-hidden="true" />}
-                            <span>{managedUser.isActive ? "停用" : "启用"}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+          <dialog ref={recoveryDialog} className="settings-recovery-dialog" aria-labelledby="extra-password-recovery-title" aria-describedby="extra-password-recovery-description">
+            <h2 id="extra-password-recovery-title">忘记额外密码？</h2>
+            <p id="extra-password-recovery-description">请联系系统维护人员，在确认当前环境后，到 AWS Console 将 SSM 参数 <code>{tradingPasswordGateParameterPath ?? "（路径暂不可用，请刷新设置后重试）"}</code> 重置为 <code>empty</code>，再回来设置新密码。</p>
+            <p>此操作需要系统维护权限；点击此提示不会重置密码。</p>
+            <form method="dialog"><button className="primary-button" autoFocus>知道了</button></form>
+          </dialog>
+        </>
       ) : null}
     </section>
   );
@@ -460,11 +476,4 @@ function toErrorMessage(error: unknown): string {
   }
 
   return "设置请求失败，请稍后重试。";
-}
-
-function getTradingPasswordGateParameterName(): string {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "";
-  return apiBaseUrl.includes("fund-api.kidrawer.com") && !apiBaseUrl.includes("test-fund-api.kidrawer.com")
-    ? "/family-ledger/prod_trading_password_gate"
-    : "/family-ledger/test_trading_password_gate";
 }

@@ -268,7 +268,7 @@ export function AccountDetailPage() {
                         <td>{holding.currency}</td>
                         <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
                         <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
-                        <td className="numeric-cell">{formatHoldingLatestPrice(holding)}</td>
+                        <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact")}</td>
                         <td className="numeric-cell">{formatNullableAmount(holding.marketValue)}</td>
                         <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme, 3)}`}>
                           {formatNullableSignedAmount(holding.unrealizedGain)}

@@ -123,7 +123,7 @@ export function TransactionsPage() {
 
   const isAdmin = user?.role === "admin";
   const eligibleInstruments = useMemo(
-    () => instruments.filter((instrument) => isCompatibleInstrument(form.transactionType, instrument)),
+    () => instruments.filter((instrument) => isCompatibleInstrument(form.transactionType, instrument) && instrument.active !== false),
     [form.transactionType, instruments]
   );
   const accountNames = useMemo(() => new Map(accounts.map((account) => [account.id, account.name])), [accounts]);
@@ -134,8 +134,8 @@ export function TransactionsPage() {
   const selectedAccount = accounts.find((account) => account.id === form.accountId);
   const isBankCashAccount = selectedAccount?.accountType === "bank";
   const bankCashInstruments = useMemo(
-    () => (selectedAccount ? getBankCashInstruments(selectedAccount, instruments) : []),
-    [selectedAccount, instruments]
+    () => (selectedAccount ? getBankCashInstruments(selectedAccount, instruments).filter(item => item.active !== false || (editingTransactionId !== null && item.id === form.instrumentId)) : []),
+    [selectedAccount, instruments, editingTransactionId, form.instrumentId]
   );
   const bankCashInstrument = bankCashInstruments.length === 1 ? bankCashInstruments[0] : null;
   const bankCashInstrumentError = isBankCashAccount
@@ -484,7 +484,7 @@ export function TransactionsPage() {
     saving ||
     !form.accountId ||
     accounts.length === 0 ||
-    eligibleInstruments.length === 0 ||
+    (eligibleInstruments.length === 0 && !(editingTransactionId && selectedInstrument?.active === false)) ||
     Boolean(bankCashInstrumentError) ||
     Boolean(tradeAvailability.error) || balanceLoading || !holdingsSummary;
 
@@ -729,6 +729,7 @@ export function TransactionsPage() {
                 required
               >
                 <option value="">请选择标的</option>
+                {selectedInstrument?.active === false && editingTransactionId ? <option value={selectedInstrument.id} disabled>{formatInstrument(selectedInstrument)}（已停用，保留原标的）</option> : null}
                 {eligibleInstruments.map((instrument) => (
                   <option key={instrument.id} value={instrument.id}>
                     {formatInstrument(instrument)}

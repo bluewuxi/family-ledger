@@ -36,12 +36,17 @@ Changes to these daily-change calculation and chart contracts require an explici
 ## Account Detail
 
 - Headline `投资收益` is the account's current total assets minus its cumulative net investment. Reuse dashboard principal events, transaction-date FX, missing-data rules, and the same valuation business date. Position rows retain their existing unrealized gain/loss calculation; account profit is not allocated to positions.
-- The account trend panel uses the dashboard's `期间盈利` and `资产趋势` semantics and shared chart helpers. Default to period profit and one year; retain a valid saved range preference. Offer one month, three months, one year, three years, five years, and inception.
+- The account trend panel uses the dashboard's `期间盈利` and `资产趋势` semantics, shared chart helpers, and shared chart presentation. Both pages use a 280px plot, smooth 2.8px main curves, gradient fills, compact monetary axes, matching legends and hover/touch tooltips, a profit zero line, and stepped dashed principal styling. Default to period profit and one year; retain a valid saved range preference. Offer one month, three months, one year, three years, five years, and inception.
 - Place `趋势范围` in the trend panel's upper-right corner. It controls only the chart; changing it must not reload the whole page, refresh market quotes, or alter headline metrics, holdings, or recent transactions. Range loading and errors stay inside the panel, with stale-response protection.
 - The chart inherits the page's `报告币种`; do not add a separate chart currency selector or duplicate currency badge. Keep the current endpoint connected to its immediately preceding valid historical point, real missing-data gaps, gain/loss colors, and valuation/snapshot hover details. Internal color-crossing points have no axis label or tooltip; only the live endpoint may use `当前`.
 - On desktop and tablet where space permits, align the page title and account context on the left and the reporting currency, refresh, and edit actions on the right. On phones, stack the header, use a full-width currency control, and place the two action buttons side by side with at least 44px tap height.
 - Current holdings already include cash. Do not render a separate cash-balance table. Place recent transactions below holdings in a full-width panel; keep data tables horizontally scrollable on narrow screens.
-- Remove the holdings table's `数据提示` column. Collect deduplicated holding, valuation, snapshot, and principal-FX warnings at the bottom, including negative positions/balances and relevant instrument, currency, date, and reason. Preserve estimated-price markers, price dates, and sources in the price column.
+- Remove the holdings table's `数据提示` column. Collect deduplicated holding, valuation, snapshot, and principal-FX warnings at the bottom, including negative positions/balances and relevant instrument, currency, date, and reason. Latest-price cells in account holdings and holdings overview show only the price and its provider/exchange trading date. Holding detail retains estimated status, quote kind, source, and acquisition time; do not substitute acquisition dates for trading dates.
+
+## Monthly Review Display
+
+- Monthly calculated sections use only authorized accounts, including asset changes, net principal details, account contribution denominators, trades, dividends, cash adjustments, and warnings. Shared authored review notes/status retain the explicit exception in [Auth](../auth.md).
+- Use `资产变化` in the monthly page wording. Do not label this area `家庭资产变化` or `可见账户合计`; this is a page-specific wording exception to the general scoped-total label.
 
 Shared navigation and responsive conventions follow [frontend guidelines](../frontend-guidelines.md), including the [shared back-navigation pattern](../frontend-guidelines.md#shared-back-navigation).
 

@@ -54,6 +54,7 @@ export async function listPriceEnabledInstrumentsBySource(input: {
     .from("instruments")
     .select(["id", "name", "currency", "price_source", "price_source_symbol", "exchange", "price_source_exchange"].join(", "))
     .eq("price_source", input.priceSource)
+    .eq("active", true)
     .eq("price_update_enabled", true)
     .not("price_source_symbol", "is", null)
     .order("price_update_priority", { ascending: true })

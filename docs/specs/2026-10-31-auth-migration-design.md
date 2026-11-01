@@ -108,6 +108,14 @@ The updated design was approved and local implementation authorized on 2026-10-3
 
 Acceptance covers concurrency, expiry with undeleted TTL rows, lost/reordered responses, denied restricted sessions, authorization exception preservation, redacted error paths, cross-store partial failures, old-provider bypass closure, backup identity completeness and recovery without revived sessions. Follow [local testing](../local-testing.md) and [workflow](../project-workflow.md); all five browser viewports require real user login.
 
+## Dedicated TEST user
+
+`test@example.com` is the reusable, testing-only application user in the shared TEST environment. Reuse this identity for future feature acceptance; do not provision a separate shared-environment user for each feature. Disposable identities in isolated local test fixtures remain separate from this shared TEST policy.
+
+The existing temporary account-visibility user was renamed on 2026-11-01 by updating `app_users.email` and `profiles.email` together. Its stable UUID, credentials, account grants, audit references, viewer role, and inactive status were retained. Email changes must preserve the stable UUID and check duplicate emails and dependent records; they must not recreate the user.
+
+Testing does not implicitly authorize activating this user, resetting its password, changing its grants, or writing shared ledger data. Follow the existing [authentication recovery](../operations/auth-recovery.md) and [authenticated browser acceptance](../local-testing.md#authenticated-browser-acceptance) procedures. Keep the user inactive when it is not needed; restore any explicitly authorized temporary access changes after testing.
+
 ## References
 
 - [DynamoDB TTL](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html): asynchronous cleanup does not enforce session expiry.

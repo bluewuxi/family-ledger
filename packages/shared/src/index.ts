@@ -464,6 +464,7 @@ export interface UpdateInvestmentAccountInput {
 }
 
 export interface Instrument {
+  active: boolean;
   id: string;
   symbol: string | null;
   name: string;
@@ -490,6 +491,7 @@ export interface Instrument {
 }
 
 export interface CreateInstrumentInput {
+  active?: boolean;
   symbol?: string | null;
   name: string;
   shortName?: string | null;
@@ -511,6 +513,7 @@ export interface CreateInstrumentInput {
 }
 
 export interface UpdateInstrumentInput {
+  active?: boolean;
   symbol?: string | null;
   name?: string;
   shortName?: string | null;

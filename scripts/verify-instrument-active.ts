@@ -1,0 +1,37 @@
+import assert from "node:assert/strict";
+import { parseCreateInstrumentInput, parseUpdateInstrumentInput } from "../apps/api/src/services/instrumentService";
+import { refreshDashboardQuotes } from "../apps/api/src/services/dashboardService";
+import type { Instrument, HoldingSummary, DashboardQuoteRecord, InvestmentTransaction, CreateInvestmentTransactionInput } from "@family-ledger/shared";
+import { assertInstrumentActivity, hasSettlementInputChanges } from "../apps/api/src/services/transactionService";
+const originalTrade = {accountId:"account",instrumentId:"security",tradeDate:"2026-06-22",settlementDate:"2026-06-22",transactionType:"buy",quantity:"1.000000",price:"10.000000",grossAmount:"10.000000",fee:"0.000000",tax:"0.000000",currency:"USD",adjustmentDirection:null,settlementCurrency:"USD",settlementAmount:"10",notes:"Original"} as InvestmentTransaction;
+const fullFormEdit = {...originalTrade,quantity:"1",price:"10",grossAmount:"10",fee:"0",tax:"0",notes:"Changed notes"} as CreateInvestmentTransactionInput;
+assert.equal(hasSettlementInputChanges(originalTrade,fullFormEdit),false,"Full-form notes edits retain existing settlement even with equivalent decimal formatting");
+assert.equal(hasSettlementInputChanges(originalTrade,{...fullFormEdit,price:"11"}),true);
+assert.equal(hasSettlementInputChanges(originalTrade,{...fullFormEdit,accountId:"other"}),true);
+assert.equal(hasSettlementInputChanges(originalTrade,{...fullFormEdit,tradeDate:"2026-06-23"}),true);
+assert.throws(()=>assertInstrumentActivity({id:"disabled",active:false}));
+assert.throws(()=>assertInstrumentActivity({id:"disabled",active:false},"other"));
+assert.doesNotThrow(()=>assertInstrumentActivity({id:"disabled",active:false},"disabled"));
+const base = {name:"Fixture",symbol:"VGT",exchange:"NYSE",marketRegion:"US",currency:"USD",assetType:"etf",priceSource:"yahoo_finance",priceSourceSymbol:"VGT",priceUpdateEnabled:true,priceUpdatePriority:1};
+assert.equal(parseCreateInstrumentInput(base).active,true);
+assert.equal(parseCreateInstrumentInput({...base,active:false}).active,false);
+assert.deepEqual(parseUpdateInstrumentInput({name:"Changed"}),{name:"Changed"});
+assert.deepEqual(parseUpdateInstrumentInput({active:false}),{active:false});
+assert.throws(()=>parseUpdateInstrumentInput({active:"false"}));
+const instrument = {...base,id:"fixture",active:false} as Instrument;
+const holding = {instrumentId:"fixture",assetType:"etf"} as HoldingSummary;
+let calls=0;
+const provider={name:"yahoo_finance",fetchLatestQuotes:async()=>{calls++;return {provider:"yahoo_finance",fetchedAt:"2026-11-01T00:00:00Z",quotes:[]};}};
+const repository={listDashboardQuotes:async()=>[],upsertDashboardQuote:async()=>{},upsertDashboardQuotes:async()=>[]};
+async function main(){
+ await refreshDashboardQuotes({holdings:[holding],instruments:[instrument],now:new Date("2026-11-01T00:00:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:repository});
+ assert.equal(calls,0,"Inactive holdings must not trigger provider calls");
+ const cached = {instrumentId:"fixture",provider:"Yahoo Finance",fetchedAt:"2026-11-01T00:00:00Z"} as DashboardQuoteRecord;
+ const retained = await refreshDashboardQuotes({holdings:[holding],instruments:[instrument],now:new Date("2026-11-01T00:01:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:{...repository,listDashboardQuotes:async()=>[cached]}});
+ assert.equal(retained.length,1,"Fresh cached data remains readable for inactive holdings");
+ assert.equal(calls,0);
+ await refreshDashboardQuotes({holdings:[holding],instruments:[{...instrument,active:true}],now:new Date("2026-11-01T00:00:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:repository});
+ assert.equal(calls,1,"Re-enabled instruments regain automatic acquisition");
+ console.log("Instrument activity defaults, validation and quote exclusion passed.");
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

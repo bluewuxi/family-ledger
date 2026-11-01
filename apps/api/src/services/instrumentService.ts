@@ -111,9 +111,10 @@ export async function deleteInvestmentInstrument(id: string): Promise<void> {
   }
 }
 
-function parseCreateInstrumentInput(body: unknown): CreateInstrumentInput {
+export function parseCreateInstrumentInput(body: unknown): CreateInstrumentInput {
   const record = asRecord(body);
   const input: CreateInstrumentInput = {
+    active: record.active === undefined ? true : requiredBoolean(record.active, "active"),
     symbol: optionalString(record.symbol, "symbol"),
     name: requiredString(record.name, "name"),
     shortName: optionalShortName(record.shortName),
@@ -138,9 +139,10 @@ function parseCreateInstrumentInput(body: unknown): CreateInstrumentInput {
   return input;
 }
 
-function parseUpdateInstrumentInput(body: unknown): UpdateInstrumentInput {
+export function parseUpdateInstrumentInput(body: unknown): UpdateInstrumentInput {
   const record = asRecord(body);
   const input: UpdateInstrumentInput = {};
+  if ("active" in record) input.active = requiredBoolean(record.active, "active");
 
   if ("symbol" in record) {
     input.symbol = optionalString(record.symbol, "symbol");

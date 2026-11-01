@@ -72,9 +72,9 @@ export async function updateTradingPassword(
   return { updated: true };
 }
 
-export async function getTradingPasswordGateStatus(): Promise<{ isInitialized: boolean }> {
+export async function getTradingPasswordGateStatus(): Promise<{ isInitialized: boolean; parameterPath: string }> {
   const gateValue = await getOrCreateTradingPasswordGateValue();
-  return { isInitialized: gateValue !== TRADING_PASSWORD_GATE_EMPTY_VALUE };
+  return { isInitialized: gateValue !== TRADING_PASSWORD_GATE_EMPTY_VALUE, parameterPath: getTradingPasswordGateParameterName() };
 }
 
 export async function updateTradingPasswordGate(body: unknown): Promise<{ isInitialized: true }> {

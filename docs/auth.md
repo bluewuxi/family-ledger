@@ -42,6 +42,10 @@ Ledger backups contain stable application identities, roles and preferences, not
 
 ## Secret boundaries
 
+The administrator-only extra-password recovery dialog displays the server-configured SSM parameter path. It never infers an environment from the frontend URL and never displays the parameter value or verifier. Opening the dialog does not reset the gate.
+
+Settings exposes extra-password recovery guidance through a `忘记密码？` dialog, not a persistent warning. The guidance directs operators to confirm the environment and reset its configured SSM gate parameter to `empty` before setting a new password. Opening the dialog performs no reset. The browser must not infer an environment-specific parameter name from a build-time API URL.
+
 Server database/service credentials and the trading-password gate verifier remain in AWS SSM and never enter frontend configuration, responses or logs. Auth passwords, tokens, verifiers and sensitive request bodies never enter logs or ledger backups. A newly issued session token is returned only by login and held in browser session storage.
 
 Trading account passwords retain the independent shared extra-password gate. Its SSM SecureString is `empty` before setup or a salted scrypt verifier. Only the explicitly gated reveal endpoint may return an account trading password. Ordinary DTOs, logs, backups and persistent browser storage exclude it. Admin alone updates account trading passwords and the gate. Extra-password throttling remains a separate open hardening decision.

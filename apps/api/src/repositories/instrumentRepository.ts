@@ -18,6 +18,7 @@ interface InstrumentRow {
   price_source: Instrument["priceSource"];
   price_source_symbol: string | null;
   price_source_exchange: string | null;
+  active: boolean;
   price_update_enabled: boolean;
   price_update_priority: number;
   source_url: string | null;
@@ -192,6 +193,7 @@ const instrumentSelect = [
   "price_source",
   "price_source_symbol",
   "price_source_exchange",
+  "active",
   "price_update_enabled",
   "price_update_priority",
   "source_url",
@@ -220,6 +222,7 @@ function mapInstrumentRow(row: InstrumentRow): Instrument {
     priceSource: row.price_source,
     priceSourceSymbol: row.price_source_symbol,
     priceSourceExchange: row.price_source_exchange,
+    active: row.active,
     priceUpdateEnabled: row.price_update_enabled,
     priceUpdatePriority: row.price_update_priority,
     sourceUrl: row.source_url,
@@ -247,6 +250,7 @@ function toInstrumentRow(input: CreateInstrumentInput) {
     price_source: input.priceSource,
     price_source_symbol: input.priceSourceSymbol ?? null,
     price_source_exchange: input.priceSourceExchange ?? null,
+    active: input.active ?? true,
     price_update_enabled: input.priceUpdateEnabled,
     price_update_priority: input.priceUpdatePriority,
     source_url: input.sourceUrl ?? null,
@@ -270,6 +274,7 @@ function toInstrumentUpdateRow(input: UpdateInstrumentInput) {
     ...(input.priceSource !== undefined ? { price_source: input.priceSource } : {}),
     ...(input.priceSourceSymbol !== undefined ? { price_source_symbol: input.priceSourceSymbol } : {}),
     ...(input.priceSourceExchange !== undefined ? { price_source_exchange: input.priceSourceExchange } : {}),
+    ...(input.active !== undefined ? { active: input.active } : {}),
     ...(input.priceUpdateEnabled !== undefined ? { price_update_enabled: input.priceUpdateEnabled } : {}),
     ...(input.priceUpdatePriority !== undefined ? { price_update_priority: input.priceUpdatePriority } : {}),
     ...(input.sourceUrl !== undefined ? { source_url: input.sourceUrl } : {}),

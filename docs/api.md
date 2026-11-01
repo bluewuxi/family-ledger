@@ -730,11 +730,12 @@ These endpoints are admin-only:
 
 The gate SSM parameter is a SecureString. It is created as `empty` when first read if missing. After setup, the API stores a salted scrypt verifier for the extra password. Legacy MD5 gate values are accepted only to verify the current password and are upgraded to scrypt after a successful check.
 
-`GET /settings/trading-password-gate` returns whether the gate has been initialized:
+`GET /settings/trading-password-gate` returns initialization status and the configured SSM parameter path for the administrator-only recovery dialog. The path is configuration metadata; the parameter value/verifier is never returned:
 
 ```json
 {
-  "isInitialized": false
+  "isInitialized": false,
+  "parameterPath": "<configured SSM parameter path>"
 }
 ```
 
@@ -1067,3 +1068,9 @@ Retry semantics are endpoint-specific: education edits/deletes require current r
 Identity and enforcement are maintained in [Auth](auth.md). `POST /auth/login` accepts `{email,password}` and returns `{token,expiresAt,mustChangePassword}` in the ordinary success envelope. `GET /auth/session` returns `{user,expiresAt,mustChangePassword}` for full or password-change-only sessions. `POST /auth/logout` revokes the presented session and is idempotent if invalid. `POST /auth/change-password` accepts `{currentPassword,newPassword}`; success revokes all sessions and requires fresh login. `POST /settings/users/:id/reset-password` requires a full active admin session, accepts `{adminPassword,temporaryPassword}`, and cannot target the caller. Reset does not activate the target user.
 
 Passwords require at least eight characters; auth bodies are capped at 8 KiB. Restricted sessions cannot call other protected routes. Errors include 401 invalid credentials/session, 403 forbidden or `PASSWORD_CHANGE_REQUIRED`, 409 concurrent credential/access conflict, 429 `RATE_LIMITED` with `Retry-After`, and sanitized 503 dependency failure. Responses are no-store. No token/password/verifier is included in diagnostics or ordinary user DTOs.
+
+## Instrument activity
+
+Instrument `active` is independent of `priceUpdateEnabled` and defaults to true for existing rows and omitted create input. Updates preserve activity when omitted. Inactive instruments remain in historical reads, holdings, snapshots, and management. New transactions and reassignment cannot select them; an existing transaction may retain its original inactive instrument. Disabled cash settlement instruments reject new settlement work. Automatic quote requests, scheduled price ingestion, and derived estimates exclude inactive targets. Fresh cached quotes may be read until normal expiry, then existing stored-price fallback applies. Re-enabling restores eligibility without changing price configuration.
+
+Migration `20261101100000_instrument_active.sql` was applied and verified on TEST on 2026-11-01; other environments require separate application before deploying readers that select this column. Backups use version 11, preserve explicit activity, and normalize older supported backups without activity to true after validating their original checksums.

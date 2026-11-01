@@ -36,6 +36,7 @@ interface DeleteInstrumentResponse {
 }
 
 interface InstrumentFormState {
+  active: boolean;
   symbol: string;
   name: string;
   shortName: string;
@@ -59,6 +60,7 @@ interface InstrumentFormState {
 type DrawerMode = "create" | "view" | "modify";
 
 const emptyForm: InstrumentFormState = {
+  active: true,
   symbol: "",
   name: "",
   shortName: "",
@@ -198,6 +200,7 @@ export function InstrumentsPage() {
       priceSource: instrument.priceSource,
       priceSourceSymbol: instrument.priceSourceSymbol ?? "",
       priceSourceExchange: instrument.priceSourceExchange ?? "",
+      active: instrument.active,
       priceUpdateEnabled: instrument.priceUpdateEnabled,
       priceUpdatePriority: instrument.priceUpdatePriority,
       sourceUrl: instrument.sourceUrl ?? "",
@@ -259,7 +262,7 @@ export function InstrumentsPage() {
               <th>币种</th>
               <th>类型</th>
               <th>价格来源</th>
-              <th>自动更新</th>
+              <th>状态</th><th>自动更新</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -289,7 +292,7 @@ export function InstrumentsPage() {
                   <td>{instrument.currency}</td>
                   <td>{ASSET_TYPE_LABELS[instrument.assetType]}</td>
                   <td>{instrument.assetType === "cash" ? "-" : PRICE_SOURCE_LABELS[instrument.priceSource]}</td>
-                  <td>{instrument.assetType === "cash" ? "-" : instrument.priceUpdateEnabled ? "是" : "否"}</td>
+                  <td>{instrument.active === false ? "已停用" : "已启用"}</td><td>{instrument.assetType === "cash" ? "-" : instrument.priceUpdateEnabled ? "是" : "否"}</td>
                   <td>
                     <div className="table-actions">
                       <button
@@ -505,6 +508,7 @@ export function InstrumentsPage() {
               required
             />
           </label>
+          <label className="checkbox-field">启用标的<input type="checkbox" checked={form.active} onChange={event => setForm({ ...form, active: event.target.checked })} disabled={isDrawerReadOnly} /></label>
 
           <label className="checkbox-field">
             自动更新行情
@@ -578,6 +582,7 @@ function toInstrumentInput(form: InstrumentFormState): CreateInstrumentInput {
     priceSource: form.priceSource,
     priceSourceSymbol: form.priceSourceSymbol,
     priceSourceExchange: form.priceSourceExchange,
+    active: form.active,
     priceUpdateEnabled: form.priceUpdateEnabled,
     priceUpdatePriority: form.priceUpdatePriority,
     sourceUrl: form.sourceUrl,

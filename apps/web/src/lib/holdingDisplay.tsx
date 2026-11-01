@@ -24,7 +24,7 @@ export function formatHoldingQuantity(holding: ValuedHoldingSummary): string {
   return formatCompactDecimal(holding.quantity, 6);
 }
 
-export function formatHoldingLatestPrice(holding: ValuedHoldingSummary): ReactNode {
+export function formatHoldingLatestPrice(holding: ValuedHoldingSummary, presentation: "compact" | "detailed"): ReactNode {
   if (!holding.latestPrice) {
     return "-";
   }
@@ -32,15 +32,15 @@ export function formatHoldingLatestPrice(holding: ValuedHoldingSummary): ReactNo
   return (
     <>
       <span>{formatDisplayPrice(holding.latestPrice)}</span>
-      {holding.latestPriceIsEstimated ? <span className="estimate-badge">估算</span> : null}
+      {presentation === "detailed" && holding.latestPriceIsEstimated ? <span className="estimate-badge">估算</span> : null}
       {holding.latestPriceDate ? (
         <>
           <br />
           <span className="price-date-label">{formatShortPriceDate(holding.latestPriceDate)}</span>
         </>
       ) : null}
-      {holding.latestPriceKind ? <><br /><span className="price-date-label">{holding.latestPriceKind === "quote" ? "当前／延迟报价" : "已存储价格"}{holding.latestPriceSource ? ` · ${holding.latestPriceSource}` : ""}</span></> : null}
-      {holding.quoteFetchedAt ? <><br /><span className="price-date-label">获取于 {formatLocalDateTime(holding.quoteFetchedAt)}（本地时间）</span></> : null}
+      {presentation === "detailed" && holding.latestPriceKind ? <><br /><span className="price-date-label">{holding.latestPriceKind === "quote" ? "当前／延迟报价" : "已存储价格"}{holding.latestPriceSource ? ` · ${holding.latestPriceSource}` : ""}</span></> : null}
+      {presentation === "detailed" && holding.quoteFetchedAt ? <><br /><span className="price-date-label">获取于 {formatLocalDateTime(holding.quoteFetchedAt)}（本地时间）</span></> : null}
     </>
   );
 }

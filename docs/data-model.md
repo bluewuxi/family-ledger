@@ -338,3 +338,9 @@ Backup consistency does not imply uniformly exact numeric encoding or verified r
 ## Application identities
 
 The app_users table owns stable UUIDs and normalized unique login emails. Profiles, user_roles and all audit identity foreign keys reference app_users. user_roles.access_revision supports conditional access changes. DynamoDB stores credentials, opaque sessions and rate limits independently; no financial ledger data is stored there. Final cutover revokes direct private-table/view/RPC access from public, anon and authenticated while preserving trusted service_role access. See [Auth](auth.md).
+
+## Instrument activity
+
+Instrument `active` is independent of `priceUpdateEnabled` and defaults to true for existing rows and omitted create input. Updates preserve activity when omitted. Inactive instruments remain in historical reads, holdings, snapshots, and management. New transactions and reassignment cannot select them; an existing transaction may retain its original inactive instrument. Disabled cash settlement instruments reject new settlement work. Automatic quote requests, scheduled price ingestion, and derived estimates exclude inactive targets. Fresh cached quotes may be read until normal expiry, then existing stored-price fallback applies. Re-enabling restores eligibility without changing price configuration.
+
+Migration `20261101100000_instrument_active.sql` was applied and verified on TEST on 2026-11-01; other environments require separate application before deploying readers that select this column. Backups use version 11, preserve explicit activity, and normalize older supported backups without activity to true after validating their original checksums.

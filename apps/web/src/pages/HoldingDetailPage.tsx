@@ -144,7 +144,7 @@ export function HoldingDetailPage() {
               value={formatNullableSignedAmount(detail.holding.unrealizedGain)}
               toneClass={signedToneClass(detail.holding.unrealizedGain, preferences.gainColorScheme, 3)}
             />
-            <MetricCard label="最新价格" value={formatHoldingLatestPrice(detail.holding)} />
+            <MetricCard label="最新价格" value={formatHoldingLatestPrice(detail.holding, "detailed")} />
             <MetricCard
               label="累计股息"
               value={`${detail.dividendSummary.currency} ${formatDisplayAmount(detail.dividendSummary.totalGrossAmount)}`}

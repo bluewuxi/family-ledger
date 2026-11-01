@@ -69,6 +69,8 @@ async function main() {
       insert into data_provider_runs(job_run_id,provider,data_kind,status,provider_started_at) values('${id(30)}','fixture','instrument_prices','succeeded','2026-10-02T00:00Z');`);
     sql(`insert into account_ledger_grants values('${id(1)}','${id(2)}'); insert into account_spending_grants values('${id(1)}','${id(9)}'); insert into account_education_grants select '${id(1)}',id from education_reserve_funds;
       insert into account_access_audit(actor_id,target_id,previous_scope,next_scope) values('${id(1)}','${id(1)}','{}','{}');`);
+    assert.equal(sql(`select active from instruments where id='${id(4)}'`), 't');
+    sql(`update instruments set active=false where id='${id(4)}'`);
     const exported = JSON.parse(sql('select export_ledger_backup()'));
     for(const table of RESTORE_ORDER) assert(exported[table].length > 0,table+' fixture must be nonempty');
     const bundle = createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-10-31T00:00:00Z',rows:normalizeLedgerBackupRows(exported)});
@@ -99,6 +101,7 @@ async function main() {
       assert.equal(targetSql(`select has_function_privilege('${role}','export_ledger_backup(uuid)','execute')`),'f');
     }
     assert.equal(targetSql("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosrc like '%auth.users%'"),'0');
+    assert.equal(targetSql(`select active from instruments where id='${id(4)}'`), 'f');
     const after = JSON.parse(targetSql('select export_ledger_backup()'));
     for(const table of RESTORE_ORDER) assert.deepEqual(after[table],exported[table],table+' differs after restore');
     assert.equal(targetSql(`select count(*) from transactions where linked_transaction_id='${id(6)}'`),'1');

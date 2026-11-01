@@ -110,6 +110,8 @@ The adapter handles `OPTIONS` requests and injects local CORS response headers. 
 
 ## Test Auth And Roles
 
+Use the dedicated `test@example.com` identity for shared TEST feature acceptance. Do not create a new shared-environment user for each feature; see the [dedicated TEST user policy](specs/2026-10-31-auth-migration-design.md#dedicated-test-user). Isolated local fixtures may continue to use disposable identities.
+
 Use the application login with operator-provisioned credentials. Password changes are self-service with the current password; recovery is an administrator reset. See [auth recovery](operations/auth-recovery.md). User setup, password resets against shared TEST, migrations and infrastructure changes require their separate authorization. Existing viewer/admin endpoint exceptions remain in force.
 
 ## Authenticated browser acceptance
@@ -341,3 +343,7 @@ For the current-format full-schema/full-table synthetic recovery rehearsal, run 
 ## Password navigation regression
 
 During authenticated acceptance, follow Settings -> 修改登录密码 without reloading the page. The change-password form must render immediately; returning to the dashboard must render the ledger again. Forced temporary-password sessions remain restricted before private providers mount. Inspect forms without entering/submitting credentials; actual password changes require the user's handoff.
+
+### Instrument activity
+
+Run `corepack pnpm verify:instrument-active` for local fixtures covering activity defaults, invalid input, retained inactive transaction references, and automatic quote exclusion/re-enable behavior. `corepack pnpm verify:backup` covers explicit false preservation and version-10 activity default compatibility. These checks do not contact shared databases. Migration `20261101100000_instrument_active.sql` remains unapplied; prepare and inspect it before a separately authorized application.

@@ -154,7 +154,7 @@ export function MonthlySummaryPage() {
               />
             </label>
           </div>
-          <p>用快照、净投入和现金校准解释一个月的家庭资产变化。</p>
+          <p>用快照、净投入和现金校准解释一个月的资产变化。</p>
         </div>
         <div className="dashboard-controls">
           <CurrencySelect

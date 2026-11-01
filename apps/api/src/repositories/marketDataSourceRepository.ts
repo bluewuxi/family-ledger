@@ -51,6 +51,7 @@ export async function findKernelEstimateInstrument(): Promise<KernelInstrumentRo
   const { data, error } = await supabase
     .from("instruments")
     .select("id, price_update_enabled")
+    .eq("active", true)
     .eq("exchange", "KERNEL")
     .eq("currency", "NZD")
     .eq("price_source", "kernel_estimate")
@@ -67,6 +68,7 @@ export async function countEnabledPriceTargets(priceSource: PriceSource, sourceS
     .from("instruments")
     .select("id", { count: "exact", head: true })
     .eq("price_source", priceSource)
+    .eq("active", true)
     .eq("price_update_enabled", true);
   if (sourceSymbols) query = query.in("price_source_symbol", sourceSymbols);
   const { count, error } = await query;

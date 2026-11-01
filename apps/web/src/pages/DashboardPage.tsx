@@ -1,28 +1,16 @@
+import { InvestmentTrendChart, getChartToneStyle, formatChartMoney } from "../components/InvestmentTrendChart";
 import { useValuation } from "../lib/useValuation";
-import { buildColorSplitTrendChartData, buildColorSplitProfitChartData } from "../lib/trendChartSeries";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { InvestmentPerformanceCard } from "../components/InvestmentPerformanceCard";
 import { ValuationStatus } from "../components/ValuationStatus";
 import { DistributionPanel } from "../components/DistributionPanel";
 import { RefreshCw } from "lucide-react";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
-import {
   getAppBusinessDate,
   getAppBusinessDayEndInstant,
   SNAPSHOT_DISPLAY_CURRENCIES,
   type DashboardSummary,
-  type GainColorScheme,
   type InvestmentTransaction,
   type PortfolioSnapshotSummary,
   type PortfolioTrend,
@@ -74,29 +62,6 @@ const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
 ];
 const dashboardAutoRefreshIntervalMs = 5 * 60 * 1000;
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
-const trendPrincipalColor = "#8A5A24";
-const chartPositiveColor = "var(--color-chart-positive)";
-const chartNegativeColor = "var(--color-chart-negative)";
-const chartTooltipContentStyle = {
-  border: "1px solid var(--color-border)",
-  background: "var(--color-surface)",
-  color: "var(--color-text)",
-  boxShadow: "var(--shadow-soft)"
-};
-const chartTooltipLabelStyle = {
-  color: "var(--color-text)",
-  fontWeight: 600
-};
-const chartTooltipItemStyle = {
-  color: "var(--color-brand-gold)",
-  fontWeight: 600
-};
-
-type ChartToneStyle = CSSProperties & {
-  "--color-chart-positive": string;
-  "--color-chart-negative": string;
-};
-
 export function DashboardPage() {
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
@@ -275,10 +240,6 @@ export function DashboardPage() {
       }),
     [dashboard?.quoteDate, dashboard?.valuationMetadata, dashboard?.investmentPerformance?.netInvestment, dashboard?.totalAssets, trendData, trendRange]
   );
-  const colorSplitTrendChartData = useMemo(
-    () => buildColorSplitTrendChartData(trendChartData),
-    [trendChartData]
-  );
   const trendSummary = useMemo(
     () => buildTrendSummary(trendChartData),
     [trendChartData]
@@ -287,21 +248,9 @@ export function DashboardPage() {
     () => buildProfitChartData(trendChartData),
     [trendChartData]
   );
-  const colorSplitProfitChartData = useMemo(
-    () => buildColorSplitProfitChartData(profitChartData),
-    [profitChartData]
-  );
   const profitSummary = useMemo(
     () => buildProfitSummary(profitChartData),
     [profitChartData]
-  );
-  const trendValueDomain = useMemo(() => getTrendValueDomain(trendChartData), [trendChartData]);
-  const hoverDates = new Set((trendView === "assets" ? trendChartData : profitChartData).map(point => point.date));
-  const profitValueDomain = useMemo(() => getProfitValueDomain(profitChartData), [profitChartData]);
-  const profitValueTicks = useMemo(() => getProfitValueTicks(profitValueDomain), [profitValueDomain]);
-  const profitAxisDomain = useMemo<[number, number]>(
-    () => [profitValueTicks[0] ?? 0, profitValueTicks.at(-1) ?? 1],
-    [profitValueTicks]
   );
   const chartToneStyle = useMemo(
     () => getChartToneStyle(preferences.gainColorScheme),
@@ -432,102 +381,7 @@ export function DashboardPage() {
                   </span>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={colorSplitTrendChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
-                  <defs>
-                    <linearGradient id="portfolioTrendPositiveFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="8%" stopColor={chartPositiveColor} stopOpacity={0.34} />
-                      <stop offset="95%" stopColor={chartPositiveColor} stopOpacity={0.04} />
-                    </linearGradient>
-                    <linearGradient id="portfolioTrendNegativeFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="8%" stopColor={chartNegativeColor} stopOpacity={0.34} />
-                      <stop offset="95%" stopColor={chartNegativeColor} stopOpacity={0.04} />
-                    </linearGradient>
-                    <linearGradient id="portfolioTrendPrincipalFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="12%" stopColor={trendPrincipalColor} stopOpacity={0.18} />
-                      <stop offset="96%" stopColor={trendPrincipalColor} stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
-                  <YAxis
-                    domain={trendValueDomain}
-                    tickFormatter={(value: number) => formatCompactMoney(value)}
-                    tickLine={false}
-                    width={72}
-                  />
-                  <Tooltip cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={false} />} />
-                  <Area
-                    isAnimationActive={false}
-                    type="stepAfter"
-                    dataKey="totalInvestment"
-                    name="累计净投入"
-                    stroke="none"
-                    fill="url(#portfolioTrendPrincipalFill)"
-                    dot={false}
-                    activeDot={false}
-                    connectNulls
-                    tooltipType="none"
-                  />
-                  <Area
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="snapshotPositiveRange"
-                    name="资产净值"
-                    stroke="none"
-                    fill="url(#portfolioTrendPositiveFill)"
-                    dot={false}
-                    activeDot={false}
-                    connectNulls={false}
-                  />
-                  <Area
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="snapshotNegativeRange"
-                    name="资产净值"
-                    stroke="none"
-                    fill="url(#portfolioTrendNegativeFill)"
-                    dot={false}
-                    activeDot={false}
-                    connectNulls={false}
-                  />
-                  <Line
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="snapshotPositiveValue"
-                    name="资产净值"
-                    stroke={chartPositiveColor}
-                    strokeWidth={2.8}
-                    dot={false}
-                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
-                    connectNulls={false}
-                  />
-                  <Line
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="snapshotNegativeValue"
-                    name="资产净值"
-                    stroke={chartNegativeColor}
-                    strokeWidth={2.8}
-                    dot={false}
-                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
-                    connectNulls={false}
-                  />
-                  <Line
-                    isAnimationActive={false}
-                    type="stepAfter"
-                    dataKey="totalInvestment"
-                    stroke={trendPrincipalColor}
-                    strokeDasharray="6 5"
-                    strokeWidth={2.5}
-                    dot={false}
-                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
-                    connectNulls
-                  />
-
-
-                </AreaChart>
-              </ResponsiveContainer>
+              <InvestmentTrendChart points={trendChartData} view="assets" gainColorScheme={preferences.gainColorScheme} />
               {trendSummary ? (
                 <p className="trend-summary">
                   {trendSummary.rangeLabel}，初始值 {trendSummary.initialValue}，
@@ -565,57 +419,7 @@ export function DashboardPage() {
                   </span>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={colorSplitProfitChartData} margin={{ top: 16, right: 18, bottom: 8, left: 0 }}>
-                  <defs>
-                    <linearGradient id="portfolioProfitPositiveFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="8%" stopColor={chartPositiveColor} stopOpacity={0.34} />
-                      <stop offset="95%" stopColor={chartPositiveColor} stopOpacity={0.04} />
-                    </linearGradient>
-                    <linearGradient id="portfolioProfitNegativeFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="8%" stopColor={chartNegativeColor} stopOpacity={0.34} />
-                      <stop offset="95%" stopColor={chartNegativeColor} stopOpacity={0.04} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
-                  <YAxis
-                    domain={profitAxisDomain}
-                    ticks={profitValueTicks}
-                    tickFormatter={(value: number) => formatCompactMoney(value)}
-                    tickLine={false}
-                    width={72}
-                  />
-                  <ReferenceLine y={0} stroke="var(--color-chart-grid)" strokeWidth={1.4} />
-                  <Tooltip cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }} content={({ active, payload, label }) => <TrendHoverTooltip active={active} payload={payload} label={label} dates={hoverDates} profit={true} />} />
-                  <Area
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="profitPositiveValue"
-                    name="期间盈利"
-                    stroke={chartPositiveColor}
-                    fill="url(#portfolioProfitPositiveFill)"
-                    strokeWidth={2.8}
-                    dot={false}
-                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
-                    connectNulls={false}
-                  />
-                  <Area
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="profitNegativeValue"
-                    name="期间盈利"
-                    stroke={chartNegativeColor}
-                    fill="url(#portfolioProfitNegativeFill)"
-                    strokeWidth={2.8}
-                    dot={false}
-                    activeDot={props => renderTrendHoverDot(props, hoverDates)}
-                    connectNulls={false}
-                  />
-
-
-                </AreaChart>
-              </ResponsiveContainer>
+              <InvestmentTrendChart points={trendChartData} view="profit" gainColorScheme={preferences.gainColorScheme} />
               <p className="panel-description">所选期间内的盈利变化，已扣除净投入变化。起点为期间首个有效估值；悬停或轻触曲线可查看数值；最新节点为当前估值。</p>
               {profitSummary ? (
                 <p className="trend-summary">
@@ -811,176 +615,6 @@ function parseNullableNumber(value: string | null | undefined): number | null {
   return Number.isFinite(numericValue) ? numericValue : null;
 }
 
-function formatShortDate(value: string): string {
-  return value.slice(5);
-}
-
-function formatTrendTickDate(value: string): string {
-  return isSyntheticChartDate(value) ? "" : formatShortDate(value);
-}
-
-function formatTrendTooltipLabel(value: string): string {
-  if (isSyntheticTrendDate(value)) {
-    return "当前估值连接线";
-  }
-  if (isChartCrossingDate(value)) {
-    return "盈亏分界点";
-  }
-
-  return `日期：${value}`;
-}
-
-function formatTrendTooltipName(value: string): string {
-  switch (value) {
-    case "snapshotValue":
-    case "snapshotPositiveValue":
-    case "snapshotNegativeValue":
-      return "资产净值";
-    case "totalInvestment":
-      return "累计净投入";
-    case "liveValue":
-    case "livePositiveValue":
-    case "liveNegativeValue":
-      return "当前估值";
-    default:
-      return value;
-  }
-}
-
-function isSyntheticChartDate(value: string): boolean {
-  return isSyntheticTrendDate(value) || isChartCrossingDate(value);
-}
-
-function isChartCrossingDate(value: string): boolean {
-  return value.startsWith("__chart_crossing__");
-}
-
-function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
-  const values = points
-    .flatMap((point) => [point.snapshotValue, point.liveValue, point.totalInvestment])
-    .filter((value): value is number => value !== null && Number.isFinite(value));
-
-  if (values.length === 0) {
-    return [0, 1];
-  }
-
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const valueRange = maxValue - minValue;
-
-  if (valueRange === 0) {
-    const padding = Math.max(Math.abs(maxValue) * 0.01, 1);
-    return [minValue < 0 ? minValue - padding : Math.max(0, minValue - padding), maxValue + padding];
-  }
-
-  const padding = valueRange * 0.2;
-  return [Math.max(0, minValue - padding), maxValue + padding];
-}
-
-function getProfitValueDomain(points: ProfitChartPoint[]): [number, number] {
-  const values = points
-    .map((point) => point.profitValue)
-    .filter((value): value is number => value !== null && Number.isFinite(value));
-
-  if (values.length === 0) {
-    return [0, 1];
-  }
-
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const valueRange = maxValue - minValue;
-
-  if (valueRange === 0) {
-    const padding = Math.max(Math.abs(maxValue) * 0.05, 1);
-    return [minValue - padding, maxValue + padding];
-  }
-
-  const padding = valueRange * 0.2;
-  return [minValue - padding, maxValue + padding];
-}
-
-function getChartToneStyle(gainColorScheme: GainColorScheme): ChartToneStyle {
-  const positiveColor = gainColorScheme === "red_positive" ? "var(--color-gain-red)" : "var(--color-gain-green)";
-  const negativeColor = gainColorScheme === "red_positive" ? "var(--color-gain-green)" : "var(--color-gain-red)";
-
-  return {
-    "--color-chart-positive": positiveColor,
-    "--color-chart-negative": negativeColor
-  };
-}
-
-function getProfitValueTicks(domain: [number, number]): number[] {
-  const [minValue, maxValue] = domain;
-  const valueRange = maxValue - minValue;
-
-  if (!Number.isFinite(valueRange) || valueRange <= 0) {
-    return [0];
-  }
-
-  const step = getNiceTickStep(valueRange / 4);
-  const lowerTick = Math.floor(minValue / step) * step;
-  const upperTick = Math.ceil(maxValue / step) * step;
-  const ticks: number[] = [];
-
-  for (let tick = lowerTick; tick <= upperTick + step * 0.5; tick += step) {
-    ticks.push(Math.abs(tick) < step / 1_000_000 ? 0 : tick);
-  }
-
-  if (!ticks.some((tick) => tick === 0)) {
-    ticks.push(0);
-    ticks.sort((left, right) => left - right);
-  }
-
-  return Array.from(new Set(ticks));
-}
-
-function getNiceTickStep(rawStep: number): number {
-  if (!Number.isFinite(rawStep) || rawStep <= 0) {
-    return 1;
-  }
-
-  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
-  const normalizedStep = rawStep / magnitude;
-
-  if (normalizedStep <= 1) {
-    return magnitude;
-  }
-  if (normalizedStep <= 2) {
-    return magnitude * 2;
-  }
-  if (normalizedStep <= 5) {
-    return magnitude * 5;
-  }
-
-  return magnitude * 10;
-}
-
-function formatChartMoney(value: number): string {
-  return Math.round(value).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
-}
-
-function formatTooltipMoney(value: unknown): string {
-  const numericValue = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numericValue) ? formatChartMoney(numericValue) : "--";
-}
-
-function formatSignedTooltipMoney(value: unknown): string {
-  const numericValue = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numericValue) ? formatMetricWholeNumber(numericValue, { signed: true }) : "--";
-}
-
-function formatCompactMoney(value: number): string {
-  if (Math.abs(value) >= 1_000_000) {
-    const scaledValue = value / 1_000_000;
-    const decimals = Math.abs(scaledValue) < 10 ? 2 : Math.abs(scaledValue) < 100 ? 1 : 0;
-    return `${scaledValue.toFixed(decimals)}M`;
-  }
-  if (Math.abs(value) >= 1_000) {
-    return `${(value / 1_000).toFixed(0)}K`;
-  }
-  return value.toFixed(0);
-}
-
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
   return SNAPSHOT_DISPLAY_CURRENCIES.includes(value as SnapshotDisplayCurrency)
     ? (value as SnapshotDisplayCurrency)
@@ -1004,21 +638,4 @@ function toErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
-}
-
-
-function renderTrendHoverDot(props: unknown, dates: Set<string>): ReactNode {
-  const point = props as { cx?: number; cy?: number; fill?: string; payload?: { date?: string } };
-  return point.payload?.date && dates.has(point.payload.date) ? <circle cx={point.cx} cy={point.cy} r={5} fill={point.fill} stroke="var(--color-surface)" strokeWidth={2} /> : <g />;
-}
-
-function TrendHoverTooltip({ active, payload, label, dates, profit }: { active?: boolean; payload?: readonly { payload?: unknown }[]; label?: unknown; dates: Set<string>; profit: boolean }) {
-  if (!active || typeof label !== "string" || !dates.has(label)) return null;
-  const point = payload?.[0]?.payload as { value?: number | null; totalInvestment?: number | null; snapshotDate?: string } | undefined;
-  if (!point || point.value == null) return null;
-  return <div style={{ ...chartTooltipContentStyle, padding: "10px 12px" }}>
-    <div style={chartTooltipLabelStyle}>{point.snapshotDate ?? label.replace("__live_endpoint__", "")}{label.startsWith("__live_endpoint__") ? " · 当前估值" : ""}</div>
-    <div style={chartTooltipItemStyle}>{profit ? "期间盈利" : "资产净值"}：{profit ? formatSignedTooltipMoney(point.value) : formatTooltipMoney(point.value)}</div>
-    {!profit && point.totalInvestment != null ? <div>累计净投入：{formatTooltipMoney(point.totalInvestment)}</div> : null}
-  </div>;
 }

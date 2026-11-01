@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
+    "verify:instrument-active": "tsx scripts/verify-instrument-active.ts",
     "verify:account-access": "tsx scripts/verify-account-access.ts && tsx scripts/verify-account-access-context.ts",
     "verify:account-access-client": "tsx apps/web/verify-account-access-client.ts",
     "verify:account-access-db": "tsx scripts/verify-account-access-db.ts",
@@ -38,7 +39,7 @@
     "verify:holding-detail": "tsx scripts/verify-holding-detail.ts",
     "verify:account-detail": "tsx scripts/verify-account-detail.ts",
     "verify:local-auth-bypass": "tsx scripts/verify-local-auth-bypass.ts",
-    "verify:monthly-summary": "tsx scripts/verify-monthly-summary.ts",
+    "verify:monthly-summary": "tsx scripts/verify-monthly-summary.ts && tsx scripts/verify-monthly-summary-scope.ts",
     "verify:dashboard": "tsx scripts/verify-dashboard-calculation.ts",
     "verify:dashboard-quote-timeout": "tsx scripts/verify-dashboard-quote-timeout.ts",
     "verify:portfolio-trend": "tsx scripts/verify-portfolio-trend.ts",

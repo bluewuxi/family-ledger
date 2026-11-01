@@ -28,4 +28,6 @@ The required viewport sizes and user-login handoff are maintained in [local test
 
 ## Accessible interaction and states
 
+Settings groups the user-access heading, management actions, feedback, and user table in one panel. The extra-password form is a separate panel. Administrators find `修改登录密码` immediately before `刷新用户`; viewers retain their self-service password link in user preferences. Extra-password recovery guidance appears only after activating `忘记密码？`, in a dismissible modal dialog with keyboard focus containment and return.
+
 For changed UI, provide labeled inputs, perceivable field validation, keyboard-operable controls, visible focus, dialog focus entry and return, readable contrast, and explicit loading, empty, and failure states. Apply this baseline proportionally; it does not certify an audit of existing pages. Preserve the required [authenticated acceptance procedure](local-testing.md#authenticated-browser-acceptance).
