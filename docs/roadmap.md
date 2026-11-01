@@ -1,8 +1,8 @@
 # Roadmap
 
-## Account visibility (locally accepted; application delivery pending)
+## Account visibility (deployed to TEST)
 
-Approved [design](specs/2026-10-31-account-visibility-design.md) and [plan](plans/2026-11-01-account-visibility.md) implement viewer account scope, visible-only aggregates/history, authorization management, typed-grant backup compatibility, and revision-based UI invalidation. Current administrators remain all-account; super-administrator behavior is future-only. The four TEST migrations, real PostgREST integration, user-login five-viewport local acceptance, and dedicated-viewer cleanup passed; see [evidence](releases/2026-11-01-account-visibility-validation.md). Coordinated application delivery, migration approval registration, API Gateway CORS application, and deployed-browser verification remain separately authorized prerequisites. Production policy review and migration remain pending.
+Approved [design](specs/2026-10-31-account-visibility-design.md) and [plan](plans/2026-11-01-account-visibility.md) deliver viewer account scope, visible-only aggregates/history, authorization management, typed-grant backup compatibility, and revision-based UI invalidation. Current administrators remain all-account; super-administrator behavior is future-only. Under #121, four TEST migrations, isolated CORS application, manifest registrations, automatic API/web/jobs delivery (`37090cf`), real-login responsive/revocation acceptance, dedicated-viewer cleanup, and a live version-10 backup/file restore preflight passed; see [evidence](releases/2026-11-01-account-visibility-validation.md). Production policy review, migration and delivery remain pending.
 
 ## TEST delivery automation
 
@@ -138,4 +138,4 @@ The documentation remediation did not fix these items. Subsequent G1 local imple
 
 ## AWS authentication TEST delivery
 
-TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. Infrastructure, SQL, user initialization, live synthetic authentication, backup and automatic release verification passed. Real-user first-change/login and five-viewport visual acceptance passed; see [cutover evidence](releases/2026-10-31-auth-test-cutover.md). Account visibility application delivery remains pending; production is unchanged.
+TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. Infrastructure, SQL, user initialization, live synthetic authentication, backup and automatic release verification passed. Real-user first-change/login and five-viewport visual acceptance passed; see [cutover evidence](releases/2026-10-31-auth-test-cutover.md). Account visibility followed under #121; production is unchanged.

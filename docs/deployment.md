@@ -18,7 +18,7 @@ Routine `test` pushes are validated and deployed by GitHub Actions. See [TEST au
 - Keep handlers thin and route to services.
 - Configure server-side secrets outside Git.
 - Use API Gateway Regional custom domains for HTTPS API endpoints.
-- Expose `x-account-scope` in API Gateway CORS and the local adapter so browser clients can invalidate private views after authorization revisions. This template change requires separately authorized infrastructure application before release.
+- Expose `x-account-scope` in API Gateway CORS and the local adapter so browser clients can invalidate private views after authorization revisions. TEST infrastructure application and deployed-browser verification passed under #121; other environments require separately authorized infrastructure application before release.
 - The API Lambda may asynchronously invoke the FX and price job Lambdas for admin-triggered data maintenance retrieval of market data.
 
 ## Authentication infrastructure
@@ -145,7 +145,7 @@ corepack pnpm verify:backup -- --file <downloaded-backup.json.gz>
 corepack pnpm restore:backup:dry-run -- --file <downloaded-backup.json.gz>
 ```
 
-Restore is intentionally operator-run in V1. Restore version-9 app_users identities before dependent records. Older backups require an explicit reviewed identity mapping; auth credentials are provisioned independently. See [`operations/backup-restore.md`](operations/backup-restore.md).
+Restore is intentionally operator-run in V1. Restore current-format app_users identities before dependent records and account scope/grants after their owning resources. Legacy identity mappings and viewer-scope normalization follow [`operations/backup-restore.md`](operations/backup-restore.md); auth credentials are provisioned independently.
 
 Historical price repair is dry-run by default:
 

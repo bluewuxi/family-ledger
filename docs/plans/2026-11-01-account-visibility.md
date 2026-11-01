@@ -2,7 +2,7 @@
 
 > **For agentic workers:** On separately authorized execution, use `superpowers:executing-plans`, or `superpowers:subagent-driven-development` if that execution method is selected. Track the checkboxes and follow the project workflow rather than automatic commits or worktree creation.
 
-**Status:** Local implementation complete; final local verification recorded below. Authenticated visual and real PostgREST acceptance remain pending. No commit, push, live migration application, or deployment authorized.
+**Status:** Implementation, independent review, real PostgREST integration, local/deployed authenticated acceptance, and authorized TEST publication complete. See [delivery evidence](../releases/2026-11-01-account-visibility-validation.md). Production is excluded.
 
 **Goal:** Enforce viewer account scope across all account-backed reads and calculated results while retaining the explicitly approved disclosure exceptions.
 
@@ -116,15 +116,15 @@
 - [x] Run `corepack pnpm typecheck`, `corepack pnpm build`, `git diff --check`, and affected focused suites listed above. Classify commands before running; do not run live repair/audit commands by name alone. Record blockers and results here.
 - [x] With separate user login/readiness agreement, inspect admin and viewer behavior at `320x740`, `393x852`, `430x932`, `768x1024`, and desktop `1440x1000`. Real authentication and authorized dedicated-viewer scope changes were used; no ledger transactions were changed. See [acceptance evidence](../releases/2026-11-01-account-visibility-validation.md).
 - [x] Prepare rollout prerequisites: reviewed initial policies for existing viewers; schema/exporter compatibility; coordinated API/web/jobs versions; expiry of previously issued source URLs; documented restoration/rollback behavior. Older unrestricted API code is not a safe rollback after restricted access is promised: maintain service denial or compatible enforcement until recovery.
-- [ ] Before separately authorized delivery, read [TEST automation](../test-auto-deployment.md) and [deployment](../deployment.md). Applying migrations and initial policy data requires separate authorization and operator registration. Do not bypass failed/disabled automation or deploy a list-only intermediate state.
+- [x] Before separately authorized delivery, read [TEST automation](../test-auto-deployment.md) and [deployment](../deployment.md). Four TEST migrations and initial policies were verified/registered; isolated CORS configuration was applied/registered before automatic delivery. No release gate was bypassed.
 
 ## Completion record and authorization boundary
 
-Planning checks: source paths and existing verification commands inspected; design-to-task coverage self-reviewed; document links and whitespace checked. Implementation and authorized TEST/local acceptance are complete as recorded below; application deployment remains unperformed.
+Planning checks: source paths and existing verification commands inspected; design-to-task coverage self-reviewed; document links and whitespace checked. Implementation and authorized TEST/local acceptance and publication are complete as recorded below.
 
 Execution order: Tasks 1–3 establish shared contracts; Tasks 4–5 complete domain coverage; Task 6 adds restoration safety; Task 7 completes the UI; Task 8 verifies the combined change. These are reviewable increments, not independent release candidates.
 
-Execution authorized: implement sequentially in the existing test checkout, then perform an independent review and necessary local validation. The later authorization covers four TEST migrations and dedicated-viewer provisioning, scope changes, and cleanup. Commit, push, infrastructure application, and application deployment remain excluded.
+Execution authorized: implement sequentially in the existing test checkout, then perform an independent review and necessary local validation. Later authorizations cover four TEST migrations, dedicated-viewer provisioning/scope changes/cleanup, commit/push, isolated CORS application, both registrations, automatic TEST delivery, and one backup/file recovery preflight. Actual restoration and production remain excluded.
 
 ## Read-path inventory
 
@@ -160,6 +160,6 @@ All non-GET spending/education operations remain admin-only. Existing route disp
 - Independent whole-change review found and corrected the missing editor opener and stale target-policy reuse. A target-binding regression fixture fails without the new guard and now passes; request-generation fixtures reject responses completing after invalidation. No further concrete material defect was reported by the independent reviewer.
 - Implementation adaptation: mandatory request-scoped AsyncLocalStorage carries access to repository boundaries rather than adding optional access parameters throughout financial services. HTTP without an authorized policy fails closed; trusted non-HTTP work remains unrestricted. All HTTP entry points must retain the router wrapper.
 - Administrative DTOs fetch scope separately rather than adding complete grant lists to the user list. Existing users without a role receive an explicit validation error if a combined initial role/scope update is attempted; assign their initial role first.
-- TEST follow-up completed: four migrations applied with unchanged pre-existing ledger digest; real PostgREST joined-header/domain integration and authenticated local five-viewport acceptance passed. The dedicated viewer was emptied, deactivated, and its sessions invalidated. See [evidence](../releases/2026-11-01-account-visibility-validation.md). Production policies/migrations, deployment approval registration, API Gateway CORS infrastructure application, coordinated API/web/jobs delivery, and deployed-browser verification remain pending. No deployment is authorized, attempted, or claimed.
+- TEST follow-up completed: four migrations applied with unchanged pre-existing ledger digest; real PostgREST integration and local five-viewport acceptance passed. Subsequently, isolated CORS application, both registrations, automatic API/web/jobs delivery of `37090cf`, deployed real-login responsive/revocation acceptance, and a live version-10 backup/file restore preflight passed under #121. The dedicated viewer was emptied, deactivated, and sessions invalidated after both acceptance rounds. See [evidence](../releases/2026-11-01-account-visibility-validation.md). Production remains pending; no actual restoration occurred.
 
 Additional boundary hardening: SQL scope/access replacement rejects null expected revisions (observed RED missing exception, then GREEN isolated SQL suite). No deferred material review findings remain.
