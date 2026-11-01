@@ -15,6 +15,7 @@ export async function spendingRoute(
 ): Promise<APIGatewayProxyStructuredResultV2> {
   const method = event.requestContext.http.method;
   const user = await authorize(event, method === "GET" ? "viewer" : "admin");
+  if (method === "GET" && /\/statements\/[^/]+\/(csv|attachment)$/.test(event.rawPath) && user.role !== "admin") return failure({ code: "FORBIDDEN", message: "原始文件仅管理员可下载。" }, 403);
   const query = event.queryStringParameters ?? {};
   const parts = event.rawPath.split("/").filter(Boolean);
   const [, kind, id, child] = parts;

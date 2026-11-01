@@ -1,4 +1,5 @@
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { LoadingState } from "./components/LoadingState";
@@ -57,6 +58,12 @@ export function App() {
 }
 
 function ProtectedApp() {
+  const [scopeEpoch, setScopeEpoch] = useState(0);
+  useEffect(() => {
+    const changed = () => setScopeEpoch(value => value + 1);
+    window.addEventListener("family-ledger:account-scope", changed);
+    return () => window.removeEventListener("family-ledger:account-scope", changed);
+  }, []);
   const location = useLocation();
   const { session, loading, error, retry } = useAuth();
 
@@ -77,7 +84,7 @@ function ProtectedApp() {
   if (session.mustChangePassword || location.pathname === "/change-password") return <ChangePasswordPage />;
 
   return (
-    <PreferencesProvider>
+    <PreferencesProvider key={`${session.user.id}:${scopeEpoch}`}>
       <Layout>
         <AppRoutes />
       </Layout>

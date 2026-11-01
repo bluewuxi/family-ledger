@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@family-ledger/shared";
+import { observeAccountScope, reloadAccountScope } from "./accountScopeState";
 import { isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_TOKEN } from "./localAuthBypass";
 import { getRuntimeConfig } from "./runtimeConfig";
 import { getCurrentSession, loadSession, notifyAuthSessionExpired } from "./authClient";
@@ -50,6 +51,20 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   });
 
   const body = (await response.json()) as ApiResponse<T>;
+  if (getCurrentSession()?.access_token !== token && !isLocalAuthBypassEnabled(config)) throw new ApiClientError("登录状态已变化，请重新加载。", "STALE_SESSION");
+  const scopeToken = response.headers.get("x-account-scope");
+  if (scopeToken) {
+    const change = observeAccountScope(scopeToken);
+    if (change === "stale") throw new ApiClientError("账户权限已更新，请重新加载。", "STALE_SCOPE");
+    if (change === "changed") {
+      await reloadAccountScope({
+        clearCache: clearReadCache,
+        remount: () => window.dispatchEvent(new Event("family-ledger:account-scope")),
+        refreshSession: loadSession
+      });
+      throw new ApiClientError("账户权限已更新，正在重新加载。", "SCOPE_CHANGED");
+    }
+  }
 
   if (!response.ok || !body.success) {
     const error = body.success ? null : body.error;
@@ -65,9 +80,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (options.method && options.method !== "GET") clearReadCache();
   return body.data;
   };
-  const mayCache = path === "/instruments" || path.startsWith("/portfolio-snapshots?");
+  // Always reauthorize private reads; only deduplicate concurrent requests.
   return !options.method || options.method === "GET"
-    ? cachedRead(`${apiBaseUrl}${path}`, request, mayCache ? options.cacheMs ?? (path === "/instruments" ? 60_000 : 0) : 0, options.bypassCache)
+    ? cachedRead(`${apiBaseUrl}${path}`, request, 0, options.bypassCache)
     : request();
 }
 

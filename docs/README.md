@@ -48,6 +48,8 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
+- [Account visibility implementation plan](plans/2026-11-01-account-visibility.md) sequences authorization storage, complete read-path scoping, backup compatibility, UI changes, and verification. Local implementation and validation are recorded in the plan; live migration application and delivery remain unauthorized.
+- [Account visibility design](specs/2026-10-31-account-visibility-design.md) records the confirmed viewer account-scope direction and future super-administrator boundary. Design approved and locally implemented; migration application, deployment, and authenticated visual acceptance remain pending.
 - [AWS authentication design](specs/2026-10-31-auth-migration-design.md) and [implementation plan](plans/2026-10-31-auth-migration.md) propose the selected Lambda/DynamoDB opaque-session migration. Design is Approved and local implementation evidence is recorded in the plan; TEST cutover and automatic verification completed; real-login visual acceptance passed. Account visibility is deferred.
 - [Superpowers adoption plan](plans/2026-10-27-superpowers-adoption.md) records the authorized adoption, version review, Windows helper checks, activation, and controlled pilot evidence.
 - [Agent instruction organization plan](plans/2026-10-30-agent-instruction-organization.md) tracks the authorized documentation reorganization and rule-coverage checks; consult its status for implementation progress.

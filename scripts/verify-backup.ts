@@ -39,6 +39,11 @@ async function main(): Promise<void> {
 function restoreRows(payload: LedgerBackupPayload) { return prepareLedgerRestoreRows(payload, []); }
 
 function removeApplicationIdentities(payload: LedgerBackupPayload): void {
+ if(payload.manifest.version < 10) {
+  const names=['account_access_policies','account_ledger_grants','account_spending_grants','account_education_grants','account_access_audit'];
+  for(const n of names) delete (payload.tables as unknown as Record<string,unknown>)[n];
+  payload.manifest.tables=payload.manifest.tables.filter(t=>!names.includes(t.name));payload.manifest.tableOrder=payload.manifest.tableOrder.filter(t=>!names.includes(t));
+ }
  if(payload.manifest.version >= 9) return;
  delete (payload.tables as Partial<LedgerBackupRows>).app_users;
  payload.manifest.tables=payload.manifest.tables.filter(t=>t.name!=="app_users");
@@ -56,7 +61,7 @@ async function runSelfTests(): Promise<void> {
   });
 
   validateLedgerBackupPayload(backupObject.payload);
-  assert.equal(backupObject.payload.manifest.version, 9);
+  assert.equal(backupObject.payload.manifest.version, 10);
   const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
   const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
   assert.equal((restoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
@@ -80,9 +85,14 @@ async function runSelfTests(): Promise<void> {
   assert.throws(() => validateLedgerBackupPayload(legacyShape), /table list/);
   rehash(v7); validateLedgerBackupPayload(v7);
   assert.throws(()=>prepareLedgerRestoreRows(v7),/explicit application identity mapping/);
-  const identityRows={...rows,app_users:[{id:"00000000-0000-4000-8000-000000000001",email:"fixture@example.invalid",created_at:"2026-10-31T00:00:00Z"}],profiles:[{id:"00000000-0000-4000-8000-000000000001"}]};
+  const identityRows={...rows,account_access_policies:[{user_id:"00000000-0000-4000-8000-000000000001",mode:"selected",revision:0}],app_users:[{id:"00000000-0000-4000-8000-000000000001",email:"fixture@example.invalid",created_at:"2026-10-31T00:00:00Z"}],profiles:[{id:"00000000-0000-4000-8000-000000000001"}]};
   const identityBundle=createLedgerBackupObject({environment:"test",generatedAt:"2026-10-31T00:00:00Z",rows:identityRows});
   assert.equal(prepareLedgerRestoreRows(identityBundle.payload).app_users.length,1);
+  const legacy9=structuredClone(identityBundle.payload);legacy9.manifest.version=9;rehash(legacy9);
+  assert.deepEqual(prepareLedgerRestoreRows(legacy9).account_access_policies,[{user_id:identityRows.app_users[0].id,mode:'selected',revision:0}]);
+  const invalidGrants={...identityRows,account_ledger_grants:[{user_id:identityRows.app_users[0].id,resource_id:'missing'}]};
+  const invalidBundle=createLedgerBackupObject({environment:'test',generatedAt:'2026-11-01T00:00:00Z',rows:invalidGrants});
+  assert.throws(()=>prepareLedgerRestoreRows(invalidBundle.payload),/Invalid account grant/);
   const legacyIdentity=structuredClone(identityBundle.payload);legacyIdentity.manifest.version=8;rehash(legacyIdentity);
   assert.throws(()=>prepareLedgerRestoreRows(legacyIdentity,[]),/unmapped application identity/);
   assert.equal(prepareLedgerRestoreRows(legacyIdentity,identityRows.app_users).app_users.length,1);

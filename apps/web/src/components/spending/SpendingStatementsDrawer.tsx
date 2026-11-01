@@ -240,7 +240,7 @@ export function SpendingStatementsDrawer({
                   setMessage("导入已取消。"); refreshed();
                 })}>取消导入</button>
               )}
-              {batch.csv_file_key && (
+              {admin && batch.csv_file_key && (
                 <button
                   className="secondary-button"
                   onClick={() => void act(() => openSource("csv"))}
@@ -248,7 +248,7 @@ export function SpendingStatementsDrawer({
                   下载原 CSV
                 </button>
               )}
-              {batch.source_file_key && (
+              {admin && batch.source_file_key && (
                 <button
                   className="secondary-button"
                   onClick={() => void act(() => openSource("pdf"))}

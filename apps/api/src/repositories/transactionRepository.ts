@@ -1,3 +1,4 @@
+import { scopeAccountQuery } from "../auth/accountAccessContext";
 import { logDependencyError } from "../utils/errorLogging";
 import type {
   AccountPurpose,
@@ -89,6 +90,7 @@ async function transactionQuery(input: TransactionListFilters, exactCount = fals
     .from("transactions")
     .select((input.excludeCashInstruments ? transactionSelectWithInnerInstrument : transactionSelect)
       + (input.purpose || input.excludeEducation ? ", investment_accounts!inner(purpose)" : ""), exactCount ? { count: "exact" } : {});
+  query = scopeAccountQuery(query, "ledger", "account_id");
   const sortColumn = { tradeDate: "trade_date", settlementDate: "settlement_date", instrument: "instruments(short_name)", transactionType: "transaction_type" }[input.sortBy ?? "tradeDate"];
   query = query.order(sortColumn, { ascending: input.sortDirection === "asc", nullsFirst: false });
   if (input.sortBy && input.sortBy !== "tradeDate") query = query.order("trade_date", { ascending: false });
@@ -164,9 +166,9 @@ export async function listManualPrincipalTransactionsUntil(tradeDate: string, pu
 
 export async function findTransactionById(id: string): Promise<InvestmentTransaction | null> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase
+  const { data, error } = await scopeAccountQuery(supabase
     .from("transactions")
-    .select(transactionSelect)
+    .select(transactionSelect), "ledger", "account_id")
     .eq("id", id)
     .maybeSingle<InvestmentTransactionRow>();
 
@@ -475,7 +477,7 @@ function toTransactionUpdateRow(input: UpdateInvestmentTransactionInput) {
 export async function listGeneratedCashLegs(parentIds: string[]): Promise<InvestmentTransaction[]> {
   if (parentIds.length === 0) return [];
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase.from("transactions").select(transactionSelect)
+  const { data, error } = await scopeAccountQuery(supabase.from("transactions").select(transactionSelect), "ledger", "account_id")
     .eq("transaction_source", "generated_cash_leg").in("linked_transaction_id", parentIds);
   if (error) { logDependencyError("transactionRepository.listGeneratedCashLegs", error, []); throw new Error("Failed to list linked cash transactions."); }
   return (data as unknown as InvestmentTransactionRow[]).map(mapTransactionRow);

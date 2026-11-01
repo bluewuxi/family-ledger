@@ -1,4 +1,5 @@
 import { getCurrentSession } from "../lib/authClient";
+import { AccountScopeNotice } from "./AccountScopeNotice";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Banknote,
@@ -204,6 +205,7 @@ export function Layout({ children }: LayoutProps) {
         ) : null}
         <main className="main-content">
           {sidebarCollapsed ? <CollapsedContentBrand /> : null}
+          <AccountScopeNotice />
           {children}
         </main>
         <AppFooter />

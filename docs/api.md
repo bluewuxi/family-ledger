@@ -1,5 +1,13 @@
 # API
 
+## Account visibility and management
+
+Local implementation; migrations/deployment pending. Every ordinary private request resolves current account scope. Responses expose x-account-scope as user identity plus monotonically increasing policy revision, including scoped error responses after authorization. CORS exposes this header. GET /me and full GET /auth/session include the caller's accountAccess policy; temporary-password sessions omit it. Scope is independent of role and client filters only narrow it.
+
+Admin-only GET/PUT /settings/users/:id/account-access read or replace a whole scope. PUT accepts {scope, expectedRevision}; stale edits return CONFLICT. PATCH /users/:id also accepts accountScope and expectedScopeRevision with role/status, committing role and scope atomically. A user without an initial role must receive a role before submitting scope in a combined update. Own-access modification remains prohibited. Invalid references are validation errors, not dependency outages.
+
+All account lists/details, investment calculations, account snapshots and comparisons, transaction counts, spending histories/options/totals, and combined cashflows are scoped before pagination/aggregation. Hidden child/account IDs return NOT_FOUND. Education without access returns NOT_FOUND with the empty-access message. Shared monthly review content and visible source counterparties/free text retain the approved exceptions. Original statement CSV/PDF GETs are admin-only. Selected-scope users cannot read unscopable maintenance logs, backup/provider/source/anchor details, or global price-maintenance metadata. FX reference facts remain shared.
+
 ## Education reserve and shared cashflow reports
 
 - `GET /education-reserve`: viewer/admin; returns `user`, logical `fund`, lifetime native-currency `totals`, filtered `periodTotals`, expense references, paginated `entries`, and pagination. Filters: `from`, `to`, `currency`, `category`, `limit` (1–200, default 50), and `offset`. Dates are calendar strings. Fund `cutoverAt` indicates migration readiness.

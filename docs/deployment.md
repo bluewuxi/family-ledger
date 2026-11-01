@@ -18,6 +18,7 @@ Routine `test` pushes are validated and deployed by GitHub Actions. See [TEST au
 - Keep handlers thin and route to services.
 - Configure server-side secrets outside Git.
 - Use API Gateway Regional custom domains for HTTPS API endpoints.
+- Expose `x-account-scope` in API Gateway CORS and the local adapter so browser clients can invalidate private views after authorization revisions. This template change requires separately authorized infrastructure application before release.
 - The API Lambda may asynchronously invoke the FX and price job Lambdas for admin-triggered data maintenance retrieval of market data.
 
 ## Authentication infrastructure

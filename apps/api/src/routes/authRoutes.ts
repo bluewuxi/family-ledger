@@ -1,3 +1,4 @@
+import { resolveAccountAccess } from "../auth/accountAccess";
 import { logCaughtError } from "../utils/errorLogging";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { getAuthService, normalizeAuthError } from "../services/authService";
@@ -22,7 +23,7 @@ export async function authRoute(event:APIGatewayProxyEventV2) {
   if(!token) throw invalidCredentials();
   if(event.rawPath==="/auth/session" && method==="GET") {
    const {user,session}=await service.authenticate(token,true);
-   return success({user,expiresAt:new Date(session.expiresAt*1000).toISOString(),mustChangePassword:session.purpose==="password_change"});
+   return success({user,...(session.purpose==="password_change" ? {} : {accountAccess: await resolveAccountAccess(user)}),expiresAt:new Date(session.expiresAt*1000).toISOString(),mustChangePassword:session.purpose==="password_change"});
   }
   if(event.rawPath==="/auth/change-password" && method==="POST") {
    const body=readBody(event); await service.changePassword(token,field(body,"currentPassword"),field(body,"newPassword")); return success({changed:true});

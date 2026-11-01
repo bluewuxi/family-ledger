@@ -1,5 +1,9 @@
 # Investment Overview Specification
 
+## Account visibility
+
+All references to all investment accounts mean all authorized investment accounts. Authorization scope is applied before valuation inputs, principal, distributions, ratios, counts, snapshots, trend predecessors, and monthly reports. Holdings table filters remain independent of the scoped headline. Hidden-account missing prices/FX do not invalidate visible totals. Calculated views are labeled 可见账户合计; no per-user snapshots are persisted. Current grants determine the entire displayed history. See [account visibility design](2026-10-31-account-visibility-design.md); local implementation awaits migration/deployment.
+
 This document consolidates the dashboard, holdings overview, and asset-snapshot changes agreed on 2026-10-08, with account-detail and navigation refinements agreed on 2026-10-12. API DTOs are documented in [api.md](../api.md), valuation semantics in [data-model.md](../data-model.md), and verification in [local-testing.md](../local-testing.md).
 
 Status: maintained product contract. Dated implementation, deployment, and visual acceptance evidence is recorded in [TEST release history](../releases/test-release-history.md); outstanding acceptance is tracked in [roadmap](../roadmap.md).

@@ -1,5 +1,9 @@
 # Education Reserve and Shared Cashflow Specification
 
+## Account visibility
+
+The single education reserve is one grantable resource across currencies. Unauthorized reserve reads return not found; legacy education history follows the same authorization boundary. Combined cashflow SQL applies spending-account grants and education access before aggregation and pagination, keeping domain totals separate. See [account visibility design](2026-10-31-account-visibility-design.md); local implementation awaits migration/deployment.
+
 Status: maintained product contract. Education reserves and family cashflow navigation were delivered to TEST under #101 and #103. API DTOs are maintained in [API](../api.md), persistence in [data model](../data-model.md), and historical delivery/acceptance evidence in [deployment](../releases/test-release-history.md#education-reserve-and-shared-cashflow-release-2026-10-04). The [implementation plan](../plans/education-reserve-unification-plan.md) records the original implementation and one-time cutover; it is not a current release procedure.
 
 ## Product rules

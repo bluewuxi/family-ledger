@@ -1,3 +1,4 @@
+import { useAuth } from "../lib/authContext";
 import { PaginationControls } from "../components/PaginationControls";
 import { AssetSnapshotsTab } from "../components/AssetSnapshotsTab";
 import { ApiErrorsTab } from "../components/ApiErrorsTab";
@@ -120,8 +121,10 @@ const emptyBackupPagination: Pagination = { limit: backupPageSize, offset: 0, ha
 const emptyBackupSummary: DataMaintenanceBackupSummary = { latestRun: null, latestSucceededRun: null };
 
 export function DataMaintenancePage() {
+  const { session } = useAuth();
+  const selectedScope = session?.accountAccess?.scope.mode === "selected";
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [activeTab, setActiveTab] = useState<DataMaintenanceTab>("sources");
+  const [activeTab, setActiveTab] = useState<DataMaintenanceTab>(selectedScope ? "snapshots" : "sources");
   const [snapshotRefreshVersion, setSnapshotRefreshVersion] = useState(0);
   const [errorRefreshVersion, setErrorRefreshVersion] = useState(0);
   const [dataSources, setDataSources] = useState<MarketDataSourceSummary[]>([]);
@@ -406,26 +409,26 @@ export function DataMaintenancePage() {
       {notice ? <p className="form-success">{notice}</p> : null}
 
       <div className="tabs" role="tablist" aria-label="数据维护分类">
-        <button className={activeTab === "sources" ? "active" : undefined} type="button" onClick={() => setActiveTab("sources")}>
+        {!selectedScope && <button className={activeTab === "sources" ? "active" : undefined} type="button" onClick={() => setActiveTab("sources")}>
           数据源
-        </button>
+        </button>}
         <button className={activeTab === "fx" ? "active" : undefined} type="button" onClick={() => setActiveTab("fx")}>
           汇率
         </button>
-        <button className={activeTab === "prices" ? "active" : undefined} type="button" onClick={() => setActiveTab("prices")}>
+        {!selectedScope && <button className={activeTab === "prices" ? "active" : undefined} type="button" onClick={() => setActiveTab("prices")}>
           价格
-        </button>
+        </button>}
         <button className={activeTab === "snapshots" ? "active" : undefined} type="button" onClick={() => setActiveTab("snapshots")}>资产快照</button>
-        <button className={activeTab === "logs" ? "active" : undefined} type="button" onClick={() => setActiveTab("logs")}>
+        {!selectedScope && <button className={activeTab === "logs" ? "active" : undefined} type="button" onClick={() => setActiveTab("logs")}>
           任务日志
-        </button>
+        </button>}
         {isAdmin ? <button className={activeTab === "errors" ? "active" : undefined} type="button" onClick={() => setActiveTab("errors")}>错误记录</button> : null}
-        <button className={activeTab === "backups" ? "active" : undefined} type="button" onClick={() => setActiveTab("backups")}>
+        {!selectedScope && <button className={activeTab === "backups" ? "active" : undefined} type="button" onClick={() => setActiveTab("backups")}>
           数据备份
-        </button>
-        <button className={activeTab === "restore" ? "active" : undefined} type="button" onClick={() => setActiveTab("restore")}>
+        </button>}
+        {!selectedScope && <button className={activeTab === "restore" ? "active" : undefined} type="button" onClick={() => setActiveTab("restore")}>
           数据恢复
-        </button>
+        </button>}
       </div>
 
       {activeTab === "sources" ? renderSourcesTab() : null}

@@ -67,6 +67,8 @@ async function main() {
       insert into monthly_reviews(month,family_notes,review_status) values('2026-10','Fixture notes','in_progress');
       insert into job_runs(id,job_name,status,job_started_at,triggered_by_user_id) values('${id(30)}','fixture','succeeded','2026-10-02T00:00Z','${id(1)}');
       insert into data_provider_runs(job_run_id,provider,data_kind,status,provider_started_at) values('${id(30)}','fixture','instrument_prices','succeeded','2026-10-02T00:00Z');`);
+    sql(`insert into account_ledger_grants values('${id(1)}','${id(2)}'); insert into account_spending_grants values('${id(1)}','${id(9)}'); insert into account_education_grants select '${id(1)}',id from education_reserve_funds;
+      insert into account_access_audit(actor_id,target_id,previous_scope,next_scope) values('${id(1)}','${id(1)}','{}','{}');`);
     const exported = JSON.parse(sql('select export_ledger_backup()'));
     for(const table of RESTORE_ORDER) assert(exported[table].length > 0,table+' fixture must be nonempty');
     const bundle = createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-10-31T00:00:00Z',rows:normalizeLedgerBackupRows(exported)});
@@ -82,7 +84,7 @@ async function main() {
     const tables = RESTORE_ORDER.join(',');
     targetSql('truncate '+tables+' cascade');
 
-    const inserts = RESTORE_ORDER.map(table => `insert into public.${table} select * from jsonb_populate_recordset(null::public.${table},${literal(restored[table])});`).join('\n');
+    const inserts = RESTORE_ORDER.map(table => `insert into public.${table} select * from jsonb_populate_recordset(null::public.${table},${literal(restored[table])}) ${table==="account_access_policies" ? "on conflict(user_id) do update set mode=excluded.mode,revision=excluded.revision" : ""};`).join('\n');
     const withoutUsers = inserts.replace(/insert into public.app_users[^\n]+/, '');
     assert.throws(()=>targetSql('begin; set constraints all deferred;'+withoutUsers+' commit;'), /foreign key/);
     assert.equal(targetSql('select count(*) from profiles'),'0');

@@ -1,6 +1,12 @@
 # Backup And Restore
 
-Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export. The current implementation emits format version 9 (local implementation; live migration/deployment pending) for the current schema, as defined by `LEDGER_BACKUP_VERSION` in `apps/jobs/src/services/ledgerBackupBundle.ts`. Historical TEST releases verified version 5 on 2026-10-02 and version 6 on 2026-10-04; these are release-specific observations, not statements about the latest live backup. Verify an actual backup manifest when assessing an environment. Production has not been deployed.
+## Account authorization backup version 10
+
+Local implementation emits version 10 and requires the typed-grants-v1 exporter marker. It adds scope policies, three typed grant tables, and scope audit records. Restore validates original checksums before normalization. Version 9 and older backups normalize every viewer to empty selected scope; administrators retain effective all access. Missing policies in a current-format backup and malformed/duplicate/orphan grants are rejected. Credentials and sessions remain external and excluded.
+
+Restore accounts/users/funds before grants. app_users insertion initializes an empty policy row: restore account_access_policies with ON CONFLICT(user_id) DO UPDATE SET mode=excluded.mode,revision=excluded.revision inside the same restore transaction, before inserting grants and audit rows. Never disable authorization triggers globally to work around this. Restore does not reuse administrator-demotion defaults for legacy viewers. Live restoration, mappings, migration application, and initial grants require separate authorization.
+
+Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export. The current implementation emits format version 10 (local implementation; live migration/deployment pending) for the current schema, as defined by `LEDGER_BACKUP_VERSION` in `apps/jobs/src/services/ledgerBackupBundle.ts`. Historical TEST releases verified version 5 on 2026-10-02 and version 6 on 2026-10-04; these are release-specific observations, not statements about the latest live backup. Verify an actual backup manifest when assessing an environment. Production has not been deployed.
 
 Version history:
 

@@ -1,3 +1,4 @@
+import { requestAccountIds } from "../auth/accountAccessContext";
 import { logDependencyError } from "../utils/errorLogging";
 import type { EducationEntry, EducationEntryInput, EducationFund, CashflowReport } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
@@ -14,11 +15,13 @@ export async function educationRpc<T>(name: string, args: Record<string, unknown
   return data as T;
 }
 export async function readEducationReserve(): Promise<{ fund: EducationFund; entries: EducationEntry[] }> {
+  const ids = requestAccountIds("education");
+  if (ids !== null && ids.length === 0) throw new ApiRequestError("NOT_FOUND", "暂无可访问账户。", 404);
   return educationRpc("read_education_reserve", {});
 }
 export async function mutateEducationEntry(input: { operation: string; id: string; actorId: string; version: number | null; entry: EducationEntryInput | null }): Promise<EducationEntry | null> {
   return educationRpc("mutate_education_reserve_entry", { operation: input.operation, entry_id: input.id, actor_id: input.actorId, expected_version: input.version, entry: input.entry });
 }
 export async function queryCashflows(filters: Record<string, string | number>): Promise<CashflowReport> {
-  return educationRpc("query_family_cashflows", { filters });
+  return educationRpc("query_family_cashflows", { filters: { ...filters, authorizedAccountIds: requestAccountIds("spending"), educationAllowed: requestAccountIds("education") === null || requestAccountIds("education")!.length > 0 } });
 }

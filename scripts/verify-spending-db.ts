@@ -132,6 +132,7 @@ async function main() {
     sql(`insert into spending_accounts(id,name,source_format,default_currency,identity_suffix) values ('00000000-0000-4000-8000-000000000084','Debit legacy','ccb_debit','CNY','0012');
       insert into statement_rows(account_id,transaction_date,description,amount,classification,source_metadata) values ('00000000-0000-4000-8000-000000000084','2026-09-24','Original description',-1,'spending','{"对方账号":"6222333344440056","对方户名":"  测试对方  "}');`);
     sql(readFileSync("supabase/migrations/20261001090000_spending_account_suffixes_and_cancellation.sql", "utf8"));
+    sql(readFileSync("supabase/migrations/20261101091000_scoped_spending_reads.sql", "utf8"));
     assert.equal(sql("select account_number_last4 || ':' || counterparty_account_last4 || ':' || counterparty_name from statement_rows where description='Original description'"), "0012:0056:测试对方");
     assert(!sql("select source_metadata from statement_rows").includes("6222333344440056"));
     sql("delete from statement_rows where description='Original description'");
@@ -257,6 +258,9 @@ async function main() {
           `select query_spending_rows(${json({ limit: 2, offset: 0, ...filters })})`,
         ),
       );
+    assert.equal(q({authorizedAccountIds:[]}).pagination.total,0);
+    assert.equal(q({authorizedAccountIds:[a],accountId:nz}).pagination.total,0);
+    assert.ok(q({authorizedAccountIds:[a]}).rows.every((row: {account_id:string})=>row.account_id===a));
     assert.equal(q({ accountNumberLast4: "0001", counterpartyAccountLast4: "0002", q: "EXAMP" }).pagination.total, 1);
     assert.equal(q({ accountNumberLast4: "0001" }).totals[0].gross_spending, "20.000000");
     assert.equal(q({ accountNumberLast4: "0001" }).rows[0].counterparty_name, "测试对方");
@@ -402,6 +406,10 @@ async function main() {
     assert.throws(() => sql(`select set_spending_preview('${pending.id}','{}','${actor}')`));
     assert.throws(() => sql(`update account_statements set source_file_key='late.pdf' where id='${pending.id}'`));
     assert.equal(sql(cancel(expired.id)), expired.id);
+    const deniedScope = JSON.parse(sql("select query_spending_rows('{\"limit\":50,\"offset\":0,\"authorizedAccountIds\":[]}');"));
+    assert.equal(deniedScope.pagination.total,0);
+    assert.deepEqual(deniedScope.totals,[]);
+    assert.deepEqual(JSON.parse(sql("select spending_filter_options(null,array[]::uuid[]);")),{accountNumberLast4:[],counterpartyAccountLast4:[],tags:[]});
     const draft = sql(`insert into account_statements(account_id) values('${a}') returning id`);
     assert.equal(sql(cancel(draft)), draft);
     assert.throws(() => sql(cancel(b.id)));

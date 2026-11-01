@@ -1,10 +1,18 @@
 # Auth
 
+## Account scope (local implementation; migration/deployment pending)
+
+Account visibility follows the [approved design](specs/2026-10-31-account-visibility-design.md). Administrators always have all-account scope. Viewers use all or selected typed account grants, including an empty selection. Role permission and account membership are separate checks. The HTTP router creates an isolated request context; role authorization loads the current SQL policy and repository reads apply that mandatory scope before calculation, counts, and pagination. Missing policy fails closed; dependency errors are sanitized 503. Trusted batch work outside HTTP context retains full-ledger access. No cross-request permission cache is used.
+
+Hidden account/child records return not found. Education grants cover the whole reserve and legacy education history. All viewers are denied original CSV/PDF signed URLs. Trading-password reveal additionally retains the extra-password gate. Source counterparty fields and free text from visible records, and shared monthly review narrative/status, remain readable by explicit user decision. Unscopable maintenance details are denied to selected-scope viewers; instrument private metadata is omitted. All computed totals use visible accounts only.
+
+New users initialize to empty selected scope. Administrator-to-viewer changes default explicitly to all, with a pre-save warning and optional narrower selection in the same SQL operation. Scope replacements use revisions and audit actor/time/before/after. Existing self-access restrictions and pause/resume session ordering remain. A future super administrator alone will manage users/grants; that role is not implemented.
+
 The API Lambda authenticates opaque random session tokens using an environment-specific DynamoDB table. Supabase remains the server-side Postgres provider; it is not the identity provider. Stable UUIDs live in `app_users`; `profiles` stores preferences and `user_roles` stores authoritative access. See the [approved design](specs/2026-10-31-auth-migration-design.md) for storage and concurrency details and [cutover](operations/auth-cutover.md) for separately authorized deployment steps.
 
 ## Roles
 
-Only `viewer` and `admin` exist. Ledger data is shared; user references are audit identities, not ownership. Viewer is read-only except the endpoint exceptions below. Admin manages ledger data and access. Account visibility is deferred; do not add teams or permission matrices.
+Only `viewer` and `admin` exist. Ledger data is shared; user references are audit identities, not ownership. Viewer is read-only except the endpoint exceptions below. Admin manages ledger data and access. Account scope is implemented locally as described above; do not add teams or permission matrices.
 
 ## Enforcement
 

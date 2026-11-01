@@ -1,6 +1,8 @@
+import { requestScopeKey } from "../auth/accountAccessContext";
 const entries = new Map<string, { expires: number; promise: Promise<unknown> }>();
 export function invalidateHistoryCache(): void { entries.clear(); }
 export function readHistoryCache<T>(key: string, load: () => Promise<T>): Promise<T> {
+  key = `${requestScopeKey()}:${key}`;
   const entry = entries.get(key);
   if (entry && entry.expires > Date.now()) return entry.promise as Promise<T>;
   if (entries.size >= 64) entries.delete(entries.keys().next().value!);

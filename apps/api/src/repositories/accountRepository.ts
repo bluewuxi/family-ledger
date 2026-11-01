@@ -1,3 +1,4 @@
+import { scopeAccountQuery } from "../auth/accountAccessContext";
 import { logDependencyError } from "../utils/errorLogging";
 import type { CreateInvestmentAccountInput, InvestmentAccount, UpdateInvestmentAccountInput } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
@@ -34,9 +35,9 @@ export class AccountInUseError extends Error {
 
 export async function listAccounts(): Promise<InvestmentAccount[]> {
   const supabase = await getSupabaseAdmin();
-  const result = await supabase
+  const result = await scopeAccountQuery(supabase
     .from("investment_accounts")
-    .select(accountSelect)
+    .select(accountSelect), "ledger", "id")
     .order("name", { ascending: true });
 
   if (result.error) {
@@ -49,8 +50,8 @@ export async function listAccounts(): Promise<InvestmentAccount[]> {
 
 export async function listAccountsWithHistory(): Promise<InvestmentAccount[]> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase.from("investment_accounts")
-    .select(`${accountSelect}, transactions(id)`).order("name")
+  const { data, error } = await scopeAccountQuery(supabase.from("investment_accounts")
+    .select(`${accountSelect}, transactions(id)`), "ledger", "id").order("name")
     .limit(1, { referencedTable: "transactions" });
   if (error) { logDependencyError("accountRepository.listAccountsWithHistory", error); throw new Error("Failed to list accounts."); }
   return (data as unknown as Array<InvestmentAccountRow & { transactions: { id: string }[] }>).map(row => ({ ...mapAccountRow(row), hasTransactions: row.transactions.length > 0 }));
@@ -58,9 +59,9 @@ export async function listAccountsWithHistory(): Promise<InvestmentAccount[]> {
 
 export async function findAccountById(id: string): Promise<InvestmentAccount | null> {
   const supabase = await getSupabaseAdmin();
-  const result = await supabase
+  const result = await scopeAccountQuery(supabase
     .from("investment_accounts")
-    .select(accountSelect)
+    .select(accountSelect), "ledger", "id")
     .eq("id", id)
     .maybeSingle<InvestmentAccountRow>();
 

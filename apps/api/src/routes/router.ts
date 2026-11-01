@@ -1,4 +1,6 @@
 import { authRoute } from "./authRoutes";
+import { withAccountAccessRequest, requestAccountPolicy, isSelectedAccountRequest } from "../auth/accountAccessContext";
+import { readManagedAccountAccess, saveManagedAccountAccess } from "../services/accountAccessService";
 import { AuthFailure } from "../auth/authErrors";
 import { invalidateHistoryCache } from "../services/historyCache";
 import { getAccountTotals } from "../services/accountService";
@@ -67,7 +69,7 @@ type DynamicRouteHandler = (
 
 const routes: Record<string, RouteHandler> = {
   "GET /health": async () => success({ status: "ok" }),
-  "GET /me": async (event) => success({ user: await requireRole(event, "viewer") }),
+  "GET /me": async (event) => { const user = await requireRole(event, "viewer"); return success({ user, accountAccess: requestAccountPolicy() }); },
   "GET /settings/preferences": async (event) => {
     const user = await requireRole(event, "viewer");
     return success({ user, preferences: await getProfilePreferences(user) });
@@ -103,7 +105,8 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /instruments": async (event) => {
     const user = await requireRole(event, "viewer");
-    return success({ user, instruments: await getInstruments() });
+    const instruments = await getInstruments();
+    return success({ user, instruments: isSelectedAccountRequest() ? instruments.map(item => ({ ...item, notes: null, description: null, sourceUrl: null, createdByUserId: null, updatedByUserId: null })) : instruments });
   },
   "POST /instruments": async (event) => {
     const user = await requireRole(event, "admin");
@@ -208,10 +211,12 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /data-maintenance/data-sources": async (event) => {
     const user = await requireRole(event, "viewer");
+    if (isSelectedAccountRequest()) throw new ApiRequestError("FORBIDDEN", "此维护信息仅全部账户用户可访问。", 403);
     return success({ user, dataSources: await getMarketDataSources() });
   },
   "GET /data-maintenance/data-sources/kernel-estimate/anchors": async (event) => {
     const user = await requireRole(event, "viewer");
+    if (isSelectedAccountRequest()) throw new ApiRequestError("FORBIDDEN", "此维护信息仅全部账户用户可访问。", 403);
     return success({ user, anchors: await getKernelPriceAnchors() });
   },
   "POST /data-maintenance/data-sources/kernel-estimate/anchors": async (event) => {
@@ -221,16 +226,19 @@ const routes: Record<string, RouteHandler> = {
   },
   "GET /data-maintenance/instrument-prices": async (event) => {
     const user = await requireRole(event, "viewer");
+    if (isSelectedAccountRequest()) throw new ApiRequestError("FORBIDDEN", "此维护信息仅全部账户用户可访问。", 403);
     const result = await getDataMaintenanceInstrumentPrices(event.queryStringParameters ?? {});
     return success({ user, prices: result.items, pagination: result.pagination });
   },
   "GET /data-maintenance/job-runs": async (event) => {
     const user = await requireRole(event, "viewer");
+    if (isSelectedAccountRequest()) throw new ApiRequestError("FORBIDDEN", "此维护信息仅全部账户用户可访问。", 403);
     const result = await getDataMaintenanceJobRuns(event.queryStringParameters ?? {});
     return success({ user, jobRuns: result.items, pagination: result.pagination });
   },
   "GET /data-maintenance/backups": async (event) => {
     const user = await requireRole(event, "viewer");
+    if (isSelectedAccountRequest()) throw new ApiRequestError("FORBIDDEN", "此维护信息仅全部账户用户可访问。", 403);
     const result = await getDataMaintenanceBackupRuns(event.queryStringParameters ?? {});
     return success({ user, backupRuns: result.items, backupSummary: result.summary, pagination: result.pagination });
   },
@@ -247,6 +255,22 @@ const dynamicRoutes: Array<{
   pattern: RegExp;
   handler: DynamicRouteHandler;
 }> = [
+  {
+    method: "GET",
+    pattern: /^\/settings\/users\/(?<id>[^/]+)\/account-access$/,
+    handler: async (event, params) => {
+      const user = await requireRole(event, "admin");
+      return success({ accountAccess: await readManagedAccountAccess(params.id, user) });
+    }
+  },
+  {
+    method: "PUT",
+    pattern: /^\/settings\/users\/(?<id>[^/]+)\/account-access$/,
+    handler: async (event, params) => {
+      const user = await requireRole(event, "admin");
+      return success({ accountAccess: await saveManagedAccountAccess(params.id, parseJsonBody(event), user) });
+    }
+  },
   {
     method: "GET",
     pattern: /^\/accounts\/(?<id>[^/]+)\/detail$/,
@@ -348,13 +372,21 @@ const dynamicRoutes: Array<{
     pattern: /^\/data-maintenance\/job-runs\/(?<id>[^/]+)\/provider-runs$/,
     handler: async (event, params) => {
       const user = await requireRole(event, "viewer");
-      return success({ user, providerRuns: await getDataMaintenanceProviderRuns(params.id) });
+      if (isSelectedAccountRequest()) throw new ApiRequestError("FORBIDDEN", "此维护信息仅全部账户用户可访问。", 403);
+    return success({ user, providerRuns: await getDataMaintenanceProviderRuns(params.id) });
     }
   }
 ];
 
 export async function route(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
-  return withRequestLogging({ requestId: event.requestContext.requestId, method: event.requestContext.http.method, path: event.rawPath }, () => routeRequest(event));
+  return withAccountAccessRequest(() => withRequestLogging({ requestId: event.requestContext.requestId, method: event.requestContext.http.method, path: event.rawPath }, async () => {
+    const response = await routeRequest(event);
+    try {
+      const policy = requestAccountPolicy();
+      if (policy) response.headers = { ...response.headers, "x-account-scope": `${policy.userId}:${policy.revision}` };
+    } catch { /* Public and rejected requests have no account policy. */ }
+    return response;
+  }));
 }
 
 async function routeRequest(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {

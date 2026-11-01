@@ -4,6 +4,9 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
+    "verify:account-access": "tsx scripts/verify-account-access.ts && tsx scripts/verify-account-access-context.ts",
+    "verify:account-access-client": "tsx apps/web/verify-account-access-client.ts",
+    "verify:account-access-db": "tsx scripts/verify-account-access-db.ts",
     "dev:web": "corepack pnpm --filter @family-ledger/web dev",
     "dev:web:local": "corepack pnpm --filter @family-ledger/web dev -- --host 127.0.0.1 --port 5181",
     "dev:web:test": "corepack pnpm --filter @family-ledger/web dev -- --mode test --host 127.0.0.1 --port 5181",

@@ -46,6 +46,7 @@ function responseHeaders(): Record<string, string> {
           "access-control-allow-origin": allowedOrigin,
           "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
           "access-control-allow-headers": "authorization,content-type,accept",
+          "access-control-expose-headers": "x-account-scope",
           "access-control-max-age": "86400"
         }
       : {})

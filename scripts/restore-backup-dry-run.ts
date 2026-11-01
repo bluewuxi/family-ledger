@@ -63,8 +63,9 @@ function validatePrimaryKeys(payload: LedgerBackupPayload): void {
   for (const name of RESTORE_ORDER) {
     const table = { name };
     const rows = payload.tables[table.name] as Array<Record<string, unknown>>;
-    const primaryKey = table.name === "kernel_nta_refresh_state" ? "instrument_id" : table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
-    const values = rows.map((row) => row[primaryKey]).filter((value) => value !== null && value !== undefined);
+    const primaryKey = table.name === "account_access_policies" ? "user_id" : table.name.endsWith("_grants") ? "user_id,resource_id" : table.name === "kernel_nta_refresh_state" ? "instrument_id" : table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
+    const fields=primaryKey.split(",");
+    const values = rows.filter(row=>fields.every(field=>row[field]!==null && row[field]!==undefined)).map(row=>JSON.stringify(fields.map(field=>row[field])));
 
     if (values.length !== rows.length) {
       throw new Error(`Restore dry-run failed: ${table.name} has rows without ${primaryKey}.`);

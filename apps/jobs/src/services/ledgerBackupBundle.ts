@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 9;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261031100000_auth_cutover";
+export const LEDGER_BACKUP_VERSION = 10;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261101093000_account_access_backup";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -24,7 +24,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -61,6 +61,7 @@ export function createLedgerBackupObject(input: {
   const legacy = Array.isArray(input.rows.portfolio_snapshots);
   if (!legacy) validateBackupFinancialValues(input.rows);
   const tableDefinitions = LEDGER_BACKUP_TABLES.filter((table) => !legacy || ![
+    "account_access_policies", "account_ledger_grants", "account_spending_grants", "account_education_grants", "account_access_audit",
     "app_users", "spending_accounts",
     "account_statements",
     "statement_rows",
@@ -149,7 +150,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -174,6 +175,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
   }
 
   const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name)
+    .filter(name => payload.manifest.version >= 10 || !["account_access_policies", "account_ledger_grants", "account_spending_grants", "account_education_grants", "account_access_audit"].includes(name))
     .filter((name) => payload.manifest.version >= 9 || name !== "app_users")
     .filter((name) => payload.manifest.version >= 3 || !["spending_accounts", "account_statements", "statement_rows"].includes(name))
     .filter((name) => payload.manifest.version >= 5 || name !== "kernel_price_anchors")
@@ -340,6 +342,11 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
       if ((field.endsWith("_by_user_id") || (table === "profiles" && field === "id") || (table === "user_roles" && field === "user_id")) && userId !== null && userId !== undefined && !identities.has(String(userId))) throw new Error("Backup references an unmapped application identity.");
     }
   }
+  if (payload.manifest.version < 10) rows.account_access_policies = rows.app_users.map(value => {
+    const user=value as Record<string, unknown>;
+    return {user_id:user.id,mode:rows.user_roles.some(r => (r as Record<string,unknown>).user_id===user.id && (r as Record<string,unknown>).role==='admin') ? 'all' : 'selected',revision:0};
+  });
+  validateAccountAccessRestore(rows);
   rows.user_roles = rows.user_roles.map(value => ({ ...(value as Record<string, unknown>), access_revision: (value as Record<string, unknown>).access_revision ?? 0 }));
   rows.kernel_price_anchors = rows.kernel_price_anchors.map(value => {
     const a = value as Record<string, unknown>;
@@ -386,4 +393,20 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
       preview: preview ? { ...preview, rows: preview.rows.map(row => sanitizeRow(row, accounts.get(batch.account_id))) } : null };
   });
   return rows;
+}
+
+function validateAccountAccessRestore(rows: LedgerBackupRows): void {
+ const ids=(name:keyof LedgerBackupRows,field='id')=>new Set((rows[name]??[]).map(v=>(v as Record<string,unknown>)[field]));
+ const users=ids('app_users'); const policies=new Set<unknown>();
+ for(const v of rows.account_access_policies){const p=v as Record<string,unknown>;
+  if(!users.has(p.user_id)||policies.has(p.user_id)||!['all','selected'].includes(String(p.mode))||!Number.isSafeInteger(p.revision)||Number(p.revision)<0)throw new Error('Invalid account access policy in backup.');policies.add(p.user_id);
+ }
+ if(policies.size!==users.size)throw new Error('Missing account access policy in backup.');
+ for(const [table,target] of [['account_ledger_grants','investment_accounts'],['account_spending_grants','spending_accounts'],['account_education_grants','education_reserve_funds']] as const){
+  const resources=ids(target),seen=new Set<string>();
+  for(const v of rows[table]){const r=v as Record<string,unknown>;const key=String(r.user_id)+':'+String(r.resource_id);
+   if(!policies.has(r.user_id)||!resources.has(r.resource_id)||seen.has(key))throw new Error('Invalid account grant in backup.');seen.add(key);
+  }
+ }
+ for(const v of rows.account_access_audit){const r=v as Record<string,unknown>;if(!users.has(r.actor_id)||!users.has(r.target_id))throw new Error('Unmapped account access audit identity.');}
 }

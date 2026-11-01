@@ -5,6 +5,7 @@ import { getUserAccess } from "../repositories/managedUserRepository";
 import { logCaughtError } from "../utils/errorLogging";
 import {
   USER_ROLES,
+  parseAccountScope,
   type AuthenticatedUser,
   type ManagedUser,
   type UpdateManagedUserInput,
@@ -38,7 +39,7 @@ export async function updateManagedUser(
   try {
     return await updateUserAccessLifecycle(id, input, {
       getAccess: getUserAccess,
-      updateAccess: updateManagedUserRole,
+      updateAccess: (userId, access, expected) => updateManagedUserRole(userId, access, expected, currentUser.id),
       hasCredential: async userId => Boolean(await getAuthStateRepository().getCredential(userId)),
       invalidateSessions: userId => getAuthStateRepository().invalidateSessions(userId)
     });
@@ -55,6 +56,13 @@ export async function updateManagedUser(
 function parseUpdateManagedUserInput(body: unknown): UpdateManagedUserInput {
   const record = asRecord(body);
   const input: UpdateManagedUserInput = {};
+
+  if ("accountScope" in record) {
+    try { input.accountScope = parseAccountScope(record.accountScope); }
+    catch { throw new ApiRequestError("VALIDATION_ERROR", "账户权限配置无效。", 400); }
+    if (!Number.isSafeInteger(record.expectedScopeRevision) || Number(record.expectedScopeRevision) < 0) throw new ApiRequestError("VALIDATION_ERROR", "账户权限版本无效。", 400);
+    input.expectedScopeRevision = Number(record.expectedScopeRevision);
+  }
 
   if ("role" in record) {
     input.role = requiredRole(record.role);

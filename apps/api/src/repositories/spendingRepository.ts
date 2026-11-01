@@ -1,3 +1,4 @@
+import { scopeAccountQuery, requestAccountIds } from "../auth/accountAccessContext";
 import { logDependencyError } from "../utils/errorLogging";
 import type {
   AccountStatement,
@@ -41,9 +42,9 @@ export function checkSpendingError(error: { code?: string } | null): void {
 }
 export async function spendingAccounts(): Promise<SpendingAccount[]> {
   const db = await getSupabaseAdmin();
-  const { data, error } = await db
+  const { data, error } = await scopeAccountQuery(db
     .from("spending_accounts")
-    .select("*")
+    .select("*"), "spending", "id")
     .order("name");
   checkSpendingError(error);
   return data as SpendingAccount[];
@@ -59,9 +60,9 @@ export async function spendingRecord(
       : table === "statement_rows"
         ? "spending_row_details"
         : table;
-  const { data, error } = await db
+  const { data, error } = await scopeAccountQuery(db
     .from(view)
-    .select(table === "account_statements" ? `${batchColumns},preview` : "*")
+    .select(table === "account_statements" ? `${batchColumns},preview` : "*"), "spending", table === "spending_accounts" ? "id" : "account_id")
     .eq("id", id)
     .maybeSingle();
   checkSpendingError(error);
@@ -129,7 +130,7 @@ export async function spendingRows(
   filters: Record<string, string | number>,
 ): Promise<SpendingQueryResult> {
   const db = await getSupabaseAdmin();
-  const { data, error } = await db.rpc("query_spending_rows", { filters });
+  const { data, error } = await db.rpc("query_spending_rows", { filters: { ...filters, authorizedAccountIds: requestAccountIds("spending") } });
   checkSpendingError(error);
   return data as SpendingQueryResult;
 }
@@ -139,6 +140,7 @@ export async function spendingOptions(
   const db = await getSupabaseAdmin();
   const { data, error } = await db.rpc("spending_filter_options", {
     account_id_filter: accountId ?? null,
+    authorized_account_ids: requestAccountIds("spending"),
   });
   checkSpendingError(error);
   return data as SpendingFilterOptions;
@@ -153,6 +155,7 @@ export async function spendingStatements(filters: {
   let query = db
     .from("spending_statement_details")
     .select(batchColumns, { count: "exact" });
+  query = scopeAccountQuery(query, "spending", "account_id");
   if (filters.accountId) query = query.eq("account_id", filters.accountId);
   if (filters.status) query = query.eq("status", filters.status);
   const { data, error, count } = await query

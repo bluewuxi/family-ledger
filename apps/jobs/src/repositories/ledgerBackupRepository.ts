@@ -22,7 +22,12 @@ export const LEDGER_BACKUP_TABLES = [
   { name: "dashboard_instrument_quotes", orderColumn: "id" },
   { name: "monthly_reviews", orderColumn: "month" },
   { name: "job_runs", orderColumn: "id" },
-  { name: "data_provider_runs", orderColumn: "id" }
+  { name: "data_provider_runs", orderColumn: "id" },
+  { name: "account_access_policies", orderColumn: "user_id" },
+  { name: "account_ledger_grants", orderColumn: "user_id,resource_id" },
+  { name: "account_spending_grants", orderColumn: "user_id,resource_id" },
+  { name: "account_education_grants", orderColumn: "user_id,resource_id" },
+  { name: "account_access_audit", orderColumn: "id" }
 ] as const;
 
 export type LedgerBackupTableName = (typeof LEDGER_BACKUP_TABLES)[number]["name"];
@@ -38,6 +43,7 @@ export async function exportLedgerTables(input: { excludedJobRunId?: string | nu
     throw new Error("Failed to export ledger backup snapshot.");
   }
 
+  if ((data as Record<string, unknown>).__account_access_encoding !== "typed-grants-v1") throw new Error("Backup exporter requires account access migration.");
   if ((data as Record<string, unknown>).__financial_numeric_encoding !== "decimal-strings-v1") {
     throw new Error("Backup exporter requires the lossless decimal migration.");
   }

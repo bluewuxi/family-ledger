@@ -1,5 +1,9 @@
 # Roadmap
 
+## Account visibility (locally accepted; application delivery pending)
+
+Approved [design](specs/2026-10-31-account-visibility-design.md) and [plan](plans/2026-11-01-account-visibility.md) implement viewer account scope, visible-only aggregates/history, authorization management, typed-grant backup compatibility, and revision-based UI invalidation. Current administrators remain all-account; super-administrator behavior is future-only. The four TEST migrations, real PostgREST integration, user-login five-viewport local acceptance, and dedicated-viewer cleanup passed; see [evidence](releases/2026-11-01-account-visibility-validation.md). Coordinated application delivery, migration approval registration, API Gateway CORS application, and deployed-browser verification remain separately authorized prerequisites. Production policy review and migration remain pending.
+
 ## TEST delivery automation
 
 Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC TEST deployment, complete migration approvals, conservative code-only change-set gates, publication verification and operator recovery. The first full release and identical-commit retry passed with matching artifact digests; empty backend changes are handled safely. Read-only database baseline and restricted IAM boundaries were verified. Historical SQL was not replayed and production was not deployed. See [TEST automatic deployment](test-auto-deployment.md).
@@ -134,4 +138,4 @@ The documentation remediation did not fix these items. Subsequent G1 local imple
 
 ## AWS authentication TEST delivery
 
-TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. Infrastructure, SQL, user initialization, live synthetic authentication, backup and automatic release verification passed. Real-user first-change/login and five-viewport visual acceptance passed; see [cutover evidence](releases/2026-10-31-auth-test-cutover.md). Account visibility remains deferred; production is unchanged.
+TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. Infrastructure, SQL, user initialization, live synthetic authentication, backup and automatic release verification passed. Real-user first-change/login and five-viewport visual acceptance passed; see [cutover evidence](releases/2026-10-31-auth-test-cutover.md). Account visibility application delivery remains pending; production is unchanged.

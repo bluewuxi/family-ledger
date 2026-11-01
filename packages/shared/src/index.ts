@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+export * from "./accountAccess";
 
 export const APP_BUSINESS_TIME_ZONE = "Asia/Shanghai";
 export const APP_BUSINESS_DAY_CUTOFF_HOUR = 6;
@@ -404,6 +405,8 @@ export interface ManagedUser {
 export interface UpdateManagedUserInput {
   role?: UserRole;
   isActive?: boolean;
+  accountScope?: import("./accountAccess").AccountScope;
+  expectedScopeRevision?: number;
 }
 
 export interface AuthenticatedUser {

@@ -1,5 +1,11 @@
 # Local Testing
 
+## Account visibility verification
+
+Run corepack pnpm verify:account-access, verify:account-access-client, verify:account-access-db, and verify:auth. The first two are synthetic local fixtures; the database command creates a disposable local PostgreSQL cluster and never uses project credentials. Investment route fixtures assert authorized SQL filters and visible-only dashboard/snapshot values, hidden-account not-found responses, original-file denial, missing-policy denial, dependency 503, and next-request revision changes. Existing spending/education DB checks include empty authorization before totals/options. Backup full-table restoration covers all real migrations and version-10 policies/grants. Also run the affected financial suites, typecheck, and build.
+
+Real-login visual acceptance remains required at all five viewports. It has not been run for account visibility: no shared TEST schema changes, user edits, or auth bypass are authorized. Describe it as pending, separately from local implementation verification.
+
 Transaction balance hotfix checks: run `corepack pnpm verify:transaction-table` for investment/daily-expense balances, explicit zero accounts, malformed responses, cash-configuration failures, and opening-balance create/edit rules. Run `corepack pnpm exec tsx scripts/verify-opening-balance-db.ts` for the partial unique index in a disposable local PostgreSQL cluster. Schema application is an operator operation requiring separate authorization; it is not part of routine verification.
 Only with explicit test-write authorization, `corepack pnpm exec tsx scripts/smoke-transaction-hotfix-test.ts` checks live authentication, viewer/admin balances, account-detail parity and duplicate-opening rejection after deployment. It sends a real duplicate-create request; rejection is expected, but the command is not read-only and cannot guarantee no mutation if protections regress. Prefer isolated verification. Temporary authentication sessions send no email and are signed out afterward.
 

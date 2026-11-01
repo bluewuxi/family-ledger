@@ -626,6 +626,8 @@ Resources:
           - authorization
           - content-type
           - accept
+        ExposeHeaders:
+          - x-account-scope
         MaxAge: 86400
 
   ApiFunction:

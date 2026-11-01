@@ -1,3 +1,4 @@
+import { isSelectedAccountRequest } from "../auth/accountAccessContext";
 import { logDependencyError } from "../utils/errorLogging";
 import { INSTRUMENT_SHORT_NAME_MAX_LENGTH, type CreateInstrumentInput, type Instrument, type UpdateInstrumentInput } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
@@ -203,6 +204,7 @@ const instrumentSelect = [
 ].join(", ");
 
 function mapInstrumentRow(row: InstrumentRow): Instrument {
+  if (isSelectedAccountRequest()) row = { ...row, notes: null, description: null, source_url: null, created_by_user_id: null, updated_by_user_id: null };
   return {
     id: row.id,
     symbol: row.symbol,

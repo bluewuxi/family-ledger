@@ -1,4 +1,6 @@
 import { logCaughtError } from "../utils/errorLogging";
+import { resolveAccountAccess } from "./accountAccess";
+import { setRequestAccountAccess } from "./accountAccessContext";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser, UserRole } from "@family-ledger/shared";
 import { getUserRole, UserRoleNotFoundError } from "../repositories/userRoleRepository";
@@ -74,5 +76,6 @@ export async function requireRole(event: APIGatewayProxyEventV2, role: UserRole)
     throw new ApiAuthError("Admin role is required.", 403);
   }
 
+  setRequestAccountAccess(await resolveAccountAccess(user));
   return user;
 }

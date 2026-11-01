@@ -1,3 +1,4 @@
+import { AccountAccessEditor } from "../components/AccountAccessEditor";
 import { Link } from "react-router-dom";
 import { PasswordResetForm } from "../components/PasswordResetForm";
 import { type FormEvent, useEffect, useState } from "react";
@@ -62,6 +63,7 @@ export function SettingsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [userManagementNotice, setUserManagementNotice] = useState<string | null>(null);
 
+  const [accessEditor, setAccessEditor] = useState<{ user: ManagedUser; demoting: boolean } | null>(null);
   const isAdmin = user?.role === "admin";
 
   useEffect(() => {
@@ -144,6 +146,7 @@ export function SettingsPage() {
   }
 
   async function handleRoleChange(targetUser: ManagedUser, role: UserRole) {
+    if (targetUser.role === "admin" && role === "viewer") { setAccessEditor({ user: targetUser, demoting: true }); return; }
     await updateUserAccess(targetUser, { role }, "用户角色已更新。");
   }
 
@@ -351,6 +354,7 @@ export function SettingsPage() {
             </div>
           </form>
 
+          {accessEditor && <AccountAccessEditor key={`${accessEditor.user.id}:${accessEditor.demoting}`} user={accessEditor.user} demoting={accessEditor.demoting} onClose={() => setAccessEditor(null)} onSaved={() => void loadManagedUsers()} />}
           <div className="table-wrap">
             <table className="settings-user-table">
               <thead>
@@ -359,13 +363,13 @@ export function SettingsPage() {
                   <th>角色</th>
                   <th>状态</th>
                   <th>最近登录</th>
-                  <th>重置密码</th><th>操作</th>
+                  <th>重置密码</th><th>账户范围</th><th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingUsers ? (
                   <tr>
-                    <td className="table-loading-cell" colSpan={6}>
+                    <td className="table-loading-cell" colSpan={7}>
                       正在加载用户
                     </td>
                   </tr>
@@ -407,6 +411,7 @@ export function SettingsPage() {
                         </td>
                         <td>{formatDateTime(managedUser.lastSignInAt)}</td>
                         <td>{!isSelf ? <PasswordResetForm userId={managedUser.id} email={managedUser.email ?? "用户"} /> : "—"}</td>
+                        <td><button className="secondary-button" type="button" disabled={isSelf || isSavingUser} onClick={() => setAccessEditor({ user: managedUser, demoting: false })}>账户范围</button></td>
                         <td>
                           <button
                             className={managedUser.isActive ? "danger-button" : "secondary-button"}

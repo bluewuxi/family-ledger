@@ -30,6 +30,7 @@ async function main() {
       create table currencies(code text primary key);create table monthly_reviews(month text primary key);`);
     for (const table of ["account_statements", "profiles", "user_roles", "instruments", "exchange_rates", "instrument_prices", "portfolio_snapshot_headers", "portfolio_account_snapshots", "dashboard_instrument_quotes", "job_runs", "data_provider_runs"]) sql(`create table ${table}(id uuid primary key)`);
     sql(readFileSync("supabase/migrations/20261004090000_add_education_reserve.sql", "utf8"));
+    sql(readFileSync("supabase/migrations/20261101092000_scoped_cashflow_reads.sql", "utf8"));
     const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
     sql(`insert into auth.users values('${id(1)}'); update education_reserve_funds set cutover_at=now();`);
     const entry = (type: string, amount: string, extra: Record<string, unknown> = {}) => ({ entryDate: "2026-10-04", entryType: type, currency: "CNY", amount, expenseCategory: ["expense", "refund"].includes(type) ? "tuition" : null, relatedExpenseId: null, targetCurrency: null, targetAmount: null, notes: null, ...extra });
@@ -51,6 +52,8 @@ async function main() {
     const read = JSON.parse(sql("select read_education_reserve()"));
     assert.equal(read.entries.length, 4); assert.equal(read.entries.find((r: { id: string }) => r.id === id(5)).targetAmount, "1095.123456");
     sql(`insert into spending_accounts values('${id(6)}','CNY'); insert into statement_rows values('${id(7)}','${id(6)}','2026-10-04','spending','food',-300,null,'food');`);
+    const deniedReport=JSON.parse(sql(`select query_family_cashflows('{"domain":"all","limit":50,"offset":0,"authorizedAccountIds":[],"educationAllowed":false}');`));
+    assert.equal(deniedReport.pagination.total,0);assert.deepEqual(deniedReport.totals,[]);
     const report = JSON.parse(sql(`select query_family_cashflows('${JSON.stringify({ domain: "all", limit: 2, offset: 0 })}')`));
     assert.equal(report.rows.length, 2); assert.equal(report.pagination.total, 5); assert.equal(report.pagination.hasMore, true);
     assert.equal(report.totals.find((t: { domain: string }) => t.domain === "education").netSpending, "20000.000000");

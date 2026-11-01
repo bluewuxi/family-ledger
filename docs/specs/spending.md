@@ -1,5 +1,9 @@
 # Daily income and spending
 
+## Account visibility
+
+Reads are bounded by authorized spending accounts before counts, filters, summaries, and pagination. Counterparty names/suffixes and their filters are retained only from authorized source records. Free text remains unredacted. Original CSV/PDF download and signed-URL issuance are administrator-only, including for all-account viewers. Previously issued URLs retain their existing expiry. See [account visibility design](2026-10-31-account-visibility-design.md); local implementation awaits migration/deployment.
+
 Status: maintained product contract. The CSV redesign (#91) and suffix/cancellation enhancements (#96) were delivered to TEST. General family cashflow responsive acceptance passed under #103; bank-specific import/preview/undo acceptance remains separate. See the [historical implementation plan](../plans/spending-import-plan.md) and [release evidence](../releases/test-release-history.md#family-cashflow-and-transaction-ui-release-2026-10-06).
 
 ## Scope and model
@@ -52,7 +56,7 @@ Undo removes only the selected batch's surviving transactions and preserves the 
 
 ## Files, permissions and retention
 
-All GETs require active viewer/admin; all writes require admin through Lambda. RLS and revoked direct writes provide defensive protection. Source files are private S3 objects with exact-version reads.
+All reads require active viewer/admin and account scope; original-file reads require admin. All writes require admin through Lambda. RLS and revoked direct writes provide defensive protection. Source files are private S3 objects with exact-version reads.
 
 Signed uploads/read URLs last five minutes. Uploads bind length, content type and SHA-256 metadata; server verifies actual bytes. CSV and PDF uploads use `statements/pending/`, with seven-day current/noncurrent expiry and one-day abandoned multipart cleanup. Import previews expire after 24 hours. Expired batch metadata remains as audit history; its staged CSV will become unavailable after lifecycle expiry.
 

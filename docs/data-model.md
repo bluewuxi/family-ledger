@@ -1,5 +1,9 @@
 # Data Model
 
+## Account authorization records
+
+Local migration 20261101090000_account_access.sql introduces account_access_policies (user identity, all/selected mode, revision), typed account_ledger_grants/account_spending_grants/account_education_grants with resource foreign keys, and account_access_audit. Grant pairs are unique; the audit records actor, target, time, and before/after scope. These are accessor policies, not ownership fields. Initialization grants no viewer accounts. Schema application and initial existing-user allocation remain separate operator-authorized steps. Scoped spending/cashflow reads and backup exporter changes follow in the three subsequent 20261101 migrations. No financial schema or formula is changed.
+
 Migration `202610120002_single_account_opening_balance.sql` adds the partial unique index `transactions_one_opening_balance_per_account` on `transactions(account_id)` where `transaction_type = 'opening_balance'`. It rejects duplicate account initialization, including concurrent writes and changes to another instrument. It does not modify existing financial records; deployment must stop if duplicates already exist.
 
 ## Education reserve
@@ -14,10 +18,11 @@ Backup version 7 adds Kernel NTA refresh state and metadata; version 6 introduce
 
 `金财屋` / `Family Ledger` is a single-family shared ledger. Core business data is shared by the family, not owned by individual users.
 
-Users are accessors/operators only. User-specific tables are limited to:
+Users are accessors/operators only. User-specific access and preference tables include:
 
 - `profiles`: application user preferences linked to stable `app_users` UUIDs.
 - `user_roles`: active `viewer` / `admin` access role.
+- `account_access_policies` and typed grant tables: account visibility; `account_access_audit`: authorization change history.
 
 New profile rows default to `preferred_currency = 'CNY'`, `gain_color_scheme = 'red_positive'`, and `ui_theme = 'light'`. Existing saved preferences are not rewritten when defaults change.
 

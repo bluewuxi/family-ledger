@@ -1,3 +1,4 @@
+import { scopeAccountQuery, requestAccountIds } from "../auth/accountAccessContext";
 import { getAppBusinessDate, SNAPSHOT_DISPLAY_CURRENCIES, type InvestmentAccount, type AccountTotal } from "@family-ledger/shared";
 import { logDependencyError } from "../utils/errorLogging";
 import {
@@ -129,6 +130,7 @@ export async function listAccountSnapshotTrendRows(input: {
     .lte("snapshot_date", input.to)
     .order("snapshot_date", { ascending: input.order !== "desc" });
 
+  query = scopeAccountQuery(query, "ledger", "account_id");
   if (input.limit !== undefined) {
     query = query.limit(input.limit);
   }
@@ -159,13 +161,16 @@ async function listPortfolioSnapshotRows(input: {
   limit?: number;
 }): Promise<PortfolioSnapshotHeaderRow[]> {
   const supabase = await getSupabaseAdmin();
+  const visible = requestAccountIds("ledger");
+  const selection: string = visible === null ? snapshotSelect : `${snapshotSelect}, portfolio_account_snapshots!inner(account_id)`;
   let snapshotQuery = supabase
     .from("portfolio_snapshot_headers")
-    .select(snapshotSelect)
+    .select(selection)
     .gte("snapshot_date", input.from)
     .lte("snapshot_date", input.to)
     .order("snapshot_date", { ascending: input.order !== "desc" });
 
+  if (visible !== null) snapshotQuery = snapshotQuery.in("portfolio_account_snapshots.account_id", visible);
   if (input.limit !== undefined) {
     snapshotQuery = snapshotQuery.limit(input.limit);
   }
@@ -361,6 +366,7 @@ async function listAccountSnapshotRows(
         .select(`${accountSnapshotSelect}, investment_accounts!inner(purpose)`)
         .in("portfolio_snapshot_id", snapshotIds.slice(start, start + 50))
         .order("id", { ascending: true }).range(offset, offset + 499);
+      query = scopeAccountQuery(query, "ledger", "account_id");
       if (purpose) query = query.eq("investment_accounts.purpose", purpose);
       const { data, error } = await query.returns<PortfolioAccountSnapshotRow[]>();
       if (error) { logDependencyError("portfolioSnapshotRepository.listAccountSnapshotRows", error, []); return { data: rows, error }; }

@@ -19,5 +19,10 @@ export const RESTORE_ORDER = [
   "dashboard_instrument_quotes",
   "monthly_reviews",
   "job_runs",
-  "data_provider_runs"
+  "data_provider_runs",
+  "account_access_policies",
+  "account_ledger_grants",
+  "account_spending_grants",
+  "account_education_grants",
+  "account_access_audit"
 ] as const;

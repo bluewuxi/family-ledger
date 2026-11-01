@@ -1,8 +1,9 @@
-import type { AuthenticatedUser } from "@family-ledger/shared";
+import type { AccountAccessPolicy, AuthenticatedUser } from "@family-ledger/shared";
+import { resetAccountScope } from "./accountScopeState";
 import { getRuntimeConfig } from "./runtimeConfig";
 import { clearReadCache, setReadCacheIdentity } from "./readCache";
-export interface AuthSession { access_token: string; expiresAt: string; mustChangePassword: boolean; user: AuthenticatedUser }
-interface SessionResponse { user: AuthenticatedUser; expiresAt: string; mustChangePassword: boolean }
+export interface AuthSession { access_token: string; expiresAt: string; mustChangePassword: boolean; user: AuthenticatedUser; accountAccess?: AccountAccessPolicy }
+interface SessionResponse { accountAccess?: AccountAccessPolicy; user: AuthenticatedUser; expiresAt: string; mustChangePassword: boolean }
 const storageKey = "family-ledger:session";
 const eventName = "family-ledger:auth-state";
 let session: AuthSession | null = null;
@@ -46,6 +47,7 @@ function publish(next: AuthSession | null): void {
   window.dispatchEvent(new Event(eventName));
 }
 export function clearAuthSession(): void {
+  resetAccountScope();
   generation += 1; window.sessionStorage.removeItem(storageKey); publish(null);
 }
 export function getCurrentSession(): AuthSession | null {
