@@ -48,3 +48,9 @@ Browser acceptance exposed missing CORS exposure of `x-account-scope` in the loc
 Cleanup passed: the dedicated viewer has selected scope with zero grants, inactive access, and invalidated sessions. Reloading the browser returned to login. Temporary viewport overrides were reset. Private cleanup evidence remains in the ignored acceptance directory.
 
 The deployed TEST API/web/jobs remain the previous version: schema application alone does not enforce account visibility through that API or upgrade its backup writer. No release approval is registered against this dirty checkout. API Gateway CORS infrastructure application and deployed-browser revision verification remain separately authorized release prerequisites; neither was performed. Production is unchanged.
+
+## Authorized TEST publication in progress
+
+Tracked under [issue 121](https://github.com/bluewuxi/family-ledger/issues/121). Release preflight confirmed stable TEST infrastructure, matching hashes for all four applied migrations, complete policy coverage, and administrators in all-account mode. Typecheck, build, account-scope/client fixtures, and deployment-tool verification passed again before commit.
+
+Push deployment was paused with no active release. An operator change set based on the currently deployed packaged template preserved every existing application code location and parameter; its sole executable change was `LedgerHttpApi` modification without replacement. The change set added CORS exposure of `x-account-scope`. Stack update completed, the live API exposes that header, and the applied original template matches the reviewed candidate and current source infrastructure shape. No IAM, runtime, scheduler, database, or application code changes were included in this independent step. Registration and automatic application publication follow against a clean verified commit; deployed acceptance and backup preflight are not yet claimed.
