@@ -34,6 +34,8 @@ A full token has 256 random bits and a fixed 12-hour lifetime. Only its SHA-256 
 
 Login throttling uses atomic fixed 15-minute DDB windows: 10 attempts per normalized email, 100 per trusted source IP, and 5 per authenticated password-operation actor. Gateway also limits auth mutation routes. Failures and successes count. There is no permanent account lock or claim of comprehensive attack protection. Dependency failure denies requests with sanitized 503 rather than reporting bad passwords.
 
+Revalidating an unchanged browser session does not invalidate in-flight private reads. Logout or changes to the token, identity, role, expiry, password-change restriction, or account-access policy still invalidate them. Every private GET continues to reach server authorization; concurrent requests may deduplicate, but completed private responses are not retained by the API client. Scope response checks and the scope-refresh/remount flow remain in force.
+
 ## User management and recovery
 
 No public registration, invitations, email editing UI, email recovery or social login. Operators provision users and recover the administrator using masked-input tooling; see [recovery](operations/auth-recovery.md). Settings lists existing app users, manages roles/active status, changes the caller's password and resets another user's password. Login recovery guidance asks users to contact an administrator.

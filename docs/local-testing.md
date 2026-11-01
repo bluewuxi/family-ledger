@@ -311,6 +311,8 @@ Also run typecheck/build, `verify:log-retention`, `verify:api-health`, `verify:d
 
 ## Loading and Account Detail Verification (2026-10-12)
 
+Run `corepack pnpm verify:session-reads` for concurrent session restoration and private reads. It bundles the real browser clients with isolated storage and controlled HTTP responses, covering settings, accounts, transactions, balances, session/access invalidation and transport/scope error classification without live access. During real-login acceptance, compare first reads after reload with in-page refresh and inspect the transaction balance drawer without saving. A successful HTTP response may still be rejected by client invalidation; record both outcomes. See the [first-read investigation](plans/2026-11-02-first-read-investigation.md).
+
 Run `corepack pnpm verify:loading` for bounded read retries, cancellation, read deduplication, cache bypass, and user/write invalidation. Also run account-detail, account-secrets, dashboard, holdings, portfolio-trend, transaction-table, dashboard-quote-timeout, API-error-logging, typecheck, and build checks.
 
 The additive batch-price function is delivered in `202610120002_loading_performance.sql`. Schema application is separately authorized operator work, not a validation step.

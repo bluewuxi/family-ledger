@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
+    "verify:session-reads": "tsx apps/web/verify-session-reads.ts",
     "verify:instrument-active": "tsx scripts/verify-instrument-active.ts",
     "verify:account-access": "tsx scripts/verify-account-access.ts && tsx scripts/verify-account-access-context.ts",
     "verify:account-access-client": "tsx apps/web/verify-account-access-client.ts",

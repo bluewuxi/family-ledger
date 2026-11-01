@@ -43,7 +43,18 @@ async function request<T>(path: string, method = "GET", body?: unknown, token = 
   return result.data as T;
 }
 function publish(next: AuthSession | null): void {
-  session = next; setReadCacheIdentity(next?.user.id ?? null); clearReadCache();
+  // Revalidating unchanged access must not invalidate already-authorized reads.
+  // Keep invalidation for logout, replacement credentials and actual access changes.
+  const accessChanged = !session || !next
+    || session.access_token !== next.access_token
+    || session.user.id !== next.user.id
+    || session.user.role !== next.user.role
+    || session.expiresAt !== next.expiresAt
+    || session.mustChangePassword !== next.mustChangePassword
+    || JSON.stringify(session.accountAccess) !== JSON.stringify(next.accountAccess);
+  session = next;
+  setReadCacheIdentity(next?.user.id ?? null);
+  if (accessChanged) clearReadCache();
   window.dispatchEvent(new Event(eventName));
 }
 export function clearAuthSession(): void {
