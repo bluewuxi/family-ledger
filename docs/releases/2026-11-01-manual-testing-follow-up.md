@@ -22,3 +22,5 @@ The user separately authorized applying `20261101100000_instrument_active.sql` t
 ## Delivery status
 
 Local implementation and authorized TEST migration verification are complete. Commit, migration approval registration, CI, and automatic TEST deployment results are recorded by the delivery follow-up. Production is outside scope. Authenticated acceptance of the deployed version is separate from the local checks above.
+
+The initial migration registration failed closed because the complete 53-file approval exceeded SSM standard capacity. A backward-compatible maximum gzip level and concise `#122` evidence reference retain the entire manifest within the existing parameter limit; deployment verification checks exact round-trip preservation. No parameter tier, IAM, infrastructure, or gate was changed.

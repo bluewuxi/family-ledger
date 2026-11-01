@@ -11,7 +11,7 @@ export function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 export function encodeState(value: unknown): string {
-  const result = gzipSync(Buffer.from(JSON.stringify(value))).toString("base64");
+  const result = gzipSync(Buffer.from(JSON.stringify(value)), { level: 9 }).toString("base64");
   if (Buffer.byteLength(result) > 4096) throw new Error("Deployment record exceeds SSM standard size; split the record before registration.");
   return result;
 }
