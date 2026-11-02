@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { gzipSync, gunzipSync } from "node:zlib";
+import { brotliCompressSync, brotliDecompressSync, constants, gunzipSync } from "node:zlib";
 import { parse } from "yaml";
 
 export type JsonObject = { [key: string]: unknown };
@@ -11,11 +11,18 @@ export function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 export function encodeState(value: unknown): string {
-  const result = gzipSync(Buffer.from(JSON.stringify(value)), { level: 9 }).toString("base64");
+  const result = "br1:" + brotliCompressSync(Buffer.from(JSON.stringify(value)), {
+    params: { [constants.BROTLI_PARAM_QUALITY]: 11 }
+  }).toString("base64");
   if (Buffer.byteLength(result) > 4096) throw new Error("Deployment record exceeds SSM standard size; split the record before registration.");
   return result;
 }
-export function decodeState<T>(value: string): T { return JSON.parse(gunzipSync(Buffer.from(value, "base64")).toString()) as T; }
+export function decodeState<T>(value: string): T {
+  const decoded = value.startsWith("br1:")
+    ? brotliDecompressSync(Buffer.from(value.slice(4), "base64"))
+    : gunzipSync(Buffer.from(value, "base64"));
+  return JSON.parse(decoded.toString()) as T;
+}
 export function assertManifest(actual: Manifest, approved: Manifest, name: string): void {
   const changed = [...new Set([...Object.keys(actual), ...Object.keys(approved)])].filter(p => actual[p] !== approved[p]);
   if (changed.length) throw new Error(`${name} requires independent verification and registration: ${changed.join(", ")}`);

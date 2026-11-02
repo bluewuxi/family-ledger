@@ -34,7 +34,7 @@ The opaque-session migration introduces an authentication DynamoDB table, separa
 
 SSM records under `/family-ledger/test-deployment/` hold complete migration paths/hashes, infrastructure/configuration hashes, confirmation SHA/time and evidence. Records are losslessly compressed to standard parameter size; oversize or absent records fail closed. The migration gate compares the complete target manifest, including modified/deleted files, against `migration-approval`. Later commits reuse confirmation only while the full manifest remains identical.
 
-Records use maximum gzip compression with the same backward-compatible decoder. Use a concise evidence reference such as an issue number linked to a committed release record when the complete manifest approaches the 4096-byte standard-parameter limit. Never omit migration entries to fit the record; larger future manifests require a separately reviewed storage change.
+Records use versioned Brotli compression (`br1:`) with a decoder that also reads existing gzip records. The encoding preserves the full JSON payload and all migration paths/hashes. Use a concise evidence reference such as an issue number linked to a committed release record when the complete manifest approaches the 4096-byte standard-parameter limit. Never omit migration entries to fit the record; larger future manifests require a separately reviewed storage change.
 
 After independent migration application and focused verification, register the clean verified commit:
 
