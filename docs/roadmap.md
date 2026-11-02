@@ -1,8 +1,8 @@
 # Roadmap
 
-## Ledger processing reliability (local implementation)
+## Ledger processing reliability (deployed to TEST)
 
-The [approved plan](plans/2026-11-02-ledger-processing-reliability.md) adds revision-guarded snapshot publication, chronological trade-deficit validation, durable market-input repair, calendar snapshot maintenance, and retry-idempotent transaction creation with backup compatibility. Local implementation and isolated verification are recorded in the plan. Three additive migrations, daily snapshot schedule/CORS changes, initial historical reconciliation, and API/jobs/web delivery remain unapplied. Transaction retry UI real-login acceptance remains pending.
+The [approved plan](plans/2026-11-02-ledger-processing-reliability.md) adds revision-guarded snapshot publication, chronological trade-deficit validation, durable market-input repair, calendar snapshot maintenance, and retry-idempotent transaction creation with backup compatibility. Local implementation and isolated verification are recorded in the plan. Three additive migrations and daily-snapshot/CORS configuration were independently applied/verified and registered; automatic API/jobs/web delivery passed for `0eec3d5`. See [release evidence](releases/2026-11-02-ledger-processing-test.md). Historical repair awaits user confirmation after read-only audit; snapshot execution remains temporarily held. Transaction retry UI real-login acceptance remains pending.
 
 ## Account visibility (deployed to TEST)
 
