@@ -1,5 +1,5 @@
-import type { ScheduledEvent } from "aws-lambda";
-import { getAppBusinessDate } from "@family-ledger/shared";
+import type { Context, ScheduledEvent } from "aws-lambda";
+import { assertCompletedSnapshotDate, completedSnapshotDate, maintainPortfolioSnapshots } from "../services/snapshotRepairService";
 import {
   generatePortfolioSnapshot,
   GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,
@@ -9,9 +9,11 @@ import { logScheduledJob, sanitizeScheduledJobError } from "../utils/scheduledJo
 
 interface PortfolioSnapshotEventDetail {
   snapshotDate?: string;
+  catchupFrom?: string;
 }
 
 export interface GeneratePortfolioSnapshotsHandlerDependencies {
+  maintain?: typeof maintainPortfolioSnapshots;
   generatePortfolioSnapshot: (input: {
     snapshotDate: string;
     startedAt?: string;
@@ -19,11 +21,11 @@ export interface GeneratePortfolioSnapshotsHandlerDependencies {
 }
 
 export function createGeneratePortfolioSnapshotsHandler(
-  dependencies: GeneratePortfolioSnapshotsHandlerDependencies = { generatePortfolioSnapshot }
-): (event?: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>>) => Promise<void> {
-  return async (event: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>> = {}): Promise<void> => {
+  dependencies: GeneratePortfolioSnapshotsHandlerDependencies = { generatePortfolioSnapshot, maintain: maintainPortfolioSnapshots }
+): (event?: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>>, context?: Pick<Context,"getRemainingTimeInMillis">) => Promise<void> {
+  return async (event: Partial<ScheduledEvent<PortfolioSnapshotEventDetail>> = {}, context?: Pick<Context,"getRemainingTimeInMillis">): Promise<void> => {
     const eventTime = event.time ?? new Date().toISOString();
-    const snapshotDate = event.detail?.snapshotDate ?? getCompletedSnapshotDate(eventTime);
+    const snapshotDate = event.detail?.snapshotDate ?? completedSnapshotDate(eventTime);
 
     logScheduledJob({
       jobName: GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,
@@ -33,6 +35,12 @@ export function createGeneratePortfolioSnapshotsHandler(
     });
 
     try {
+      assertCompletedSnapshotDate(snapshotDate,completedSnapshotDate(eventTime));
+      if (!event.detail?.snapshotDate && dependencies.maintain) {
+        const count = await dependencies.maintain({eventTime,catchupFrom: event.detail?.catchupFrom,budgetMs: Math.max(0,Math.min(240000,(context?.getRemainingTimeInMillis() ?? 250000)-10000))});
+        logScheduledJob({jobName: GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME,eventId: event.id ?? "schedule",eventTime,status: "succeeded",recordsInserted: count,recordsSkipped: 0});
+        return;
+      }
       const result = await dependencies.generatePortfolioSnapshot({
         snapshotDate,
         startedAt: eventTime
@@ -60,13 +68,3 @@ export function createGeneratePortfolioSnapshotsHandler(
 }
 
 export const handler = createGeneratePortfolioSnapshotsHandler();
-
-function getCompletedSnapshotDate(eventTime: string): string {
-  const scheduledInstant = new Date(eventTime);
-
-  if (Number.isNaN(scheduledInstant.getTime())) {
-    throw new Error("Scheduled event time must be a valid ISO timestamp.");
-  }
-
-  return getAppBusinessDate(new Date(scheduledInstant.getTime() - 24 * 60 * 60 * 1000));
-}

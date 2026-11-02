@@ -169,6 +169,21 @@ void main();
 
 async function main(): Promise<void> {
   const generatedSnapshots = new Map<string, PortfolioSnapshotValuation>();
+  let deadlineWrites=0;
+  const deadlineRepository = fakeSnapshotRepository(generatedSnapshots);
+  deadlineRepository.upsertPortfolioSnapshot = async valuation => {deadlineWrites++; return {snapshotId:"unexpected",accountsWritten:valuation.accounts.length};};
+  await assert.rejects(generatePortfolioSnapshot({snapshotDate,deadline:0,snapshotRepository:deadlineRepository,jobRunRepository:fakeJobRunRepository()}),/budget exhausted/);
+  assert.equal(deadlineWrites,0);
+  let attempts = 0, revisionReads = 0;
+  const retryRepository = fakeSnapshotRepository(generatedSnapshots);
+  const originalWrite = retryRepository.upsertPortfolioSnapshot;
+  retryRepository.getSnapshotWriteRevision = async () => String(++revisionReads);
+  retryRepository.upsertPortfolioSnapshot = async valuation => {
+    if (++attempts === 1) throw Object.assign(new Error("concurrent transaction"), {code: "40001"});
+    return originalWrite(valuation);
+  };
+  await generatePortfolioSnapshot({snapshotDate, snapshotRepository: retryRepository,jobRunRepository: fakeJobRunRepository()});
+  assert.equal(attempts,2); assert.equal(revisionReads,2,"stale publication must reread inputs");
   const firstGeneration = await generatePortfolioSnapshot({
     snapshotDate,
     startedAt: "2026-05-22T01:00:00.000Z",
@@ -192,6 +207,7 @@ async function main(): Promise<void> {
 
 function fakeSnapshotRepository(store: Map<string, PortfolioSnapshotValuation>) {
   return {
+    getSnapshotWriteRevision: async () => "1",
     listSnapshotAccounts: async () => accounts,
     listSnapshotInstruments: async () => instruments,
     listSnapshotTransactions: async (date: string) => transactions.filter((record) => record.tradeDate <= date),

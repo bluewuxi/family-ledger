@@ -81,12 +81,14 @@ async function main(): Promise<void> {
       grant all on all tables in schema public to service_role;
       grant execute on function public.upsert_portfolio_snapshot(jsonb) to service_role;`);
     sql(readFileSync("supabase/migrations/20261003010000_atomic_transaction_writes.sql", "utf8"));
+    sql(readFileSync("supabase/migrations/20261102120000_transaction_timeline_order.sql", "utf8"));
+    sql(readFileSync("supabase/migrations/20261102120000_transaction_timeline_order.sql", "utf8"));
     const actorId = "00000000-0000-0000-0000-000000000099";
     const transactionId = "00000000-0000-0000-0000-000000000010";
     const parent = { account_id: "00000000-0000-0000-0000-000000000001", instrument_id: "00000000-0000-0000-0000-000000000002",
       transaction_type: "buy", trade_date: "2026-09-30", settlement_date: "2026-09-30", quantity: "134.4935", price: "6.6918",
       gross_amount: "899.999853", fee: "0", tax: "0", currency: "NZD", transaction_source: "manual",
-      settlement_currency: "NZD", settlement_amount: "899.999853", notes: null };
+      settlement_currency: "NZD", settlement_amount: "899.999853", notes: null, created_at: "2026-09-30T04:03:02.001Z" };
     const cash = { ...parent, instrument_id: "00000000-0000-0000-0000-000000000003", transaction_type: "withdrawal",
       quantity: null, price: null, transaction_source: "generated_cash_leg", linked_transaction_id: transactionId,
       settlement_currency: null, settlement_amount: null };
@@ -117,6 +119,7 @@ async function main(): Promise<void> {
     assert.throws(() => commit("create", parent, cash, price, snapshots, stale), /Atomic transaction write failed/);
     assert.equal(sql("select count(*) from public.transactions;"), "0");
     const created = JSON.parse(commit("create", parent, cash, price, snapshots));
+    assert.equal(new Date(created.created_at).toISOString(), parent.created_at, "Commit preserves the timestamp used for same-day timeline validation");
     assert.equal(created.id, transactionId);
     assert.equal(created.instruments.asset_type, "pie_fund");
     assert.equal(sql("select count(*) from public.transactions; select count(*) from public.instrument_prices;"), "2\n1");

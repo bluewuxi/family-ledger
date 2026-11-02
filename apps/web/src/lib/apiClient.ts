@@ -20,6 +20,7 @@ interface ApiRequestOptions {
   bypassCache?: boolean;
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
+  idempotencyKey?: string;
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -44,6 +45,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     method: options.method ?? "GET",
     headers: {
       accept: "application/json",
+      ...(options.idempotencyKey ? { "idempotency-key": options.idempotencyKey } : {}),
       ...(options.body === undefined ? {} : { "content-type": "application/json" }),
       authorization: `Bearer ${token}`
     },
@@ -90,8 +92,8 @@ export function apiGet<T>(path: string, options: Pick<ApiRequestOptions, "cacheM
   return apiRequest<T>(path, options);
 }
 
-export function apiPost<T>(path: string, body: unknown): Promise<T> {
-  return apiRequest<T>(path, { method: "POST", body });
+export function apiPost<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
+  return apiRequest<T>(path, { method: "POST", body, idempotencyKey });
 }
 
 export function apiPut<T>(path: string, body: unknown): Promise<T> {

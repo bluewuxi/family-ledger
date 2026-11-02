@@ -124,7 +124,8 @@ const routes: Record<string, RouteHandler> = {
   },
   "POST /transactions": async (event) => {
     const user = await requireRole(event, "admin");
-    const transaction = await createInvestmentTransaction(parseJsonBody(event), user);
+    const key = Object.entries(event.headers ?? {}).find(([name]) => name.toLowerCase() === "idempotency-key")?.[1];
+    const transaction = await createInvestmentTransaction(parseJsonBody(event), user, key);
     return success({ transaction }, 201);
   },
   "GET /holdings": async (event) => {

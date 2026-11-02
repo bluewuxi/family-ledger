@@ -91,7 +91,7 @@ Configure the portfolio snapshot Lambda handler exported as `generatePortfolioSn
 
 ```text
 ScheduleExpressionTimezone: Asia/Shanghai
-ScheduleExpression: cron(30 6 ? * TUE-SAT *)
+ScheduleExpression: cron(30 6 * * ? *)
 FlexibleTimeWindow: OFF
 ```
 
@@ -103,11 +103,11 @@ ScheduleExpression: cron(0 7 * * ? *)
 FlexibleTimeWindow: OFF
 ```
 
-These defaults run shortly after the app's `06:00 Asia/Shanghai` business-day cutoff and before China/Hong Kong markets open. Tuesday-Saturday Beijing is a post-US-close global snapshot cadence; it captures the prior US trading day and the latest available provider-published close or unit price. It does not create a separate Monday-before-CN/HK-open snapshot. Duplicate provider dates on holidays are handled by idempotent inserts/skips.
+These defaults run shortly after the app's `06:00 Asia/Shanghai` business-day cutoff and before China/Hong Kong markets open. Price/FX ingestion retains its Tuesday-Saturday Beijing post-US-close cadence. The local reliability change prepares daily snapshot maintenance, including weekends and month ends, using the latest available stored close or unit price. Applying this schedule change is separately authorized operator work. Duplicate provider dates on holidays are handled by idempotent inserts/skips.
 
 This cadence intentionally prioritizes US/global market data over NZ PIE publication timing. Foundation Series/FundRock unit prices have been observed publishing the prior provider date around `19:00 Pacific/Auckland`, which can be after the main batch. That expected lag is not a reason to move the entire FX/price/snapshot/backup chain later. If NZ PIE freshness becomes important, add a separate FundRock-only refresh after the NZ publication window rather than delaying the main batch.
 
-Each Scheduler target must pass the Scheduler context payload into Lambda, including `<aws.scheduler.scheduled-time>` as `time` and `<aws.scheduler.execution-id>` as `id`. The snapshot job derives the completed snapshot date from the scheduled time so retries and delayed starts do not drift across the cutoff. For the default `06:30 Asia/Shanghai` run on Tuesday-Saturday, this writes the just-finished business date, for example the `2026-06-16 06:30 Asia/Shanghai` run writes snapshot date `2026-06-15`.
+Each Scheduler target must pass the Scheduler context payload into Lambda, including `<aws.scheduler.scheduled-time>` as `time` and `<aws.scheduler.execution-id>` as `id`. The snapshot job derives the completed snapshot date from the scheduled time so retries and delayed starts do not drift across the cutoff. For the default `06:30 Asia/Shanghai` daily run, this writes the just-finished business date, for example the `2026-06-16 06:30 Asia/Shanghai` run writes snapshot date `2026-06-15`.
 
 Recommended Scheduler target settings:
 
@@ -283,3 +283,7 @@ For local backend checks, resolve secrets inside the backend process and report 
 Historical atomic-snapshot and transaction-price-link migrations are prerequisites of their original releases, not instructions to replay SQL. Current releases use complete-manifest migration verification and operator registration under the [TEST contract](test-auto-deployment.md). Applying migrations and rebuilding history remain independently authorized operations.
 
 GitHub Actions validates pushes to `test`/`main` and pull requests. Authorized `test` pushes also run the configured automatic TEST deployment under the [TEST release contract](test-auto-deployment.md). Historical commissioning and release checks are recorded in [historical TEST releases](releases/test-release-history.md#automatic-test-delivery-commissioning-2026-10-26).
+
+Snapshot reliability migration/deployment remains pending. Snapshot maintenance uses revision-checked publication, up to 30 dates per bounded run, and durable price/FX invalidation tokens. Running/failed/stale latest input jobs defer maintenance and produce a failed job record. Routine missing-date work starts from the latest existing snapshot; initial historical missing-date catch-up requires an explicitly authorized `detail.catchupFrom`. New source changes can still queue historical repairs. Do not run catch-up against TEST merely to verify local code.
+
+An explicitly requested historical `catchupFrom` is persisted in the repair watermark before readiness checks or work selection. Subsequent ordinary invocations resume it across batch limits, process failures, and upstream deferral without requiring the operator to repeat the date. The maintenance deadline starts before job/readiness work, and publication checks the remaining budget.

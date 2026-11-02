@@ -2,7 +2,7 @@ import { calculateHoldings, calculatePortfolioSnapshotValuation } from "@family-
 import { listAccounts } from "../repositories/accountRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPricesForDates } from "../repositories/priceRepository";
-import { listSnapshotDatesFrom, upsertPortfolioSnapshot } from "../repositories/portfolioSnapshotRepository";
+import { getSnapshotWriteRevision, listSnapshotDatesFrom, upsertPortfolioSnapshot } from "../repositories/portfolioSnapshotRepository";
 import { listTransactionsUntil } from "../repositories/transactionRepository";
 import { listValuationRatesForHoldings } from "./valuationMarketDataService";
 
@@ -13,14 +13,10 @@ export async function recalculateSnapshotsFrom(fromDate: string): Promise<void> 
     return;
   }
 
-  const latestSnapshotDate = snapshotDates[snapshotDates.length - 1];
-  const [accounts, instruments, transactions] = await Promise.all([
-    listAccounts(),
-    listInstruments(),
-    listTransactionsUntil(latestSnapshotDate)
-  ]);
-
   for (const snapshotDate of snapshotDates) {
+    for (let attempt=0; attempt<3; attempt++) {
+    const revision = await getSnapshotWriteRevision();
+    const [accounts,instruments,transactions] = await Promise.all([listAccounts(),listInstruments(),listTransactionsUntil(snapshotDate)]);
     const snapshotTransactions = transactions.filter((transaction) => transaction.tradeDate <= snapshotDate);
     const preliminaryHoldings = calculateHoldings(snapshotTransactions, accounts, instruments);
     const heldInstrumentIds = preliminaryHoldings
@@ -44,6 +40,8 @@ export async function recalculateSnapshotsFrom(fromDate: string): Promise<void> 
       fxRates
     });
 
-    await upsertPortfolioSnapshot(valuation);
+    try { await upsertPortfolioSnapshot(valuation,revision); break; }
+    catch(error) { if(attempt < 2 && (error as {code?:string}).code === "40001") continue; throw error; }
+    }
   }
 }

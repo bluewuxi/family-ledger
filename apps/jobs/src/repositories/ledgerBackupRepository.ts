@@ -13,6 +13,8 @@ export const LEDGER_BACKUP_TABLES = [
   { name: "kernel_price_anchors", orderColumn: "id" },
   { name: "kernel_nta_refresh_state", orderColumn: "instrument_id" },
   { name: "transactions", orderColumn: "id" },
+  { name: "transaction_create_requests", orderColumn: "actor_id,request_key" },
+  { name: "snapshot_repair_state", orderColumn: "id" },
   { name: "education_reserve_funds", orderColumn: "id" },
   { name: "education_reserve_entries", orderColumn: "id" },
   { name: "exchange_rates", orderColumn: "id" },

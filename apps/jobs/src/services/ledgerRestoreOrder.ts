@@ -11,6 +11,7 @@ export const RESTORE_ORDER = [
   "kernel_price_anchors", "kernel_nta_refresh_state",
   "exchange_rates",
   "transactions",
+  "transaction_create_requests",
   "education_reserve_funds",
   "education_reserve_entries",
   "instrument_prices",
@@ -24,5 +25,6 @@ export const RESTORE_ORDER = [
   "account_ledger_grants",
   "account_spending_grants",
   "account_education_grants",
-  "account_access_audit"
+  "account_access_audit",
+  "snapshot_repair_state"
 ] as const;

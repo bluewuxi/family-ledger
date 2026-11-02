@@ -202,15 +202,16 @@ export async function listSnapshotExchangeRates(
 }
 
 export async function upsertPortfolioSnapshot(
-  valuation: PortfolioSnapshotValuation
+  valuation: PortfolioSnapshotValuation, expectedRevision: string
 ): Promise<UpsertPortfolioSnapshotResult> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation });
-  if (error || typeof data !== "string") {
+  const { data, error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation, expected_revision: expectedRevision });
+  if (error?.code === "40001") throw Object.assign(new Error("Snapshot inputs changed."), { code: "40001" });
+  if (error || !data || typeof data.snapshotId !== "string") {
     console.error("Portfolio snapshot write failed", { snapshotDate: valuation.snapshotDate, code: error?.code });
     throw new Error("Failed to atomically write portfolio snapshot.");
   }
-  return { snapshotId: data, accountsWritten: valuation.accounts.length };
+  return { snapshotId: data.snapshotId, accountsWritten: valuation.accounts.length };
 }
 
 const accountSelect = [
@@ -418,4 +419,11 @@ function mapPriceRow(row: PriceRow): PriceRecord {
 
 function uniqueValues<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+export async function getSnapshotWriteRevision(): Promise<string> {
+  const db = await getSupabaseAdmin();
+  const {data,error} = await db.rpc("get_ledger_write_revision");
+  if (error || typeof data !== "string") throw new Error("Could not read snapshot revision.");
+  return data;
 }

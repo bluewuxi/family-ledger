@@ -39,6 +39,11 @@ async function main(): Promise<void> {
 function restoreRows(payload: LedgerBackupPayload) { return prepareLedgerRestoreRows(payload, []); }
 
 function removeApplicationIdentities(payload: LedgerBackupPayload): void {
+ if(payload.manifest.version < 12) {
+  const names=['snapshot_repair_state','transaction_create_requests'];
+  for(const n of names) delete (payload.tables as unknown as Record<string,unknown>)[n];
+  payload.manifest.tables=payload.manifest.tables.filter(t=>!names.includes(t.name));payload.manifest.tableOrder=payload.manifest.tableOrder.filter(t=>!names.includes(t));
+ }
  if(payload.manifest.version < 10) {
   const names=['account_access_policies','account_ledger_grants','account_spending_grants','account_education_grants','account_access_audit'];
   for(const n of names) delete (payload.tables as unknown as Record<string,unknown>)[n];
@@ -66,7 +71,7 @@ async function runSelfTests(): Promise<void> {
   const legacyActivity = structuredClone(inactive.payload); legacyActivity.manifest.version=10; delete (legacyActivity.tables.instruments[0] as Record<string,unknown>).active;
   // Rebuild checksums through the existing rehash fixture below for historical payloads.
 
-  assert.equal(backupObject.payload.manifest.version, 11);
+  assert.equal(backupObject.payload.manifest.version, 12);
   const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
   const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
   assert.equal((restoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");

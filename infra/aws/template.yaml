@@ -65,7 +65,7 @@ Parameters:
 
   GeneratePortfolioSnapshotsScheduleExpression:
     Type: String
-    Default: "cron(30 6 ? * TUE-SAT *)"
+    Default: "cron(30 6 * * ? *)"
     Description: EventBridge Scheduler cron expression for the portfolio snapshot job.
 
   BackupLedgerDataScheduleExpression:
@@ -623,6 +623,7 @@ Resources:
           - DELETE
           - OPTIONS
         AllowHeaders:
+          - idempotency-key
           - authorization
           - content-type
           - accept

@@ -116,7 +116,8 @@ async function main(): Promise<void> {
       await deleteInstrumentPricesByIds(supabase, ids);
     },
     upsertSnapshot: async (valuation) => {
-      await upsertSnapshot(supabase, valuation);
+      const fresh = await readRepairDataSet(supabase);
+      await upsertSnapshot(supabase, calculateSnapshotValuation(valuation.snapshotDate, fresh));
     }
   });
 
@@ -262,6 +263,9 @@ function calculateSnapshotValuation(
 }
 
 async function readRepairDataSet(supabase: ReturnType<typeof createClient>): Promise<RepairDataSet> {
+  const revisionRead = await supabase.rpc("get_ledger_write_revision");
+  if (revisionRead.error || typeof revisionRead.data !== "string") throw new Error("Cannot read ledger revision.");
+  snapshotRevision = revisionRead.data;
   const [accounts, instruments, transactions, priceRows, rates, snapshots] = await Promise.all([
     readTable<InvestmentAccount>(supabase, "investment_accounts", accountSelect, mapAccountRow),
     readTable<Instrument>(supabase, "instruments", instrumentSelect, mapInstrumentRow),
@@ -305,7 +309,8 @@ async function upsertSnapshot(
   supabase: ReturnType<typeof createClient>,
   valuation: PortfolioSnapshotValuation
 ): Promise<void> {
-  const { error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation });
+  const { data, error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation, expected_revision: snapshotRevision });
+  if (!error) snapshotRevision = data.revision;
   if (error) {
     throw new Error("Failed to atomically write portfolio snapshot: " + error.message);
   }

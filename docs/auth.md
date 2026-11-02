@@ -16,6 +16,8 @@ Only `viewer` and `admin` exist. Ledger data is shared; user references are audi
 
 ## Enforcement
 
+Transaction-create replay requires current full-session administrator authorization and a database active-admin check, including on a cached operation result. Replay records are service-only ledger recovery state; they contain no authentication credentials and survive source transaction deletion.
+
 Lambda enforces access on every request; frontend checks are UI hints. Every protected request checks session expiry/purpose, current credential version, application identity, active role and endpoint permissions. No active role means denied. No cross-request permission cache. Already-authorized in-flight work can finish after a concurrent revocation.
 
 - Public: `GET /health` and rate-limited `POST /auth/login`; logout is idempotent for invalid sessions and provides no data access.

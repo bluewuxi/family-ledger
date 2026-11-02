@@ -48,6 +48,8 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
+- [Ledger processing reliability plan](plans/2026-11-02-ledger-processing-reliability.md) proposes revision-guarded snapshot writes, chronological trade validation, durable late-input repair, daily snapshot coverage, and retry-idempotent transaction creation. Local implementation and validation are recorded in the plan; live migrations, schedule activation, deployment, historical repair, and authenticated visual acceptance remain pending.
+
 - [Manual testing follow-up plan](plans/2026-11-01-manual-testing-follow-up.md) records seven chart, price-label, instrument-activity, monthly-review, and settings findings. Local implementation and TEST activity migration are complete; administrator browser checks are recorded. Restricted-viewer browser acceptance is user-deferred; deployment and clean-commit migration registration remain pending.
 
 - [Account visibility implementation plan](plans/2026-11-01-account-visibility.md) sequences authorization storage, complete read-path scoping, backup compatibility, UI changes, and verification. Local implementation and validation are recorded in the plan; live migration application and delivery remain unauthorized.

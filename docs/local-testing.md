@@ -1,5 +1,11 @@
 # Local Testing
 
+## Ledger processing reliability
+
+Run `verify:transaction-timeline` and `verify:transaction-idempotency` for synthetic chronological-deficit and request-fingerprint checks. Run `verify:snapshot-catchup` for bounded maintenance, completed dates, interruption, and token-conflict fixtures. Run `verify:snapshot-revision-db` and `verify:signed-snapshots-db` against their automatically created disposable loopback PostgreSQL clusters for guarded writes, atomic transaction rollback, and revision behavior. `verify:backup-restore-db` exercises all migrations and current-format restore, including durable repair and transaction replay state. None of these commands uses shared ledger credentials.
+
+Also run the existing holdings, portfolio snapshots/trend, time policy, transaction table/price backfill, monthly summary, market data, Kernel, and backup checks, then typecheck/build. Source schedule and migration changes remain unapplied until separately authorized. Transaction retry UI changes require real-login acceptance at all five maintained viewports; local fixtures do not substitute for that acceptance.
+
 ## Account visibility verification
 
 Run corepack pnpm verify:account-access, verify:account-access-client, verify:account-access-db, and verify:auth. The first two are synthetic local fixtures; the database command creates a disposable local PostgreSQL cluster and never uses project credentials. Investment route fixtures assert authorized SQL filters and visible-only dashboard/snapshot values, hidden-account not-found responses, original-file denial, missing-policy denial, dependency 503, and next-request revision changes. Existing spending/education DB checks include empty authorization before totals/options. Backup full-table restoration covers all real migrations and version-10 policies/grants. Also run the affected financial suites, typecheck, and build.

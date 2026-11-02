@@ -1,5 +1,9 @@
 # Backup And Restore
 
+## Reliability state backup version 12
+
+Backup format 12 adds `transaction_create_requests` and `snapshot_repair_state`. Restore retained creation requests after application identities and transactions, and restore pending repair state last so source-row triggers cannot overwrite the saved pending date/token. Older formats initialize these tables empty. Creation tombstones retain their original responses even when the source transaction no longer exists. Migration high-water mark is `20261102130000_transaction_idempotency`.
+
 ## Instrument activity backup version 11
 
 Local implementation emits version 11 with instrument `active` preserved. Version 10 and older supported payloads default an absent activity field to true after original checksum validation. An explicit false remains false. The additive migration `20261101100000_instrument_active.sql` was applied and verified on TEST on 2026-11-01; version-11 application deployment and real scheduled-backup acceptance remain pending. The disposable local database backup/restore fixture passed; no shared TEST restore was performed. The existing SQL exporter serializes complete instrument rows and therefore includes the new column after migration.

@@ -88,6 +88,7 @@ export function TransactionsPage() {
   const [holdingsSummary, setHoldingsSummary] = useState<TransactionBalancesResponse | null>(null);
   const requestSequence = useRef(0);
   const balanceSequence = useRef(0);
+  const createIntent = useRef<{ key: string; payload: string } | null>(null);
   const referenceData = useRef<{ accounts: InvestmentAccount[]; instruments: Instrument[] } | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
   const [balanceError, setBalanceError] = useState<string | null>(null);
@@ -303,6 +304,12 @@ export function TransactionsPage() {
       }
 
       const payload = toTransactionInput(form, selectedInstrument);
+      if (!editingTransactionId) {
+        const serialized = JSON.stringify(payload);
+        if (createIntent.current && createIntent.current.payload !== serialized) {
+          throw new ApiClientError("上次提交结果尚未确认，请保留原内容重试，或关闭表单并先核对交易记录。", "UNRESOLVED_TRANSACTION");
+        }
+      }
       const existingTransaction = transactions.find((transaction) => transaction.id === editingTransactionId);
       const tradeAvailabilityError = getTradeAvailability({
         form,
@@ -313,7 +320,7 @@ export function TransactionsPage() {
         editingTransaction
       }).error;
 
-      if (tradeAvailabilityError) {
+      if (tradeAvailabilityError && !createIntent.current) {
         throw new ApiClientError(tradeAvailabilityError, "INSUFFICIENT_TRADE_BALANCE");
       }
 
@@ -325,15 +332,18 @@ export function TransactionsPage() {
         }
       }
 
+      if (!editingTransactionId) createIntent.current ??= { key: crypto.randomUUID(), payload: JSON.stringify(payload) };
       const data = editingTransactionId
         ? await apiPut<TransactionResponse>(`/transactions/${editingTransactionId}`, payload)
-        : await apiPost<TransactionResponse>("/transactions", payload);
+        : await apiPost<TransactionResponse>("/transactions", payload, createIntent.current!.key);
 
       void data;
+      createIntent.current = null;
       void loadBalances();
       await loadPageData();
       closeDrawer();
     } catch (requestError) {
+      if (requestError instanceof ApiClientError && requestError.status === 400 && requestError.code === "VALIDATION_ERROR") createIntent.current = null;
       setError(toErrorMessage(requestError));
     } finally {
       setSaving(false);
@@ -425,6 +435,8 @@ export function TransactionsPage() {
   }
 
   function closeDrawer() {
+    if (createIntent.current && !window.confirm("上次提交结果尚未确认。关闭后请先核对交易记录，再新建交易，避免重复提交。确定关闭？")) return;
+    createIntent.current = null;
     setDrawerOpen(false);
     setEditingTransactionId(null);
     setDrawerMode("create");

@@ -1,4 +1,6 @@
 import { logCaughtError } from "../utils/errorLogging";
+import { transactionCreateIntent } from "./transactionIdempotency";
+import { findTransactionCreateReplay } from "../repositories/transactionRepository";
 import Decimal from "decimal.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -12,7 +14,6 @@ import {
   type CreateInstrumentPriceInput,
   type CreateInvestmentTransactionInput,
   type CurrencyCode,
-  type HoldingSummary,
   type Instrument,
   type InvestmentTransaction,
   type PaginatedResult,
@@ -143,22 +144,29 @@ export async function getTransactions(
 
 export async function createInvestmentTransaction(
   body: unknown,
-  user: AuthenticatedUser
+  user: AuthenticatedUser,
+  idempotencyKey?: string
 ): Promise<InvestmentTransaction> {
+  const idempotency = transactionCreateIntent(idempotencyKey, asRecord(body));
+  const replay = await findTransactionCreateReplay(user.id, idempotency);
+  if (replay) return replay;
+  try {
   const revision = await getTransactionWriteRevision();
   const record = asRecord(body);
   const input = parseCreateTransactionInput(record);
   const validated = await validateTransaction(input, "grossAmount" in record);
 
-  try {
     await checkOpeningBalance(validated);
     const settlementInput = await withAutomaticSettlement(validated);
-    await assertSufficientTradeBalance(settlementInput);
+
     const transaction = await writeTransactionAtomically({ operation: "create", id: randomUUID(), userId: user.id,
-      revision, transaction: settlementInput, updateDerivedData: true });
+      revision, transaction: settlementInput, updateDerivedData: true, idempotency });
     if (!transaction) throw new Error("Atomic transaction result was missing.");
     return transaction;
   } catch (error) {
+    // Another identical request may have committed while this request prepared.
+    const committed = await findTransactionCreateReplay(user.id, idempotency);
+    if (committed) return committed;
     logCaughtError("transactionService.createInvestmentTransaction", error);
     if (error instanceof TransactionReferenceError) {
       throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400);
@@ -293,9 +301,6 @@ export async function updateInvestmentTransaction(
 
   try {
     await checkOpeningBalance(updateInput, id);
-    if (shouldUpdateDerivedData) {
-      await assertSufficientTradeBalance(updateInput, id);
-    }
 
     const transaction = await writeTransactionAtomically({ operation: "update", id, userId: user.id,
       revision, transaction: updateInput, existing, updateDerivedData: shouldUpdateDerivedData });
@@ -388,73 +393,6 @@ async function withAutomaticSettlement(
     settlementCurrency,
     settlementAmount
   };
-}
-
-async function assertSufficientTradeBalance(
-  input: CreateInvestmentTransactionInput,
-  existingTransactionId?: string
-): Promise<void> {
-  if (input.transactionType !== "buy" && input.transactionType !== "sell") {
-    return;
-  }
-
-  const [transactions, accounts, instruments] = await Promise.all([
-    listTransactions(),
-    listAccounts(),
-    listInstruments()
-  ]);
-  const baseTransactions = existingTransactionId
-    ? transactions.filter(
-        (transaction) => transaction.id !== existingTransactionId && transaction.linkedTransactionId !== existingTransactionId
-      )
-    : transactions;
-  const holdings = calculateHoldings(baseTransactions, accounts, instruments);
-
-  if (input.transactionType === "buy") {
-    assertSufficientCashForBuy(input, holdings, instruments);
-    return;
-  }
-
-  assertSufficientPositionForSell(input, holdings);
-}
-
-function assertSufficientCashForBuy(
-  input: CreateInvestmentTransactionInput,
-  holdings: HoldingSummary[],
-  instruments: Instrument[]
-): void {
-  if (!input.settlementCurrency || !input.settlementAmount) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Settlement cash amount could not be calculated.", 400);
-  }
-
-  const cashInstrument = instruments.find(
-    (instrument) => instrument.assetType === "cash" && instrument.currency === input.settlementCurrency
-  );
-
-  if (!cashInstrument) {
-    throw new ApiRequestError("VALIDATION_ERROR", `No ${input.settlementCurrency} cash instrument is configured.`, 400);
-  }
-
-  const availableCash = getHoldingQuantity(holdings, input.accountId, cashInstrument.id);
-  const requestedCash = new Decimal(input.settlementAmount);
-
-  if (requestedCash.gt(availableCash)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "可用资金不足，不能提交超过现金余额的买入交易。", 400);
-  }
-}
-
-function assertSufficientPositionForSell(input: CreateInvestmentTransactionInput, holdings: HoldingSummary[]): void {
-  const availableQuantity = getHoldingQuantity(holdings, input.accountId, input.instrumentId);
-  const requestedQuantity = new Decimal(input.quantity ?? "0");
-
-  if (requestedQuantity.gt(availableQuantity)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "可用持仓不足，不能提交超过当前持仓的卖出交易。", 400);
-  }
-}
-
-function getHoldingQuantity(holdings: HoldingSummary[], accountId: string, instrumentId: string): Decimal {
-  const holding = holdings.find((item) => item.accountId === accountId && item.instrumentId === instrumentId);
-  return new Decimal(holding?.quantity ?? "0");
 }
 
 export function buildGeneratedCashLegInput(

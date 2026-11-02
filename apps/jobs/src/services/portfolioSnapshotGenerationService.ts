@@ -1,6 +1,7 @@
 import {
   calculateHoldings,
   calculatePortfolioSnapshotValuation,
+  getAppBusinessDate,
   type ExchangeRateRecord,
   type Instrument,
   type InvestmentAccount,
@@ -14,6 +15,7 @@ import {
   finishJobRun as defaultFinishJobRun
 } from "../repositories/jobRunRepository";
 import {
+  getSnapshotWriteRevision,
   listSnapshotAccounts as defaultListSnapshotAccounts,
   listSnapshotExchangeRates as defaultListSnapshotExchangeRates,
   listSnapshotInstruments as defaultListSnapshotInstruments,
@@ -28,6 +30,7 @@ export const GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME = "generate-portfolio-snapsho
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 interface SnapshotRepository {
+  getSnapshotWriteRevision(): Promise<string>;
   listSnapshotAccounts(): Promise<InvestmentAccount[]>;
   listSnapshotInstruments(): Promise<Instrument[]>;
   listSnapshotTransactions(snapshotDate: string): Promise<InvestmentTransaction[]>;
@@ -37,7 +40,7 @@ interface SnapshotRepository {
     transactionDates?: string[],
     fromCurrencies?: ExchangeRateRecord["fromCurrency"][]
   ): Promise<ExchangeRateRecord[]>;
-  upsertPortfolioSnapshot(valuation: PortfolioSnapshotValuation): Promise<UpsertPortfolioSnapshotResult>;
+  upsertPortfolioSnapshot(valuation: PortfolioSnapshotValuation, expectedRevision: string): Promise<UpsertPortfolioSnapshotResult>;
 }
 
 interface JobRunRepository {
@@ -57,6 +60,7 @@ interface JobRunRepository {
 export interface GeneratePortfolioSnapshotOptions {
   snapshotDate: string;
   startedAt?: string;
+  deadline?: number;
   now?: () => Date;
   snapshotRepository?: SnapshotRepository;
   jobRunRepository?: JobRunRepository;
@@ -74,6 +78,7 @@ export async function generatePortfolioSnapshot(
   options: GeneratePortfolioSnapshotOptions
 ): Promise<GeneratePortfolioSnapshotResult> {
   validateSnapshotDate(options.snapshotDate);
+  if (options.snapshotDate >= getAppBusinessDate()) throw new Error("Snapshot date must be completed before publication.");
 
   const now = options.now ?? (() => new Date());
   const startedAt = options.startedAt ?? now().toISOString();
@@ -88,6 +93,8 @@ export async function generatePortfolioSnapshot(
   });
 
   try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+    const revision = await snapshotRepository.getSnapshotWriteRevision();
     const [accounts, instruments, transactions] = await Promise.all([
       snapshotRepository.listSnapshotAccounts(),
       snapshotRepository.listSnapshotInstruments(),
@@ -110,7 +117,13 @@ export async function generatePortfolioSnapshot(
       prices,
       fxRates
     });
-    const upsertResult = await snapshotRepository.upsertPortfolioSnapshot(valuation);
+    if (options.deadline !== undefined && Date.now() >= options.deadline) throw new Error("Snapshot maintenance budget exhausted; publication remains pending.");
+    let upsertResult: UpsertPortfolioSnapshotResult;
+    try { upsertResult = await snapshotRepository.upsertPortfolioSnapshot(valuation, revision); }
+    catch (error) {
+      if (attempt < 2 && (error as {code?: string}).code === "40001") continue;
+      throw error;
+    }
     const finishedJobRun = await jobRunRepository.finishJobRun(jobRun.id, {
       status: "succeeded",
       finishedAt: now().toISOString(),
@@ -125,6 +138,8 @@ export async function generatePortfolioSnapshot(
       accountsWritten: upsertResult.accountsWritten,
       valuation
     };
+    }
+    throw new Error("Snapshot revision retries exhausted.");
   } catch (error) {
     await markJobRunFailedBestEffort(jobRunRepository, jobRun.id, now().toISOString(), sanitizeErrorMessage(error));
     throw error;
@@ -133,6 +148,7 @@ export async function generatePortfolioSnapshot(
 
 function defaultSnapshotRepository(): SnapshotRepository {
   return {
+    getSnapshotWriteRevision,
     listSnapshotAccounts: defaultListSnapshotAccounts,
     listSnapshotInstruments: defaultListSnapshotInstruments,
     listSnapshotTransactions: defaultListSnapshotTransactions,
@@ -143,7 +159,8 @@ function defaultSnapshotRepository(): SnapshotRepository {
 }
 
 function validateSnapshotDate(snapshotDate: string): void {
-  if (!datePattern.test(snapshotDate)) {
+  const instant = new Date(`${snapshotDate}T00:00:00Z`);
+  if (!datePattern.test(snapshotDate) || Number.isNaN(instant.getTime()) || instant.toISOString().slice(0,10) !== snapshotDate) {
     throw new Error("Snapshot date must use YYYY-MM-DD format.");
   }
 }

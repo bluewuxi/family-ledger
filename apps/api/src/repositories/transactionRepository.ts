@@ -401,20 +401,26 @@ export async function commitTransactionWrite(input: {
   price: CreateInstrumentPriceInput | null;
   snapshots: PortfolioSnapshotValuation[];
   updateDerivedData: boolean;
+  createdAt?: string;
+  idempotency?: import("../services/transactionIdempotency").TransactionCreateIntent;
 }): Promise<InvestmentTransaction | null> {
   const supabase = await getSupabaseAdmin();
-  const { data, error } = await supabase.rpc("commit_transaction_write", {
+  const { data, error } = await supabase.rpc(input.idempotency ? "commit_transaction_create_idempotent" : "commit_transaction_write", {
     operation: input.operation,
     transaction_id: input.id,
     expected_revision: input.revision,
     actor_id: input.userId,
-    parent_row: input.transaction ? toTransactionRow(input.transaction) : null,
+    parent_row: input.transaction ? { ...toTransactionRow(input.transaction), ...(input.createdAt ? { created_at: input.createdAt } : {}) } : null,
     cash_row: input.cashLeg ? toTransactionRow(input.cashLeg) : null,
     price_row: input.price,
     snapshot_values: input.snapshots,
-    update_derived_data: input.updateDerivedData
+    update_derived_data: input.updateDerivedData,
+    ...(input.idempotency ? { request_key: input.idempotency.key, request_fingerprint: input.idempotency.fingerprint } : {})
   });
   if (error) {
+    if (error.code === "P0001" && error.message === "Idempotency key content conflict") {
+      throw new ApiRequestError("CONFLICT", "此操作编号已用于其他交易内容，请先核对交易记录。", 409);
+    }
     if (error.code === "23505" && (error.message.includes("transactions_one_opening_balance_per_account") ||
       (error.details === "transaction" && input.transaction?.transactionType === "opening_balance"))) {
       logDependencyError("transactionRepository.commitTransactionWrite", error, ["23505"]);
@@ -449,6 +455,15 @@ export async function commitTransactionWrite(input: {
     }
     throw new ApiRequestError("INTERNAL_ERROR", "交易保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500);
   }
+  return data ? mapTransactionRow(data as InvestmentTransactionRow) : null;
+}
+
+export async function findTransactionCreateReplay(actorId: string, intent: import("../services/transactionIdempotency").TransactionCreateIntent): Promise<InvestmentTransaction | null> {
+  const db = await getSupabaseAdmin();
+  const { data, error } = await db.rpc("find_transaction_create_replay", { actor_id: actorId, request_key: intent.key, request_fingerprint: intent.fingerprint });
+  if (error?.code === "P0001") throw new ApiRequestError("CONFLICT", "此操作编号已用于其他交易内容，请先核对交易记录。", 409);
+  if (error?.code === "42501") throw new ApiRequestError("FORBIDDEN", "需要有效的管理员权限。", 403);
+  if (error) throw new ApiRequestError("INTERNAL_ERROR", "无法确认交易保存结果，请稍后使用相同内容重试。", 500);
   return data ? mapTransactionRow(data as InvestmentTransactionRow) : null;
 }
 

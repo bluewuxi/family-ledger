@@ -377,6 +377,8 @@ It returns aggregate valued totals plus one non-zero row for each account and in
 
 Transactions are processed by trade date and creation time ascending. Security holdings use weighted average cost: buys add `grossAmount + fee + tax`, sells reduce remaining carrying cost using the prior average unit cost, and dividends do not alter holdings. When historical valuation FX is available, buy cost also carries a transaction-date USD basis from settlement cash or native trade cost. Security sell fees and taxes do not alter remaining carrying cost.
 
+Transaction creates, financial updates, and deletes validate the candidate chronological ledger through all later recorded entries. Buys require settlement-currency cash immediately before the trade; sells require security units immediately before the trade. Later deposits or purchases cannot fund earlier trades. The ordering is trade date, creation timestamp, then transaction ID; create commits preserve the API's planned timestamp. Linked settlement cash is applied once at its parent for validation. Compared with the original ledger, newly introduced or larger trade deficits are rejected; unchanged or improved legacy deficits do not block unrelated or corrective edits. Explicit withdrawals, fees, taxes, and cash adjustments retain signed-balance behavior. Note-only edits preserve derived records.
+
 Cash holdings are calculated only from transactions explicitly linked to cash instruments. Deposits, generated sell/dividend cash legs, and interest increase balances; withdrawals, generated buy cash legs, fees, and taxes decrease balances; adjustments apply their stated direction.
 
 Rows with zero final quantity or cash balance are omitted. Negative balances include `NEGATIVE_POSITION`. A security position that becomes negative also has null cost fields and includes `COST_BASIS_UNAVAILABLE`; short-position and realized-gain accounting are not attempted.
@@ -904,6 +906,8 @@ Adjustment request:
 ```
 
 Transaction validation rules:
+
+- Transaction creation requires a UUID `Idempotency-Key` header. The key is scoped to the authenticated administrator and retained without automatic expiry. Repeating the same parsed input returns the original successful creation result, including after the transaction is edited or deleted; it does not claim that the returned original representation is current. Reusing the key with different input returns `CONFLICT`. Current authentication and administrator authorization apply to every replay. A rolled-back create does not reserve its key. API and web must be released together; older keyless callers receive `VALIDATION_ERROR`.
 
 - `opening_position` requires a non-cash instrument, positive `quantity`, and positive `grossAmount`; `grossAmount` is total carrying cost.
 - `opening_balance` requires a cash instrument and positive `grossAmount`.

@@ -61,6 +61,7 @@ interface TimingWarning {
   detail: string;
 }
 
+let snapshotRevision: string;
 void main();
 
 async function main(): Promise<void> {
@@ -74,6 +75,9 @@ async function main(): Promise<void> {
     }
   });
 
+  const revisionRead = await supabase.rpc("get_ledger_write_revision");
+  if (revisionRead.error || typeof revisionRead.data !== "string") throw new Error("Cannot read ledger revision.");
+  snapshotRevision = revisionRead.data;
   const [accounts, instruments, transactions, prices, rates, snapshots] = await Promise.all([
     readTable<InvestmentAccount>(supabase, "investment_accounts", accountSelect, mapAccountRow),
     readTable<Instrument>(supabase, "instruments", instrumentSelect, mapInstrumentRow),
@@ -363,7 +367,8 @@ function compareAccountSnapshots(
 }
 
 async function upsertSnapshot(supabase: ReturnType<typeof createClient>, valuation: PortfolioSnapshotValuation): Promise<void> {
-  const { error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation });
+  const { data, error } = await supabase.rpc("upsert_portfolio_snapshot", { valuation, expected_revision: snapshotRevision });
+  if (!error) snapshotRevision = data.revision;
   if (error) {
     throw new Error(`Failed to atomically write snapshot ${valuation.snapshotDate}: ${error.message}`);
   }

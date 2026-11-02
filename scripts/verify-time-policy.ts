@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   assert.match(template, /FlexibleTimeWindow:\s*\r?\n\s*Mode: "OFF"/u);
   assert.match(template, /Default: "cron\(5 6 \? \* TUE-SAT \*\)"/u);
   assert.match(template, /Default: "cron\(10 6 \? \* TUE-SAT \*\)"/u);
-  assert.match(template, /Default: "cron\(30 6 \? \* TUE-SAT \*\)"/u);
+  assert.match(template, /Default: "cron\(30 6 \* \* \? \*\)"/u);
   assert.match(template, /<aws\.scheduler\.scheduled-time>/u);
   assert.match(template, /<aws\.scheduler\.execution-id>/u);
   assert.doesNotMatch(template, /Type: AWS::Events::Rule/u);

@@ -1,5 +1,7 @@
 import Decimal from "decimal.js";
+import { compareTransactionOrder } from "./transactionTimeline";
 export * from "./accountAccess";
+export * from "./transactionTimeline";
 
 export const APP_BUSINESS_TIME_ZONE = "Asia/Shanghai";
 export const APP_BUSINESS_DAY_CUTOFF_HOUR = 6;
@@ -912,11 +914,7 @@ function createHoldingState(account: InvestmentAccount, instrument: Instrument, 
 }
 
 function sortTransactions(transactions: InvestmentTransaction[]): InvestmentTransaction[] {
-  return [...transactions].sort((left, right) => {
-    const tradeDateComparison = left.tradeDate.localeCompare(right.tradeDate);
-    const createdAtComparison = left.createdAt.localeCompare(right.createdAt);
-    return tradeDateComparison || createdAtComparison || left.id.localeCompare(right.id);
-  });
+  return [...transactions].sort(compareTransactionOrder);
 }
 
 export const DASHBOARD_WARNING_CODES = [

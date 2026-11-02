@@ -17,11 +17,11 @@ function run(sql: string, onOutput?: (output: string) => void): Promise<string> 
   });
 }
 function write(amount: string): string {
-  return `select public.upsert_portfolio_snapshot(jsonb_build_object(
+  return `select revision from public.ledger_write_state where id for update; select public.upsert_portfolio_snapshot(jsonb_build_object(
     'snapshotDate','2099-07-01','usdToNzdRate','1.6','usdToCnyRate','7','accounts',
     jsonb_build_array(jsonb_build_object('accountId',(select id from public.investment_accounts order by id limit 1),
     'accountName','Concurrency fixture','marketValueUsd','${amount}','costUsd','0',
-    'unrealizedGainUsd','${amount}','dailyChangeUsd','0','dailyChangePct',null,'warnings','[]'::jsonb))));`;
+    'unrealizedGainUsd','${amount}','dailyChangeUsd','0','dailyChangePct',null,'warnings','[]'::jsonb))), (select revision::text from public.ledger_write_state where id))->>'snapshotId';`;
 }
 async function main() {
   let ready!: () => void;
@@ -30,7 +30,7 @@ async function main() {
     if (out.includes("LOCK_READY")) ready();
   });
   await Promise.race([locked, first.then(() => { throw new Error("Lock marker missing"); })]);
-  const [one, two] = await Promise.all([first, run(write("300"))]);
+  const [one, two] = await Promise.all([first, run(`begin; ${write("300")} commit;`)]);
   const uuid = /[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/;
   assert.equal(one.match(uuid)?.[0], two.match(uuid)?.[0], "Concurrent writes retain one ID");
   const totals = await run("select total_market_value_usd from public.portfolio_snapshots where snapshot_date='2099-07-01'; select count(*) from public.portfolio_account_snapshots where snapshot_date='2099-07-01';");

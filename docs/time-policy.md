@@ -16,6 +16,8 @@ Use shared time helpers for app business dates and UI date defaults. Avoid ad ho
 
 Scheduled snapshot defaults must derive from scheduled time, not Lambda execution/retry time. The completed snapshot-date convention is defined in [Portfolio Valuation Snapshots](data-model.md#portfolio-valuation-snapshots); the required timezone-aware Scheduler settings and `<aws.scheduler.scheduled-time>` payload are defined in [Scheduled Jobs](deployment.md#scheduled-jobs).
 
+The local reliability change prepares daily snapshot maintenance at 06:30 Shanghai; price/FX schedules remain Tuesday-Saturday. Catch-up and repair never exceed the completed date derived from the original scheduled time. Manual snapshot dates must be real calendar dates and completed by that same bound. Activation and initial historical catch-up are separately authorized operator work.
+
 ## Provider dates
 
 Market-data dates (`price_date`, `rate_date`, and quote dates) are provider/exchange dates. Do not derive them from viewer-local time or confuse acquisition timestamps with the provider date.

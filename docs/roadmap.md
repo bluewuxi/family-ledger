@@ -1,5 +1,9 @@
 # Roadmap
 
+## Ledger processing reliability (local implementation)
+
+The [approved plan](plans/2026-11-02-ledger-processing-reliability.md) adds revision-guarded snapshot publication, chronological trade-deficit validation, durable market-input repair, calendar snapshot maintenance, and retry-idempotent transaction creation with backup compatibility. Local implementation and isolated verification are recorded in the plan. Three additive migrations, daily snapshot schedule/CORS changes, initial historical reconciliation, and API/jobs/web delivery remain unapplied. Transaction retry UI real-login acceptance remains pending.
+
 ## Account visibility (deployed to TEST)
 
 Approved [design](specs/2026-10-31-account-visibility-design.md) and [plan](plans/2026-11-01-account-visibility.md) deliver viewer account scope, visible-only aggregates/history, authorization management, typed-grant backup compatibility, and revision-based UI invalidation. Current administrators remain all-account; super-administrator behavior is future-only. Under #121, four TEST migrations, isolated CORS application, manifest registrations, automatic API/web/jobs delivery (`37090cf`), real-login responsive/revocation acceptance, dedicated-viewer cleanup, and a live version-10 backup/file restore preflight passed; see [evidence](releases/2026-11-01-account-visibility-validation.md). Production policy review, migration and delivery remain pending.

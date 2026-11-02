@@ -1,7 +1,7 @@
 import { logCaughtError } from "../utils/errorLogging";
 import { randomUUID } from "node:crypto";
 import {
-  calculateHoldings, calculatePortfolioSnapshotValuation,
+  calculateHoldings, calculatePortfolioSnapshotValuation, validateTransactionTimeline,
   type CreateInvestmentTransactionInput, type InvestmentTransaction,
   type PortfolioSnapshotValuation, type PriceRecord
 } from "@family-ledger/shared";
@@ -22,6 +22,7 @@ export async function writeTransactionAtomically(input: {
   transaction: CreateInvestmentTransactionInput | null;
   existing?: InvestmentTransaction;
   updateDerivedData: boolean;
+  idempotency?: import("./transactionIdempotency").TransactionCreateIntent;
 }): Promise<InvestmentTransaction | null> {
   const now = new Date().toISOString();
   const parent = input.transaction ? previewTransaction(input.id, input.transaction, input.userId, now, input.existing) : null;
@@ -49,6 +50,12 @@ export async function writeTransactionAtomically(input: {
     const transactions = currentTransactions.filter(item => item.id !== input.id && item.linkedTransactionId !== input.id);
     if (parent) transactions.push(parent);
     if (cashLeg) transactions.push(previewTransaction(randomUUID(), cashLeg, input.userId, now));
+    const [violation] = validateTransactionTimeline({ before: currentTransactions, after: transactions, accounts, instruments });
+    if (violation) {
+      throw new ApiRequestError("VALIDATION_ERROR", violation.reason === "INSUFFICIENT_CASH"
+        ? `${violation.tradeDate} 的买入资金不足，本次修改会新增或扩大资金缺口。`
+        : `${violation.tradeDate} 的卖出持仓不足，本次修改会新增或扩大持仓缺口。`, 400);
+    }
     const toDate = [...dates, parent?.tradeDate ?? input.existing!.tradeDate].sort().at(-1)!;
     const storedPrices = await listPricesForTransactionWrite(transactions.map(item => item.instrumentId), toDate);
     const prices: PriceRecord[] = storedPrices.filter(item => item.sourceTransactionId !== input.id);
@@ -75,7 +82,7 @@ export async function writeTransactionAtomically(input: {
 
     throw new ApiRequestError("INTERNAL_ERROR", "无法计算历史资产快照，本次操作未保存，交易和现金余额未改变。请稍后重试。", 500);
   }
-  return commitTransactionWrite({ ...input, cashLeg, price, snapshots });
+  return commitTransactionWrite({ ...input, cashLeg, price, snapshots, createdAt: parent?.createdAt });
 }
 
 function previewTransaction(id: string, input: CreateInvestmentTransactionInput, userId: string, now: string,

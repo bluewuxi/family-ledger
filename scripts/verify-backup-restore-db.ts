@@ -3,11 +3,12 @@ import { normalizeLedgerBackupRows } from "../apps/jobs/src/repositories/ledgerB
 import { RESTORE_ORDER } from "../apps/jobs/src/services/ledgerRestoreOrder";
 import { gunzipSync } from "node:zlib";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { createServer } from "node:net";
+import { calculatePortfolioSnapshotValuation, type HoldingSummary, type InvestmentAccount, type ExchangeRateRecord } from "@family-ledger/shared";
 
 async function main() {
   const bin = "C:/Program Files/PostgreSQL/17/bin";
@@ -71,6 +72,49 @@ async function main() {
       insert into account_access_audit(actor_id,target_id,previous_scope,next_scope) values('${id(1)}','${id(1)}','{}','{}');`);
     assert.equal(sql(`select active from instruments where id='${id(4)}'`), 't');
     sql(`update instruments set active=false where id='${id(4)}'`);
+    const revision = sql('select get_ledger_write_revision()');
+    const parent = JSON.stringify({account_id:id(2),instrument_id:id(3),transaction_type:'deposit',trade_date:'2026-10-02',gross_amount:'42',fee:'0',tax:'0',currency:'USD',transaction_source:'manual',created_at:'2026-10-02T12:00:00Z'});
+    const commitIntent = (transactionId: string, fingerprint = 'a'.repeat(64), rev = revision, requestKey=id(31)) => `select commit_transaction_create_idempotent('create','${transactionId}','${rev}','${id(1)}','${parent}'::jsonb,null,null,'[]'::jsonb,true,'${requestKey}','${fingerprint}');`;
+    const asyncSql = (input: string) => new Promise<string>((resolve,reject)=>{
+      const child=execFile(exe('psql'),args,{encoding:'utf8',windowsHide:true},(error,stdout,stderr)=>error?reject(new Error(stderr)):resolve(stdout.trim()));
+      child.stdin!.end(input);
+    });
+    const pair = await Promise.all([asyncSql(commitIntent(id(32))),asyncSql(commitIntent(id(33)))]);
+    assert.equal(pair[0],pair[1], 'Concurrent retries return the identical original result');
+    const original = JSON.parse(pair[0]);
+    assert.equal(sql(`select count(*) from transactions where id in ('${id(32)}','${id(33)}')`),'1');
+    assert.equal(sql(commitIntent(id(34))),pair[0], 'Stale revision replay succeeds after lost response');
+    const oldToken=sql('select token::text from snapshot_repair_state where id');
+    sql(`insert into exchange_rates(rate_date,from_currency,to_currency,rate,provider) values('2026-10-31','NZD','USD',0.625,'late-fixture')`);
+    const repairToken=sql('select token::text from snapshot_repair_state where id');
+    assert.notEqual(repairToken,oldToken);
+    assert.equal(sql(`select advance_snapshot_repair('${oldToken}',null)`),'f','Old worker cannot clear late FX invalidation');
+    const cash=sql(`select sum(case when transaction_type in ('opening_balance','deposit') then gross_amount when transaction_type='withdrawal' then -gross_amount else 0 end)::text from transactions where instrument_id='${id(3)}'`);
+    assert.equal(cash,'12345678901256.123456','Concurrent retry changes cash exactly once');
+    const holdings=[{accountId:id(2),accountName:'Fixture',instrumentId:id(3),instrumentName:'Cash',currency:'USD',assetType:'cash',quantity:cash,warnings:[]},
+      {accountId:id(2),accountName:'Fixture',instrumentId:id(4),instrumentName:'Test',currency:'USD',assetType:'stock',quantity:'2',costAmount:'20',costAmountUsd:'20',warnings:[]}] as unknown as HoldingSummary[];
+    const repairValuation=(date:string)=>calculatePortfolioSnapshotValuation({snapshotDate:date,accounts:[{id:id(2),name:'Fixture'}] as InvestmentAccount[],holdings,
+      prices:[{id:'price',instrumentId:id(4),priceDate:'2026-10-02',closePrice:'11',currency:'USD',source:'manual',createdAt:'2026-10-02',updatedAt:'2026-10-02',isAdjusted:false}],
+      fxRates:[{id:'fx',rateDate:'2026-10-31',fromCurrency:'NZD',toCurrency:'USD',rate:'0.625',rateType:'valuation',provider:'late-fixture',createdAt:'2026-10-31',updatedAt:'2026-10-31'}] as ExchangeRateRecord[]});
+    const saveRepaired=(date:string)=>sql(`select upsert_portfolio_snapshot('${JSON.stringify(repairValuation(date))}'::jsonb,'${sql('select get_ledger_write_revision()')}')`);
+    saveRepaired('2026-10-31');
+    assert.equal(sql(`select advance_snapshot_repair('${repairToken}','2026-11-01')`),'t');
+    // Simulated interruption: no in-memory progress is carried into resumed work.
+    assert.match(sql(`select snapshot_date from snapshot_maintenance_dates('2026-11-01',30,'2026-10-01') where snapshot_date='2026-11-01'`),/2026-11-01/);
+    saveRepaired('2026-11-01');
+    assert.equal(sql(`select advance_snapshot_repair('${repairToken}','2026-11-02')`),'t');
+    assert.equal(sql(`select market_value_usd::text from portfolio_account_snapshots where account_id='${id(2)}' and snapshot_date='2026-11-01'`),'12345678901278.123456');
+    assert.equal(sql(`select usd_to_nzd_rate::text from portfolio_snapshot_headers where snapshot_date='2026-11-01'`),'1.6000000000');
+    console.log('Combined concurrent-create, delayed-FX, weekend-boundary repair, stale completion rejection and resumed progress: passed');
+    assert.throws(()=>sql(commitIntent(id(34),'b'.repeat(64))), /Idempotency key content conflict/);
+    sql(`delete from transactions where id='${original.id}'`);
+    assert.equal(sql(commitIntent(id(34))),pair[0], 'Deleted transaction retains its replay tombstone');
+    sql(`update user_roles set is_active=false where user_id='${id(1)}'`);
+    assert.throws(()=>sql(commitIntent(id(34))),/Active administrator required/);
+    sql(`update user_roles set is_active=true where user_id='${id(1)}'`);
+    assert.throws(()=>sql(commitIntent(id(34),'c'.repeat(64),'stale',id(35))),/Atomic transaction write failed/);
+    assert.equal(sql(`select count(*) from transaction_create_requests where request_key='${id(35)}'`),'0','Failed commit does not reserve a key');
+    assert.equal(sql("select has_function_privilege('authenticated','find_transaction_create_replay(uuid,uuid,text)','execute')"),'f');
     const exported = JSON.parse(sql('select export_ledger_backup()'));
     for(const table of RESTORE_ORDER) assert(exported[table].length > 0,table+' fixture must be nonempty');
     const bundle = createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-10-31T00:00:00Z',rows:normalizeLedgerBackupRows(exported)});
@@ -111,7 +155,7 @@ async function main() {
     assert.equal(targetSql('select count(*) from kernel_price_anchors where derived_from_anchor_id is not null'),'1');
     assert.equal(targetSql(`select sum(case when transaction_type='withdrawal' then -gross_amount else gross_amount end)::text from transactions where instrument_id='${id(3)}'`),'12345678901214.123456');
     assert.equal(targetSql(`select sum(quantity)::text from transactions where instrument_id='${id(4)}'`),'2.0000000000');
-    assert.equal(targetSql('select sum(market_value_usd)::text from portfolio_account_snapshots'),'12345678901236.123456');
+    assert.equal(targetSql("select sum(market_value_usd)::text from portfolio_account_snapshots where snapshot_date='2026-10-02'"),'12345678901236.123456');
     console.log('Current-format full-table restore passed: '+RESTORE_ORDER.length+' tables, '+migrations.length+' real migrations, version '+decoded.manifest.version+', exact data equality, linked cash, pending state, application identity dependencies, privileges and late-failure rollback.');
 
   } finally {
