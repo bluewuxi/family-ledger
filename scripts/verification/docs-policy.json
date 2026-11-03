@@ -22,7 +22,14 @@
     "docs/operations/auth-test-migration.md",
     "docs/operations/backup-restore.md",
     "docs/operations/kernel-nta-repair.md",
-    "docs/operations/superpowers.md"
+    "docs/operations/superpowers.md",
+    "apps/api/AGENTS.md",
+    "apps/web/AGENTS.md",
+    "apps/jobs/AGENTS.md",
+    "packages/shared/AGENTS.md",
+    "scripts/AGENTS.md",
+    "supabase/AGENTS.md",
+    "infra/aws/AGENTS.md"
   ],
   "legacyPlans": [
     "docs/plans/2026-10-27-superpowers-adoption.md",

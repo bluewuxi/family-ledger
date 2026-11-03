@@ -1947,7 +1947,7 @@
     "scripts/verification/cli-git.ts": "a784e880ced598d1f7eb285ad13a30b4e22e581d95ca6d23bcc7fb6d68651572",
     "scripts/verification/cli.ts": "465c601991ec1cf2fb3f6b5c2985be7cf0a51f51f98263b0276574bc21e45a38",
     "scripts/verification/docs-cli.ts": "f72cb9feb84a59671a470525cb185a2ee7d50141dd087eff3469497ae79acb28",
-    "scripts/verification/docs-policy.json": "adb3fac2c5fdf6abd06f5dfa61f60442a86ac0b8673e4a578007929123ffd571",
+    "scripts/verification/docs-policy.json": "dbfedaa5616a541e5ee6423b181be1564d37603a4373d37a336952abd77627ba",
     "scripts/verification/docs.ts": "f84271114b4be54fe14331f39fd6331050cbebb4f8cd1fbcf7e4de99538ca31b",
     "scripts/verification/registry.ts": "d942bf6d2bd5851f607c13fe635b615de3f541311345aa62593dbb33ba588fb3",
     "scripts/verification/runner.ts": "f63c686da6f21f8e8ff4c3a088b32f0d6bae39158d1d6aec9384a55314ed50a4",

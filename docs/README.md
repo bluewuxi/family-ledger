@@ -33,6 +33,7 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 | Area | Source and responsibility |
 | --- | --- |
 | Project entry point | [AGENTS.md](../AGENTS.md): product boundaries, code map, universal constraints, authorization, required checks, and mandatory task-reading routes |
+| Local operating guidance | [API](../apps/api/AGENTS.md), [web](../apps/web/AGENTS.md), [jobs](../apps/jobs/AGENTS.md), [shared](../packages/shared/AGENTS.md), [scripts](../scripts/AGENTS.md), [database](../supabase/AGENTS.md), and [AWS infrastructure](../infra/aws/AGENTS.md): directory actions and contract links supplement root rules; explicitly include applicable files in handoffs without assuming host auto-loading |
 | Execution | [Project workflow](project-workflow.md): implementation, validation, delivery scope, and completion reporting |
 | Architecture and identity | [Architecture](architecture.md), [auth](auth.md) |
 | Interface and persistence | [API](api.md): endpoint/DTO contracts; [data model](data-model.md): persistence semantics; versioned SQL in `supabase/migrations` defines schema changes |

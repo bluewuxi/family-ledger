@@ -26,6 +26,8 @@
 
 ## Required reading by task
 
+Read applicable local `AGENTS.md` files from the repository root to the target directory, and include them explicitly in handoffs; local guidance supplements the cross-layer reading routes below without replacing their contract owners.
+
 Read the relevant maintained sources before changing their area or performing the operation. Triggers combine and follow affected behavior/dependencies, not only task wording or the directory edited. Preserve existing contracts unless an explicit user request authorizes their change; keep documentation concise, accurate, and consistent with code, and update affected specifications and documentation when architecture, schema, API, auth, deployment, or roadmap decisions change. Use the [documentation map](docs/README.md) to find other maintained sources and [Roadmap](docs/roadmap.md) for current implementation status and staged priorities.
 
 | Task or affected behavior | Required sources |
