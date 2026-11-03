@@ -3,7 +3,7 @@ import { resolveAccountAccess } from "./accountAccess";
 import { setRequestAccountAccess } from "./accountAccessContext";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser, UserRole } from "@family-ledger/shared";
-import { getUserRole, UserRoleNotFoundError } from "../repositories/userRoleRepository";
+import { UserRoleNotFoundError } from "../repositories/userRoleRepository";
 import { getLocalAuthBypassUser, LocalAuthBypassUserNotFoundError } from "./localAuthBypass";
 import { getAuthService, normalizeAuthError } from "../services/authService";
 

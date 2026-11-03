@@ -12,6 +12,9 @@ async function main(){try {
   mkdirSync(join(root, 'scripts'), {recursive:true});
   writeFileSync(join(root, 'package.json'), JSON.stringify({scripts:{'verify:one':'tsx scripts/verify-one.ts'}}));
   writeFileSync(join(root, 'scripts/verify-one.ts'), 'console.log("fixture");');
+  assert.deepEqual(selectChecks({checks:[],paths:['apps/web/src/example.ts']}).baselineCommands, ['corepack pnpm lint','corepack pnpm typecheck','corepack pnpm build']);
+  assert.deepEqual(selectChecks({checks:[],paths:['eslint.config.mjs']}).unmappedPaths, []);
+  assert.deepEqual(selectChecks({checks:[],paths:['docs/example.md']}).baselineCommands, []);
   const data: Registry = {version:1, checks:[], auditFiles:{}, auditScopes:[]};
   assert(discoverChecks(root).length > 0);
   assert(validateRegistry(root, data).some(d=>d.rule==='inventory'));
@@ -48,7 +51,7 @@ async function main(){try {
   assert.equal(selectChecks({checks:[check,auth,doc],paths:['docs/guide.md']}).checks.length,1);
   assert.equal(selectChecks({checks:[check,auth,doc],paths:['packages/shared/src/index.ts']}).checks.length,3);
   assert.equal(selectChecks({checks:[check,auth,doc],paths:['unknown/new.ts']}).unmappedPaths.length,1);
-  assert.equal(selectChecks({checks:[check,auth,doc],paths:['README.md','apps/web/src/auth.ts']}).baselineCommands.length,2);
+  assert.equal(selectChecks({checks:[check,auth,doc],paths:['README.md','apps/web/src/auth.ts']}).baselineCommands.length,3);
   assert.throws(()=>selectChecks({checks:[check],ids:['unknown']}));
   // Real Git fixture covers indexed, deleted, renamed and untracked paths with spaces.
   const git=(args:string[])=>execFileSync('git',args,{cwd:root,stdio:'pipe',windowsHide:true});

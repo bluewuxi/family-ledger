@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 
 async function main() {
   const template = readFileSync("infra/aws/template.yaml", "utf8");
-  const code = template.match(/        ZipFile: \|\r?\n([\s\S]*?)\r?\n  ProjectLogRetention:/)?.[1].replace(/^          /gm, "");
+  const code = template.match(/ {8}ZipFile: \|\r?\n([\s\S]*?)\r?\n {2}ProjectLogRetention:/)?.[1].replace(/^ {10}/gm, "");
   assert.ok(code);
   assert.match(template, /RetentionInDays: 30/);
   const calls: Array<{ command: string; input: Record<string, unknown> }> = [];

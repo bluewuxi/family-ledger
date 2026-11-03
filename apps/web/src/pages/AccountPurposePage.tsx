@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { AccountPurposeOverview } from "@family-ledger/shared";
@@ -38,7 +39,7 @@ export function AccountPurposePage({ purpose, embedded = false }: { purpose: "da
   return <section>
     <header className="page-header">
       <div>{embedded ? <h2>账户收支</h2> : <PageTitle route={`/${purpose === "education" ? "education" : "daily-expense"}`}>{label}</PageTitle>}<p>查看账户余额和手动录入的入金、出金记录。</p></div>
-      <button className="primary-button" type="button" onClick={() => navigate("/transactions")}>{isAdmin ? "管理交易" : "查看交易"}</button>
+      <button className="primary-button" type="button" onClick={() => observeAsync((() => navigate("/transactions"))())}>{isAdmin ? "管理交易" : "查看交易"}</button>
     </header>
     <div className="filter-bar">
       <label>账户<select value={accountId} onChange={(event) => change("accountId", event.target.value)}><option value="">全部账户</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>

@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { useEffect, useState } from "react";
 import type { AccountAccessPolicy, AccountResourceRef, AccountScope, InvestmentAccount, ManagedUser, SpendingAccount } from "@family-ledger/shared";
 import { apiGet, apiPatch, apiPut } from "../lib/apiClient";
@@ -53,7 +54,7 @@ export function AccountAccessEditor({ user, demoting = false, onClose, onSaved }
       </fieldset>)}
     </>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    <div className="form-actions">{!fixed && <button type="button" className="primary-button" disabled={!canSaveAccountScope(policy, user.id) || saving} onClick={() => void save()}>{saving ? "保存中…" : "保存"}</button>}
+    <div className="form-actions">{!fixed && <button type="button" className="primary-button" disabled={!canSaveAccountScope(policy, user.id) || saving} onClick={() => observeAsync(save())}>{saving ? "保存中…" : "保存"}</button>}
       <button type="button" className="secondary-button" disabled={saving} onClick={onClose}>关闭</button></div>
   </section>;
 }

@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EDUCATION_ENTRY_TYPES, EDUCATION_ENTRY_LABELS, EDUCATION_CATEGORIES, EDUCATION_CATEGORY_LABELS, SPENDING_CURRENCIES, getAppBusinessDate, type EducationEntry, type EducationEntryInput, type EducationEntryType, type EducationCategory } from "@family-ledger/shared";
@@ -46,7 +47,7 @@ export function EducationReservePage() {
       open={id => edit(result?.entries.find(e => e.id === id))} />
     {result && <PaginationControls pagination={result.pagination} loading={loading} onPageChange={offset => change("offset", String(offset))} />}
     <Drawer title={existing ? "教育储备记录" : "新增教育储备记录"} open={open} onClose={() => { if (!busy) setOpen(false); }}>
-      <form onSubmit={e => { e.preventDefault(); void save(); }}><fieldset disabled={busy || !admin} className="spending-form">
+      <form onSubmit={e => { e.preventDefault(); observeAsync(save()); }}><fieldset disabled={busy || !admin} className="spending-form">
         <label>日期<input type="date" required value={form.entryDate} onChange={e => setForm({ ...form, entryDate: e.target.value })} /></label>
         <label>类型<select value={form.entryType} onChange={e => type(e.target.value as EducationEntryType)}>{EDUCATION_ENTRY_TYPES.map(t => <option key={t} value={t}>{EDUCATION_ENTRY_LABELS[t]}</option>)}</select></label>
         <label>{form.entryType === "exchange" ? "原币种" : "币种"}<select value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value, relatedExpenseId: null })}>{SPENDING_CURRENCIES.map(c => <option key={c}>{c}</option>)}</select></label>
@@ -58,7 +59,7 @@ export function EducationReservePage() {
         <p className="spending-hint">投入、转出和换汇不计入教育支出。生活费在实际划转时记录。若来源资金也在应用中管理，请另记来源划转。</p>
         {formError && <p className="form-error">{formError}</p>}
         <div className="spending-actions"><button className="primary-button" type="submit">{busy ? "处理中…" : "保存"}</button>{existing && <button type="button" onClick={() => { setExisting(undefined); setForm({ ...form, entryDate: getAppBusinessDate(), relatedExpenseId: null }); setConfirmDelete(false); }}>复制为新记录</button>}{existing && <button type="button" onClick={() => setConfirmDelete(true)}>删除</button>}</div>
-        {confirmDelete && <div><p>确认删除这条记录？余额与支出汇总将重新计算。</p><div className="spending-actions"><button type="button" onClick={() => void save(true)}>确认删除</button><button type="button" onClick={() => setConfirmDelete(false)}>取消</button></div></div>}
+        {confirmDelete && <div><p>确认删除这条记录？余额与支出汇总将重新计算。</p><div className="spending-actions"><button type="button" onClick={() => observeAsync(save(true))}>确认删除</button><button type="button" onClick={() => setConfirmDelete(false)}>取消</button></div></div>}
       </fieldset></form>
     </Drawer>
   </section>;

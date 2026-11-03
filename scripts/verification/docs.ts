@@ -27,7 +27,7 @@ export function checkDocumentation(root:string,policy:DocsPolicy):Diagnostic[]{
       const label=(m[2]||m[1]).trim().toLowerCase(),target=refs.get(label);
       if(target)links.push({target,index:m.index!});else add('reference',file,text.slice(0,m.index).split('\n').length,label,'Undefined reference link.');
     }
-    for(const m of text.matchAll(/!?\[([^\]\n]+)\](?![\[(:])/g)){
+    for(const m of text.matchAll(/!?\[([^\]\n]+)\](?![[(:])/g)){
       const before=text.slice(Math.max(0,m.index!-1),m.index);
       if(before===']')continue;
       const target=refs.get(m[1].trim().toLowerCase());if(target)links.push({target,index:m.index!});

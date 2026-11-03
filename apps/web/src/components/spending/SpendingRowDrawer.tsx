@@ -1,3 +1,4 @@
+import { observeAsync } from "../../lib/observeAsync";
 import { useState } from "react";
 import {
   SPENDING_CLASSES,
@@ -152,14 +153,14 @@ export function SpendingRowDrawer({
         </label>
         {admin && (
           <div className="spending-actions">
-            <button className="primary-button" onClick={() => void save()}>
+            <button className="primary-button" onClick={() => observeAsync(save())}>
               保存
             </button>
             {row && (
               <button
                 className="secondary-button"
                 onClick={() => {
-                  if (window.confirm("删除此交易？")) void save(true);
+                  if (window.confirm("删除此交易？")) observeAsync(save(true));
                 }}
               >
                 删除

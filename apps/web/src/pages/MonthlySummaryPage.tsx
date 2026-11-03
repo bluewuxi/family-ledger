@@ -1,3 +1,5 @@
+import { useEventCallback } from "../lib/useEventCallback";
+import { observeAsync } from "../lib/observeAsync";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CheckCircle2, Printer, RefreshCw, RotateCcw, Save } from "lucide-react";
 import {
@@ -52,22 +54,7 @@ export function MonthlySummaryPage() {
   const [error, setError] = useState<string | null>(null);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!preferencesLoading && !currencyManuallySelected) {
-      const storedCurrency = readStoredDisplayCurrency(monthlySummaryCurrencyStorageKey);
-      setReportingCurrency(storedCurrency ?? toDisplayCurrency(preferences.preferredCurrency));
-      setCurrencyManuallySelected(storedCurrency !== null);
-      setCurrencyInitialized(true);
-    }
-  }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
-
-  useEffect(() => {
-    if (currencyInitialized) {
-      void loadMonthlySummary(month, reportingCurrency);
-    }
-  }, [currencyInitialized, month, reportingCurrency]);
-
-  async function loadMonthlySummary(selectedMonth: string, currency: SnapshotDisplayCurrency) {
+const loadMonthlySummary = useEventCallback(async function(selectedMonth: string, currency: SnapshotDisplayCurrency) {
     setLoading(true);
     setError(null);
     setReviewMessage(null);
@@ -94,9 +81,23 @@ export function MonthlySummaryPage() {
     } finally {
       setLoading(false);
     }
-  }
+  });
+  useEffect(() => {
+    if (!preferencesLoading && !currencyManuallySelected) {
+      const storedCurrency = readStoredDisplayCurrency(monthlySummaryCurrencyStorageKey);
+      setReportingCurrency(storedCurrency ?? toDisplayCurrency(preferences.preferredCurrency));
+      setCurrencyManuallySelected(storedCurrency !== null);
+      setCurrencyInitialized(true);
+    }
+  }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
-  async function saveReview(nextStatus?: MonthlyReviewStatus) {
+  useEffect(() => {
+    if (currencyInitialized) {
+      observeAsync(loadMonthlySummary(month, reportingCurrency));
+    }
+  }, [currencyInitialized, month, reportingCurrency, loadMonthlySummary]);
+
+async function saveReview(nextStatus?: MonthlyReviewStatus) {
     if (nextStatus === "complete" && dataNeedsAttention) {
       const confirmed = window.confirm("当前月度数据仍有提醒。确认标记为已完成吗？");
       if (!confirmed) {
@@ -171,7 +172,7 @@ export function MonthlySummaryPage() {
           <button
             className="secondary-button"
             type="button"
-            onClick={() => void loadMonthlySummary(month, reportingCurrency)}
+            onClick={() => observeAsync(loadMonthlySummary(month, reportingCurrency))}
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />
@@ -246,7 +247,7 @@ export function MonthlySummaryPage() {
           </p>
           {isAdmin ? (
             <div className="monthly-review-actions print-hidden">
-              <button className="secondary-button" type="button" onClick={() => void saveReview()} disabled={pageLoading || savingReview}>
+              <button className="secondary-button" type="button" onClick={() => observeAsync(saveReview())} disabled={pageLoading || savingReview}>
                 <Save size={17} aria-hidden="true" />
                 <span>保存备注</span>
               </button>
@@ -254,7 +255,7 @@ export function MonthlySummaryPage() {
                 <button
                   className="secondary-button"
                   type="button"
-                  onClick={() => void saveReview("in_progress")}
+                  onClick={() => observeAsync(saveReview("in_progress"))}
                   disabled={pageLoading || savingReview}
                 >
                   <RotateCcw size={17} aria-hidden="true" />
@@ -264,7 +265,7 @@ export function MonthlySummaryPage() {
                 <button
                   className="primary-button"
                   type="button"
-                  onClick={() => void saveReview("complete")}
+                  onClick={() => observeAsync(saveReview("complete"))}
                   disabled={pageLoading || savingReview}
                 >
                   <CheckCircle2 size={17} aria-hidden="true" />

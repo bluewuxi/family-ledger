@@ -1,3 +1,5 @@
+import { useEventCallback } from "../lib/useEventCallback";
+import { observeAsync } from "../lib/observeAsync";
 import { useAuth } from "../lib/authContext";
 import { PaginationControls } from "../components/PaginationControls";
 import { AssetSnapshotsTab } from "../components/AssetSnapshotsTab";
@@ -161,13 +163,30 @@ export function DataMaintenancePage() {
   );
   const latestBackupRun = backupSummary.latestRun;
 
+  async function loadActiveTab(offset: number) {
+    if (activeTab === "sources") {
+      await loadDataSources();
+    } else if (activeTab === "fx") {
+      await loadFxRates(offset);
+    } else if (activeTab === "prices") {
+      await loadPrices(offset);
+    } else if (activeTab === "logs") {
+      await loadJobRuns(offset);
+    } else if (activeTab === "backups") {
+      await loadBackupRuns(offset);
+    } else {
+      setError(null);
+    }
+  }
+  // Effects use current values; in-flight actions retain their initiating render's tab/filter snapshot.
+  const loadActiveTabForEffect = useEventCallback(loadActiveTab);
   useEffect(() => {
-    void loadInitialData();
+    observeAsync(loadInitialData());
   }, []);
 
   useEffect(() => {
-    void loadActiveTab(0);
-  }, [activeTab]);
+    observeAsync(loadActiveTabForEffect(0));
+  }, [activeTab, loadActiveTabForEffect]);
 
   async function loadInitialData() {
     setLoading(true);
@@ -188,23 +207,7 @@ export function DataMaintenancePage() {
     }
   }
 
-  async function loadActiveTab(offset: number) {
-    if (activeTab === "sources") {
-      await loadDataSources();
-    } else if (activeTab === "fx") {
-      await loadFxRates(offset);
-    } else if (activeTab === "prices") {
-      await loadPrices(offset);
-    } else if (activeTab === "logs") {
-      await loadJobRuns(offset);
-    } else if (activeTab === "backups") {
-      await loadBackupRuns(offset);
-    } else {
-      setError(null);
-    }
-  }
-
-  async function loadDataSources() {
+async function loadDataSources() {
     setLoading(true);
     setError(null);
     try {
@@ -483,7 +486,7 @@ export function DataMaintenancePage() {
                   <td>{source.latestAnchorDate ?? "-"}</td>
                   <td>
                     {source.key === "kernel_estimate" ? (
-                      <button className="secondary-button compact-button" type="button" onClick={() => void openKernelSource()}>
+                      <button className="secondary-button compact-button" type="button" onClick={() => observeAsync(openKernelSource())}>
                         {isAdmin ? "新增锚点" : "查看"}
                       </button>
                     ) : "-"}
@@ -508,12 +511,12 @@ export function DataMaintenancePage() {
         >
           <ManualUpdateButton
             label={triggeringKind === "exchange_rates" ? "提交中..." : "提交汇率更新"}
-            onClick={() => void triggerRetrieval("exchange_rates")}
+            onClick={() => observeAsync(triggerRetrieval("exchange_rates"))}
             disabled={triggeringKind !== null}
           />
         </Toolbar>
 
-        <form className="filter-bar data-maintenance-filter-bar fx-filter-bar" onSubmit={(event) => { event.preventDefault(); void loadFxRates(0); }}>
+        <form className="filter-bar data-maintenance-filter-bar fx-filter-bar" onSubmit={(event) => { event.preventDefault(); observeAsync(loadFxRates(0)); }}>
           <label>
             开始日期
             <input type="date" value={fxFilters.from} onChange={(event) => setFxFilters({ ...fxFilters, from: event.target.value })} />
@@ -594,7 +597,7 @@ export function DataMaintenancePage() {
             </tbody>
           </table>
         </DataMaintenanceTable>
-        <PaginationControls pagination={fxPagination} loading={loading} onPageChange={(offset) => void loadFxRates(offset)} />
+        <PaginationControls pagination={fxPagination} loading={loading} onPageChange={(offset) => observeAsync(loadFxRates(offset))} />
       </section>
     );
   }
@@ -610,12 +613,12 @@ export function DataMaintenancePage() {
         >
           <ManualUpdateButton
             label={triggeringKind === "instrument_prices" ? "提交中..." : "提交收盘价更新"}
-            onClick={() => void triggerRetrieval("instrument_prices")}
+            onClick={() => observeAsync(triggerRetrieval("instrument_prices"))}
             disabled={triggeringKind !== null}
           />
         </Toolbar>
 
-        <form className="filter-bar data-maintenance-filter-bar price-filter-bar" onSubmit={(event) => { event.preventDefault(); void loadPrices(0); }}>
+        <form className="filter-bar data-maintenance-filter-bar price-filter-bar" onSubmit={(event) => { event.preventDefault(); observeAsync(loadPrices(0)); }}>
           <label>
             开始日期
             <input type="date" value={priceFilters.from} onChange={(event) => setPriceFilters({ ...priceFilters, from: event.target.value })} />
@@ -685,7 +688,7 @@ export function DataMaintenancePage() {
             </tbody>
           </table>
         </DataMaintenanceTable>
-        <PaginationControls pagination={pricePagination} loading={loading} onPageChange={(offset) => void loadPrices(offset)} />
+        <PaginationControls pagination={pricePagination} loading={loading} onPageChange={(offset) => observeAsync(loadPrices(offset))} />
       </section>
     );
   }
@@ -693,7 +696,7 @@ export function DataMaintenancePage() {
   function renderLogsTab() {
     return (
       <section className="data-maintenance-panel">
-        <form className="filter-bar data-maintenance-filter-bar log-filter-bar" onSubmit={(event) => { event.preventDefault(); void loadJobRuns(0); }}>
+        <form className="filter-bar data-maintenance-filter-bar log-filter-bar" onSubmit={(event) => { event.preventDefault(); observeAsync(loadJobRuns(0)); }}>
           <label>
             任务
             <input value={logFilters.jobName} onChange={(event) => setLogFilters({ ...logFilters, jobName: event.target.value })} />
@@ -765,7 +768,7 @@ export function DataMaintenancePage() {
                       {jobRun.recordsInserted} / {jobRun.recordsSkipped}
                     </td>
                     <td>
-                      <button className="text-button" type="button" onClick={() => void handleSelectJobRun(jobRun.id)}>
+                      <button className="text-button" type="button" onClick={() => observeAsync(handleSelectJobRun(jobRun.id))}>
                         <Eye size={15} aria-hidden="true" />
                         查看
                       </button>
@@ -776,14 +779,14 @@ export function DataMaintenancePage() {
             </tbody>
           </table>
         </DataMaintenanceTable>
-        <PaginationControls pagination={logPagination} loading={loading} onPageChange={(offset) => void loadJobRuns(offset)} />
+        <PaginationControls pagination={logPagination} loading={loading} onPageChange={(offset) => observeAsync(loadJobRuns(offset))} />
       </section>
     );
   }
 
   function handleJobRunRowClick(event: MouseEvent<HTMLTableRowElement>, jobRunId: string) {
     if (!isInteractiveRowTarget(event.target)) {
-      void handleSelectJobRun(jobRunId);
+      observeAsync(handleSelectJobRun(jobRunId));
     }
   }
 
@@ -822,7 +825,7 @@ export function DataMaintenancePage() {
               <h3>新增锚点</h3>
               {error ? <p className="form-error">{error}</p> : null}
               {notice ? <p className="form-success">{notice}</p> : null}
-              <form className="kernel-anchor-form" onSubmit={(event) => void submitKernelAnchor(event)}>
+              <form className="kernel-anchor-form" onSubmit={(event) => observeAsync(submitKernelAnchor(event))}>
                 <label>
                   Kernel 估值日期
                   <input type="date" required value={anchorDate} onChange={(event) => setAnchorDate(event.target.value)} />
@@ -1041,7 +1044,7 @@ export function DataMaintenancePage() {
             </tbody>
           </table>
         </DataMaintenanceTable>
-        <PaginationControls pagination={backupPagination} loading={loading} onPageChange={(offset) => void loadBackupRuns(offset)} />
+        <PaginationControls pagination={backupPagination} loading={loading} onPageChange={(offset) => observeAsync(loadBackupRuns(offset))} />
       </section>
     );
   }

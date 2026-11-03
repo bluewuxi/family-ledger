@@ -39,7 +39,8 @@ export function AssetSnapshotsTab({ refreshVersion = 0 }: { refreshVersion?: num
     void apiGet<SnapshotPage>(`/portfolio-snapshots?${query}`).then(result => { if (id === requestId.current) setData(result); })
       .catch(reason => { if (id === requestId.current) setError(reason instanceof Error ? reason.message : "资产快照请求失败。"); })
       .finally(() => { if (id === requestId.current) setLoading(false); });
-    return () => { requestId.current++; };
+    const requests = requestId;
+    return () => { requests.current++; };
   }, [initialized, activeFilters, offset, refresh, refreshVersion]);
   function apply(event: FormEvent) {
     event.preventDefault();

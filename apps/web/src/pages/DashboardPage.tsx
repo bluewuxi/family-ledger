@@ -1,3 +1,5 @@
+import { useEventCallback } from "../lib/useEventCallback";
+import { observeAsync } from "../lib/observeAsync";
 import { InvestmentTrendChart, getChartToneStyle, formatChartMoney } from "../components/InvestmentTrendChart";
 import { useValuation } from "../lib/useValuation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -23,8 +25,6 @@ import { LoadingBlock, LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
 import {
   formatDisplayAmount,
-  formatDisplayPercent,
-  formatSignedDisplayAmount,
   formatSignedDisplayPercent
 } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
@@ -85,6 +85,27 @@ export function DashboardPage() {
   const trendPanelRef = useRef<HTMLElement>(null);
   const [trendPanelHeight, setTrendPanelHeight] = useState(480);
 
+const loadDashboard = useEventCallback(async function(_currency: SnapshotDisplayCurrency, _options: { showLoading?: boolean } = {}) { await reloadDashboard(); });
+const loadSnapshots = useEventCallback(async function(currency: SnapshotDisplayCurrency, range: PortfolioTrendRange, bypassCache: boolean = false) {
+    const id = ++snapshotSequence.current;
+    setSnapshotsLoading(trend === null);
+    setSnapshotsError(null);
+
+    try {
+      const data = await apiGet<PortfolioSnapshotsResponse>(
+        `/portfolio-snapshots?purpose=investment&currency=${currency}&includeTrend=true&trendRange=${range}${bypassCache ? "&bypassCache=true" : ""}`, { cacheMs: 60_000, bypassCache }
+      );
+      if (id !== snapshotSequence.current) return;
+      setSnapshots(data.snapshots);
+      setTrend(data.trend ?? null);
+    } catch (requestError) {
+      if (id !== snapshotSequence.current) return;
+      setSnapshotsError(toErrorMessage(requestError, "资产趋势请求失败，请稍后重试。"));
+
+    } finally {
+      if (id === snapshotSequence.current) setSnapshotsLoading(false);
+    }
+  });
   useEffect(() => {
     const panel = trendPanelRef.current;
     if (!panel) return;
@@ -113,12 +134,12 @@ export function DashboardPage() {
     }
 
     const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !refreshing && Date.now() - lastDashboardRefresh.current >= dashboardAutoRefreshIntervalMs) void loadDashboard(reportingCurrency, { showLoading: false });
+      if (document.visibilityState === "visible" && !refreshing && Date.now() - lastDashboardRefresh.current >= dashboardAutoRefreshIntervalMs) observeAsync(loadDashboard(reportingCurrency, { showLoading: false }));
     }, dashboardAutoRefreshIntervalMs);
 
     function refreshWhenVisible() {
       if (document.visibilityState === "visible" && !refreshing && Date.now() - lastDashboardRefresh.current >= dashboardAutoRefreshIntervalMs) {
-        void loadDashboard(reportingCurrency, { showLoading: false });
+        observeAsync(loadDashboard(reportingCurrency, { showLoading: false }));
       }
     }
 
@@ -128,46 +149,24 @@ export function DashboardPage() {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [currencyInitialized, reportingCurrency, refreshing]);
+  }, [currencyInitialized, reportingCurrency, refreshing, loadDashboard]);
 
   useEffect(() => {
     if (currencyInitialized) {
-      void loadSnapshots(reportingCurrency, trendRange);
+      observeAsync(loadSnapshots(reportingCurrency, trendRange));
     }
-  }, [currencyInitialized, reportingCurrency, trendRange]);
+  }, [currencyInitialized, reportingCurrency, trendRange, loadSnapshots]);
 
   useEffect(() => {
     if (currencyInitialized) {
-      void loadActivity();
+      observeAsync(loadActivity());
     }
   }, [currencyInitialized]);
 
   useEffect(() => { if (dashboardResponse && !refreshing && !dashboardError) lastDashboardRefresh.current = Date.now(); }, [dashboardResponse, refreshing, dashboardError]);
   useEffect(() => () => { snapshotSequence.current++; activitySequence.current++; }, []);
-  async function loadDashboard(_currency: SnapshotDisplayCurrency, _options: { showLoading?: boolean } = {}) { await reloadDashboard(); }
 
-  async function loadSnapshots(currency: SnapshotDisplayCurrency, range: PortfolioTrendRange, bypassCache = false) {
-    const id = ++snapshotSequence.current;
-    setSnapshotsLoading(trend === null);
-    setSnapshotsError(null);
-
-    try {
-      const data = await apiGet<PortfolioSnapshotsResponse>(
-        `/portfolio-snapshots?purpose=investment&currency=${currency}&includeTrend=true&trendRange=${range}${bypassCache ? "&bypassCache=true" : ""}`, { cacheMs: 60_000, bypassCache }
-      );
-      if (id !== snapshotSequence.current) return;
-      setSnapshots(data.snapshots);
-      setTrend(data.trend ?? null);
-    } catch (requestError) {
-      if (id !== snapshotSequence.current) return;
-      setSnapshotsError(toErrorMessage(requestError, "资产趋势请求失败，请稍后重试。"));
-
-    } finally {
-      if (id === snapshotSequence.current) setSnapshotsLoading(false);
-    }
-  }
-
-  async function loadActivity(options: { showLoading?: boolean } = {}) {
+async function loadActivity(options: { showLoading?: boolean } = {}) {
     const id = ++activitySequence.current;
     const showLoading = options.showLoading ?? true;
 
@@ -190,9 +189,9 @@ export function DashboardPage() {
   }
 
   function refreshDashboard() {
-    void loadDashboard(reportingCurrency);
-    void loadSnapshots(reportingCurrency, trendRange, true);
-    void loadActivity();
+    observeAsync(loadDashboard(reportingCurrency));
+    observeAsync(loadSnapshots(reportingCurrency, trendRange, true));
+    observeAsync(loadActivity());
   }
 
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
@@ -234,10 +233,13 @@ export function DashboardPage() {
     [snapshots, trend?.points]
   );
   const trendChartData = useMemo(
-    () =>
-      buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.valuationMetadata ? getAppBusinessDate(dashboard.valuationMetadata.valuedAt) : dashboard?.quoteDate, new Date(), {
+    () => {
+      // Range selection also refreshes the business-day clock before new history arrives.
+      void trendRange;
+      return buildTrendChartData(trendData, dashboard?.totalAssets, dashboard?.valuationMetadata ? getAppBusinessDate(dashboard.valuationMetadata.valuedAt) : dashboard?.quoteDate, new Date(), {
         currentTotalInvestment: dashboard?.investmentPerformance?.netInvestment
-      }),
+      });
+    },
     [dashboard?.quoteDate, dashboard?.valuationMetadata, dashboard?.investmentPerformance?.netInvestment, dashboard?.totalAssets, trendData, trendRange]
   );
   const trendSummary = useMemo(

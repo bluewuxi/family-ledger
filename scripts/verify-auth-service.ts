@@ -8,7 +8,7 @@ import type { SessionIdentity } from "../apps/api/src/auth/sessionService";
 import { UserRoleNotFoundError } from "../apps/api/src/repositories/userRoleRepository";
 async function main() {
  const verifier=await hashPassword("password1");
- let now=1000;
+ const now=1000;
  const credentials=new Map<string,StoredCredential>();
  const sessions=new Map<string,SessionIdentity>();
  const attempts=new Map<string,number>();

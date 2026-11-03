@@ -1,7 +1,7 @@
 import {execFileSync} from 'node:child_process';
 import {writeFileSync,mkdirSync} from 'node:fs';
 import dotenv from 'dotenv';
-import {aws,region} from './deployment-runtime';
+import {aws} from './deployment-runtime';
 dotenv.config({path:'.env.test',quiet:true});
 const password=aws<{Parameter:{Value:string}}>(['ssm','get-parameter','--name',process.env.SUPABASE_DB_PASSWORD_SSM_PARAM!,'--with-decryption']).Parameter.Value;
 const bin='C:/Program Files/PostgreSQL/17/bin/';

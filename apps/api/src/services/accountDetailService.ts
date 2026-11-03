@@ -14,7 +14,6 @@ import {
   type AccountDetailTrend,
   type AuthenticatedUser,
   type DashboardWarning,
-  type HoldingSummary,
   type InvestmentTransaction,
   type PortfolioSnapshotSummary,
   type PortfolioTrendRange,
@@ -22,7 +21,7 @@ import {
   type SnapshotWarning,
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
-import { findAccountById, listAccounts } from "../repositories/accountRepository";
+import { findAccountById } from "../repositories/accountRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listAccountSnapshotTrendRows } from "../repositories/portfolioSnapshotRepository";
@@ -99,8 +98,7 @@ export async function getAccountDetail(input: {
   const recentTransactions = buildRecentTransactions(accountTransactions, recentLimit);
   const latestSnapshot = trend.points
     .filter((point): point is AccountDetailSnapshotPoint & { snapshotDate: string } => point.snapshotDate !== null)
-    .sort((left, right) => right.snapshotDate.localeCompare(left.snapshotDate))
-    [0] ?? null;
+    .sort((left, right) => right.snapshotDate.localeCompare(left.snapshotDate))[0] ?? null;
 
   return {
     quoteRefreshWarnings, investmentPerformance, valuedAt: now.toISOString(), warnings,

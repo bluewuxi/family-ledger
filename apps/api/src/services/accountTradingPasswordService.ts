@@ -53,7 +53,7 @@ export async function revealTradingPassword(
   } catch (error) {
     logCaughtError("accountTradingPasswordService.revealTradingPassword", error);
     if (isSsmParameterNotFound(error)) {
-      throw new Error("Trading password parameter is missing.");
+      throw new Error("Trading password parameter is missing.", { cause: error });
     }
 
     throw error;

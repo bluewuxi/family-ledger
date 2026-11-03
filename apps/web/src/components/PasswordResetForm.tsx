@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { type FormEvent, useState } from "react";
 import { resetUserPassword } from "../lib/authClient";
 export function PasswordResetForm({ userId, email }: { userId: string; email: string }) {
@@ -12,7 +13,7 @@ export function PasswordResetForm({ userId, email }: { userId: string; email: st
     finally { setAdmin(""); setTemporary(""); setBusy(false); }
   }
   return <div className="password-reset-control"><button type="button" className="secondary-button" onClick={()=>{setOpen(!open);setAdmin("");setTemporary("");}} disabled={busy}>重置密码</button>
-    {open && <form className="login-form" onSubmit={submit} aria-label={`重置 ${email} 的密码`}>
+    {open && <form className="login-form" onSubmit={(...args) => observeAsync((submit)(...args))} aria-label={`重置 ${email} 的密码`}>
       <label>管理员当前密码<input type="password" autoComplete="current-password" required value={admin} onChange={e=>setAdmin(e.target.value)} disabled={busy}/></label>
       <label>用户临时密码<input type="password" autoComplete="new-password" required value={temporary} onChange={e=>setTemporary(e.target.value)} disabled={busy}/></label>
       <button disabled={busy}>{busy ? "重置中..." : "确认重置"}</button>

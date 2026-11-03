@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { getCurrentSession } from "../lib/authClient";
 import { AccountScopeNotice } from "./AccountScopeNotice";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -80,12 +81,14 @@ export function Layout({ children }: LayoutProps) {
   }, [isMobileViewport, mobileSidebarOpen]);
 
   useEffect(() => {
-    setElementInert(sidebarRef.current, isMobileViewport && !mobileSidebarOpen);
-    setElementInert(appMainRef.current, isMobileViewport && mobileSidebarOpen);
+    const sidebar = sidebarRef.current;
+    const appMain = appMainRef.current;
+    setElementInert(sidebar, isMobileViewport && !mobileSidebarOpen);
+    setElementInert(appMain, isMobileViewport && mobileSidebarOpen);
 
     return () => {
-      setElementInert(sidebarRef.current, false);
-      setElementInert(appMainRef.current, false);
+      setElementInert(sidebar, false);
+      setElementInert(appMain, false);
     };
   }, [isMobileViewport, mobileSidebarOpen]);
 
@@ -98,8 +101,8 @@ export function Layout({ children }: LayoutProps) {
 
   async function handleSignOut() {
     closeMobileSidebar();
-    try { if (await signOut() && !getCurrentSession()) navigate("/login", { replace: true }); }
-    catch { if (!getCurrentSession()) navigate("/login?logoutUnconfirmed=1", { replace: true }); }
+    try { if (await signOut() && !getCurrentSession()) observeAsync(navigate("/login", { replace: true })); }
+    catch { if (!getCurrentSession()) observeAsync(navigate("/login?logoutUnconfirmed=1", { replace: true })); }
   }
 
   return (
@@ -187,7 +190,7 @@ export function Layout({ children }: LayoutProps) {
           type="button"
           title={sidebarCollapsed ? "退出登录" : undefined}
           data-tooltip={sidebarCollapsed ? "退出登录" : undefined}
-          onClick={handleSignOut}
+          onClick={() => observeAsync((handleSignOut)())}
         >
           <LogOut size={17} aria-hidden="true" />
           <span>退出登录</span>

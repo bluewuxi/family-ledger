@@ -1,8 +1,8 @@
 import { findAppUserByEmail } from "../repositories/appUserRepository";
-import { logDependencyError } from "../utils/errorLogging";
+
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { AuthenticatedUser } from "@family-ledger/shared";
-import { getSupabaseAdmin } from "../db/supabaseServer";
+
 
 export const LOCAL_AUTH_BYPASS_TOKEN = "family-ledger-local-dev-auth-bypass";
 const defaultLocalAuthBypassEmail = "ricky.yu@outlook.com";

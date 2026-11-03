@@ -1,3 +1,5 @@
+import { observeAsync } from "../lib/observeAsync";
+import { SPENDING_CURRENCIES } from "@family-ledger/shared";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -18,7 +20,6 @@ import { SpendingCharts } from "../components/spending/SpendingCharts";
 import { familyCashflowFilters } from "../lib/familyCashflowNavigation";
 import { useCashflowQuery } from "../lib/useCashflowQuery";
 import { DatePresets } from "../components/cashflow/DatePresets";
-import { SPENDING_CURRENCIES } from "@family-ledger/shared";
 export function SpendingPage() {
   const filters = useCashflowQuery("spending");
   const [params, setParams] = useSearchParams(),
@@ -54,6 +55,7 @@ export function SpendingPage() {
       return p;
     });
   }
+  const draftAccountId = filters.draft.get("accountId") ?? "";
   useEffect(() => {
     let active = true;
     void spendingClient
@@ -74,7 +76,7 @@ export function SpendingPage() {
   useEffect(() => {
     let active = true;
     void spendingClient
-      .options(filters.draft.get("accountId") ?? "")
+      .options(draftAccountId)
       .then((r) => {
         if (active) { setTags(r.tags); setOptions(r); }
       })
@@ -84,7 +86,7 @@ export function SpendingPage() {
     return () => {
       active = false;
     };
-  }, [filters.draft.get("accountId"), revision]);
+  }, [draftAccountId, revision]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -296,7 +298,7 @@ export function SpendingPage() {
                 <button
                   className="secondary-button"
                   disabled={!selected.length || !bulkClass}
-                  onClick={() => void bulk(false)}
+                  onClick={() => observeAsync(bulk(false))}
                 >
                   应用归类
                 </button>
@@ -310,7 +312,7 @@ export function SpendingPage() {
                 <button
                   className="secondary-button"
                   disabled={!selected.length}
-                  onClick={() => void bulk(true)}
+                  onClick={() => observeAsync(bulk(true))}
                 >
                   应用标签
                 </button>

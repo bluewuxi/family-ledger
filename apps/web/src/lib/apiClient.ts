@@ -31,7 +31,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiClientError("缺少 API 地址配置。", "MISSING_API_BASE_URL");
   }
 
-  const session = isLocalAuthBypassEnabled(config) ? null : await getCurrentSession();
+  const session = isLocalAuthBypassEnabled(config) ? null : await Promise.resolve(getCurrentSession());
   const token = isLocalAuthBypassEnabled(config) ? LOCAL_AUTH_BYPASS_TOKEN : session?.access_token;
   setReadCacheIdentity(isLocalAuthBypassEnabled(config) ? "local" : session?.user.id ?? null);
 

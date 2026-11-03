@@ -17,6 +17,7 @@ export function command(file: string, args: string[]): string {
     const stdout = error && typeof error === "object" && "stdout" in error ? String(error.stdout) : "";
     const code = /An error occurred \(([A-Za-z0-9_.-]+)\)/.exec(stderr)?.[1] ?? "command-failure";
     const builder = /([A-Za-z]+Builder:[A-Za-z]+)/.exec(stderr + stdout)?.[1];
+    // eslint-disable-next-line preserve-caught-error -- Raw subprocess causes can contain credentials; retain only the sanitized message.
     throw new Error(`${file} ${args.slice(0, file === "aws" ? 2 : 1).join(" ")} failed (${code}${builder ? `, ${builder}` : ""}); inspect the operation with operator credentials.`);
   }
 }

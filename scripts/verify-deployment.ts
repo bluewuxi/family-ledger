@@ -14,7 +14,17 @@ import { assertLiveSchedule, resolveSchedule } from "./deployment-schedules";
 import { buildLambdaArtifacts } from "./deployment-build";
 import { isStableStack } from "./deployment-runtime";
 
-const authInfrastructure = parseTemplate(readFileSync("infra/aws/template.yaml", "utf8")) as any;
+interface FixtureResource {
+  DeletionPolicy: string;
+  UpdateReplacePolicy: string;
+  Properties: Record<string, unknown> & {
+    Environment: { Variables: Record<string, unknown> };
+    RouteSettings: Record<string, unknown>;
+    PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: boolean };
+    SSESpecification: { SSEEnabled: boolean };
+  };
+}
+const authInfrastructure = parseTemplate(readFileSync("infra/aws/template.yaml", "utf8")) as { Resources: Record<string, FixtureResource> };
 const authTable = authInfrastructure.Resources.AuthTable;
 assert.equal(authTable.DeletionPolicy, "Retain");
 assert.equal(authTable.UpdateReplacePolicy, "Retain");

@@ -64,14 +64,14 @@ export async function deployTestCi(): Promise<void> {
     })]);
     let detail: ChangeSet;
     const deadline = Date.now() + 10 * 60_000;
-    do {
+    for (;;) {
       // Use the executable change listing. Property-value previews expand unchanged intrinsics
       // into KNOWN_AFTER_APPLY placeholders and can invent unrelated apparent changes.
       detail = aws<ChangeSet>(["cloudformation", "describe-change-set", "--change-set-name", created.Id]);
       if (!["CREATE_PENDING", "CREATE_IN_PROGRESS"].includes(detail.Status)) break;
       if (Date.now() > deadline) throw new Error("Change set creation timed out.");
       await pause(5000);
-    } while (true);
+    }
     const noChanges = detail.Status === "FAILED" && /didn.t contain changes|No updates are to be performed/i.test(detail.StatusReason ?? "");
     if (!noChanges) {
       if (detail.Status !== "CREATE_COMPLETE" || detail.ExecutionStatus !== "AVAILABLE") {
@@ -127,6 +127,7 @@ export async function deployTestCi(): Promise<void> {
     const reason = error instanceof Error && !("stderr" in error) ? error.message : "External deployment command failed; inspect AWS operation status using operator credentials.";
     try { putState("status", { commit, stage, failed: true, reason, runUrl, updatedAt: new Date().toISOString() }); } catch { /* Preserve the original failure. */ }
     summary(`TEST release failed at ${stage}: ${reason}. Last successful release was not advanced. Backend/web changes may already be present; recover or rerun before another independent deployment.`);
+    // eslint-disable-next-line preserve-caught-error -- Raw deployment causes may contain credentials; the sanitized reason is recorded above.
     throw new Error("TEST deployment did not pass all release gates.");
   } finally { release(); }
 }

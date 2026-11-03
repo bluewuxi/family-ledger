@@ -1,3 +1,5 @@
+import { useEventCallback } from "../lib/useEventCallback";
+import { observeAsync } from "../lib/observeAsync";
 import { AccountAccessEditor } from "../components/AccountAccessEditor";
 import { Link } from "react-router-dom";
 import { PasswordResetForm } from "../components/PasswordResetForm";
@@ -72,11 +74,7 @@ export function SettingsPage() {
   const [accessEditor, setAccessEditor] = useState<{ user: ManagedUser; demoting: boolean } | null>(null);
   const isAdmin = user?.role === "admin";
 
-  useEffect(() => {
-    void loadPreferences();
-  }, []);
-
-  async function loadPreferences() {
+const loadPreferences = useEventCallback(async function() {
     setLoading(true);
     setError(null);
     setNotice(null);
@@ -101,9 +99,12 @@ export function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  });
+  useEffect(() => {
+    observeAsync(loadPreferences());
+  }, [loadPreferences]);
 
-  async function loadManagedUsers() {
+async function loadManagedUsers() {
     setLoadingUsers(true);
     setUserManagementError(null);
     setUserManagementNotice(null);
@@ -216,7 +217,7 @@ export function SettingsPage() {
           <PageTitle route="/settings">设置</PageTitle>
           <p>维护当前用户的显示偏好。管理员可停用访问并维护用户角色。</p>
         </div>
-        <button className="secondary-button" type="button" onClick={loadPreferences} disabled={loading || saving || loadingUsers}>
+        <button className="secondary-button" type="button" onClick={() => observeAsync((loadPreferences)())} disabled={loading || saving || loadingUsers}>
           <RefreshCw size={17} aria-hidden="true" />
           <span>刷新</span>
         </button>
@@ -225,7 +226,7 @@ export function SettingsPage() {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
-      <form className="settings-form" onSubmit={handleSubmit}>
+      <form className="settings-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
         <div className="form-heading">
           <h2>用户偏好</h2>
           {user ? <span>{user.email}</span> : <span>正在加载偏好设置</span>}
@@ -290,7 +291,7 @@ export function SettingsPage() {
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => { void loadManagedUsers(); }}
+                onClick={() => { observeAsync(loadManagedUsers()); }}
                 disabled={loadingUsers || savingUserId !== null}
               >
                 <RefreshCw size={17} aria-hidden="true" />
@@ -302,7 +303,7 @@ export function SettingsPage() {
             {userManagementError ? <p className="form-error settings-inline-message">{userManagementError}</p> : null}
             {userManagementNotice ? <p className="form-success settings-inline-message">{userManagementNotice}</p> : null}
 
-            {accessEditor && <AccountAccessEditor key={`${accessEditor.user.id}:${accessEditor.demoting}`} user={accessEditor.user} demoting={accessEditor.demoting} onClose={() => setAccessEditor(null)} onSaved={() => void loadManagedUsers()} />}
+            {accessEditor && <AccountAccessEditor key={`${accessEditor.user.id}:${accessEditor.demoting}`} user={accessEditor.user} demoting={accessEditor.demoting} onClose={() => setAccessEditor(null)} onSaved={() => observeAsync(loadManagedUsers())} />}
             <div className="table-wrap">
               <table className="settings-user-table">
                 <thead>
@@ -345,7 +346,7 @@ export function SettingsPage() {
                               id={`role-${managedUser.id}`}
                               className="settings-role-select"
                               value={managedUser.role ?? "viewer"}
-                              onChange={(event) => void handleRoleChange(managedUser, event.target.value as UserRole)}
+                              onChange={(event) => observeAsync(handleRoleChange(managedUser, event.target.value as UserRole))}
                               disabled={isSelf || isSavingUser}
                             >
                               <option value="admin">管理员</option>
@@ -364,7 +365,7 @@ export function SettingsPage() {
                             <button
                               className={managedUser.isActive ? "danger-button" : "secondary-button"}
                               type="button"
-                              onClick={() => void handleAccessToggle(managedUser)}
+                              onClick={() => observeAsync(handleAccessToggle(managedUser))}
                               disabled={isSelf || isSavingUser}
                             >
                               {managedUser.isActive ? <Power size={16} aria-hidden="true" /> : <ShieldCheck size={16} aria-hidden="true" />}
@@ -379,7 +380,7 @@ export function SettingsPage() {
               </table>
             </div>
           </section>
-            <form className="settings-form trading-gate-form" onSubmit={handleTradingPasswordGateSubmit}>
+            <form className="settings-form trading-gate-form" onSubmit={(...args) => observeAsync((handleTradingPasswordGateSubmit)(...args))}>
               <div className="form-heading">
                 <h2>
                   <KeyRound size={18} aria-hidden="true" />

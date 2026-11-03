@@ -1,3 +1,4 @@
+import { observeAsync } from "./observeAsync";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type {
@@ -57,7 +58,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refreshPreferences();
+    observeAsync(refreshPreferences());
   }, [refreshPreferences]);
 
   const value = useMemo<PreferencesContextValue>(

@@ -1,3 +1,4 @@
+import { observeAsync } from "./observeAsync";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet } from "./apiClient";
 
@@ -34,8 +35,9 @@ export function useValuation<T>(path: string | null) {
   }, [path]);
   useEffect(() => {
     setData(null); setLoading(true);
-    void reload();
-    return () => { sequence.current++; };
+    observeAsync(reload());
+    const requests = sequence;
+    return () => { requests.current++; };
   }, [reload]);
   return { data, loading, refreshing, error, reload };
 }

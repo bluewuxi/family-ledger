@@ -13,6 +13,8 @@ runs:
     - shell: bash
       run: pnpm install --frozen-lockfile
     - shell: bash
+      run: pnpm lint
+    - shell: bash
       run: pnpm typecheck
     - shell: bash
       run: pnpm build

@@ -56,7 +56,9 @@ async function main():Promise<void> {
  const random=process.argv.includes('--random-password');
  let password=random ? randomTemporaryPassword() : await masked('Temporary password: ');let confirmation=random ? password : await masked('Confirm temporary password: ');
  if(password!==confirmation)throw new Error("Passwords do not match.");
- const verifier=await hashPassword(password); password=""; confirmation="";
+ const verifier=await hashPassword(password);
+ // eslint-disable-next-line no-useless-assignment -- Clear both temporary password bindings immediately after hashing.
+ password=""; confirmation="";
  if(operation==='provision'){
   const {error:userError}=await db.from('app_users').upsert({id:userId,email},{onConflict:'id'});if(userError)throw new Error("Unable to provision application identity.");
   const {error:profileError}=await db.from('profiles').upsert({id:userId,email},{onConflict:'id',ignoreDuplicates:true});if(profileError)throw new Error("Unable to initialize profile; access remains denied.");

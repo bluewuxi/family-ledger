@@ -69,6 +69,7 @@ async function main() {
     console.log("Education PostgreSQL migration, exact amounts, refund integrity, stale edits, RLS, legacy guards, separate report totals and backup restore passed.");
   } finally {
     if (started) execFileSync(exe("pg_ctl"), ["-D", data, "-m", "fast", "-w", "stop"], { windowsHide: true, stdio: "ignore" });
+// eslint-disable-next-line no-unsafe-finally -- Cleanup failure must remain fatal; preserve the existing restoration/deletion safety guard.
     const safe = resolve(temporary); if (!safe.startsWith(resolve(tmpdir()) + sep) || !safe.includes("education-pg-")) throw new Error("Unexpected temporary path.");
     rmSync(safe, { recursive: true, force: true });
   }

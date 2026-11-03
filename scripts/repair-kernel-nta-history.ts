@@ -63,6 +63,7 @@ async function main() {
     console.log("Kernel NTA history repair and snapshot recalculation completed.");
   } finally {
     const { error } = await db.from("instruments").update({ price_update_enabled: target.price_update_enabled }).eq("id", plan.instrumentId);
+// eslint-disable-next-line no-unsafe-finally -- Cleanup failure must remain fatal; preserve the existing restoration/deletion safety guard.
     if (error) throw new Error("Restore Kernel update state before leaving maintenance.");
   }
 }

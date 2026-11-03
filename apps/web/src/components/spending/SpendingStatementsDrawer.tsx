@@ -1,3 +1,4 @@
+import { observeAsync } from "../../lib/observeAsync";
 import { useEffect, useState } from "react";
 import {
   SPENDING_CLASSES,
@@ -209,7 +210,7 @@ export function SpendingStatementsDrawer({
             <button
               className="primary-button"
               disabled={!account || (!file && !key)}
-              onClick={() => void act(preview)}
+              onClick={() => observeAsync(act(preview))}
             >
               预览导入
             </button>
@@ -233,17 +234,17 @@ export function SpendingStatementsDrawer({
             </p>
             <div className="spending-actions">
               {admin && ["draft", "preview"].includes(batch.status) && (
-                <button className="secondary-button" onClick={() => void act(async () => {
+                <button className="secondary-button" onClick={() => observeAsync(act(async () => {
                   if (!window.confirm("取消这次导入？导入历史会保留。")) return;
                   select(await spendingClient.cancel(batch.id));
                   setKey(""); setFile(undefined); setChoices([]);
                   setMessage("导入已取消。"); refreshed();
-                })}>取消导入</button>
+                }))}>取消导入</button>
               )}
               {admin && batch.csv_file_key && (
                 <button
                   className="secondary-button"
-                  onClick={() => void act(() => openSource("csv"))}
+                  onClick={() => observeAsync(act(() => openSource("csv")))}
                 >
                   下载原 CSV
                 </button>
@@ -251,7 +252,7 @@ export function SpendingStatementsDrawer({
               {admin && batch.source_file_key && (
                 <button
                   className="secondary-button"
-                  onClick={() => void act(() => openSource("pdf"))}
+                  onClick={() => observeAsync(act(() => openSource("pdf")))}
                 >
                   查看 PDF
                 </button>
@@ -268,7 +269,7 @@ export function SpendingStatementsDrawer({
                 <button
                   className="secondary-button"
                   onClick={() =>
-                    void act(async () => {
+                    observeAsync(act(async () => {
                       const current = await spendingClient.statement(batch.id);
                       if (
                         !window.confirm(
@@ -282,7 +283,7 @@ export function SpendingStatementsDrawer({
                       );
                       select(await spendingClient.statement(batch.id));
                       refreshed();
-                    })
+                    }))
                   }
                 >
                   撤销导入
@@ -302,14 +303,14 @@ export function SpendingStatementsDrawer({
                 const pdf = e.target.files?.[0];
                 e.target.value = "";
                 if (pdf)
-                  void act(async () => {
+                  observeAsync(act(async () => {
                     const b =
                       batch ??
                       (await spendingClient.createBatch(account, true));
                     await spendingClient.uploadPdf(b.id, pdf);
                     select(await spendingClient.statement(b.id));
                     refreshed();
-                  });
+                  }));
               }}
             />
           </label>
@@ -318,13 +319,13 @@ export function SpendingStatementsDrawer({
           <button
             className="secondary-button"
             onClick={() =>
-              void act(async () => {
+              observeAsync(act(async () => {
                 if (!window.confirm("移除此 PDF 附件链接？源文件仍保留。"))
                   return;
                 await spendingClient.removePdf(batch.id);
                 select(await spendingClient.statement(batch.id));
                 refreshed();
-              })
+              }))
             }
           >
             移除 PDF 链接
@@ -460,7 +461,7 @@ export function SpendingStatementsDrawer({
                 !batch.preview_token
               }
               onClick={() =>
-                void act(async () => {
+                observeAsync(act(async () => {
                   const committed = await spendingClient.commit(
                       batch.id,
                       batch.preview_token!,
@@ -469,7 +470,7 @@ export function SpendingStatementsDrawer({
                   select(committed);
                   setMessage(`导入完成。${importCounts(committed)}`);
                   refreshed();
-                })
+                }))
               }
             >
               确认导入 {choices.filter((c) => !c.skip).length} 条
@@ -485,7 +486,7 @@ export function SpendingStatementsDrawer({
             disabled={busy}
             key={b.id}
             onClick={() =>
-              void act(async () => select(await spendingClient.statement(b.id)))
+              observeAsync(act(async () => select(await spendingClient.statement(b.id))))
             }
           >
             {b.account_name} ·{" "}

@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { Eye, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
@@ -103,7 +104,7 @@ export function InstrumentsPage() {
   const isDrawerReadOnly = drawerMode === "view";
 
   useEffect(() => {
-    void loadInstruments();
+    observeAsync(loadInstruments());
   }, []);
 
   async function loadInstruments(bypassCache = false) {
@@ -237,7 +238,7 @@ export function InstrumentsPage() {
               <span>新增标的</span>
             </button>
           ) : null}
-          <button className="secondary-button" type="button" onClick={() => void loadInstruments(true)} disabled={loading || saving}>
+          <button className="secondary-button" type="button" onClick={() => observeAsync(loadInstruments(true))} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
             <span>刷新</span>
           </button>
@@ -311,7 +312,7 @@ export function InstrumentsPage() {
                           className="icon-button danger-icon-button"
                           title="删除"
                           type="button"
-                          onClick={() => void handleDelete(instrument)}
+                          onClick={() => observeAsync(handleDelete(instrument))}
                           disabled={saving}
                         >
                           <Trash2 size={15} aria-hidden="true" />
@@ -355,7 +356,7 @@ export function InstrumentsPage() {
           )
         }
       >
-        <form className="instrument-form drawer-form" id="instrument-drawer-form" onSubmit={handleSubmit}>
+        <form className="instrument-form drawer-form" id="instrument-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
           <label>
             代码
             <input

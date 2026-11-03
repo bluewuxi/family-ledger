@@ -114,7 +114,7 @@ export function decodeBankCsv(
       : SPENDING_ENCODINGS) {
     try {
       const text = new TextDecoder(encoding, { fatal: true }).decode(bytes);
-      if (/[\u0000\ufffd]/u.test(text)) continue;
+      if ((text.includes(String.fromCharCode(0)) || text.includes("\ufffd"))) continue;
       const rows = table(text);
       if (
         headerIndex(rows, format) >= 0 &&

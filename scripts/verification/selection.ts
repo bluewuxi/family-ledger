@@ -12,13 +12,13 @@ export function selectChecks(input:SelectionInput):VerificationPlan {
   for(const raw of input.paths??[]) {
     const path=raw.replaceAll('\\','/');
     if(/\.md$/.test(path)||path.startsWith('docs/')) {for(const c of input.checks.filter(c=>c.id==='verify:docs')) add(c,`Documentation: ${path}`);continue;}
-    plan.baselineCommands=['corepack pnpm typecheck','corepack pnpm build'];
+    plan.baselineCommands=['corepack pnpm lint','corepack pnpm typecheck','corepack pnpm build'];
     let domains:string[]=[];
     if(path.startsWith('packages/shared/')) domains=['all'];
     else if(/auth|[Aa]ccess|[Ss]ession/.test(path)) domains=['auth'];
     else if(/transaction|[Tt]ransaction|holding|[Hh]olding|dividend|[Dd]ashboard|snapshot|[Vv]aluation|monthlySummary/.test(path)) domains=['transactions','valuation'];
     else if(/time|[Dd]ate/.test(path)) domains=['time'];
-    else if(path.startsWith('scripts/verification/')||/^(package.json|pnpm-lock.yaml|tsconfig.*\.json|\.github\/)/.test(path)) domains=['all'];
+    else if(path==='eslint.config.mjs'||path.startsWith('scripts/verification/')||/^(package.json|pnpm-lock.yaml|tsconfig.*\.json|\.github\/)/.test(path)) domains=['all'];
     else {
       const owners=input.checks.filter(c=>c.entryPoints.includes(path));
       if(owners.length){for(const c of owners)add(c,`Verification entry point: ${path}`);domains=[...new Set(owners.flatMap(c=>c.domains))];}

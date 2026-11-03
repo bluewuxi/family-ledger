@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { execFileSync, execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { execFileSync } from "node:child_process";
+
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { join, sep } from "node:path";
 import { createServer } from "node:net";
 
 async function main() {

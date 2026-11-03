@@ -16,6 +16,7 @@ export async function testDatabaseSql() {
       const safe = [password, process.env.SUPABASE_DB_HOST, process.env.SUPABASE_DB_USER].filter((v): v is string => Boolean(v))
         .reduce((message, value) => message.replaceAll(value, "[redacted]"), stderr);
       const detail = error && typeof error === "object" ? error as { code?: string; status?: number; signal?: string } : {};
+      // eslint-disable-next-line preserve-caught-error -- Raw subprocess causes can contain credentials; retain only the sanitized message.
       throw new Error(`Test database SQL failed (${detail.code ?? detail.status ?? detail.signal ?? "unknown"}): ${safe.slice(0, 1500)}`);
     }
   };

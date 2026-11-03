@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { useValuation } from "../lib/useValuation";
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +19,7 @@ import { ValuationStatus } from "../components/ValuationStatus";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
-import { ApiClientError, apiGet } from "../lib/apiClient";
+
 import {
   formatHoldingInstrument,
   formatHoldingLatestPrice,
@@ -29,7 +30,7 @@ import { formatDisplayAmount, formatDisplayPrice, formatSignedDisplayAmount } fr
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 import { isInteractiveRowTarget, isRowActivationKey } from "../lib/tableInteraction";
 
-interface HoldingsResponse extends HoldingsValuationSummary {}
+type HoldingsResponse = HoldingsValuationSummary;
 
 type AssetTypeFilter = "all" | AssetType;
 const holdingsCurrencyStorageKey = "family-ledger.holdings.reportingCurrency";
@@ -57,7 +58,7 @@ export function HoldingsPage() {
   async function loadHoldings(_currency: SnapshotDisplayCurrency) { await reload(); }
 
   function openHoldingDetail(holding: ValuedHoldingSummary) {
-    navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`);
+    observeAsync(navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`));
   }
 
   function handleHoldingRowClick(event: MouseEvent<HTMLTableRowElement>, holding: ValuedHoldingSummary) {
@@ -75,7 +76,7 @@ export function HoldingsPage() {
     openHoldingDetail(holding);
   }
 
-  const holdings = summary?.holdings ?? [];
+  const holdings = useMemo(() => summary?.holdings ?? [], [summary?.holdings]);
   const accounts = useMemo(
     () =>
       [...new Map(holdings.map((holding) => [holding.accountId, holding.accountName])).entries()].sort((left, right) =>
@@ -120,7 +121,7 @@ export function HoldingsPage() {
           <button
             className="secondary-button"
             type="button"
-            onClick={() => void loadHoldings(reportingCurrency)}
+            onClick={() => observeAsync(loadHoldings(reportingCurrency))}
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />
@@ -311,12 +312,4 @@ function readStoredDisplayCurrency(key: string): SnapshotDisplayCurrency | null 
 
 function writeStoredDisplayCurrency(key: string, value: SnapshotDisplayCurrency): void {
   window.localStorage.setItem(key, value);
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return "持仓请求失败，请稍后重试。";
 }

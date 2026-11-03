@@ -47,6 +47,7 @@ Read the relevant maintained sources before changing their area or performing th
 For code changes, run these before reporting implementation completion, plus affected focused verification:
 
 ```powershell
+corepack pnpm lint
 corepack pnpm typecheck
 corepack pnpm build
 ```

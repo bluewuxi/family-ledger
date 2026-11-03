@@ -1,9 +1,10 @@
+import { observeAsync } from "../lib/observeAsync";
 import { PageBackLink } from "../components/PageBackLink";
 import { AccountTrendChart } from "../components/AccountTrendChart";
 import { useValuation } from "../lib/useValuation";
-import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { Link, useNavigate, useParams, type NavigateFunction } from "react-router-dom";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useNavigate, useParams, type NavigateFunction } from "react-router-dom";
+
 import { Edit3, RefreshCw } from "lucide-react";
 import {
   ACCOUNT_TYPE_LABELS,
@@ -13,21 +14,18 @@ import {
   SNAPSHOT_DISPLAY_CURRENCIES,
   TRANSACTION_TYPE_LABELS,
   type AccountDetailSummary,
-  type DashboardWarning,
   type PortfolioTrendRange,
   type SnapshotDisplayCurrency,
-  type SnapshotWarning,
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingBlock } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
-import { ApiClientError, apiGet } from "../lib/apiClient";
+import { apiGet } from "../lib/apiClient";
 import {
   formatHoldingInstrument,
   formatHoldingLatestPrice,
   formatHoldingQuantity,
-  formatHoldingWarnings
 } from "../lib/holdingDisplay";
 import {
   formatDisplayAmount,
@@ -41,12 +39,6 @@ interface AccountDetailResponse {
   accountDetail: AccountDetailSummary;
 }
 
-interface AccountTrendChartRow {
-  date: string;
-  value: number | null;
-  snapshotDate: string | null;
-}
-
 const accountDetailCurrencyStorageKey = "family-ledger.account-detail.reportingCurrency";
 const trendRangeStorageKey = "family-ledger.account-detail.trendRange";
 const trendRangeLabels: Record<PortfolioTrendRange, string> = {
@@ -56,13 +48,6 @@ const trendRangeLabels: Record<PortfolioTrendRange, string> = {
   "3y": "3年",
   "5y": "5年",
   inception: "成立以来"
-};
-
-const chartTooltipContentStyle = {
-  border: "1px solid var(--color-border)",
-  borderRadius: 8,
-  background: "var(--color-surface)",
-  color: "var(--color-text)"
 };
 
 export function AccountDetailPage() {
@@ -106,18 +91,8 @@ export function AccountDetailPage() {
 
   const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
   const pageLoading = loading || !controlsInitialized;
-  const chartRows = useMemo<AccountTrendChartRow[]>(
-    () =>
-      (detail?.trend.points ?? []).map((point) => ({
-        date: point.date,
-        value: point.marketValue === null ? null : Number(point.marketValue),
-        snapshotDate: point.snapshotDate
-      })),
-    [detail?.trend.points]
-  );
-  const chartHasValues = chartRows.some((row) => row.value !== null && Number.isFinite(row.value));
 
-  return (
+return (
     <section>
       <header className="page-header account-header holding-detail-header account-detail-header">
         <div>
@@ -145,13 +120,13 @@ export function AccountDetailPage() {
           <button
             className="secondary-button"
             type="button"
-            onClick={() => void loadDetail(reportingCurrency, trendRange)}
+            onClick={() => observeAsync(loadDetail(reportingCurrency, trendRange))}
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />
             <span>刷新</span>
           </button>
-          <button className="secondary-button" type="button" onClick={() => navigate("/accounts")}>
+          <button className="secondary-button" type="button" onClick={() => observeAsync((() => navigate("/accounts"))())}>
             <Edit3 size={17} aria-hidden="true" />
             <span>返回编辑</span>
           </button>
@@ -372,7 +347,7 @@ function handleHoldingRowClick(
   navigate: NavigateFunction
 ) {
   if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
-    navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`);
+    observeAsync(navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`));
   }
 }
 
@@ -386,7 +361,7 @@ function handleHoldingRowKeyDown(
   }
 
   event.preventDefault();
-  navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`);
+  observeAsync(navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`));
 }
 
 function formatNullableAmount(value: string | null): string {
@@ -395,24 +370,6 @@ function formatNullableAmount(value: string | null): string {
 
 function formatNullableSignedAmount(value: string | null): string {
   return value === null ? "--" : formatSignedDisplayAmount(value);
-}
-
-function formatChartAmount(value: unknown, currency: SnapshotDisplayCurrency): string {
-  return typeof value === "number" && Number.isFinite(value)
-    ? `${currency} ${formatDisplayAmount(String(value))}`
-    : "--";
-}
-
-function formatCompactAmount(value: number): string {
-  if (Math.abs(value) >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-
-  if (Math.abs(value) >= 1_000) {
-    return `${(value / 1_000).toFixed(0)}K`;
-  }
-
-  return String(value);
 }
 
 function formatTransactionInstrument(transaction: AccountDetailSummary["recentTransactions"][number]["transaction"]): string {
@@ -435,29 +392,6 @@ function formatTransactionAmount(transaction: AccountDetailSummary["recentTransa
   }
 
   return "-";
-}
-
-function formatDashboardWarning(warning: DashboardWarning): string {
-  return `${warning.instrumentShortName}：${formatWarningCode(warning.code)} (${warning.currency})`;
-}
-
-function formatSnapshotWarning(warning: SnapshotWarning): string {
-  return `${warning.instrumentShortName}：快照${formatWarningCode(warning.code)} (${warning.currency})`;
-}
-
-function formatWarningCode(code: string): string {
-  switch (code) {
-    case "MISSING_LATEST_PRICE":
-      return "缺少最新价格";
-    case "MISSING_PREVIOUS_PRICE":
-      return "缺少前一价格";
-    case "MISSING_FX_RATE":
-      return "缺少汇率";
-    case "COST_BASIS_UNAVAILABLE":
-      return "成本基础不可用";
-    default:
-      return code;
-  }
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
@@ -484,12 +418,4 @@ function readStoredTrendRange(): PortfolioTrendRange | null {
 
 function writeStoredTrendRange(value: PortfolioTrendRange): void {
   window.localStorage.setItem(trendRangeStorageKey, value);
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return "账户详情请求失败，请稍后重试。";
 }

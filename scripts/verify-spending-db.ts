@@ -6,7 +6,6 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
@@ -467,6 +466,7 @@ async function main() {
       !safe.startsWith(resolve(tmpdir()) + sep) ||
       !safe.includes("spending-pg-")
     )
+// eslint-disable-next-line no-unsafe-finally -- Cleanup failure must remain fatal; preserve the existing restoration/deletion safety guard.
       throw new Error("Unexpected temporary path.");
     rmSync(safe, { recursive: true, force: true });
   }

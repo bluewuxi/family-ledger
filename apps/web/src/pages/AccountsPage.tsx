@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
@@ -22,7 +23,6 @@ import {
   type InvestmentAccount,
   type InvestmentTransaction,
   type MarketRegion,
-  type PortfolioSnapshotSummary,
   type SnapshotDisplayCurrency,
   type HoldingsValuationSummary,
   type ValuedHoldingSummary
@@ -49,16 +49,7 @@ interface InstrumentsResponse {
   instruments: Instrument[];
 }
 
-interface TransactionsResponse {
-  transactions: InvestmentTransaction[];
-}
-
-interface PortfolioSnapshotsResponse {
-  snapshots: PortfolioSnapshotSummary[];
-}
-
-
-interface HoldingsResponse extends HoldingsValuationSummary {}
+type HoldingsResponse = HoldingsValuationSummary;
 
 interface AccountResponse {
   account: InvestmentAccount;
@@ -166,7 +157,7 @@ export function AccountsPage() {
   const holdingsByAccount = useMemo(() => groupHoldingsByAccount(accountHoldings), [accountHoldings]);
 
   const totalsSequence = useRef(0);
-  useEffect(() => { void loadAccounts(); }, []);
+  useEffect(() => { observeAsync(loadAccounts()); }, []);
   useEffect(() => {
     if (preferencesLoading || !accounts.length) return;
     const id = ++totalsSequence.current;
@@ -174,7 +165,8 @@ export function AccountsPage() {
     void loadAccountTotals(accounts, fallbackSnapshotCurrency).then(totals => { if (id === totalsSequence.current) setAccountTotals(totals); })
       .catch(failure => { if (id === totalsSequence.current) setAuxError(toErrorMessage(failure)); })
       .finally(() => { if (id === totalsSequence.current) setTotalsLoading(false); });
-    return () => { totalsSequence.current++; };
+    const requests = totalsSequence;
+    return () => { requests.current++; };
   }, [accounts, preferencesLoading, fallbackSnapshotCurrency]);
 
   async function loadAccounts() {
@@ -195,7 +187,7 @@ export function AccountsPage() {
     catch (failure) { setAuxError(toErrorMessage(failure)); }
   }
 
-  useEffect(() => { if (includeOpeningAssets && drawerOpen) void loadOpeningInstruments(); }, [includeOpeningAssets, drawerOpen]);
+  useEffect(() => { if (includeOpeningAssets && drawerOpen) observeAsync(loadOpeningInstruments()); }, [includeOpeningAssets, drawerOpen]);
   useEffect(() => () => { accountSequence.current++; holdingsSequence.current++; totalsSequence.current++; }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -320,7 +312,7 @@ export function AccountsPage() {
 
   function handleAccountRowClick(event: MouseEvent<HTMLTableRowElement>, account: InvestmentAccount) {
     if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
-      navigate(`/accounts/${account.id}`);
+      observeAsync(navigate(`/accounts/${account.id}`));
     }
   }
 
@@ -330,7 +322,7 @@ export function AccountsPage() {
     }
 
     event.preventDefault();
-    navigate(`/accounts/${account.id}`);
+    observeAsync(navigate(`/accounts/${account.id}`));
   }
 
   function toggleAccountHoldings(accountId: string) {
@@ -346,7 +338,7 @@ export function AccountsPage() {
   }
 
   function openHoldingDetail(holding: ValuedHoldingSummary) {
-    navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`);
+    observeAsync(navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`));
   }
 
   function closeDrawer() {
@@ -421,14 +413,14 @@ export function AccountsPage() {
               <span>新账户</span>
             </button>
           ) : null}
-          <button className="secondary-button" type="button" onClick={loadAccounts} disabled={loading || saving}>
+          <button className="secondary-button" type="button" onClick={() => observeAsync((loadAccounts)())} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
             <span>刷新</span>
           </button>
         </div>
       </header>
 
-      {auxError ? <p className="form-error">辅助数据加载失败：{auxError} <button type="button" className="text-button" onClick={() => void loadAccounts()}>重试</button></p> : null}
+      {auxError ? <p className="form-error">辅助数据加载失败：{auxError} <button type="button" className="text-button" onClick={() => observeAsync(loadAccounts())}>重试</button></p> : null}
       {error ? <p className="form-error">{error}</p> : null}
 
       {!isAdmin && !loading && user ? (
@@ -524,7 +516,7 @@ export function AccountsPage() {
                               className="icon-button danger-icon-button"
                               title="删除"
                               type="button"
-                              onClick={() => void handleDelete(account)}
+                              onClick={() => observeAsync(handleDelete(account))}
                               disabled={saving}
                             >
                               <Trash2 size={17} aria-hidden="true" />
@@ -579,7 +571,7 @@ export function AccountsPage() {
           )
         }
       >
-        <form className="account-form drawer-form" id="account-drawer-form" onSubmit={handleSubmit}>
+        <form className="account-form drawer-form" id="account-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
           <label>
             账户名称
             <input
@@ -708,7 +700,7 @@ export function AccountsPage() {
                 <button
                   className="primary-button"
                   type="button"
-                  onClick={() => void handleRevealPassword()}
+                  onClick={() => observeAsync(handleRevealPassword())}
                   disabled={revealedTradingPassword !== null || passwordLoading || saving || !extraPassword.trim()}
                 >
                   <KeyRound size={17} aria-hidden="true" />
@@ -987,10 +979,6 @@ function toSnapshotDisplayCurrency(currency: string): SnapshotDisplayCurrency {
   return SNAPSHOT_DISPLAY_CURRENCIES.includes(currency as SnapshotDisplayCurrency)
     ? (currency as SnapshotDisplayCurrency)
     : "CNY";
-}
-
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
 }
 
 function toErrorMessage(error: unknown): string {

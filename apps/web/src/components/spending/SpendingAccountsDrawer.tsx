@@ -1,3 +1,4 @@
+import { observeAsync } from "../../lib/observeAsync";
 import { useState } from "react";
 import {
   SPENDING_CURRENCIES,
@@ -171,7 +172,7 @@ export function SpendingAccountsDrawer({
               启用账户
             </label>
             <div className="spending-actions">
-              <button className="primary-button" onClick={() => void save()}>
+              <button className="primary-button" onClick={() => observeAsync(save())}>
                 保存
               </button>
               {id && (
@@ -181,7 +182,7 @@ export function SpendingAccountsDrawer({
                   </button>
                   <button
                     className="secondary-button"
-                    onClick={() => void remove()}
+                    onClick={() => observeAsync(remove())}
                   >
                     删除
                   </button>

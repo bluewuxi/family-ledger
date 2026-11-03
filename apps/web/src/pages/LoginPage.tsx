@@ -1,3 +1,4 @@
+import { observeAsync } from "../lib/observeAsync";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../lib/authClient";
@@ -17,7 +18,7 @@ export function LoginPage() {
 
     try {
       const session = await login(email, password);
-      navigate(session.mustChangePassword ? "/change-password" : "/dashboard", { replace: true });
+      observeAsync(navigate(session.mustChangePassword ? "/change-password" : "/dashboard", { replace: true }));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "登录暂时不可用，请稍后重试。");
     } finally { setPassword(""); setLoading(false); }
@@ -45,7 +46,7 @@ export function LoginPage() {
         {params.has("passwordChanged") && <p role="status">密码已修改，请使用新密码登录。</p>}
         {params.has("logoutUnconfirmed") && <p className="form-error" role="alert">本机已退出，服务器会话撤销未确认。请联系管理员或稍后重试。</p>}
 
-        <form className="login-form" onSubmit={handleSubmit}>
+        <form className="login-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
           <label>
             邮箱
             <input

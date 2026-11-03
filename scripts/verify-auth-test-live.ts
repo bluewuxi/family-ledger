@@ -35,6 +35,7 @@ async function main(){
  } finally {
   for(const token of tokens)await auth.deleteSession(hashSessionToken(token));
   aws(['dynamodb','delete-item','--table-name',table,'--key',JSON.stringify({pk:{S:`USER#${id}`}})]);
+// eslint-disable-next-line no-unsafe-finally -- Cleanup failure must remain fatal; preserve the existing restoration/deletion safety guard.
   const {error}=await db.from('app_users').delete().eq('id',id);if(error)throw new Error('Synthetic SQL cleanup failed; inspect private checkpoint.');
  }
 }

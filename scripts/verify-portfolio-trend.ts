@@ -338,7 +338,7 @@ async function verifySnapshotScope(): Promise<void> {
   const dependencies: NonNullable<Parameters<typeof getPortfolioSnapshotsResponse>[1]> = {
     listPortfolioSnapshots: async input => {
       calls.push(input.purpose ?? "all");
-      let result = rows(input.purpose).filter(row => row.snapshotDate >= input.from && row.snapshotDate <= input.to);
+      const result = rows(input.purpose).filter(row => row.snapshotDate >= input.from && row.snapshotDate <= input.to);
       if(input.order === "desc") result.reverse();
       return input.limit === undefined ? result : result.slice(0,input.limit);
     },

@@ -282,35 +282,6 @@ const transactionSelect = [
   "updated_at"
 ].join(", ");
 
-const priceSelect = [
-  "id",
-  "instrument_id",
-  "price_date",
-  "close_price",
-  "currency",
-  "provider",
-  "source_symbol",
-  "is_adjusted",
-  "is_estimated",
-  "fetched_at",
-  "created_at",
-  "updated_at"
-].join(", ");
-
-const exchangeRateSelect = [
-  "id",
-  "rate_date",
-  "from_currency",
-  "to_currency",
-  "rate",
-  "rate_type",
-  "provider",
-  "provider_rate_date",
-  "fetched_at",
-  "created_at",
-  "updated_at"
-].join(", ");
-
 function mapAccountRow(row: AccountRow): InvestmentAccount {
   return {
     id: row.id,

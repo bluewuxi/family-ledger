@@ -1,5 +1,5 @@
 import { writeFileSync,mkdirSync } from "node:fs";
-import { aws, command, getStack, isStableStack, output, region, stackName, readParameters, acquireLock } from "./deployment-runtime";
+import { aws, command, getStack, isStableStack, region, stackName, readParameters, acquireLock } from "./deployment-runtime";
 import { parseTemplate, type JsonObject } from "./deployment-policy";
 if(process.env.GITHUB_ACTIONS) throw new Error("Operator-only.");
 const live=getStack();if(!isStableStack(live.StackStatus))throw new Error("Stable TEST stack required.");

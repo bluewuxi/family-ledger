@@ -1,3 +1,5 @@
+import { useEventCallback } from "../lib/useEventCallback";
+import { observeAsync } from "../lib/observeAsync";
 import { PageBackLink } from "../components/PageBackLink";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
@@ -46,22 +48,7 @@ export function HoldingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!preferencesLoading && !currencyManuallySelected) {
-      const storedCurrency = readStoredDisplayCurrency(holdingDetailCurrencyStorageKey);
-      setReportingCurrency(storedCurrency ?? toDisplayCurrency(preferences.preferredCurrency));
-      setCurrencyManuallySelected(storedCurrency !== null);
-      setCurrencyInitialized(true);
-    }
-  }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
-
-  useEffect(() => {
-    if (currencyInitialized) {
-      void loadDetail(reportingCurrency);
-    }
-  }, [currencyInitialized, reportingCurrency, accountId, instrumentId]);
-
-  async function loadDetail(currency: SnapshotDisplayCurrency) {
+const loadDetail = useEventCallback(async function(currency: SnapshotDisplayCurrency) {
     if (!accountId || !instrumentId) {
       setError("持仓地址缺少账户或标的信息。");
       setLoading(false);
@@ -81,9 +68,23 @@ export function HoldingDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  });
+  useEffect(() => {
+    if (!preferencesLoading && !currencyManuallySelected) {
+      const storedCurrency = readStoredDisplayCurrency(holdingDetailCurrencyStorageKey);
+      setReportingCurrency(storedCurrency ?? toDisplayCurrency(preferences.preferredCurrency));
+      setCurrencyManuallySelected(storedCurrency !== null);
+      setCurrencyInitialized(true);
+    }
+  }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
-  const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
+  useEffect(() => {
+    if (currencyInitialized) {
+      observeAsync(loadDetail(reportingCurrency));
+    }
+  }, [currencyInitialized, reportingCurrency, accountId, instrumentId, loadDetail]);
+
+const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
   const pageLoading = loading || !currencyInitialized;
   const linkedCashLegsByParentId = useMemo(() => groupLinkedCashLegs(detail?.linkedCashLegs ?? []), [detail?.linkedCashLegs]);
   const sortedDividendTransactions = detail?.dividendTransactions ?? [];
@@ -115,7 +116,7 @@ export function HoldingDetailPage() {
           <button
             className="secondary-button"
             type="button"
-            onClick={() => void loadDetail(reportingCurrency)}
+            onClick={() => observeAsync(loadDetail(reportingCurrency))}
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />

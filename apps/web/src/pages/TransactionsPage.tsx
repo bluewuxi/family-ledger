@@ -1,3 +1,5 @@
+import { useEventCallback } from "../lib/useEventCallback";
+import { observeAsync } from "../lib/observeAsync";
 import { useSearchParams } from "react-router-dom";
 import { DatePresets } from "../components/cashflow/DatePresets";
 import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -37,7 +39,7 @@ interface InstrumentsResponse {
   instruments: Instrument[];
 }
 
-interface HoldingsResponse extends TransactionBalancesResponse {}
+type HoldingsResponse = TransactionBalancesResponse;
 
 interface TransactionResponse {
   transaction: InvestmentTransaction;
@@ -92,7 +94,50 @@ export function TransactionsPage() {
   const referenceData = useRef<{ accounts: InvestmentAccount[]; instruments: Instrument[] } | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
   const [balanceError, setBalanceError] = useState<string | null>(null);
-  useEffect(() => { void loadBalances(); return () => { balanceSequence.current++; requestSequence.current++; }; }, []);
+const fetchPageData = useEventCallback(async function(nextFilters: TransactionFilters, nextOffset: number, nextLimit: number, nextSortBy: TransactionSortBy, nextDirection: TransactionSortDirection) {
+    const requestId = ++requestSequence.current;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const transactionRequest = apiGet<TransactionsResponse>(
+        `/transactions?${toQuery({ ...nextFilters, limit: nextLimit, offset: nextOffset,
+          sortBy: nextSortBy, sortDirection: nextDirection,
+          excludeGeneratedCashLegs: "true", includeLinkedCashLegs: "true" })}`
+      );
+      const [transactionData, references] = await Promise.all([
+        transactionRequest,
+        referenceData.current ? Promise.resolve(referenceData.current) : Promise.all([
+          apiGet<AccountsResponse>("/accounts"), apiGet<InstrumentsResponse>("/instruments")
+        ]).then(([accountData, instrumentData]) => ({ accounts: accountData.accounts, instruments: instrumentData.instruments }))
+      ]);
+      if (requestId !== requestSequence.current) return;
+      if (nextOffset > 0 && transactionData.pagination.total <= nextOffset) {
+        const lastOffset = Math.max(0, Math.ceil(transactionData.pagination.total / nextLimit) - 1) * nextLimit;
+        await loadPageData(nextFilters, lastOffset, nextLimit, nextSortBy, nextDirection);
+        return;
+      }
+      setAppliedFilters(nextFilters);
+      setOffset(nextOffset);
+      setPageSize(nextLimit);
+      setSortBy(nextSortBy);
+      setSortDirection(nextDirection);
+      setTotal(transactionData.pagination.total);
+      setUser(transactionData.user);
+      setTransactions(transactionData.transactions);
+      setCashLegs(transactionData.linkedCashLegs ?? []);
+
+      referenceData.current = references;
+      setAccounts(references.accounts);
+      setInstruments(references.instruments);
+      setExpandedTransactionIds(new Set());
+    } catch (requestError) {
+      if (requestId === requestSequence.current) setError(toErrorMessage(requestError));
+    } finally {
+      if (requestId === requestSequence.current) setLoading(false);
+    }
+  });
+  useEffect(() => { observeAsync(loadBalances()); const balances = balanceSequence; const requests = requestSequence; return () => { balances.current++; requests.current++; }; }, []);
   async function loadBalances() {
     const id = ++balanceSequence.current;
     setBalanceLoading(true); setBalanceError(null); setHoldingsSummary(null);
@@ -205,8 +250,8 @@ export function TransactionsPage() {
     const start = Number(p.get("offset") ?? 0);
     const order = ["tradeDate", "settlementDate", "instrument", "transactionType"].includes(p.get("sortBy") ?? "") ? p.get("sortBy") as TransactionSortBy : "tradeDate";
     setFilters(restored);
-    void fetchPageData(restored, Number.isSafeInteger(start) && start >= 0 ? start : 0, limit, order, p.get("sortDirection") === "asc" ? "asc" : "desc");
-  }, [search]);
+    observeAsync(fetchPageData(restored, Number.isSafeInteger(start) && start >= 0 ? start : 0, limit, order, p.get("sortDirection") === "asc" ? "asc" : "desc"));
+  }, [search, fetchPageData]);
 
   useEffect(() => {
     if (!isBankCashAccount) {
@@ -238,49 +283,7 @@ export function TransactionsPage() {
     if (next === search) await fetchPageData(nextFilters, nextOffset, nextLimit, nextSortBy, nextDirection);
     else setSearchParams(next);
   }
-  async function fetchPageData(nextFilters: TransactionFilters, nextOffset: number, nextLimit: number, nextSortBy: TransactionSortBy, nextDirection: TransactionSortDirection) {
-    const requestId = ++requestSequence.current;
-    setLoading(true);
-    setError(null);
 
-    try {
-      const transactionRequest = apiGet<TransactionsResponse>(
-        `/transactions?${toQuery({ ...nextFilters, limit: nextLimit, offset: nextOffset,
-          sortBy: nextSortBy, sortDirection: nextDirection,
-          excludeGeneratedCashLegs: "true", includeLinkedCashLegs: "true" })}`
-      );
-      const [transactionData, references] = await Promise.all([
-        transactionRequest,
-        referenceData.current ? Promise.resolve(referenceData.current) : Promise.all([
-          apiGet<AccountsResponse>("/accounts"), apiGet<InstrumentsResponse>("/instruments")
-        ]).then(([accountData, instrumentData]) => ({ accounts: accountData.accounts, instruments: instrumentData.instruments }))
-      ]);
-      if (requestId !== requestSequence.current) return;
-      if (nextOffset > 0 && transactionData.pagination.total <= nextOffset) {
-        const lastOffset = Math.max(0, Math.ceil(transactionData.pagination.total / nextLimit) - 1) * nextLimit;
-        await loadPageData(nextFilters, lastOffset, nextLimit, nextSortBy, nextDirection);
-        return;
-      }
-      setAppliedFilters(nextFilters);
-      setOffset(nextOffset);
-      setPageSize(nextLimit);
-      setSortBy(nextSortBy);
-      setSortDirection(nextDirection);
-      setTotal(transactionData.pagination.total);
-      setUser(transactionData.user);
-      setTransactions(transactionData.transactions);
-      setCashLegs(transactionData.linkedCashLegs ?? []);
-
-      referenceData.current = references;
-      setAccounts(references.accounts);
-      setInstruments(references.instruments);
-      setExpandedTransactionIds(new Set());
-    } catch (requestError) {
-      if (requestId === requestSequence.current) setError(toErrorMessage(requestError));
-    } finally {
-      if (requestId === requestSequence.current) setLoading(false);
-    }
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -339,7 +342,7 @@ export function TransactionsPage() {
 
       void data;
       createIntent.current = null;
-      void loadBalances();
+      observeAsync(loadBalances());
       await loadPageData();
       closeDrawer();
     } catch (requestError) {
@@ -366,7 +369,7 @@ export function TransactionsPage() {
 
     try {
       await apiDelete<DeleteTransactionResponse>(`/transactions/${transaction.id}`);
-      void loadBalances();
+      observeAsync(loadBalances());
       await loadPageData();
 
       if (editingTransactionId === transaction.id) {
@@ -445,19 +448,19 @@ export function TransactionsPage() {
 
   function submitFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void loadPageData(filters, 0);
+    observeAsync(loadPageData(filters, 0));
   }
 
   function clearFilters() {
     setFilters(emptyFilters);
-    void loadPageData(emptyFilters, 0);
+    observeAsync(loadPageData(emptyFilters, 0));
   }
 
   function sortHeader(key: TransactionSortBy, label: string) {
     const active = sortBy === key;
     return <th aria-sort={active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}>
       <button type="button" className="transaction-sort-header" disabled={loading || saving}
-        onClick={() => void loadPageData(appliedFilters, 0, pageSize, key, active && sortDirection === "asc" ? "desc" : "asc")}>
+        onClick={() => observeAsync(loadPageData(appliedFilters, 0, pageSize, key, active && sortDirection === "asc" ? "desc" : "asc"))}>
         {label}<span className={active && sortDirection === "asc" ? "active-sort-arrow" : ""}>↑</span>
         <span className={active && sortDirection === "desc" ? "active-sort-arrow" : ""}>↓</span>
       </button>
@@ -519,7 +522,7 @@ export function TransactionsPage() {
               </div> : null}
             </div>
           ) : null}
-          <button className="secondary-button" type="button" onClick={() => void loadPageData()} disabled={loading || saving}>
+          <button className="secondary-button" type="button" onClick={() => observeAsync(loadPageData())} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
             <span>刷新</span>
           </button>
@@ -658,13 +661,13 @@ export function TransactionsPage() {
       <div className="transaction-pagination">
         <span>共 {total} 条 · 第 {Math.floor(offset / pageSize) + 1} / {Math.max(1, Math.ceil(total / pageSize))} 页</span>
         <label>每页 <select value={pageSize} disabled={loading || saving}
-          onChange={(event) => void loadPageData(appliedFilters, 0, Number(event.target.value))}>
+          onChange={(event) => observeAsync(loadPageData(appliedFilters, 0, Number(event.target.value)))}>
           {[20, 50, 100].map((size) => <option key={size} value={size}>{size} 条</option>)}
         </select></label>
         <button type="button" className="secondary-button" disabled={loading || saving || offset === 0}
-          onClick={() => void loadPageData(appliedFilters, Math.max(0, offset - pageSize))}>上一页</button>
+          onClick={() => observeAsync(loadPageData(appliedFilters, Math.max(0, offset - pageSize)))}>上一页</button>
         <button type="button" className="secondary-button" disabled={loading || saving || offset + pageSize >= total}
-          onClick={() => void loadPageData(appliedFilters, offset + pageSize)}>下一页</button>
+          onClick={() => observeAsync(loadPageData(appliedFilters, offset + pageSize))}>下一页</button>
       </div>
 
       <Drawer
@@ -674,7 +677,7 @@ export function TransactionsPage() {
         onClose={closeDrawer}
         footer={
           <>
-          {balanceError ? <p className="form-error">余额加载失败：{balanceError} <button type="button" className="text-button" onClick={() => void loadBalances()}>重试</button></p> : null}
+          {balanceError ? <p className="form-error">余额加载失败：{balanceError} <button type="button" className="text-button" onClick={() => observeAsync(loadBalances())}>重试</button></p> : null}
       {error ? <p className="form-error transaction-save-error" role="alert">{error}</p> : null}
           {drawerMode === "view" ? (
             <button className="secondary-button" type="button" onClick={closeDrawer}>
@@ -701,7 +704,7 @@ export function TransactionsPage() {
           </>
         }
       >
-        <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={handleSubmit}>
+        <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
           {isTrade && <p className="spending-hint">买入和卖出的成交总额按数量和价格计算。</p>}
           {editingTransactionId && drawerMode === "modify" ? (
             <p className="form-warning transaction-edit-warning">
@@ -1181,7 +1184,7 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
               className="icon-button danger-icon-button"
               title="删除"
               type="button"
-              onClick={() => void onDelete(transaction)}
+              onClick={() => observeAsync(onDelete(transaction))}
               disabled={saving}
             >
               <Trash2 size={16} aria-hidden="true" />

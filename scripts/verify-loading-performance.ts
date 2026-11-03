@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import { verifyUiAsyncBoundaries } from "./verification/ui-async-fixtures";
 import { createResilientFetch } from "../apps/api/src/db/resilientFetch";
 import { cachedRead, clearReadCache, setReadCacheIdentity } from "../apps/web/src/lib/readCache";
 import { parseQuoteMode } from "../apps/api/src/services/quoteMode";
 import { readHistoryCache, invalidateHistoryCache } from "../apps/api/src/services/historyCache";
 
 async function main() {
+  await verifyUiAsyncBoundaries();
   let calls = 0;
   const future = () => new Response(JSON.stringify({ code: "PGRST303", message: "JWT issued at future" }), { status: 401 });
   const retry = createResilientFetch(async () => ++calls < 3 ? future() : new Response("{}"));

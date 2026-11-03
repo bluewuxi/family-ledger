@@ -17,7 +17,49 @@ const output: Array<{ level: string; entry: Record<string, unknown> }> = [];
 const original = { error: console.error, warn: console.warn, info: console.info, fetch: globalThis.fetch, ssm: SSMClient.prototype.send, cloudWatch: cloudWatchErrorTransport.send };
 const event = (method: string, path: string): APIGatewayProxyEventV2 => ({ version: "2.0", routeKey: "$default", rawPath: path, rawQueryString: "", headers: {}, isBase64Encoded: false,
   requestContext: { accountId: "fixture", apiId: "fixture", domainName: "localhost", domainPrefix: "fixture", http: { method, path, protocol: "HTTP/1.1", sourceIp: "127.0.0.1", userAgent: "fixture" }, requestId: "fixture-request", routeKey: "$default", stage: "$default", time: "", timeEpoch: Date.now() } });
+function diagnosesOrPropagates(block: ts.Block): boolean {
+  let exitsWithoutThrow = false;
+  function diagnoses(statement: ts.Statement): boolean {
+    if (ts.isBlock(statement)) return diagnosesOrPropagates(statement);
+    if (ts.isIfStatement(statement)) return !!statement.elseStatement && diagnoses(statement.thenStatement) && diagnoses(statement.elseStatement);
+    return ts.isExpressionStatement(statement) && ts.isCallExpression(statement.expression)
+      && ts.isIdentifier(statement.expression.expression)
+      && /^log(?:CaughtError|Error|DependencyError|AuthenticationError)$/.test(statement.expression.expression.text);
+  }
+  function visit(node: ts.Node) {
+    if (ts.isFunctionLike(node)) return;
+    if (ts.isReturnStatement(node) || ts.isBreakStatement(node)) exitsWithoutThrow = true;
+    ts.forEachChild(node, visit);
+  }
+  for (const statement of block.statements) {
+    // Only an unconditional direct diagnostic reached before any silent exit proves this catch was handled.
+    if (!exitsWithoutThrow && diagnoses(statement)) return true;
+    visit(statement);
+  }
+  // The route boundary records propagated errors, including retry exhaustion and sanitized validation failures.
+  return !exitsWithoutThrow && !!block.statements.length && ts.isThrowStatement(block.statements[block.statements.length - 1]);
+}
 async function main() {
+  for (const [body, expected] of [
+    ['logCaughtError("fixture", error);', true],
+    ['if (expected) logCaughtError("fixture", error); else logError("fixture", error); return null;', true],
+    ['if (expected) logCaughtError("fixture", error); else return null;', false],
+    ['throw error;', true],
+    ['if (retry) continue; throw error;', true],
+    ['throw new ApiRequestError("VALIDATION_ERROR", "Invalid", 400);', true],
+    ['/* logCaughtError("fixture", error); */', false],
+    ['if (retry) throw error;', false],
+    ['if (ignore) return null; throw error;', false],
+    ['if (ignore) break; throw error;', false],
+    ['return null;', false],
+    ['if (ignore) return null; logCaughtError("fixture", error);', false],
+    ['if (false) logCaughtError("fixture", error);', false],
+    ['try { work(); } catch (cleanupError) { logCaughtError("cleanup", cleanupError); }', false]
+  ] as const) {
+    const tree = ts.createSourceFile("fixture.ts", `try {} catch (error) { ${body} }`, ts.ScriptTarget.Latest, true);
+    const statement = tree.statements[0] as ts.TryStatement;
+    assert.equal(diagnosesOrPropagates(statement.catchClause!.block), expected, body);
+  }
   for (const level of ["error", "warn", "info"] as const) console[level] = (...args: unknown[]) => { output.push({ level: level.toUpperCase(), entry: JSON.parse(String(args[0])) as Record<string, unknown> }); };
   const raw = { code: "08006", message: "fetch failed", details: "connection reset", hint: "retry later", cause: new Error("socket hang up"), status: 503 };
   await Promise.all(["one", "two"].map(requestId => withRequestLogging({ requestId, method: "GET", path: "/portfolio-snapshots" }, async () => {
@@ -84,11 +126,20 @@ async function main() {
   AuthStateRepository.prototype.getCredential=async()=>({credentialVersion:1,mustChangePassword:false,temporaryPasswordExpiresAt:null,verifier:{algorithm:"scrypt",version:1,N:131072,r:8,p:1,salt:"00".repeat(16),hash:"00".repeat(64)},updatedAt:"2026-01-01",lastSignInAt:null});
   SSMClient.prototype.send = (async () => ({ Parameter: { Value: "fixture-service-key" } })) as typeof SSMClient.prototype.send;
   let role: "viewer" | "admin" | "failure" = "viewer";
+  let scopeState: "available" | "missing" | "failure" = "available";
+  let scopeReads = 0;
   let observations: unknown[] = [];
   globalThis.fetch = async (input, options) => {
     const url = String(input instanceof Request ? input.url : input);
     if (url.includes("/app_users")) return new Response(JSON.stringify({ id: "00000000-0000-4000-8000-000000000001", email: "fixture@example.invalid" }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("user_roles")) return new Response(JSON.stringify(role === "failure" ? raw : { role }), { status: role === "failure" ? 503 : 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/rpc/read_account_scope")) {
+      scopeReads++;
+      assert.deepEqual(JSON.parse(String(options?.body)), { target: "00000000-0000-4000-8000-000000000001" });
+      if (scopeState === "missing") return new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+      if (scopeState === "failure") return new Response(JSON.stringify(raw), { status: 503, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ userId: "00000000-0000-4000-8000-000000000001", revision: 0, scope: { mode: "all" } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("api_error_groups")) return new Response("[]", { status: 200, headers: { "content-type": "application/json", "content-range": "0-0/0" } });
     if (url.includes("observe_api_errors")) {
       observations = (JSON.parse(String(options?.body)) as { events: unknown[] }).events;
@@ -106,7 +157,16 @@ async function main() {
   assert.deepEqual(JSON.parse(failed.body!), { success: false, error: { code: "DEPENDENCY_UNAVAILABLE", message: "认证服务暂时不可用，请稍后重试。" } });
   assert.ok(output.some(row => row.entry.operation === "userRoleRepository.getUserRole" && (row.entry.error as { code?: string }).code === "08006"));
   role = "admin";
-  assert.equal((await handler({ ...event("GET", "/data-maintenance/errors"), headers: { authorization: "Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } })).statusCode, 200);
+  assert.equal(scopeReads, 0, "Rejected requests must not query account scope");
+  const adminListEvent = { ...event("GET", "/data-maintenance/errors"), headers: { authorization: "Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } };
+  scopeState = "missing";
+  assert.equal((await handler(adminListEvent)).statusCode, 403);
+  scopeState = "failure";
+  assert.equal((await handler(adminListEvent)).statusCode, 503);
+  scopeState = "available";
+  const adminList = await handler(adminListEvent);
+  assert.equal(adminList.statusCode, 200);
+  assert.equal(adminList.headers?.["x-account-scope"], "00000000-0000-4000-8000-000000000001:0");
   process.env.API_ERROR_LOG_GROUP = "fixture-log-group";
   let cloudPage = 0;
   cloudWatchErrorTransport.send = async command => {
@@ -133,13 +193,34 @@ async function main() {
 
   // Check every catch and direct dependency-error branch has a diagnostic or explicitly passes it upward.
   function files(dir: string): string[] { return readdirSync(dir, { withFileTypes: true }).flatMap(item => item.isDirectory() ? files(join(dir, item.name)) : [join(dir, item.name)]); }
+  let optionalScopeHeaderCatches = 0;
+  let transactionReplayRecoveries = 0;
+  const optionalScopeHeader = '{ const policy = requestAccountPolicy(); if (policy) response.headers = { ...response.headers, "x-account-scope": `${policy.userId}:${policy.revision}` }; }';
   for (const file of files("apps/api/src").filter(file => file.endsWith(".ts") && !/errorLogging|apiErrorTrackingService|readAllRows/.test(file))) {
     const source = readFileSync(file, "utf8"), tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
     function visit(node: ts.Node) {
-      if (ts.isCatchClause(node)) assert.match(node.block.getText(tree), /log(?:CaughtError|Error|DependencyError|AuthenticationError)\(/, `Unlogged catch: ${file}`);
+      if (ts.isCatchClause(node)) {
+        // Only this exact best-effort response header probe may omit a diagnostic: rejection/public responses have no policy.
+        const optionalHeader = file.replaceAll("\\", "/") === "apps/api/src/routes/router.ts"
+          && node.block.getText(tree) === "{ /* Public and rejected requests have no account policy. */ }"
+          && ts.isTryStatement(node.parent) && node.parent.tryBlock.getText(tree).replace(/\s+/g, " ") === optionalScopeHeader;
+        if (optionalHeader) optionalScopeHeaderCatches++;
+        else {
+          // A confirmed concurrent replay is successful recovery, not a swallowed transaction failure.
+          const statements = node.block.statements;
+          const replayRecovery = file.replaceAll("\\", "/") === "apps/api/src/services/transactionService.ts"
+            && statements[0]?.getText(tree) === "const committed = await findTransactionCreateReplay(user.id, idempotency);"
+            && statements[1]?.getText(tree) === "if (committed) return committed;";
+          if (replayRecovery) transactionReplayRecoveries++;
+          const failurePath = replayRecovery ? ts.factory.updateBlock(node.block, statements.slice(2)) : node.block;
+          assert.ok(diagnosesOrPropagates(failurePath), `Unlogged catch: ${file}`);
+        }
+      }
       ts.forEachChild(node, visit);
     } visit(tree);
   }
+  assert.equal(optionalScopeHeaderCatches, 1, "The optional-header exception must remain exact and used");
+  assert.equal(transactionReplayRecoveries, 1, "The confirmed replay recovery must remain exact and used");
 }
 main().then(() => original.info("API errors: raw diagnostics, severity, redaction, request isolation, legacy parsing, cursor validation, real authorization and unchanged 500 responses passed."))
   .catch(error => { original.error(error); process.exitCode = 1; })

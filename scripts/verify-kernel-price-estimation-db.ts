@@ -245,6 +245,7 @@ async function main(): Promise<void> {
     const resolvedTemporary = resolve(temporary);
     const resolvedTempRoot = `${resolve(tmpdir())}${sep}`;
     if (!resolvedTemporary.startsWith(resolvedTempRoot)) {
+// eslint-disable-next-line no-unsafe-finally -- Cleanup failure must remain fatal; preserve the existing restoration/deletion safety guard.
       throw new Error("Refusing to remove a database fixture outside the temporary directory.");
     }
     rmSync(resolvedTemporary, { recursive: true, force: true });

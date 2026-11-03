@@ -1,4 +1,4 @@
-import type { UserRole, UpdateManagedUserInput } from "@family-ledger/shared";
+import type { UpdateManagedUserInput } from "@family-ledger/shared";
 import type { UserAccess } from "../repositories/managedUserRepository";
 
 export interface UserAccessDependencies<Result> {

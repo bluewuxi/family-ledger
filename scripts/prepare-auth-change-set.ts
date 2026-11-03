@@ -1,6 +1,6 @@
 import {buildLambdaArtifacts} from './deployment-build';
 import {aws,command,getStack,stackName,region,jsonFile,acquireLock} from './deployment-runtime';
-import {readFileSync,writeFileSync} from 'node:fs';
+import {writeFileSync} from 'node:fs';
 async function main(){
  const release=acquireLock(`operator:auth-stack:${Date.now()}`);
  try {

@@ -16,7 +16,7 @@ async function main() {
   return {status:200,ok:true,json:async()=>({success:true,data:{user:{id:'one',email:'one@example.com',role:'viewer'},expiresAt:new Date(Date.now()+3600000).toISOString(),mustChangePassword:true}})};
  };
  const result=await build({stdin:{contents:'export * from "./src/lib/authClient"; export {initializeRuntimeConfig} from "./src/lib/runtimeConfig";',resolveDir:resolve('apps/web')},bundle:true,write:false,platform:'browser',format:'cjs',define:{'import.meta.env':JSON.stringify({VITE_API_BASE_URL:"https://api.example.com",BASE_URL:"/"})}});
- const module={exports:{} as any}; new Function('module','exports','window','fetch',result.outputFiles[0].text)(module,module.exports,fakeWindow,fetcher);
+ const module={exports:{} as typeof import("./src/lib/authClient") & typeof import("./src/lib/runtimeConfig")}; new Function('module','exports','window','fetch',result.outputFiles[0].text)(module,module.exports,fakeWindow,fetcher);
  const auth=module.exports; await auth.initializeRuntimeConfig();
  localStorage.setItem('sb-old-auth-token','secret'); sessionStorage.setItem('sb-old-auth-token-user','secret');
  auth.clearLegacyAuthStorage(); assert.equal(localStorage.getItem('sb-old-auth-token'),null); assert.equal(sessionStorage.getItem('sb-old-auth-token-user'),null);
