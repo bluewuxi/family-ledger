@@ -2,6 +2,8 @@
 
 ## Release contract
 
+The shared validation action runs typecheck/build, verification-tooling fixtures, documentation fixtures/consistency, and the audited fixed core described in [local testing](local-testing.md#verification-entry-point). The core includes synthetic authentication/access, transaction integrity, snapshots and backup checks; it does not use cloud credentials or live databases. A stale effect audit or failed check blocks validation. Hosted Ubuntu execution is established only by an actual workflow run, separately from local results.
+
 CI runs on `main`, `test`, and pull requests. A successful `test` push calls the reusable **Deploy TEST** workflow when the repository variable `TEST_AUTO_DEPLOY_ENABLED` is `true`. Deterministic build/check jobs have no AWS credentials. A manual dispatch repeats those checks and accepts only `test`. GitHub requires a dispatchable workflow to exist on the default branch; until this workflow is promoted to `main`, use **Re-run all jobs** on the `test` CI run for controlled manual releases. Keep `main` as the default branch.
 
 The deployment job uses the branch-restricted `test` Environment and OIDC temporary credentials. GitHub concurrency prevents overlapping running releases; an SSM lock also excludes operator registration. New pushes never interrupt an active release. Queued releases check the branch head before mutation and exit if superseded. Runner loss or cancellation can leave a stale lock requiring operator recovery.

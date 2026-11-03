@@ -66,4 +66,6 @@ When documents disagree, reconcile the affected maintained sources against imple
 
 ## Rules review remediation
 
+The [Agent verification loop plan](plans/2026-11-03-agent-verification-loop.md) records the registry, local executor, fixed CI core and deterministic documentation checks. Current command semantics are maintained in [local testing](local-testing.md#verification-entry-point).
+
 The [2026-10-30 review and plan](plans/2026-10-30-rules-review-and-remediation.md) records documentation remediation and separately open implementation/evidence items. Auth owns access exceptions; API owns DTOs/compatibility; product specifications own formulas and visible behavior; data model owns persistence; time policy owns date conventions; local testing owns commands and login/viewports; the TEST contract owns release gates. Other documents summarize and link rather than copying complete contracts.

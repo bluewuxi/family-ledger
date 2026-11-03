@@ -18,9 +18,7 @@ runs:
       run: pnpm build
     - shell: bash
       run: |
-        pnpm verify:api-health
-        pnpm verify:holdings
-        pnpm verify:dashboard
-        pnpm verify:portfolio-trend
-        pnpm verify:time-policy
-        pnpm verify:deployment
+        pnpm verify:tooling
+        pnpm verify:docs-tests
+        pnpm verify:docs
+        pnpm verify:checks -- run --profile core

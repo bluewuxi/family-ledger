@@ -327,6 +327,18 @@ Historical acceptance scope is recorded in [local verification observations](rel
 
 ## Command effects
 
+### Verification entry point
+
+Use `corepack pnpm verify:checks -- list` to inspect the checked-in inventory, `corepack pnpm verify:checks -- plan --changed` for the working tree/index/untracked union, or `corepack pnpm verify:checks -- plan --base <ref>` to include committed changes since the merge-base. Planning reports reasons, unresolved paths, blocked checks, and required typecheck/build commands; it is not complete dependency analysis. Renames include both endpoints. Missing bases fail explicitly.
+
+Run the same fixed CI checks locally with `corepack pnpm verify:checks -- run --profile core`. A single reviewed check can be selected with `run --check <id>`; repeat that option for multiple IDs. `--json` returns versioned results with captured child output. The runner validates the whole selection before execution, stops after the first failure, and reports remaining checks as not run. Exit codes are 0 for complete success, 1 for executed failure/timeout/cancellation, and 2 for invalid input, stale review, unresolved coverage, or missing prerequisites.
+
+Only audited local-fixture checks can run through this entry point. Database, live, operator, and unreviewed entries remain discoverable but cannot execute, including through explicit selection. Registry metadata is not an OS security boundary: the runner filters inherited credentials/preload settings and uses fixed Node argument arrays, but does not isolate filesystem or network access. Review entry points, imported code, dynamic bundles and subprocesses before changing effects or manually updating review fingerprints. New dependencies in the reviewed source scopes and changed command definitions invalidate review. There is no approve-all or automatic refresh command.
+
+The fixed core preserves the original health, holdings, dashboard, trend, time-policy and deployment checks, and adds auth, account access/client isolation, transaction idempotency/timeline/cash legs, snapshots, backup fixtures and session reads. Fixtures do not establish real database, AWS, or authenticated browser acceptance. Other checks remain required when affected; use their owning procedures.
+
+`corepack pnpm verify:tooling` checks the new tooling types and regression fixtures. `corepack pnpm verify:docs-tests` checks document-checker fixtures, and `corepack pnpm verify:docs` validates offline maintained links/anchors, explicit root-script examples and new-plan metadata. Draft plans may name future commands. Semantic consistency and deployed state still require evidence review. The documentation policy lists maintained sources and grandfathered plans; new plan files need a status and maintained-contract link. Exact exceptions require a reason/removal condition and fail once unused.
+
 Classify by behavior, not command name. Local ports do not isolate the shared TEST database. Existing authorization persists within its scope.
 
 | Class | Examples and effects | Boundary |
@@ -354,4 +366,4 @@ During authenticated acceptance, follow Settings -> 修改登录密码 without r
 
 ### Instrument activity
 
-Run `corepack pnpm verify:instrument-active` for local fixtures covering activity defaults, invalid input, retained inactive transaction references, and automatic quote exclusion/re-enable behavior. `corepack pnpm verify:backup` covers explicit false preservation and version-10 activity default compatibility. These checks do not contact shared databases. Migration `20261101100000_instrument_active.sql` remains unapplied; prepare and inspect it before a separately authorized application.
+Run `corepack pnpm verify:instrument-active` for local fixtures covering activity defaults, invalid input, retained inactive transaction references, and automatic quote exclusion/re-enable behavior. `corepack pnpm verify:backup` covers explicit false preservation and version-10 activity default compatibility. These checks do not contact shared databases. Migration `20261101100000_instrument_active.sql` was applied to TEST under separate authorization; see the [dated application evidence](releases/2026-11-01-manual-testing-follow-up.md). Consult current release evidence for application deployment and migration-registration status.

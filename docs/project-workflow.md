@@ -44,6 +44,8 @@ The deployed web app uses runtime configuration. `scripts/deploy-aws.ts` writes 
 
 ## Validation
 
+Use the [verification entry point](local-testing.md#verification-entry-point) to discover reviewed checks and obtain conservative change-based recommendations. The fixed core is shared with CI; recommendations never replace required typecheck/build, affected verification, or source reading. Review command effects before changing classifications or audit fingerprints. Documentation automation checks deterministic references and metadata only; reconcile semantic conflicts through the owning contract and evidence.
+
 Run the completion checks required by AGENTS.md. Run focused verification scripts for affected areas; discover current commands in `package.json` and guidance in [local testing](local-testing.md). Existing examples include `verify:holdings`, `verify:dashboard`, `verify:market-data`, and `verify:portfolio-snapshots`. Report any blocker that prevents validation. Do not claim authenticated visual acceptance from a build or deployment check.
 
 ## Applying database migrations on Windows
