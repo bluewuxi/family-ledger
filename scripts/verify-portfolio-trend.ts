@@ -43,6 +43,19 @@ void main();
 
 async function main(): Promise<void> {
   await verifySnapshotScope();
+  const carriedTodayCurve = buildTrendChartData([
+    { date: "2026-11-03", portfolioValue: 110, totalInvestment: 100, snapshotDate: "2026-11-03" },
+    { date: "2026-11-04", portfolioValue: 110, totalInvestment: 100, snapshotDate: "2026-11-03" }
+  ], "120", "2026-11-04", "2026-11-04T04:00:00Z", { currentTotalInvestment: "105" });
+  assert.deepEqual(carriedTodayCurve.map(point => point.date), ["2026-11-03", "2026-11-04"]);
+  assert.equal(carriedTodayCurve.at(-1)?.liveValue, 120);
+  assert.equal(carriedTodayCurve.at(-1)?.snapshotValue, null);
+  assert.equal(carriedTodayCurve.at(-1)?.totalInvestment, 105);
+  assert.deepEqual(buildProfitChartData(carriedTodayCurve).map(point => point.profitValue), [0, 5]);
+  const carriedWithoutLive = buildTrendChartData([
+    { date: "2026-11-04", portfolioValue: 110, totalInvestment: 100, snapshotDate: "2026-11-03" }
+  ], null, null, "2026-11-04T04:00:00Z");
+  assert.equal(carriedWithoutLive[0]?.snapshotDate, "2026-11-03");
   const missingPrincipalProfit = buildProfitChartData(buildTrendChartData([
     { date: "2026-06-01", portfolioValue: 100, totalInvestment: 100, snapshotDate: "2026-06-01" },
     { date: "2026-06-02", portfolioValue: 200, totalInvestment: null, snapshotDate: "2026-06-02" }

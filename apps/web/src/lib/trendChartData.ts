@@ -78,16 +78,18 @@ export function buildTrendChartData(
 
   const principal = options.currentTotalInvestment === undefined ? (lastPoint.date === today ? lastPoint.totalInvestment : null)
     : options.currentTotalInvestment === null ? null : Number(options.currentTotalInvestment);
+  const replaceTodayPoint = lastPoint.date === today && (lastPoint.snapshotValue === null
+    || (lastPoint.snapshotDate != null && lastPoint.snapshotDate !== today));
   const endpoint: TrendChartPoint = {
-    date: lastPoint.date === today && lastPoint.snapshotValue !== null ? `__live_endpoint__${today}` : today,
+    date: lastPoint.date === today && !replaceTodayPoint ? `__live_endpoint__${today}` : today,
     value: liveValue,
     snapshotValue: null,
     liveValue,
     totalInvestment: principal,
     isSynthetic: true
   };
-  // Keep saved closes and real gaps; chart series connect this endpoint to its valid predecessor.
-  return [...(lastPoint.date === today && lastPoint.snapshotValue === null ? chartPoints.slice(0, -1) : chartPoints), endpoint];
+  // Replace today's carried placeholder, but retain saved closes and historical gaps.
+  return [...(replaceTodayPoint ? chartPoints.slice(0, -1) : chartPoints), endpoint];
 }
 
 export function buildProfitChartData(chartPoints: TrendChartPoint[]): ProfitChartPoint[] {
