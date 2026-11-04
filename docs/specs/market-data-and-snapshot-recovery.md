@@ -1,6 +1,6 @@
 # Market Data Acquisition and Snapshot Recovery
 
-Status: implemented; additive TEST migrations and authorized historical reclassification/repair verified. Application delivery and authenticated visual acceptance remain separately tracked in [TEST rollout evidence](../releases/2026-11-04-market-data-recovery-test.md). See the [implementation plan](../plans/2026-11-04-market-data-and-snapshot-recovery.md).
+Status: implemented; additive TEST migrations and authorized historical reclassification/repair verified. Automatic TEST delivery passed for 412eee0; authenticated visual acceptance remains pending, as tracked in [TEST rollout evidence](../releases/2026-11-04-market-data-recovery-test.md). See the [implementation plan](../plans/2026-11-04-market-data-and-snapshot-recovery.md).
 
 ## Acquisition
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` for a subsequently authorized implementation. Follow the repository workflow and applicable local instructions. This document does not authorize execution, delegation, commits, deployment, or live repair.
 
-**Status:** Implemented — local implementation, automated validation, and scoped review completed. New migrations, live repair, deployment, and authenticated visual acceptance remain pending.
+**Status:** Implemented and deployed to TEST — migrations, 39 authorized price writes, snapshot reclassification/repair, registration and automatic delivery verified. Authenticated visual acceptance and Kernel NTA estimation-anchor pairing remain pending.
 
 **Goal:** Reuse batched price acquisition across API/jobs, recover historical price gaps and failures, and serve clearly dated snapshot fallbacks without fabricating historical valuations.
 
@@ -200,10 +200,10 @@ Execute in order after approval. Each task includes focused failing fixtures, th
 - [x] Run `corepack pnpm lint`, `corepack pnpm typecheck`, and `corepack pnpm build`, plus the affected registered fixture/database checks above. Use the reviewed verification entry point to classify effects; never treat a live repair script as a harmless test.
 - [ ] Exercise one isolated end-to-end scenario: shared quote requests, partial provider failure, missing weekday price, Saturday cash change, carried query/month-end assets, late historical price, atomic snapshot repair, cache invalidation, and exact-date restoration.
 - [x] Review the whole scoped working/index/new-file diff against the execution baseline. Ensure tests cover the five review-focus risks and all confirmed requirements.
-- [ ] Before rollout, produce a read-only impact report: newly pending historical dates, existing snapshots incompatible with the stricter policy, unsupported historical sources, and changed monthly availability. Existing snapshots are not silently certified under the new policy or mass-deleted during deployment.
-- [ ] Obtain separately scoped authorization for migrations, snapshot reclassification/repair, any retry/schedule infrastructure change, and initial backfill. Register verified migrations/configuration through existing TEST gates; do not replay already deployed reliability migrations.
-- [ ] Only under push/delivery authorization, commit/push through configured TEST automation and verify the identified version. Never bypass blocked automation or run duplicate manual deployment.
-- [ ] Report implementation, TEST deployment, historical recovery, and real-login visual acceptance separately. Production remains operator-run.
+- [x] Before rollout, produce a read-only impact report: newly pending historical dates, existing snapshots incompatible with the stricter policy, unsupported historical sources, and changed monthly availability. Existing snapshots are not silently certified under the new policy or mass-deleted during deployment.
+- [x] Obtain separately scoped authorization for migrations, snapshot reclassification/repair, any retry/schedule infrastructure change, and initial backfill. Register verified migrations/configuration through existing TEST gates; do not replay already deployed reliability migrations.
+- [x] Only under push/delivery authorization, commit/push through configured TEST automation and verify the identified version. Never bypass blocked automation or run duplicate manual deployment.
+- [x] Report implementation, TEST deployment, historical recovery, and real-login visual acceptance separately. Production remains operator-run.
 
 ## Plan review and implementation record
 
@@ -252,3 +252,5 @@ Execute in order after approval. Each task includes focused failing fixtures, th
 - Both new migrations and 39 price rows are applied and verified. All 166 dates were re-evaluated: 152 available, 14 unavailable with retained audit evidence, 38 user-confirmed closure pairs. No existing price, transaction, account, instrument, FX or access row changed.
 - Direct Kernel observations are non-estimated Kernel Anchor prices. Corresponding NTA pairing is not yet available, so no estimator anchor roots were fabricated. Future anchor pairing remains a separate outstanding limitation.
 - Fresh core15, focused9 and acquisition DB passed, along with rollout lint/typecheck/build. See [TEST rollout evidence](../releases/2026-11-04-market-data-recovery-test.md). Application deployment/registration and five-viewport acceptance statuses are tracked separately there and in issue #129.
+
+- TEST code commit 412eee0bc3d276554f3f223ffad9f0223aa36535 passed [automatic delivery](https://github.com/bluewuxi/family-ledger/actions/runs/41797892978). Migration registration and persisted last-success matched that commit; online health/auth/config/HTML/assets passed. Real-login visual acceptance remains pending. The actual post-repair format-13 backup also passed file verification and restore dry-run; this is not a real restore.
