@@ -1363,7 +1363,10 @@ export interface MarketDataSourceSummary {
 }
 
 export interface KernelPriceAnchor {
-  proxyValueType?: "open" | "nta";
+  proxyValueType?: "open" | "nta" | "pending";
+  pairingStatus?: "pending" | "paired";
+  actualSource?: string | null;
+  actualPricePrecision?: number | null;
   proxyAnnouncementId?: number | null;
   proxyPublishedAt?: string | null;
   derivedFromAnchorId?: string | null;
@@ -1374,9 +1377,9 @@ export interface KernelPriceAnchor {
   proxySymbol: string;
   proxyCurrency: CurrencyCode;
   /** Compatibility value: raw open for legacy anchors, published NTA for nta anchors. */
-  proxyClose: string;
-  proxyPriceDate: string;
-  proxyFetchedAt: string;
+  proxyClose: string | null;
+  proxyPriceDate: string | null;
+  proxyFetchedAt: string | null;
   createdByUserId: string;
   createdAt: string;
 }
@@ -1384,6 +1387,8 @@ export interface KernelPriceAnchor {
 export interface CreateKernelPriceAnchorInput {
   anchorDate: string;
   kernelUnitPrice: string;
+  actualSource?: string;
+  actualPricePrecision?: number;
 }
 
 export interface DataMaintenanceBackupRun {

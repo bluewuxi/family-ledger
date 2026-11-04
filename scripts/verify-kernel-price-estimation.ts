@@ -3,16 +3,46 @@ import { parseNzxNtaAnnouncements, fetchNzxUsfNta, prepareKernelNtaPlan, getKern
 import { KernelEstimatedInstrumentPriceProvider } from "../apps/jobs/src/providers/KernelEstimatedInstrumentPriceProvider";
 import { getUnconfirmedMarketCloseReason } from "../apps/jobs/src/services/marketClosePolicy";
 import { applyKernelNtaPlan } from "../apps/jobs/src/services/kernelNtaRefreshService";
+import { createKernelPriceAnchor } from "../apps/api/src/services/marketDataSourceService";
+import type { AuthenticatedUser } from "@family-ledger/shared";
+import { prepareKernelAnchorAdoption } from "../packages/shared/src/kernelAnchorAdoption";
 const fetchedAt = "2026-10-07T01:00:00Z";
 const anchor: KernelPriceAnchor = { id: "root", instrumentId: "kernel", anchorDate: "2026-09-30", kernelUnitPrice: "6.67", proxySymbol: "USF.NZ", proxyCurrency: "NZD", proxyClose: "23.6", proxyPriceDate: "2026-10-01", proxyFetchedAt: fetchedAt, createdByUserId: "actor", createdAt: "2026-10-02T08:25:57Z" };
 const row = (date:string,price:string,id:number,published=1791230000) => ({ id,companyCode:"USF",securityCode:"USF",title:"USF NTA " + date + " $" + price,publicationDate:published });
 async function main() {
+ const adoptionInput={instruments:[{id:"configured-target",exchange:"KERNEL",currency:"NZD",price_source:"kernel_estimate",price_source_symbol:"USF.NZ",price_source_exchange:"NZX",symbol:"KN_SP500"}],
+   instrument_prices:[{id:"existing-price",instrument_id:"configured-target",price_date:"2026-11-03",close_price:"6.6100000000",provider:"Kernel Anchor",is_estimated:false}],kernel_price_anchors:[]};
+ const candidates=[{instrumentId:"configured-target",priceId:"existing-price",anchorDate:"2026-11-03",kernelUnitPrice:"6.61",actualSource:"Kernel chart",actualPricePrecision:2}];
+ assert.equal(prepareKernelAnchorAdoption(adoptionInput,candidates)[0].existingPriceId,"existing-price");
+ assert.throws(()=>prepareKernelAnchorAdoption({...adoptionInput,instrument_prices:[{...adoptionInput.instrument_prices[0],provider:"manual"}]},candidates),/protected/);
+ assert.throws(()=>prepareKernelAnchorAdoption({...adoptionInput,instrument_prices:[{...adoptionInput.instrument_prices[0],close_price:"6.612345"}]},candidates),/conflict/);
+ assert.throws(()=>prepareKernelAnchorAdoption({...adoptionInput,instrument_prices:[...adoptionInput.instrument_prices,
+   {...adoptionInput.instrument_prices[0],id:"manual-price",provider:"manual",close_price:"6.70"}]},candidates),/manual/);
  const rows = [row("01-10-2026","23.60990",1),row("02-10-2026","23.81728",2),row("05-10-2026","23.93025",3),row("06-10-2026","24.19392",4)];
  const records = parseNzxNtaAnnouncements(rows,fetchedAt);
  const plan = prepareKernelNtaPlan([anchor],records,fetchedAt);
  assert.deepEqual(plan.estimates.map(p=>[p.priceDate,p.closePrice]),[["2026-10-01","6.7285866353"],["2026-10-02","6.7605016328"],["2026-10-05","6.8349906776"]]);
  assert.equal(getKernelValuationDateForNzxSession("2026-10-05"),"2026-10-02");
- assert.throws(()=>prepareKernelNtaPlan([anchor],records.slice(1),fetchedAt),/No corresponding/);
+ assert.deepEqual(prepareKernelNtaPlan([anchor],records.slice(1),fetchedAt).estimates,[]);
+ const pending = {...anchor,id:"pending",anchorDate:"2026-10-02",kernelUnitPrice:"6.8",proxyValueType:"pending" as const,
+   proxyClose:null,proxyPriceDate:null,proxyFetchedAt:null,proxyAnnouncementId:null,proxyPublishedAt:null};
+ const blocked = prepareKernelNtaPlan([anchor,pending],records.filter(r=>r.ntaDate!=="2026-10-05"),fetchedAt);
+ assert.deepEqual(blocked.estimates.map(e=>e.priceDate),["2026-10-01"]);
+ assert.equal(blocked.anchors.find(a=>a.id==="pending")?.proxyClose,null);
+ const paired = prepareKernelNtaPlan([anchor,pending],records,fetchedAt);
+ assert.equal(paired.estimates.find(e=>e.priceDate==="2026-10-05")?.closePrice,"6.8749242486");
+ const saveDependencies = {
+   findInstrument: async()=>({id:"kernel",price_update_enabled:true}),
+   save: async (_id:string,input:import("@family-ledger/shared").CreateKernelPriceAnchorInput)=> {
+     assert.equal(input.actualPricePrecision,2);
+     assert.equal(input.actualSource,"User observed Kernel unit price");
+     return {anchor:pending,pending_snapshot_from:null,refresh_token:"saved"};
+   }, recalculate:async()=>{throw new Error("Unexpected repair");},complete:async()=>{}
+ };
+ assert.equal((await createKernelPriceAnchor({anchorDate:"2026-11-03",kernelUnitPrice:"6.61"},
+   {id:"actor"} as AuthenticatedUser,()=>new Date(fetchedAt),saveDependencies)).id,"pending");
+ await assert.rejects(createKernelPriceAnchor({anchorDate:"2026-11-03",kernelUnitPrice:"6.61",actualPricePrecision:1},
+   {id:"actor"} as AuthenticatedUser,()=>new Date(fetchedAt),saveDependencies),/precision/);
  const revised = {...row("06-10-2026","24.20000",5),title:"AMENDED: USF NTA 06-10-2026 $24.20000"};
  assert.equal(parseNzxNtaAnnouncements([...rows,revised],fetchedAt).at(-1)?.unitNta,"24.20000");
  assert.equal(parseNzxNtaAnnouncements([...rows,row("07-10-2026","25",6,Date.parse(fetchedAt)/1000+1)],fetchedAt).length,4);

@@ -2,6 +2,14 @@
 
 Kernel uses published USF per-unit NTA, mapped one NZX weekday ahead of the Kernel valuation date. The global schedules are unchanged. A late announcement is picked up by the next refresh; missing dates are not fabricated. Actual/manual prices are preserved, and conversion records do not supersede actual-anchor revision order.
 
+## Independent actual anchors
+
+The independent-anchor migration and adoption of the two existing actual prices are verified on TEST; compatible application delivery is pending. See [rollout evidence](../releases/2026-11-04-kernel-independent-anchors-test.md). Actual roots can be saved before NTA publication; pairing appends complete references. The latest applicable actual revision blocks its interval until paired, without old-root fallback. Existing actual prices remain non-estimated and usable for valuation. Root/target amendments retain publication ordering; stale refreshes fail for retry. No source credentials or global schedules change.
+
+The two existing prices were adopted once under explicit authorization; do not replay that operation. For a future authorized adoption, first obtain a new exact local export and explicit source/precision evidence. Prepare only with `corepack pnpm exec tsx scripts/prepare-kernel-actual-anchor-adoption.ts <export.json> <candidates.json> <ignored-output.json>`. The export contains arrays named instruments, instrument_prices and kernel_price_anchors. Each candidate contains instrumentId, priceId, anchorDate, kernelUnitPrice, actualSource and actualPricePrecision. This local-only tool refuses nonignored output/overwrite, uses configured identity rather than editable symbols, reuses existing price IDs and reports protected/conflicting inputs. It has no apply mode and does not authorize live reads or writes. Already-present roots are marked idempotently. Do not replay the prior 39-price manifest or applied migrations. A future reviewed application must revalidate identities/values under lock, retain a verified backup and use separately authorized compatible RPCs; preparation is not proof of application.
+
+See [approved design](../specs/2026-11-04-kernel-pending-anchors-design.md) and [local plan](../plans/2026-11-04-kernel-pending-anchors.md).
+
 ## Historical initial TEST cutover
 
 These original steps describe initial activation, not a repeatable release checklist. Do not replay schema changes against an already migrated environment.

@@ -62,7 +62,7 @@ async function main() {
     sql(`insert into kernel_price_anchors(id,instrument_id,anchor_date,kernel_unit_price,proxy_symbol,proxy_currency,proxy_close,proxy_price_date,proxy_fetched_at,created_by_user_id,proxy_value_type,proxy_announcement_id,proxy_published_at)
       select '${id(20)}',id,'2026-10-01',6.1234567890,'USF.NZ','NZD',23.1234567890,'2026-10-02','2026-10-02T00:00Z','${id(1)}','nta',101,'2026-10-02T00:00Z' from instruments where symbol='KERNEL_SP500_UNHEDGED';
       insert into kernel_price_anchors(id,instrument_id,anchor_date,kernel_unit_price,proxy_symbol,proxy_currency,proxy_close,proxy_price_date,proxy_fetched_at,created_by_user_id,proxy_value_type,proxy_announcement_id,proxy_published_at,derived_from_anchor_id)
-      select '${id(19)}',instrument_id,anchor_date,kernel_unit_price,proxy_symbol,proxy_currency,24,'2026-10-03',proxy_fetched_at,created_by_user_id,'nta',102,proxy_published_at,id from kernel_price_anchors where id='${id(20)}';`);
+      select '${id(19)}',instrument_id,anchor_date,kernel_unit_price,proxy_symbol,proxy_currency,24,'2026-10-02',proxy_fetched_at,created_by_user_id,'nta',102,proxy_published_at,id from kernel_price_anchors where id='${id(20)}';`);
     sql(`insert into account_statements(account_id,status,source_file_key,source_file_version,source_file_name,source_file_size,file_sha256) values('${id(9)}','document','statements/retained/fixture.pdf','synthetic-version','fixture.pdf',10,repeat('a',64));
       insert into dashboard_instrument_quotes(instrument_id,quote_date,quote_price,currency,provider,fetched_at) values('${id(4)}','2026-10-02',11.1234567890,'USD','fixture','2026-10-02T00:00Z');
       insert into monthly_reviews(month,family_notes,review_status) values('2026-10','Fixture notes','in_progress');
@@ -123,7 +123,13 @@ async function main() {
       select ensure_price_acquisition('yahoo_finance','${id(4)}','daily_history','2026-11-02');
       select lease_token from claim_price_acquisition('yahoo_finance','${id(4)}','daily_history','2026-11-02',120,false);
       insert into snapshot_pending_dates(snapshot_date,missing_instrument_ids,missing_fx_currencies) values('2026-11-02','["${id(4)}"]','[]');`);
+    const beforeActualRevision=sql('select get_ledger_write_revision()');
+    const pendingKernel=JSON.parse(sql(`select save_kernel_actual_anchor((select id from instruments where price_source='kernel_estimate'),'2026-10-30',6.61,'Kernel chart',2,'${id(1)}','2026-11-04T00:00Z')`));
+    assert.equal(pendingKernel.anchor.pairing_status,'pending');
+    assert.notEqual(sql('select get_ledger_write_revision()'),beforeActualRevision);
+    assert.equal(sql("select is_available from portfolio_snapshot_headers where snapshot_date='2026-10-31'"),'f','Actual input invalidates existing snapshots under revision protection');
     const exported = JSON.parse(sql('select export_ledger_backup()'));
+    assert.equal(exported._kernel_anchor_schema,'independent-actual-v1');
     assert(exported.price_acquisition_state.every((row: Record<string,unknown>) => row.lease_token === null && row.lease_expires_at === null),'Ephemeral leases are excluded from recovery');
     for(const table of RESTORE_ORDER) assert(exported[table].length > 0,table+' fixture must be nonempty');
     const bundle = createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-10-31T00:00:00Z',rows:normalizeLedgerBackupRows(exported)});

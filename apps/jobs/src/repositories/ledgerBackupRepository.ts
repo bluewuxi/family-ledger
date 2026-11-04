@@ -54,6 +54,7 @@ export async function exportLedgerTables(input: { excludedJobRunId?: string | nu
   if ((data as Record<string, unknown>).__financial_numeric_encoding !== "decimal-strings-v1") {
     throw new Error("Backup exporter requires the lossless decimal migration.");
   }
+  if ((data as Record<string, unknown>)._kernel_anchor_schema !== "independent-actual-v1") throw new Error("Backup exporter requires independent Kernel actual anchors migration.");
   return normalizeLedgerBackupRows(data);
 }
 

@@ -90,7 +90,9 @@ Documentation-only changes skip deployment under the existing contract. For an a
 
 - Implementation: report applicable checks passed, failed, or blocked. Documentation-only work uses semantic/consistency/link/diff checks and skill validation when applicable; code changes require typecheck/build and affected focused checks. Mixed changes require both. Read-only analysis does not require build checks.
 - Deployment: report not requested, passed for an identified commit, legitimately skipped for documentation only, failed, or blocked, with workflow evidence when delivery was requested.
-- Visual acceptance: report not applicable, pending, user-deferred, passed, failed, or blocked. Meaningful frontend changes retain all five viewport requirements and the user-login procedure. Deferred acceptance does not prevent separately reporting completed implementation/deployment or closing a deployment-verified issue; state the outstanding visual acceptance explicitly and do not claim the UI is fully accepted.
+- Visual acceptance: report not applicable, pending, user-deferred, user-waived, passed, failed, or blocked. Meaningful frontend changes retain all five viewport requirements and the user-login procedure unless the user explicitly waives that scope. Record a waiver as user-waived, never passed; it does not waive future UI changes. Deferred acceptance does not prevent separately reporting completed implementation/deployment or closing a deployment-verified issue; state the outstanding visual acceptance explicitly and do not claim the UI is fully accepted.
+
+Pure data repairs with no changes to UI code, layout, copy, interactions, or display behavior require no visual acceptance; report it as not applicable, never passed. Corrected data appearing through the existing UI does not itself create a visual acceptance requirement. Verify data correctness and preserve all applicable backup, revision, audit, migration and repair authorization requirements. Mixed data/UI changes retain visual acceptance for the UI scope.
 
 ## Contract ownership and command effects
 

@@ -20,7 +20,7 @@ async function main() {
   if (readError || !raw?.length) throw new Error("Cannot read Kernel anchors.");
   const anchors = raw.map(a => ({ id: a.id, instrumentId: a.instrument_id, anchorDate: a.anchor_date,
     kernelUnitPrice: String(a.kernel_unit_price), proxySymbol: a.proxy_symbol, proxyCurrency: a.proxy_currency,
-    proxyClose: String(a.proxy_close), proxyPriceDate: a.proxy_price_date, proxyFetchedAt: a.proxy_fetched_at,
+    proxyClose: a.proxy_close === null ? null : String(a.proxy_close), proxyPriceDate: a.proxy_price_date, proxyFetchedAt: a.proxy_fetched_at,
     createdByUserId: a.created_by_user_id, createdAt: a.created_at, proxyValueType: a.proxy_value_type ?? "open",
     derivedFromAnchorId: a.derived_from_anchor_id ?? null })) as unknown as Awaited<ReturnType<typeof listKernelPriceAnchors>>;
   const records = await fetchNzxUsfNta({ fromDate: anchors.map(a => a.anchorDate).sort()[0], fetchedAt });

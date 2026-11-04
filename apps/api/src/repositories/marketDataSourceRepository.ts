@@ -2,11 +2,13 @@ import { logDependencyError } from "../utils/errorLogging";
 import { kernelNtaRpcArguments, type KernelNtaPlan } from "@family-ledger/shared";
 import type {
   CurrencyCode,
+  CreateKernelPriceAnchorInput,
   DataProviderRun,
   KernelPriceAnchor,
   PriceSource
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
+import { ApiRequestError } from "../utils/apiError";
 
 export async function listPriceGapSummaries(): Promise<Array<{ source: string; pending: number; needsAttention: number; unsupported: number; oldestMissingDate: string | null; nextAttemptAt: string | null }>> {
   const db = await getSupabaseAdmin();
@@ -22,7 +24,10 @@ interface KernelInstrumentRow {
 }
 
 interface KernelAnchorRow {
-  proxy_value_type: "open" | "nta";
+  proxy_value_type: "open" | "nta" | "pending";
+  pairing_status: "pending" | "paired";
+  actual_source: string | null;
+  actual_price_precision: number | null;
   proxy_announcement_id: number | null;
   proxy_published_at: string | null;
   derived_from_anchor_id: string | null;
@@ -32,9 +37,9 @@ interface KernelAnchorRow {
   kernel_unit_price: string;
   proxy_symbol: string;
   proxy_currency: CurrencyCode;
-  proxy_close: string;
-  proxy_price_date: string;
-  proxy_fetched_at: string;
+  proxy_close: string | null;
+  proxy_price_date: string | null;
+  proxy_fetched_at: string | null;
   created_by_user_id: string;
   created_at: string;
 }
@@ -122,6 +127,7 @@ const providerRunSelect = [
 
 function mapKernelAnchor(row: KernelAnchorRow): KernelPriceAnchor {
   return {
+    pairingStatus: row.pairing_status, actualSource: row.actual_source, actualPricePrecision: row.actual_price_precision,
     proxyValueType: row.proxy_value_type, proxyAnnouncementId: row.proxy_announcement_id,
     proxyPublishedAt: row.proxy_published_at, derivedFromAnchorId: row.derived_from_anchor_id,
     id: row.id,
@@ -165,4 +171,24 @@ export async function completeKernelNtaSnapshots(instrumentId: string, token: st
   const db = await getSupabaseAdmin();
   const { error } = await db.rpc("complete_kernel_nta_snapshots", { p_instrument_id: instrumentId, p_refresh_token: token });
   if (error) { logDependencyError("marketDataSourceRepository.completeKernelNtaSnapshots", error, []); throw new Error("Kernel NTA snapshot completion failed."); }
+}
+
+export async function saveKernelActualAnchor(instrumentId: string, input: CreateKernelPriceAnchorInput, actorId: string, fetchedAt: string): Promise<{
+  anchor: KernelPriceAnchor; pending_snapshot_from: string | null; refresh_token: string;
+}> {
+  const db = await getSupabaseAdmin();
+  const { data, error } = await db.rpc("save_kernel_actual_anchor", {
+    p_instrument_id: instrumentId, p_anchor_date: input.anchorDate, p_kernel_unit_price: input.kernelUnitPrice,
+    p_actual_source: input.actualSource, p_actual_price_precision: input.actualPricePrecision,
+    p_created_by_user_id: actorId, p_fetched_at: fetchedAt
+  });
+  if (error || !data) {
+    if (error?.message === "Actual anchor conflicts with a manual price"
+      || error?.message === "Actual anchor conflicts with a more precise or invalid existing price") {
+      throw new ApiRequestError("CONFLICT", "已有手工价格或更高精度的实际价格，请先核对记录。", 409);
+    }
+    logDependencyError("marketDataSourceRepository.saveKernelActualAnchor", error, []);
+    throw new Error("Failed to save the actual Kernel price anchor.");
+  }
+  return { ...data, anchor: mapKernelAnchor(data.anchor as KernelAnchorRow) };
 }

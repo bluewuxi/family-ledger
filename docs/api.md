@@ -200,9 +200,15 @@ A revision guard returns `409 CONFLICT` when accounts, instruments, transactions
 }
 ```
 
-The request date is Kernel's US-market valuation date. The API fetches published USF NTA announcements and requires a reference date mapping back to that valuation date. It atomically writes an NTA anchor and recomputes the available estimate history, then recalculates affected snapshots. The request shape is unchanged. Anchor responses add `proxyValueType`, `proxyAnnouncementId`, `proxyPublishedAt`, and `derivedFromAnchorId`; decimal values remain strings. The compatibility `proxyClose` field contains NTA for `nta` records, or the historical open for `open` records. Derived references do not change actual-price revision priority. Identical actual-anchor retries are idempotent; the first anchor enables updates and subsequent refreshes preserve disabled state.
+The request date is Kernel's US-market valuation date. Saving does not fetch or require NTA. The service-only atomic save writes an immutable actual root and a non-estimated Kernel Anchor price, removes source-owned estimates in that root's interval, and records pending snapshot repair. Identical date/value/source/precision retries reuse the root without superseding later actual revisions. The first root enables updates; later saves preserve disabled state.
 
-The endpoint returns `DATA_SOURCE_DATE_UNAVAILABLE` for a missing corresponding published NTA and `DATA_SOURCE_UNAVAILABLE` for unusable NZX data. It never falls back to a market price. Snapshot failures leave pending work for retry; callers can safely retry. Kernel login credentials are never accepted or stored.
+Optional request fields are `actualSource` (nonempty text, at most 200 characters) and `actualPricePrecision` (0–10 observed decimal places). Defaults are user-observed provenance and the input string's decimal places. Precision must represent the supplied value. A conflicting manual price or more precise existing Kernel Anchor price is rejected; manual/transaction-owned rows are never overwritten.
+
+Anchor responses include `pairingStatus` (`pending` or `paired`), `actualSource`, `actualPricePrecision`, `proxyValueType`, `proxyAnnouncementId`, `proxyPublishedAt` and `derivedFromAnchorId`. New actual roots have `proxyValueType=pending` and null proxy value/date/fetch/announcement fields, even after pairing; `pairingStatus` reflects complete appended references. Complete NTA references use `nta`; old audit rows retain `open`. Decimal fields remain strings or null. Older source/precision metadata is unknown/null.
+
+Scheduled/manual source refresh pairs published NTA later. Root date/value/order never change. Select the latest applicable actual date/revision before checking pairing: an unpaired winner blocks that interval, with no fallback to older paired roots. Both dated NTA values are required for an estimate. Missing publication is distinct from provider failure and does not prevent saving actual prices. Snapshot failures retain token-guarded pending work; callers can retry safely. No Kernel credentials are accepted or stored.
+
+The independent-anchor migration and adoption of the two existing actual prices are verified on TEST; compatible API/jobs/web automatic delivery is pending. See [design](specs/2026-11-04-kernel-pending-anchors-design.md) and [plan](plans/2026-11-04-kernel-pending-anchors.md).
 
 ### User Preferences API
 

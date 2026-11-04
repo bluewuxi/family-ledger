@@ -1,11 +1,12 @@
+import { validateKernelAnchorRestore } from "./kernelAnchorRestore";
 import { validateBackupFinancialValues } from "./backupFinancialValues";
 import { accountLast4, sanitizeSpendingMetadata } from "@family-ledger/shared";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 13;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261104100000_snapshot_availability";
+export const LEDGER_BACKUP_VERSION = 14;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261104110000_kernel_pending_actual_anchors";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -24,7 +25,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -151,7 +152,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -361,6 +362,25 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
     const a = value as Record<string, unknown>;
     return { ...a, proxy_value_type: a.proxy_value_type ?? "open", proxy_announcement_id: a.proxy_announcement_id ?? null, proxy_published_at: a.proxy_published_at ?? null, derived_from_anchor_id: a.derived_from_anchor_id ?? null };
   }).sort((a,b) => Number(Boolean(a.derived_from_anchor_id)) - Number(Boolean(b.derived_from_anchor_id)));
+  if (payload.manifest.version < 14) rows.kernel_price_anchors = rows.kernel_price_anchors.map(value => ({
+    ...(value as Record<string, unknown>), actual_source: null, actual_price_precision: null
+  }));
+  validateKernelAnchorRestore(rows.kernel_price_anchors);
+  rows.kernel_nta_refresh_state = rows.kernel_nta_refresh_state.map(value => {
+    const state = value as Record<string, unknown>;
+    if (payload.manifest.version < 14) return { ...state, nta_observations: {} };
+    if (!state.nta_observations || typeof state.nta_observations !== "object" || Array.isArray(state.nta_observations)) {
+      throw new Error("Invalid Kernel NTA observations.");
+    }
+    for (const [date, value] of Object.entries(state.nta_observations)) {
+      const observation = value as Record<string, unknown>;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !observation || typeof observation.unit_nta !== "string"
+        || !/^\d+(?:\.\d{1,10})?$/.test(observation.unit_nta) || !/[1-9]/.test(observation.unit_nta)
+        || !Number.isSafeInteger(observation.announcement_id) || Number(observation.announcement_id) <= 0
+        || !Number.isFinite(Date.parse(String(observation.published_at)))) throw new Error("Invalid Kernel NTA observation reference.");
+    }
+    return state;
+  });
   rows.investment_accounts = rows.investment_accounts.map((value) => {
     const account = value as Record<string, unknown>;
     const purpose = account.purpose ?? "investment";

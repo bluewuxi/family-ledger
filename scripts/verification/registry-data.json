@@ -1096,17 +1096,27 @@
       "entryPoints": [
         "scripts/verify-holding-detail.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-holding-detail.ts"
+          ]
+        }
+      ],
       "domains": [
-        "general"
+        "investment",
+        "market-data"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-holding-detail.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "Synthetic local records; injected persistence; no credential loading or live calls."
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -1174,17 +1184,26 @@
       "entryPoints": [
         "scripts/verify-kernel-price-estimation.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-kernel-price-estimation.ts"
+          ]
+        }
+      ],
       "domains": [
-        "general"
+        "market-data"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-kernel-price-estimation.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "Synthetic announcements and injected provider/repair dependencies; no credentials or live calls."
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -1779,18 +1798,27 @@
       "entryPoints": [
         "scripts/verify-transaction-price-backfill.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-transaction-price-backfill.ts"
+          ]
+        }
+      ],
       "domains": [
-        "transactions",
-        "valuation"
+        "investment",
+        "market-data"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-transaction-price-backfill.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "Synthetic local records; injected persistence; no credential loading or live calls."
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -2094,7 +2122,7 @@
     "apps/api/src/repositories/instrumentRepository.ts": "10b00129bb4979cd66524f19abccfc9dfeb465dc8af1ed5098aa6107badbadd8",
     "apps/api/src/repositories/jobRunRepository.ts": "683a45e26d6a851442463a522794bac5353244dfec31dc2582c2660cfd2617fb",
     "apps/api/src/repositories/managedUserRepository.ts": "b03dd33586d3df0b06d33d1e1a3c92bdedc73f55884d809f24a339eb3f4a4b9d",
-    "apps/api/src/repositories/marketDataSourceRepository.ts": "fe816f3e71afce30b2c6125b9bec73be9654d8f499e5470f4653105511259ef1",
+    "apps/api/src/repositories/marketDataSourceRepository.ts": "6a042bfdc8cb80be7007a4255f9e9e9170b8e5fd6e6fc3324840a880cdb27c02",
     "apps/api/src/repositories/monthlyReviewRepository.ts": "922e344ce72f5062fe3d0158d30afce77b30d82c7493118e351d7ff12b1bc4c1",
     "apps/api/src/repositories/portfolioSnapshotRepository.ts": "4cbd7538cc8dc405ab890c0a4e4f82a7cd9cf0f6483457770caf5c420a074fec",
     "apps/api/src/repositories/priceRepository.ts": "1a88eed933b80953212b5fc5cea0ad2938d33b64bf9d9efb52a5c1560a07b5d6",
@@ -2124,7 +2152,7 @@
     "apps/api/src/services/instrumentService.ts": "89fea1d740f49467c1250bce4d398370ed51306e7000f16e193b4f1703fddfdc",
     "apps/api/src/services/investmentPerformanceService.ts": "01d4eda5ba8faf6274900cb4e0a2c233bb79843c30864b7daa7a15545224c199",
     "apps/api/src/services/managedUserService.ts": "61ebb2eb5b9fc6362880aa1e5d4ff517a76f28364e3cd2e33ab49dc367eb8c2e",
-    "apps/api/src/services/marketDataSourceService.ts": "44538517bf1cd84b3ddcfd37f49b961d318ec5baf4718d935fb6b4ec27a79118",
+    "apps/api/src/services/marketDataSourceService.ts": "95035e3181db2d8f3360890fcb39111493d4c28820fb111b35d9d15cffcf97ef",
     "apps/api/src/services/monthlyReportMonth.ts": "4eb65c57d2b4e34b6ccca8ccc6c4fe2a9a15e2b1ba0734f3c1e58b63749b349d",
     "apps/api/src/services/monthlyReviewService.ts": "fe4cb49628722cca1db85376909e9f94379deb3f91288fde4a107a598520addc",
     "apps/api/src/services/monthlySummaryService.ts": "6ad86d3ca6b0f10fb6261da5b82cfca1988e3d6b12608d2cd28d476d61305301",
@@ -2171,8 +2199,8 @@
     "apps/jobs/src/repositories/instrumentPriceRepository.ts": "16c1af29e9f605b348eefa899a7237a977179d605b16a57ad1cafea63df99c10",
     "apps/jobs/src/repositories/jobRunRepository.ts": "ac452a02fac947663695ab274b61693de9eae11920cad1811af95a665be77005",
     "apps/jobs/src/repositories/kernelNtaRefreshRepository.ts": "266de85ce487ff7f4f3ef864caa79f4e1c63ddc1d95e2bbec46ed64c5be49ddb",
-    "apps/jobs/src/repositories/kernelPriceAnchorRepository.ts": "59b8e3d6054c7a1cc4b522321b54e0de9a8fd8d4920ddbcae4de2c50eb04625f",
-    "apps/jobs/src/repositories/ledgerBackupRepository.ts": "2f5d3a7f26e466f1650a4ae3ec92adbcf01bc5054ac2c59c44f3fed908122438",
+    "apps/jobs/src/repositories/kernelPriceAnchorRepository.ts": "8361182f78215ee507295ac1190bce6cdf47a29b11458ccf941f0f8ca9f91c02",
+    "apps/jobs/src/repositories/ledgerBackupRepository.ts": "4468a07c91898f153293f19ba7accd4fac44c43a928410451ed0051e1f81c94a",
     "apps/jobs/src/repositories/portfolioSnapshotRepository.ts": "437751cb0f4b8012c765db534ee536ed058984ebbfe1ac900f193d33479ade52",
     "apps/jobs/src/repositories/readAllRows.ts": "577d20b5133f3fbb6b6267c59778818f4401343dc5c077fde7a6c0891da0bb24",
     "apps/jobs/src/services/backupBlockingJobs.ts": "2c5fe5fd79ade6136333e681f442d43615532525c32fd46f0e86a643e9994207",
@@ -2181,7 +2209,7 @@
     "apps/jobs/src/services/fxRateIngestionService.ts": "7c98612070a9a03d962f1184a5219a6e1ccb4a648e882f48f0234a70e44b459b",
     "apps/jobs/src/services/instrumentPriceIngestionService.ts": "ac15b5ea4f9b6b5d634a3784779f5ab8409bcdf88cfeebfcfefcdaa855c5a0d3",
     "apps/jobs/src/services/kernelNtaRefreshService.ts": "a5cb26937b086442754eeda4a0e9cc84b5bbc124739194c81df81796e57ffe8c",
-    "apps/jobs/src/services/ledgerBackupBundle.ts": "c4227e45fb8647aaa590e2d97f65ec5bc4b9911abbc4f3c9c3f39b4866505cde",
+    "apps/jobs/src/services/ledgerBackupBundle.ts": "6d135d3ad2185f26181c4d4d46660d3eef676348e984189316ffa832a309a81b",
     "apps/jobs/src/services/ledgerBackupService.ts": "a5cea58d99baf0fc86c9af9e03d167ff7bea3a35d163d6b89a401a196a413dc0",
     "apps/jobs/src/services/ledgerRestoreOrder.ts": "5b25d18ee4c344af8d59c39aeaefa807daea3a40f23ad7c16f14cfb94dc68f75",
     "apps/jobs/src/services/marketClosePolicy.ts": "b679ecfc53510d3375ce55a576c5de9cec618c71891ce1681eb813c7481a53de",
@@ -2221,9 +2249,9 @@
     "infra/aws/template.yaml": "f6149cd4ad3c173a30e2744bd90181a69236bf45c842cc0949feda9b4eaebe43",
     "packages/shared/src/accountAccess.ts": "902be8d853243672f5e06331e200550cdccd03d2b97ed21df48c13d61e1489e4",
     "packages/shared/src/educationReserve.ts": "b752c879329fe2352c951a50f94fb217bf5d0f1ef7407875348ebde848bf75c6",
-    "packages/shared/src/index.ts": "80496d6d8f7d9afd07b99ef6a6348c409e6ab42998d5b9a1aa4a4199b785003d",
+    "packages/shared/src/index.ts": "29b76dc970f419f19652b356dc1987c1d270af3424800b0667083868349317d5",
     "packages/shared/src/kernelPriceEstimation.ts": "60acbc77b1554e7085b798b785e92363b584dbfb91188d766241e829695123e3",
-    "packages/shared/src/nzxNta.ts": "b3a6e7db1f628f7c705a435de28ba4fe01eca8e37299c96555c5453ca65ea502",
+    "packages/shared/src/nzxNta.ts": "76d4de3eb6b1e560eb8f154019b554901cb9d92da0ba36c7bfd16838a45256ea",
     "packages/shared/src/spending.ts": "6469dde8ded60a97974da7f8a9889742b2dc1c0d91933d9fdc5f2c53798dc944",
     "packages/shared/src/transactionTimeline.ts": "d0bfb650f87949008f6e924495982ec4f69f28a17bb70cfaff27ca52251321ff",
     "packages/shared/src/yahooFinanceDailyBars.ts": "13275f4bf6c2362fa440029789b5268368047d7f60d63b48096c6c08c9f9d835",
@@ -2252,7 +2280,7 @@
     "scripts/verify-auth-state.ts": "ecffcdf079e3578e464456b2e4383b2f1cb6a6fa5a9b59410c9b2780e0bc925e",
     "scripts/verify-auth-user-operations.ts": "6df5a64a877cea06eb119b5aed8c4c28743525424d49aac1b517fea20db6cccc",
     "scripts/verify-auth.ts": "2b8b1e6a778af632744bfa4f1f21077f4880ce3ea85e4a2fce0fdebc0ee90dda",
-    "scripts/verify-backup.ts": "a2bf296379904d3de85ebb46d7ebe972774efdd13bd0e8fd70694c7e6f7c361e",
+    "scripts/verify-backup.ts": "ab71bace92650e5179f07de7ef867156c543178b4b1f08edf121878d3decb7e0",
     "scripts/verify-dashboard-calculation.ts": "f6db2f713c14a71f5526b27427b73a1ec51c8a537400c99df4a60da548c611a5",
     "scripts/verify-deployment.ts": "3f50ee64647cf1e6b8ce3c743f2e30f4e8fb690b355346b06f306aff38f3458c",
     "scripts/verify-dividend-cash-leg.ts": "26b4f44aa7189f59502c4129ecf2b8b20afceba5999fd440504e6cac7752a17a",
@@ -2305,7 +2333,12 @@
     "scripts/verify-snapshot-catchup.ts": "9edb0a6361df93c2a56874008015b4b567308837bb96ecda27d63d582b696a68",
     "scripts/verify-market-close-repair.ts": "a45352fe2b3b495261a40c6882c4b94b281f91ed30ca6b62253b593e2f1a0349",
     "scripts/repair-market-close-history.ts": "9bd1dc7fad59ea41cbee3c975817e922adc10022813c8fb4e0de91ab7cdbcc18",
-    "scripts/verify-source-price-correction.ts": "3733e82c8623461837ab5d8f8800de4845ec7ae8ceb4702630faaf0f6109ebb8"
+    "scripts/verify-source-price-correction.ts": "3733e82c8623461837ab5d8f8800de4845ec7ae8ceb4702630faaf0f6109ebb8",
+    "scripts/verify-kernel-price-estimation.ts": "c6992f75c9fc5fedfd41f3275f98d5dba47711fbd64e5c2866a03a0b54faed35",
+    "apps/jobs/src/services/kernelAnchorRestore.ts": "309170d8ef8e67fd6cefc3c50ac77ecba2185add63ac865942cf04bc8ae31b1b",
+    "packages/shared/src/kernelAnchorAdoption.ts": "f9fbe811890bf350b289dabfa47740a93efc1f4b226efc35c15dd3fd4ab568de",
+    "scripts/verify-holding-detail.ts": "e5b6b1c2a03cc1c2f5d3b442f36a18a55af70ff8e4aeab3ca7f721dc2c41cb70",
+    "scripts/verify-transaction-price-backfill.ts": "fc83ef376a2f3d0ce827a8428bf9d392396be2c18c4505d0db42cfb3830582e8"
   },
   "auditScopes": [
     "apps/api/src",

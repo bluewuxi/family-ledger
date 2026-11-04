@@ -234,6 +234,51 @@ async function main(): Promise<void> {
     assert.equal(sql("select has_function_privilege('authenticated','public.refresh_kernel_nta(uuid,date,timestamptz,jsonb,jsonb)','EXECUTE')"),"f");
     assert.equal(sql("select has_function_privilege('service_role','public.save_kernel_price_anchor(uuid,date,numeric,text,text,numeric,date,timestamptz,uuid,jsonb)','EXECUTE')"),"f");
     assert.equal(sql("select jsonb_typeof(list_kernel_nta_anchors()->0->'kernel_unit_price')"),"string");
+    sql("create table ledger_write_state(id boolean primary key default true, revision bigint default 0); insert into ledger_write_state(id) values(true)");
+    sql(readFileSync("supabase/migrations/20261104110000_kernel_pending_actual_anchors.sql", "utf8"));
+    sql(`insert into instrument_prices(instrument_id,price_date,close_price,currency,provider,is_estimated) values('${instrumentId}','2026-11-04',7,'NZD','Kernel Estimate (USF NTA)',true)`);
+    const actualCall = `select save_kernel_actual_anchor('${instrumentId}','2026-11-03',6.61,'Kernel chart',2,'${actor}','2026-11-04T01:00Z')`;
+    const pendingActual = JSON.parse(sql(actualCall));
+    assert.equal(pendingActual.anchor.proxy_close,null);
+    assert.equal(pendingActual.anchor.pairing_status,"pending");
+    assert.equal(JSON.parse(sql(actualCall)).anchor.id,pendingActual.anchor.id);
+    assert.equal(sql("select count(*) from instrument_prices where price_date='2026-11-04'"),"0","Saving a pending root retires the old interval immediately");
+    assert.equal(sql("select close_price||':'||is_estimated from instrument_prices where price_date='2026-11-03'"),"6.6100000000:false");
+    const payload = JSON.parse(sql(`select jsonb_agg(jsonb_build_object('source_id',id,'anchor_date',anchor_date,'kernel_unit_price',kernel_unit_price::text,
+      'proxy_close',proxy_close::text,'proxy_price_date',proxy_price_date,'announcement_id',proxy_announcement_id,'published_at',proxy_published_at,
+      'created_by_user_id',created_by_user_id,'revision_at',created_at)) from kernel_price_anchors where derived_from_anchor_id is null`)) as Array<Record<string,unknown>>;
+    const newRefresh = (anchors=payload,estimates:unknown[]=[]) => `select refresh_kernel_nta('${instrumentId}','2026-09-30','2026-11-06T00:00Z','${JSON.stringify(anchors)}','${JSON.stringify(estimates)}')`;
+    const targetNta={price_date:"2026-11-04",close_price:"6.8854166667",nta_date:"2026-11-05",unit_nta:"25",announcement_id:600002,published_at:"2026-11-05T00:00Z"};
+    assert.throws(()=>sql(newRefresh(payload,[targetNta])),/pending actual interval/);
+    const pairedPayload=payload.map(a=>a.source_id===pendingActual.anchor.id?{...a,proxy_close:"24",proxy_price_date:"2026-11-04",announcement_id:600001,published_at:"2026-11-04T00:00Z"}:a);
+    sql(newRefresh(pairedPayload,[targetNta]));
+    assert.equal(sql("select close_price from instrument_prices where price_date='2026-11-04'"),"6.8854166667");
+    assert.equal(sql(`select proxy_value_type from kernel_price_anchors where id='${pendingActual.anchor.id}'`),"pending","Pairing does not rewrite roots");
+    assert.equal(sql(`select count(*) from kernel_price_anchors where derived_from_anchor_id='${pendingActual.anchor.id}'`),"1");
+    sql(newRefresh(pairedPayload,[targetNta]));
+    assert.equal(sql(`select count(*) from kernel_price_anchors where derived_from_anchor_id='${pendingActual.anchor.id}'`),"1","Reference retries are idempotent");
+    const amendedTarget={...targetNta,unit_nta:"25.1",close_price:"6.9129583333",announcement_id:600003,published_at:"2026-11-05T01:00Z"};
+    sql(newRefresh(pairedPayload,[amendedTarget]));
+    assert.throws(()=>sql(newRefresh(pairedPayload,[targetNta])),/Stale.*NTA/);
+    assert.throws(()=>sql(newRefresh(payload)),/stale NTA reference/);
+    const inconsistent=pairedPayload.map(a=>a.source_id===pendingActual.anchor.id?{...a,proxy_close:"23"}:a);
+    assert.throws(()=>sql(newRefresh(inconsistent,[targetNta])),/Inconsistent NTA/);
+    sql(`update instruments set price_update_enabled=false where id='${instrumentId}'`);
+    await Promise.all([sqlAsync(actualCall),sqlAsync(actualCall)]);
+    assert.equal(sql(`select count(*) from kernel_price_anchors where id='${pendingActual.anchor.id}'`),"1");
+    assert.equal(sql(`select price_update_enabled from instruments where id='${instrumentId}'`),"f");
+    const preciseRoot=JSON.parse(sql(actualCall.replaceAll("2026-11-03","2026-10-28").replace("6.61,'Kernel chart',2","6.6100,'Precise source',4")));
+    assert.throws(()=>sql(actualCall.replaceAll("2026-11-03","2026-10-28").replace("6.61","6.62")),/more precise/);
+    assert.equal(JSON.parse(sql(actualCall.replaceAll("2026-11-03","2026-10-28"))).anchor.id,preciseRoot.anchor.id,"Equal low-precision observation reuses the more precise root");
+    sql(`insert into instrument_prices(instrument_id,price_date,close_price,currency,provider,is_estimated) values('${instrumentId}','2026-11-02',6.612345,'NZD','Kernel Anchor',false)`);
+    assert.throws(()=>sql(actualCall.replaceAll("2026-11-03","2026-11-02")),/more precise/);
+    sql(`insert into instrument_prices(instrument_id,price_date,close_price,currency,provider,is_estimated) values('${instrumentId}','2026-11-01',6.7,'NZD','manual',false)`);
+    assert.throws(()=>sql(actualCall.replaceAll("2026-11-03","2026-11-01")),/manual price/);
+    const stalePayload=pairedPayload;
+    sql(actualCall.replaceAll("2026-11-03","2026-11-04").replace("6.61","6.62"));
+    assert.throws(()=>sql(newRefresh(stalePayload,[targetNta])),/Stale Kernel anchor set/);
+    assert.equal(sql("select has_function_privilege('authenticated','public.save_kernel_actual_anchor(uuid,date,numeric,text,integer,uuid,timestamptz)','EXECUTE')"),"f");
+    assert.equal(sql("select has_function_privilege('service_role','public.save_kernel_actual_anchor(uuid,date,numeric,text,integer,uuid,timestamptz)','EXECUTE')"),"t");
     console.log("Kernel price-estimation database verification: success");
   } finally {
     if (started) {

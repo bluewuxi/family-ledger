@@ -1,12 +1,21 @@
 # Backup And Restore
 
+## Independent actual anchors: format 14
+
+The TEST migration and actual-export file/restore preflight are verified in the [Kernel rollout](../releases/2026-11-04-kernel-independent-anchors-test.md); application delivery is pending. Format 14 requires `20261104110000_kernel_pending_actual_anchors.sql` and exporter marker `_kernel_anchor_schema=independent-actual-v1`. It preserves actual source/observed precision, explicit pending roots with null reference fields, complete appended NTA references, and exact dated NTA observations in refresh state. Restore roots before children; validate reference/root integrity and decimal strings. Formats 2–13 validate original checksums first, then initialize unknown actual metadata to null and absent observations to `{}`. No unknown old precision is invented. An old format reader must reject version 14. Migration application and rollback across incompatible application/schema versions require separately authorized operator review. No shared restore was performed for this change.
+
+## Acquisition recovery: format 13
+
+Format 13 adds acquisition state/attempts, source price revisions and pending snapshot dates; restore excludes active lease ownership. Its TEST delivery/file-preflight evidence is in the [2026-11-04 release](../releases/2026-11-04-market-data-recovery-test.md).
+
+
 ## Reliability state backup version 12
 
 Backup format 12 adds `transaction_create_requests` and `snapshot_repair_state`. Restore retained creation requests after application identities and transactions, and restore pending repair state last so source-row triggers cannot overwrite the saved pending date/token. Older formats initialize these tables empty. Creation tombstones retain their original responses even when the source transaction no longer exists. Migration high-water mark is `20261102130000_transaction_idempotency`.
 
 ## Instrument activity backup version 11
 
-Local implementation emits version 11 with instrument `active` preserved. Version 10 and older supported payloads default an absent activity field to true after original checksum validation. An explicit false remains false. The additive migration `20261101100000_instrument_active.sql` was applied and verified on TEST on 2026-11-01; version-11 application deployment and real scheduled-backup acceptance remain pending. The disposable local database backup/restore fixture passed; no shared TEST restore was performed. The existing SQL exporter serializes complete instrument rows and therefore includes the new column after migration.
+Version 11 introduced preservation of instrument `active`. Version 10 and older supported payloads default an absent activity field to true after original checksum validation. An explicit false remains false. The additive migration `20261101100000_instrument_active.sql` was applied and verified on TEST on 2026-11-01; version-11 application deployment and real scheduled-backup acceptance remain pending. The disposable local database backup/restore fixture passed; no shared TEST restore was performed. The existing SQL exporter serializes complete instrument rows and therefore includes the new column after migration.
 
 ## Account authorization backup version 10
 
@@ -14,7 +23,7 @@ The prior implementation emits version 10 and requires the typed-grants-v1 expor
 
 Restore accounts/users/funds before grants. app_users insertion initializes an empty policy row: restore account_access_policies with ON CONFLICT(user_id) DO UPDATE SET mode=excluded.mode,revision=excluded.revision inside the same restore transaction, before inserting grants and audit rows. Never disable authorization triggers globally to work around this. Restore does not reuse administrator-demotion defaults for legacy viewers. Live restoration, mappings, migration application, and initial grants require separate authorization.
 
-Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export. The local implementation emits format version 11 (migration/deployment pending); version 10 was verified on TEST on 2026-11-01 for the current schema, as defined by `LEDGER_BACKUP_VERSION` in `apps/jobs/src/services/ledgerBackupBundle.ts`. Historical TEST releases verified version 5 on 2026-10-02 and version 6 on 2026-10-04; these are release-specific observations, not statements about the latest live backup. Verify an actual backup manifest when assessing an environment. Production has not been deployed.
+Ledger backup is an operator-controlled safety mechanism for the small family ledger. It is not a user-facing export. The local implementation emits format version 14 (migration and file preflight verified on TEST; application delivery pending); format 13 delivery and local actual-export file verification were confirmed on TEST on 2026-11-04, as defined by `LEDGER_BACKUP_VERSION` in `apps/jobs/src/services/ledgerBackupBundle.ts`. Historical TEST releases verified version 5 on 2026-10-02 and version 6 on 2026-10-04; these are release-specific observations, not statements about the latest live backup. Verify an actual backup manifest when assessing an environment. Production has not been deployed.
 
 Version history:
 

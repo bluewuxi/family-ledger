@@ -1,7 +1,4 @@
-import { logError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
-import { randomUUID } from "node:crypto";
-import { fetchNzxUsfNta, prepareKernelNtaPlan, type KernelNtaPlan } from "@family-ledger/shared";
 import {
   MARKET_DATA_SOURCE_DEFINITIONS,
   type AuthenticatedUser,
@@ -16,14 +13,13 @@ import {
   findKernelEstimateInstrument,
   findLatestProviderRun,
   listKernelPriceAnchors,
-  refreshKernelNta,
+  saveKernelActualAnchor,
   completeKernelNtaSnapshots,
   listPriceGapSummaries,
 } from "../repositories/marketDataSourceRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
 
-const KERNEL_PROXY_SYMBOL = "USF.NZ";
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function getMarketDataSources(): Promise<MarketDataSourceSummary[]> {
@@ -71,45 +67,32 @@ export function resolveMarketDataSourceStatus(
   return configuredTargetCount === null || configuredTargetCount > 0 ? "ready" : "inactive";
 }
 
+export interface KernelAnchorSaveDependencies {
+  findInstrument: typeof findKernelEstimateInstrument;
+  save: typeof saveKernelActualAnchor;
+  recalculate: typeof recalculateSnapshotsFrom;
+  complete: typeof completeKernelNtaSnapshots;
+}
+const kernelAnchorSaveDependencies: KernelAnchorSaveDependencies = {
+  findInstrument: findKernelEstimateInstrument, save: saveKernelActualAnchor,
+  recalculate: recalculateSnapshotsFrom, complete: completeKernelNtaSnapshots
+};
+
 export async function createKernelPriceAnchor(
   body: unknown,
   user: AuthenticatedUser,
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  dependencies: KernelAnchorSaveDependencies = kernelAnchorSaveDependencies
 ): Promise<KernelPriceAnchor> {
   const input = parseCreateInput(body);
-  const instrument = await findKernelEstimateInstrument();
+  const instrument = await dependencies.findInstrument();
   if (!instrument) throw new ApiRequestError("INTERNAL_ERROR", "Kernel estimate instrument is not configured.", 500);
-
-  const fetchedAt = now().toISOString();
-  const existingAnchors = await listKernelPriceAnchors();
-  const previous = existingAnchors.find(a => !a.derivedFromAnchorId && a.proxyValueType === "nta"
-    && a.anchorDate === input.anchorDate && new Decimal(a.kernelUnitPrice).eq(input.kernelUnitPrice));
-  const candidate: KernelPriceAnchor = previous ?? {
-    id: randomUUID(), instrumentId: instrument.id, anchorDate: input.anchorDate,
-    kernelUnitPrice: input.kernelUnitPrice, proxySymbol: KERNEL_PROXY_SYMBOL,
-    proxyCurrency: "NZD", proxyClose: "0", proxyPriceDate: input.anchorDate,
-    proxyFetchedAt: fetchedAt, createdByUserId: user.id, createdAt: fetchedAt, proxyValueType: "nta"
-  };
-  const anchors = previous ? existingAnchors : [candidate, ...existingAnchors];
-  let plan: KernelNtaPlan;
-  try {
-    const records = await fetchNzxUsfNta({ fromDate: anchors.map(a => a.anchorDate).sort()[0], fetchedAt });
-    plan = prepareKernelNtaPlan(anchors, records, fetchedAt);
-  } catch (error) {
-    const missing = error instanceof Error && error.message.startsWith("No corresponding published USF NTA");
-    logError("marketDataSourceService.createKernelPriceAnchor", error, missing ? "WARN" : "ERROR");
-    throw new ApiRequestError(missing ? "DATA_SOURCE_DATE_UNAVAILABLE" : "DATA_SOURCE_UNAVAILABLE",
-      missing ? "No corresponding published USF NTA is available for a Kernel anchor date." : "USF NTA data is unavailable.", missing ? 422 : 502);
-  }
-  const result = await refreshKernelNta(plan);
+  const result = await dependencies.save(instrument.id, input, user.id, now().toISOString());
   if (result.pending_snapshot_from) {
-    await recalculateSnapshotsFrom(result.pending_snapshot_from);
-    await completeKernelNtaSnapshots(instrument.id, result.refresh_token);
+    await dependencies.recalculate(result.pending_snapshot_from);
+    await dependencies.complete(instrument.id, result.refresh_token);
   }
-  const saved = (await listKernelPriceAnchors()).find(a => !a.derivedFromAnchorId && a.proxyValueType === "nta"
-    && a.anchorDate === candidate.anchorDate && new Decimal(a.kernelUnitPrice).eq(candidate.kernelUnitPrice));
-  if (!saved) throw new Error("Kernel NTA anchor not found after saving.");
-  return saved;
+  return result.anchor;
 }
 
 function parseCreateInput(body: unknown): CreateKernelPriceAnchorInput {
@@ -135,5 +118,13 @@ function parseCreateInput(body: unknown): CreateKernelPriceAnchorInput {
   if (!price.isFinite() || price.lte(0)) {
     throw new ApiRequestError("VALIDATION_ERROR", "kernelUnitPrice must be positive.", 400);
   }
-  return { anchorDate, kernelUnitPrice: price.toString() };
+  const fields = body as Record<string, unknown>;
+  const actualSource = fields.actualSource ?? "User observed Kernel unit price";
+  const observedPrecision = kernelUnitPrice.split(".")[1]?.length ?? 0;
+  const actualPricePrecision = fields.actualPricePrecision ?? observedPrecision;
+  if (typeof actualSource !== "string" || !actualSource.trim() || actualSource.trim().length > 200
+    || !Number.isInteger(actualPricePrecision) || Number(actualPricePrecision) < observedPrecision || Number(actualPricePrecision) > 10) {
+    throw new ApiRequestError("VALIDATION_ERROR", "Actual source and observed decimal precision are invalid.", 400);
+  }
+  return { anchorDate, kernelUnitPrice: price.toString(), actualSource: actualSource.trim(), actualPricePrecision: Number(actualPricePrecision) };
 }

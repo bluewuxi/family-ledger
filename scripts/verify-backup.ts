@@ -76,7 +76,7 @@ async function runSelfTests(): Promise<void> {
   const legacyActivity = structuredClone(inactive.payload); legacyActivity.manifest.version=10; delete (legacyActivity.tables.instruments[0] as Record<string,unknown>).active;
   // Rebuild checksums through the existing rehash fixture below for historical payloads.
 
-  assert.equal(backupObject.payload.manifest.version, 13);
+  assert.equal(backupObject.payload.manifest.version, 14);
   const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
   const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
   assert.equal((restoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
@@ -105,6 +105,32 @@ async function runSelfTests(): Promise<void> {
   const identityRows={...rows,account_access_policies:[{user_id:"00000000-0000-4000-8000-000000000001",mode:"selected",revision:0}],app_users:[{id:"00000000-0000-4000-8000-000000000001",email:"fixture@example.invalid",created_at:"2026-10-31T00:00:00Z"}],profiles:[{id:"00000000-0000-4000-8000-000000000001"}]};
   const identityBundle=createLedgerBackupObject({environment:"test",generatedAt:"2026-10-31T00:00:00Z",rows:identityRows});
   assert.equal(prepareLedgerRestoreRows(identityBundle.payload).app_users.length,1);
+  const pendingRoot = {id:"pending-root",instrument_id:"kernel",anchor_date:"2026-11-03",kernel_unit_price:"6.6100000000",
+    proxy_symbol:"USF.NZ",proxy_currency:"NZD",proxy_value_type:"pending",proxy_close:null,proxy_price_date:null,
+    proxy_fetched_at:null,proxy_announcement_id:null,proxy_published_at:null,derived_from_anchor_id:null,
+    created_by_user_id:identityRows.app_users[0].id,created_at:"2026-11-04T00:00:00Z",actual_source:"Kernel chart",actual_price_precision:2};
+  const pendingBundle=createLedgerBackupObject({environment:"fixture",generatedAt:"2026-11-04T00:00:00Z",rows:{...identityRows,kernel_price_anchors:[pendingRoot]}});
+  assert.equal((prepareLedgerRestoreRows(pendingBundle.payload).kernel_price_anchors[0] as Record<string,unknown>).proxy_close,null);
+  const incomplete=structuredClone(pendingBundle.payload);
+  (incomplete.tables.kernel_price_anchors[0] as Record<string,unknown>).proxy_close="0"; rehash(incomplete);
+  assert.throws(()=>prepareLedgerRestoreRows(incomplete),/Kernel.*reference/);
+  const v13=structuredClone(identityBundle.payload); v13.manifest.version=13; rehash(v13);
+  validateLedgerBackupPayload(v13); assert.equal(prepareLedgerRestoreRows(v13).app_users.length,1);
+  const oldPaired={...pendingRoot,proxy_value_type:"nta",proxy_close:"24.1234567890",proxy_price_date:"2026-11-04",
+    proxy_fetched_at:"2026-11-04T00:00:00Z",proxy_announcement_id:123,proxy_published_at:"2026-11-04T00:00:00Z"} as Record<string,unknown>;
+  delete oldPaired.actual_source; delete oldPaired.actual_price_precision;
+  const populated13=structuredClone(v13); populated13.tables.kernel_price_anchors=[oldPaired];
+  populated13.tables.kernel_nta_refresh_state=[{instrument_id:"kernel",pending_snapshot_from:"2026-11-03",refresh_token:"token"}];
+  for(const table of populated13.manifest.tables) table.rowCount=populated13.tables[table.name].length;
+  rehash(populated13);
+  assert.equal((prepareLedgerRestoreRows(populated13).kernel_price_anchors[0] as Record<string,unknown>).actual_price_precision,null);
+  assert.deepEqual((prepareLedgerRestoreRows(populated13).kernel_nta_refresh_state[0] as Record<string,unknown>).nta_observations,{});
+  const pairedReference={...oldPaired,id:"paired-child",derived_from_anchor_id:pendingRoot.id};
+  const appended=createLedgerBackupObject({environment:"fixture",generatedAt:"2026-11-04T00:00:00Z",
+    rows:{...identityRows,kernel_price_anchors:[pairedReference,pendingRoot]}});
+  assert.equal((prepareLedgerRestoreRows(appended.payload).kernel_price_anchors[0] as Record<string,unknown>).id,pendingRoot.id,"Restore actual roots before paired children");
+  const orphan=structuredClone(appended.payload); (orphan.tables.kernel_price_anchors[0] as Record<string,unknown>).derived_from_anchor_id="absent"; rehash(orphan);
+  assert.throws(()=>prepareLedgerRestoreRows(orphan),/derived reference root/);
   const legacy9=structuredClone(identityBundle.payload);legacy9.manifest.version=9;rehash(legacy9);
   assert.deepEqual(prepareLedgerRestoreRows(legacy9).account_access_policies,[{user_id:identityRows.app_users[0].id,mode:'selected',revision:0}]);
   const invalidGrants={...identityRows,account_ledger_grants:[{user_id:identityRows.app_users[0].id,resource_id:'missing'}]};

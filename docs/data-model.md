@@ -127,19 +127,19 @@ The stock/ETF price job also ingests best-effort latest daily prices for enabled
 
 - `yahoo_finance`: enabled instruments with `price_source = 'yahoo_finance'` and a non-empty `price_source_symbol`.
 - `eastmoney`: enabled instruments with `price_source = 'eastmoney'`, a non-empty `price_source_symbol`, and a supported China exchange.
-- `kernel_estimate`: the fixed `KERNEL_SP500_UNHEDGED` NZD PIE target using `USF.NZ` on `NZX` as its proxy. It remains disabled until the first anchor is saved.
+- `kernel_estimate`: the configured NZD Kernel PIE target (identified by ID and source configuration, not its editable symbol) using `USF.NZ` on `NZX` as its proxy. It remains disabled until the first anchor is saved.
 
 Kernel estimates use official USF per-unit NZD NTA announcements. NTA dates map to Kernel valuation dates through the existing shared helper: Tuesday through Friday map to the preceding calendar day, and Monday maps to Friday. Missing holiday dates are omitted; the next available record is never reassigned to a missing date. Publication time is stored separately as UTC and only already-published announcements are eligible.
 
-The newest actual anchor revision applicable to each Kernel valuation date is used directly:
+The newest actual anchor date/revision applicable to each Kernel valuation date is chosen before checking NTA availability. An unpaired winner blocks its subsequent interval, without falling back to an older paired root. Earlier intervals and actual prices remain usable. New actual roots store nullable reference fields, source and observed decimal precision; pairing appends NTA references and never changes root date/value/revision order. Legacy metadata remains unknown/null. The ratio is unchanged:
 
 ```text
 estimated price = actual Kernel anchor price × corresponding USF NTA ÷ corresponding anchor USF NTA
 ```
 
-Decimal arithmetic rounds once, half-up, to numeric(28,10). Generated rows use provider `Kernel Estimate (USF NTA)` and `is_estimated = true`; actual and manual prices keep precedence. No open, close, or intraday market price is used. `proxy_close` / `proxyClose` remains a compatibility field; `proxy_value_type` identifies `open` or `nta`. NTA anchors include announcement ID and publication time. Conversion and NTA corrections append records with `derived_from_anchor_id`; their creation times never reorder actual user revisions.
+Decimal arithmetic rounds once, half-up, to numeric(28,10). Generated rows use provider `Kernel Estimate (USF NTA)` and `is_estimated = true`; actual and manual prices keep precedence. No open, close, or intraday market price is used. `proxy_close` / `proxyClose` remains a compatibility field; `proxy_value_type` identifies legacy `open`, complete `nta`, or independent actual `pending` roots. NTA anchors include announcement ID and publication time. Conversion and NTA corrections append records with `derived_from_anchor_id`; their creation times never reorder actual user revisions.
 
-The atomic NTA refresh validates target and anchor integrity, retires old estimates, writes corrected/missing NTA estimates, and records pending snapshot recalculation. Completion clears that pending date only for the matching refresh token. A failed recalculation is retried on the next refresh. Unchanged prices do not trigger new snapshot work. Old opening-price writes are rejected after schema cutover. Legacy audit rows and actual/manual prices are retained.
+The independent save atomically persists/reuses actual roots and prices, retires estimates up to the next actual date, and queues snapshot repair without provider access. Conflicting manual or more precise Kernel Anchor values are protected. The atomic NTA refresh validates the complete persisted root set, nullable/complete reference shape, selected actual interval, dated target evidence and decimal ratio. It retains latest NTA observations (exact decimal strings in `kernel_nta_refresh_state.nta_observations`) to reject stale root or target announcements, retires old estimates, writes corrected/missing NTA estimates, and records pending snapshot recalculation. Completion clears that pending date only for the matching refresh token. A failed recalculation is retried on the next refresh. Unchanged prices do not trigger new snapshot work. Old opening-price writes are rejected after schema cutover. Legacy audit rows and actual/manual prices are retained.
 
 The adapter reads the annual JSON announcement lists used by the [NZX website](https://www.nzx.com/companies/USF/announcements). This is a publicly reachable website endpoint, not a documented stability guarantee or evidence of a data-use licence. [NZX licensing guidance](https://www.nzx.com/services/products-tools/data-connectivity/nzx-market-data/data-licensing) remains relevant. Distribution, fees, tax, FX fixing and tracking differences can still affect accuracy; use new actual anchors for calibration.
 
@@ -283,7 +283,7 @@ The schema uses UUID primary keys, `created_at`, `updated_at`, check constraints
 - instruments: unique by `market_region, exchange, symbol`
 - instrument prices: unique by `instrument_id, provider, price_date`
 - exchange rates: unique by `from_currency, to_currency, rate_type, provider, rate_date`
-- Kernel NTA retries: actual anchor payloads are unique by target/date/value/reference/announcement; derived revisions are unique by source anchor and announcement. Actual same-date corrections remain append-only.
+- Kernel NTA retries: new actual roots are unique by target/date/value/source/observed precision independently of NTA; legacy actual payloads retain their original uniqueness; derived revisions are unique by source anchor and announcement. Actual same-date corrections remain append-only.
 - valuation exchange rates: constrained to `to_currency = 'USD'`
 - portfolio snapshots: unique by `snapshot_date`
 - portfolio account snapshots: unique by `snapshot_date, account_id`
@@ -357,3 +357,5 @@ An explicitly requested historical `catchupFrom` is persisted in the repair wate
 ## Acquisition and snapshot availability additions (local)
 
 See [the recovery contract](specs/market-data-and-snapshot-recovery.md). `price_acquisition_state` stores recoverable source/instrument/date requests, ownership leases, cooldowns and intervention state; `price_acquisition_attempts` records attempts; `instrument_price_revisions` retains source correction provenance. `dashboard_instrument_quotes.quote_at` retains the source occurrence instant separately from acquisition. `portfolio_snapshot_headers.is_available` excludes invalidated values from usable history while retaining audit rows. `snapshot_pending_dates` records missing dated inputs and fair retry selection. Private snapshot replacement handles pending/ready publication in the transaction/revision guard; quote publication verifies lease ownership in the same transaction. Backup format 13 includes durable recovery state and resets ephemeral leases on restore. The two new migrations were subsequently applied and verified on TEST under explicit rollout authorization; see [rollout evidence](releases/2026-11-04-market-data-recovery-test.md).
+
+Independent actual-anchor schema `20261104110000_kernel_pending_actual_anchors.sql`, the two actual roots and a real-export format-14 file/restore preflight are verified on TEST; application delivery is pending. See [rollout evidence](releases/2026-11-04-kernel-independent-anchors-test.md). See [implementation plan](plans/2026-11-04-kernel-pending-anchors.md).

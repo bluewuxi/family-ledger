@@ -1,5 +1,10 @@
 # Roadmap
 
+## TEST rollout: independent Kernel actual anchors (2026-11-04)
+
+Approved scope separates actual roots from delayed NTA pairing and blocks an unpaired winning interval. Local migration/API/jobs/backup/UI work and validation are tracked in the [implementation plan](plans/2026-11-04-kernel-pending-anchors.md). TEST migration application and adoption of the two existing actual prices are verified; commit/registration/push/automatic delivery remain pending. See [rollout evidence](releases/2026-11-04-kernel-independent-anchors-test.md); issue #129 remains open. The user explicitly waived visual acceptance for this change, including maintenance copy and pending-pairing display, on 2026-11-04; this is user-waived, not passed.
+
+
 ## Market data and snapshot recovery (implemented and validated locally)
 
 The [plan](plans/2026-11-04-market-data-and-snapshot-recovery.md) and [contract](specs/market-data-and-snapshot-recovery.md) cover source batches, cache/lease coordination, historical gaps/corrections, failure recovery, weekday pending snapshots, weekend ledger reconstruction, and explicit actual-date fallback. New migrations, TEST delivery, historical repair and authenticated visual acceptance are pending separate authorization/evidence.

@@ -122,6 +122,8 @@ Use the application login with operator-provisioned credentials. Password change
 
 ## Authenticated browser acceptance
 
+Pure data repairs with no changes to UI code, layout, copy, interactions, or display behavior do not require visual acceptance. Corrected values appearing in the existing UI alone do not change this classification. Report visual acceptance as not applicable, not passed; data correctness checks and operator authorization still apply. For mixed data/UI work, apply the procedure below to the UI scope.
+
 Use real application session authentication for browser verification. Obtain the user's agreement, provide the local URL, and wait for their login and target-page confirmation before inspecting authenticated pages. Keep both local auth-bypass flags disabled in the API/web processes and local environment files. Existing bypass sessions and mockups do not satisfy authenticated visual acceptance.
 
 Authenticated pages require login. Do not repeatedly try to bypass login or directly open protected pages before the user's target-page confirmation. Use `http://127.0.0.1:5181` unless occupied; see the startup sections above for the local API/web commands.
@@ -198,7 +200,7 @@ corepack pnpm verify:time-policy
 corepack pnpm verify:backup
 ```
 
-The in-process Kernel check uses synthetic NZX NTA lists. It verifies published-time eligibility, amendments, cross-year requests, weekday mapping, missing-date omission, direct decimal anchor ratios and actual revision priority. The database check applies all three Kernel migrations in an isolated loopback PostgreSQL cluster and verifies atomic replacement, manual-price protection, repeated refreshes, failed-write rollback, pending snapshot state and restricted RPC access. See [Kernel NTA repair](operations/kernel-nta-repair.md) for test-only dry-run and cutover commands.
+The in-process Kernel check uses synthetic NZX NTA lists. It verifies published-time eligibility, amendments, cross-year requests, weekday mapping, missing-date omission, direct decimal anchor ratios and actual revision priority. The database check applies the historical Kernel migrations and the new independent actual-anchor migration in an isolated loopback PostgreSQL cluster and verifies atomic replacement, manual-price protection, repeated refreshes, failed-write rollback, pending snapshot state and restricted RPC access. See [Kernel NTA repair](operations/kernel-nta-repair.md) for test-only dry-run and cutover commands.
 
 `scripts/verify-snapshot-atomicity.sql` is an integration check for an **empty, disposable local PostgreSQL database**. Run it with `psql -v ON_ERROR_STOP=1 -f scripts/verify-snapshot-atomicity.sql` and explicit local connection arguments. It creates minimal schema/roles, applies the real migration twice, and verifies retries, rollback after account-write failure, empty-account replacement, and RPC execution permissions. Do not run this fixture against test or production business data.
 
@@ -379,3 +381,7 @@ All maintained JavaScript/TypeScript receives syntax checks. Type-aware Promise 
 ## Market acquisition and recovery verification
 
 Run `verify:price-acquisition`, `verify:snapshot-availability`, `verify:price-recovery`, and `verify:valuation-client` through the reviewed fixture runner. `verify:price-acquisition-db` uses a disposable loopback PostgreSQL cluster and all migrations; it does not use shared credentials. Also run affected provider/ingestion, dashboard/holdings/account, trend/monthly, snapshot catch-up/revision/signed-snapshot, time-policy, backup and full restore checks, then lint/typecheck/build. Scenarios include partial HTTP failure, deadlines, lease expiry, unchanged versus corrected inputs, invalidated headers, weekday missing prices, actual weekend cash changes, strict-mode request replay, carried principal, and incomplete month boundaries. Real-login acceptance remains separately required at the five maintained viewports; these fixtures do not certify deployed behavior.
+
+## Independent Kernel anchors (local verification)
+
+Run the reviewed `verify:kernel-price-estimation` fixture through `verify:checks`, plus `verify:kernel-price-estimation-db`, `verify:backup`, and `verify:backup-restore-db` under their effect-specific procedures. Kernel fixtures cover independent API save, pending intervals, delayed/amended reference publication, stale root/target announcements, idempotent/concurrent saves, manual/precision protection and local adoption preparation. The disposable full-schema restore covers pending roots, exact nullable references, source precision, snapshot invalidation/revision and all allowlisted tables. Add affected holdings/dashboard/account/trend/monthly/snapshot revision checks and lint/typecheck/build. These do not connect to TEST or apply its migration. The user explicitly waived visual acceptance on 2026-11-04 for this independent-anchor change, including maintenance text/status changes; record user-waived, not passed. No browser checks are claimed, and future UI work retains the normal real-login/five-viewport procedure.

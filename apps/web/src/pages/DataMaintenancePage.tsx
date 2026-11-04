@@ -240,7 +240,7 @@ async function loadDataSources() {
     setError(null);
     setNotice(null);
     try {
-      await apiPost<KernelAnchorResponse>("/data-maintenance/data-sources/kernel-estimate/anchors", {
+      const saved = await apiPost<KernelAnchorResponse>("/data-maintenance/data-sources/kernel-estimate/anchors", {
         anchorDate,
         kernelUnitPrice
       });
@@ -252,7 +252,7 @@ async function loadDataSources() {
       setKernelAnchors(anchorData.anchors);
       setAnchorDate("");
       setKernelUnitPrice("");
-      setNotice("锚点已保存，并已按下一 NZX 交易日的 USF 公布净值（NTA）重新计算估算价格。");
+      setNotice(saved.anchor.pairingStatus === "paired" ? "实际锚点已保存，USF 净值（NTA）参考已配齐。" : "实际锚点已保存，可用于估值；等待 USF 净值（NTA）配对后生成后续估算。");
     } catch (requestError) {
       if (requestError instanceof ApiClientError && requestError.code === "DATA_SOURCE_DATE_UNAVAILABLE") {
         setError("所选 Kernel 估值日期之后暂无已公布的 USF 净值（NTA），请稍后重试或检查日期。");
@@ -821,10 +821,10 @@ async function loadDataSources() {
               <div><dt>代理标的</dt><dd>USF（NZD，公布净值 NTA）</dd></div>
               <div><dt>当前状态</dt><dd>{kernelSource ? formatSourceStatus(kernelSource.status) : "-"}</dd></div>
               <div><dt>最新锚点</dt><dd>{latestAnchor?.anchorDate ?? "尚未配置"}</dd></div>
-              <div><dt>最新准确价格</dt><dd>{latestAnchor ? formatDisplayPrice(latestAnchor.kernelUnitPrice) : "-"}</dd></div>
+              <div><dt>最新实际价格</dt><dd>{latestAnchor ? formatDisplayPrice(latestAnchor.kernelUnitPrice) : "-"}</dd></div>
             </dl>
             <p className="form-hint">估算价格 = 实际基准基金价格 × 对应日期的 USF 净值 ÷ 基准对应的 USF 净值。</p>
-            <p className="form-hint">Kernel 日期按美国市场估值日填写；系统使用下一 NZX 交易日日期对应的 USF 公布净值（NTA），并将估算记录在对应的前一估值日。尚未公布时沿用最近价格；缺失日期不补值。</p>
+            <p className="form-hint">Kernel 日期按美国市场估值日填写；系统使用下一 NZX 交易日日期对应的 USF 公布净值（NTA），并将估算记录在对应的前一估值日。实际锚点可先保存并参与估值；最新适用锚点未配对时，暂停其后续区间估算，不退回旧锚点。缺失日期不补值。</p>
             <p className="form-hint">该结果属于估算，可能因费用、现金和分红日期差异产生偏差。建议每季度及基金分红后新增锚点。</p>
           </section>
 
@@ -867,8 +867,8 @@ async function loadDataSources() {
                     <tr key={anchor.id}>
                       <td>{anchor.anchorDate}</td>
                       <td className="numeric-cell">{formatDisplayPrice(anchor.kernelUnitPrice)}</td>
-                      <td>{anchor.proxyPriceDate}</td>
-                      <td className="numeric-cell">{formatDisplayPrice(anchor.proxyClose)}（{anchor.proxyValueType === "nta" ? "净值" : "历史开盘价"}）</td>
+                      <td>{anchor.proxyPriceDate ?? (anchor.pairingStatus === "paired" ? "参考见配对记录" : "待配对")}</td>
+                      <td className="numeric-cell">{anchor.proxyClose === null ? "—" : `${formatDisplayPrice(anchor.proxyClose)}（${anchor.proxyValueType === "nta" ? "净值" : "历史开盘价"}）`}</td>
                       <td>{formatDateTime(anchor.createdAt)}</td>
                     </tr>
                   ))}

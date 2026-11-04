@@ -2,7 +2,10 @@ import type { CurrencyCode, KernelPriceAnchor } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 interface KernelAnchorRow {
-  proxy_value_type: "open" | "nta";
+  proxy_value_type: "open" | "nta" | "pending";
+  pairing_status: "pending" | "paired";
+  actual_source: string | null;
+  actual_price_precision: number | null;
   proxy_announcement_id: number | null;
   proxy_published_at: string | null;
   derived_from_anchor_id: string | null;
@@ -12,9 +15,9 @@ interface KernelAnchorRow {
   kernel_unit_price: string;
   proxy_symbol: string;
   proxy_currency: CurrencyCode;
-  proxy_close: string;
-  proxy_price_date: string;
-  proxy_fetched_at: string;
+  proxy_close: string | null;
+  proxy_price_date: string | null;
+  proxy_fetched_at: string | null;
   created_by_user_id: string;
   created_at: string;
 }
@@ -26,6 +29,7 @@ export async function listKernelPriceAnchorsByInstrumentIds(instrumentIds: strin
   if (error || !Array.isArray(raw)) throw new Error("Failed to load Kernel price anchors.");
   const data = (raw as KernelAnchorRow[]).filter(a => instrumentIds.includes(a.instrument_id));
   return data.map((row) => ({
+    pairingStatus: row.pairing_status, actualSource: row.actual_source, actualPricePrecision: row.actual_price_precision,
     proxyValueType: row.proxy_value_type, proxyAnnouncementId: row.proxy_announcement_id,
     proxyPublishedAt: row.proxy_published_at, derivedFromAnchorId: row.derived_from_anchor_id,
     id: row.id,
