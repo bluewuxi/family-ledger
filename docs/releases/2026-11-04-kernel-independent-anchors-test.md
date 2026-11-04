@@ -1,6 +1,6 @@
 # Independent Kernel Actual Anchors: TEST Rollout
 
-Status: new migration and authorized root adoption verified on TEST; commit/registration/automatic delivery pending. Visual acceptance is user-waived, not passed.
+Status: new migration, authorized root adoption and automatic TEST delivery verified. Visual acceptance is user-waived, not passed.
 
 ## Scope and authorization
 
@@ -25,4 +25,12 @@ Fresh pre-delivery lint, typecheck, build, verification-tooling fixtures, docume
 
 ## Delivery evidence
 
-The verified migration manifest must be registered against the clean committed source before push. Configured CI and automatic TEST deployment remain to be monitored; do not substitute manual deployment if a gate fails. Exact commit, run and publication evidence will be added after delivery.
+- Application commit: `3f08345cd715ea000dc10c756289bcc4fd1d70b7`. The independently verified complete migration manifest was registered against this clean commit before pushing test. Every previously approved migration path/hash remained unchanged; only the new migration was added.
+- [CI and automatic TEST deployment](https://github.com/bluewuxi/family-ledger/actions/runs/41808617909) passed. The push build performed validation; the separate manual-validation job was correctly skipped for this push-triggered run. No manual deployment fallback was used.
+- Independent operator reads confirmed status `verified`, stack `UPDATE_COMPLETE`, matching commit/run/artifact in last-success and the complete registered migration manifest. Artifact SHA-256: `15ca4c4193554c894a52877049e7f80702bd4f0f8387cfd9a4454b22a2cca0a4`.
+- Configured online checks passed API health, unauthenticated rejection, public runtime configuration, exact HTML and referenced assets after publication. Post-deployment SQL checks retained both pending actual roots at their original dates/precision, 1564 price rows, 147 available snapshots and 19 pending dates, with Kernel repair complete. No authenticated browser acceptance is claimed.
+- The final evidence updates are documentation only and must pass CI with the expected documentation-only deployment skip. They do not change the application or migration manifest.
+
+## Subsequent read-only source lookup
+
+The user additionally permitted another Kernel lookup if needed. The existing authenticated session remained usable. Five more two-decimal actual-price candidates were observed from visible date/value tooltips and retained only in ignored local evidence; October 26 was not observed in that chart. These are not USF NTA and were not inserted as prices or roots. Any further shared data write requires approval of its concrete candidate list; the verified rollout totals above remain unchanged.

@@ -1,6 +1,6 @@
 # Independent Kernel Anchors Implementation Plan
 
-**Status:** Implemented; TEST migration and actual-root adoption verified; commit/registration/automatic delivery pending. Visual acceptance: user-waived for this scope, not passed. Governing contracts: [API](../api.md#kernel-estimate-anchor-api), [data model](../data-model.md#market-data-foundation), [backup](../operations/backup-restore.md).
+**Status:** Implemented and delivered to TEST; migration, idempotent actual-root adoption, registration and automatic delivery verified. Visual acceptance: user-waived for this scope, not passed. Governing contracts: [API](../api.md#kernel-estimate-anchor-api), [data model](../data-model.md#market-data-foundation), [backup](../operations/backup-restore.md).
 
 > Execute inline with superpowers:executing-plans. User authorization covers design, local implementation, migration files and isolated validation only. Omit all commit/delivery steps.
 
@@ -74,14 +74,18 @@ During the initial local-only phase, finished on branch test without changing HE
 
 A fresh reviewer inspected working/index diffs and untracked migration/helpers/design/plan against applicable instructions/contracts. Two P2 findings (observed trailing-zero precision and sibling manual-price adoption conflicts) were fixed with failing-then-passing regressions. A timestamp concern was withdrawn after verifying the maintained clock_timestamp() default. No additional material finding was established. Reviewer coverage was source review; validation results above were confirmed by the implementer. No independent browser review occurred.
 
-### Remaining operator/acceptance work
+### Historical boundary before rollout authorization
 
 Migration 20261104110000_kernel_pending_actual_anchors.sql is prepared and locally verified only. Applying/registering it, adopting the two existing actual prices with a fresh reviewed export/backup, committing/pushing and automatic TEST delivery all remain separately unauthorized. No issue closure is implied. On 2026-11-04 the user explicitly waived visual acceptance for this change, including maintenance-page copy and pending-pairing status display. Record this as user-waived, not passed; no visual checks were performed. This is a new scope-specific decision and does not waive future UI changes. Current TEST continues running the previous implementation.
 
-### Continuation boundary
+### Historical continuation boundary
 
 The user then requested continued progress after granting this visual waiver. The earlier explicit exclusions on TEST migration application, live data repair, commit, push and deployment remain in force until explicitly superseded. Local implementation, tests and independent review are complete. The next operational stage requires explicit scope for applying/verifying/registering the new TEST migration, preparing/revalidating and adopting only the two existing actual prices without replaying the 39-price manifest, and committing/pushing through configured automatic TEST delivery. Obtain a fresh exact backup and target/value/precision/conflict preflight before shared data writes; retain transactional and revision protection and verify the actual deployment before claiming delivery. Do not substitute a manual deployment.
 
 ### Authorized TEST rollout
 
-The user subsequently explicitly authorized the new migration application/verification/registration, idempotent adoption of the two existing actual prices, commit/push and automatic TEST monitoring. These permissions supersede the earlier exclusions for this bounded rollout. The new migration, two pending actual roots, six audited obsolete-estimate retirements, twelve-date guarded snapshot recalculation, all 147 available valuations and 19 pending dates are verified; no price rows were added. A real-export format-14 backup/file restore preflight passed. See the [rollout record](../releases/2026-11-04-kernel-independent-anchors-test.md). Commit/registration/automatic delivery evidence follows after completion. Visual acceptance remains user-waived, not passed.
+The user subsequently explicitly authorized the new migration application/verification/registration, idempotent adoption of the two existing actual prices, commit/push and automatic TEST monitoring. These permissions supersede the earlier exclusions for this bounded rollout. The new migration, two pending actual roots, six audited obsolete-estimate retirements, twelve-date guarded snapshot recalculation, all 147 available valuations and 19 pending dates are verified; no price rows were added. A real-export format-14 backup/file restore preflight passed. See the [rollout record](../releases/2026-11-04-kernel-independent-anchors-test.md). Clean-commit registration and automatic delivery subsequently passed for `3f08345`; exact commit/run/artifact and data verification are recorded in the rollout record. Visual acceptance remains user-waived, not passed.
+
+### Final delivery verification
+
+Application commit `3f08345cd715ea000dc10c756289bcc4fd1d70b7` passed [CI and automatic TEST deployment](https://github.com/bluewuxi/family-ledger/actions/runs/41808617909). Independent status/last-success/stack/migration-manifest checks matched the commit and artifact. Post-publication root/date/precision, price and snapshot counts matched the authorized repair; see the [final rollout record](../releases/2026-11-04-kernel-independent-anchors-test.md). The user then allowed a further read-only Kernel lookup; five additional actual-price candidates were retained locally and not applied. Documentation-only closure updates require CI and an expected deployment skip; no further migration or price writes are part of that closure.

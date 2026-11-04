@@ -208,7 +208,7 @@ Anchor responses include `pairingStatus` (`pending` or `paired`), `actualSource`
 
 Scheduled/manual source refresh pairs published NTA later. Root date/value/order never change. Select the latest applicable actual date/revision before checking pairing: an unpaired winner blocks that interval, with no fallback to older paired roots. Both dated NTA values are required for an estimate. Missing publication is distinct from provider failure and does not prevent saving actual prices. Snapshot failures retain token-guarded pending work; callers can retry safely. No Kernel credentials are accepted or stored.
 
-The independent-anchor migration and adoption of the two existing actual prices are verified on TEST; compatible API/jobs/web automatic delivery is pending. See [design](specs/2026-11-04-kernel-pending-anchors-design.md) and [plan](plans/2026-11-04-kernel-pending-anchors.md).
+The independent-anchor migration and adoption of the two existing actual prices are verified on TEST; compatible API/jobs/web automatic TEST delivery passed for `3f08345`. See [rollout evidence](releases/2026-11-04-kernel-independent-anchors-test.md). See [design](specs/2026-11-04-kernel-pending-anchors-design.md) and [plan](plans/2026-11-04-kernel-pending-anchors.md).
 
 ### User Preferences API
 
