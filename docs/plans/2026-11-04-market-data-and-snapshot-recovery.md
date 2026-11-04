@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` for a subsequently authorized implementation. Follow the repository workflow and applicable local instructions. This document does not authorize execution, delegation, commits, deployment, or live repair.
 
-**Status:** Implemented and deployed to TEST — migrations, 39 authorized price writes, snapshot reclassification/repair, registration and automatic delivery verified. Authenticated visual acceptance and Kernel NTA estimation-anchor pairing remain pending.
+**Status:** Implemented and deployed to TEST — migrations, 39 authorized price writes, snapshot reclassification/repair, registration and automatic delivery verified. Visual acceptance was explicitly waived by the user for this rollout; Kernel NTA estimation-anchor pairing remains pending.
 
 **Goal:** Reuse batched price acquisition across API/jobs, recover historical price gaps and failures, and serve clearly dated snapshot fallbacks without fabricating historical valuations.
 
@@ -254,3 +254,5 @@ Execute in order after approval. Each task includes focused failing fixtures, th
 - Fresh core15, focused9 and acquisition DB passed, along with rollout lint/typecheck/build. See [TEST rollout evidence](../releases/2026-11-04-market-data-recovery-test.md). Application deployment/registration and five-viewport acceptance statuses are tracked separately there and in issue #129.
 
 - TEST code commit 412eee0bc3d276554f3f223ffad9f0223aa36535 passed [automatic delivery](https://github.com/bluewuxi/family-ledger/actions/runs/41797892978). Migration registration and persisted last-success matched that commit; online health/auth/config/HTML/assets passed. Real-login visual acceptance remains pending. The actual post-repair format-13 backup also passed file verification and restore dry-run; this is not a real restore.
+
+- The user subsequently explicitly waived visual acceptance for this rollout. Earlier pending visual-acceptance entries remain historical; the final status is user-waived, not passed.

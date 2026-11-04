@@ -150,4 +150,4 @@ TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. I
 
 ## Market data recovery TEST rollout (2026-11-04)
 
-The two new migrations, 39 authorized price inputs and 166-date snapshot reclassification are verified on TEST: 152 dates available and 14 user-confirmed closure dates pending. Automatic TEST application delivery passed for 412eee0; Kernel estimation-anchor pairing and authenticated visual acceptance remain pending; see [rollout evidence](releases/2026-11-04-market-data-recovery-test.md).
+The two new migrations, 39 authorized price inputs and 166-date snapshot reclassification are verified on TEST: 152 dates available and 14 user-confirmed closure dates pending. Automatic TEST application delivery passed for 412eee0; Kernel estimation-anchor pairing remains pending, and the user explicitly waived visual acceptance for this rollout; see [rollout evidence](releases/2026-11-04-market-data-recovery-test.md).

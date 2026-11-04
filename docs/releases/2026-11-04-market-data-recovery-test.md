@@ -1,6 +1,6 @@
 # Market Data Recovery TEST Rollout
 
-Status: TEST migrations, authorized data repair, registration and automatic application delivery verified. Authenticated five-viewport visual acceptance and Kernel NTA estimation-anchor pairing remain pending.
+Status: TEST migrations, authorized data repair, registration and automatic application delivery verified. Kernel NTA estimation-anchor pairing remains pending. The user explicitly waived authenticated visual acceptance for this rollout.
 
 Issue: [#129](https://github.com/bluewuxi/family-ledger/issues/129). Baseline: test at 4fd2193b7ccfd8dc5e74e8ef58a071961c850f34. The user explicitly authorized both new migrations, migration registration, 39 price inputs, snapshot reclassification/repair, issue creation, commit, push and automatic TEST delivery monitoring. Production and independent infrastructure changes are excluded.
 
@@ -23,7 +23,7 @@ Issue: [#129](https://github.com/bluewuxi/family-ledger/issues/129). Baseline: t
 
 - Fresh rollout preflight: lint, typecheck, build, all 15 core checks, 9 focused acquisition/provider/report/client checks and disposable price-acquisition PostgreSQL verification passed. Prior scoped review, signed/revision DB and full format-13 restore evidence is recorded in the [implementation plan](../plans/2026-11-04-market-data-and-snapshot-recovery.md); those older runs are not represented as freshly repeated.
 - Migration registration must follow the clean verified commit, then push test through configured CI/automatic deployment. Do not substitute manual deployment if a gate fails. Final commit/run evidence will be retained on issue #129.
-- Authenticated Family Ledger five-viewport visual acceptance remains pending. InvestNow/Kernel source lookup is not Family Ledger acceptance. No login bypass or authenticated application write smoke was used.
+- The user explicitly waived Family Ledger visual acceptance for this rollout. Record it as user-waived, not passed. InvestNow/Kernel source lookup is not Family Ledger acceptance. No login bypass or authenticated application write smoke was used.
 
 ## Verified automatic delivery
 
@@ -33,3 +33,7 @@ Issue: [#129](https://github.com/bluewuxi/family-ledger/issues/129). Baseline: t
 - Configured online verification passed API health, unauthenticated rejection, runtime configuration, exact HTML and referenced JS/CSS asset checks after cache invalidation. No manual deployment fallback was used.
 - A local format-13 backup built from the actual post-repair TEST export passed file verification and restore dry-run: 6521 rows, all 33 allowlisted tables and application identity dependencies. No real restore or cloud backup job was executed for this check.
 - Final evidence updates are documentation only and do not change the deployed application or migration manifests. Their push must pass CI and confirm the expected documentation-only deployment skip.
+
+## User acceptance decision
+
+The user explicitly stated that visual acceptance is unnecessary for this rollout and waived it. No visual inspection is claimed. This is a rollout-specific decision and does not change the maintained default browser/login procedure for future work.
