@@ -30,10 +30,10 @@ const staleBoundary = requireMonthlySnapshotDate(snapshot({
   snapshotDate: "2026-06-28", marketValue: "1000",
   accounts: [accountSnapshot({ accountId: "account-a", accountName: "A", marketValue: "1000" })]
 }), "2026-06-30");
-assert.equal(staleBoundary?.marketValue, null);
-assert.equal(staleBoundary?.accounts[0]?.marketValue, null);
+assert.equal(staleBoundary?.marketValue, "1000.000000");
+assert.equal(staleBoundary?.accounts[0]?.marketValue, "1000");
 assert.equal(calculateMonthlyBridge({ startValue: "1000", endValue: staleBoundary?.marketValue ?? null,
-  netPrincipalFlow: "500", cashAdjustmentImpact: "0" }).valuationMovement, null);
+  netPrincipalFlow: "500", cashAdjustmentImpact: "0", fullPeriodAvailable: false }).valuationMovement, null);
 assert.equal(requireMonthlySnapshotDate(staleBoundary, "2026-06-28"), staleBoundary);
 
 const partialStart = snapshot({ snapshotDate: "2026-05-31", marketValue: null, accounts: [
@@ -53,7 +53,7 @@ assert.equal(healthyChange?.valuationMovement, "100.000000");
 assert.equal(healthyChange?.valuationContributionPct, null);
 assert.equal(partialChanges.find((row) => row.accountId === "missing")?.valuationMovement, null);
 assert.equal(buildAccountChanges({ startSnapshot: partialStart,
-  endSnapshot: requireMonthlySnapshotDate(partialEnd, "2026-07-31")
+  endSnapshot: requireMonthlySnapshotDate(partialEnd, "2026-07-31"), fullPeriodAvailable: false
 }).find((row) => row.accountId === "healthy")?.valuationMovement, null);
 
 const missingSnapshot = calculateMonthlyBridge({
@@ -139,7 +139,7 @@ assert.equal(missingOpeningPriceBaseline.warnings[0]?.code, "MISSING_OPENING_PRI
 const windows = getMonthlySnapshotWindows("2026-06");
 
 assert.deepEqual(windows.startWindow, { from: "0001-01-01", to: "2026-05-31" });
-assert.deepEqual(windows.endWindow, { from: "2026-06-01", to: "2026-06-30" });
+assert.deepEqual(windows.endWindow, { from: "0001-01-01", to: "2026-06-30" });
 
 const accountWarning: SnapshotWarning = {
   code: "MISSING_LATEST_PRICE",

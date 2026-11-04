@@ -1,4 +1,4 @@
-import { calculateHoldings, calculatePortfolioSnapshotValuation } from "@family-ledger/shared";
+import { calculateHoldings, calculatePortfolioSnapshotValuation, withSnapshotEligibility } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPricesForDates } from "../repositories/priceRepository";
@@ -32,13 +32,13 @@ export async function recalculateSnapshotsFrom(fromDate: string): Promise<void> 
       })
     ]);
     const holdings = calculateHoldings(snapshotTransactions, accounts, instruments, { fxRates });
-    const valuation = calculatePortfolioSnapshotValuation({
+    const valuation = withSnapshotEligibility(calculatePortfolioSnapshotValuation({
       snapshotDate,
       holdings,
       accounts,
       prices,
       fxRates
-    });
+    }), { holdings, instruments, prices, fxRates });
 
     try { await upsertPortfolioSnapshot(valuation,revision); break; }
     catch(error) { if(attempt < 2 && (error as {code?:string}).code === "40001") continue; throw error; }

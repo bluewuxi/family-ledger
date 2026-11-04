@@ -1,8 +1,12 @@
 # Roadmap
 
+## Market data and snapshot recovery (implemented and validated locally)
+
+The [plan](plans/2026-11-04-market-data-and-snapshot-recovery.md) and [contract](specs/market-data-and-snapshot-recovery.md) cover source batches, cache/lease coordination, historical gaps/corrections, failure recovery, weekday pending snapshots, weekend ledger reconstruction, and explicit actual-date fallback. New migrations, TEST delivery, historical repair and authenticated visual acceptance are pending separate authorization/evidence.
+
 ## Ledger processing reliability (deployed to TEST)
 
-The [approved plan](plans/2026-11-02-ledger-processing-reliability.md) adds revision-guarded snapshot publication, chronological trade-deficit validation, durable market-input repair, calendar snapshot maintenance, and retry-idempotent transaction creation with backup compatibility. Local implementation and isolated verification are recorded in the plan. Three additive migrations and daily-snapshot/CORS configuration were independently applied/verified and registered; automatic API/jobs/web delivery passed for `0eec3d5`. See [release evidence](releases/2026-11-02-ledger-processing-test.md). Historical repair awaits user confirmation after read-only audit; snapshot execution remains temporarily held. Transaction retry UI real-login acceptance remains pending.
+The [approved plan](plans/2026-11-02-ledger-processing-reliability.md) adds revision-guarded snapshot publication, chronological trade-deficit validation, durable market-input repair, calendar snapshot maintenance, and retry-idempotent transaction creation with backup compatibility. Local implementation and isolated verification are recorded in the plan. Three additive migrations and daily-snapshot/CORS configuration were independently applied/verified and registered; automatic API/jobs/web delivery passed for `0eec3d5`. See [release evidence](releases/2026-11-02-ledger-processing-test.md). Historical repair awaits user confirmation after read-only audit; the release recorded a temporary snapshot-executor hold, whose present state requires current operational evidence. Transaction retry UI real-login acceptance remains pending.
 
 ## Account visibility (deployed to TEST)
 
@@ -143,3 +147,7 @@ The documentation remediation did not fix these items. Subsequent G1 local imple
 ## AWS authentication TEST delivery
 
 TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. Infrastructure, SQL, user initialization, live synthetic authentication, backup and automatic release verification passed. Real-user first-change/login and five-viewport visual acceptance passed; see [cutover evidence](releases/2026-10-31-auth-test-cutover.md). Account visibility followed under #121; production is unchanged.
+
+## Market data recovery TEST rollout (2026-11-04)
+
+The two new migrations, 39 authorized price inputs and 166-date snapshot reclassification are verified on TEST: 152 dates available and 14 user-confirmed closure dates pending. Application delivery, Kernel estimation-anchor pairing and authenticated visual acceptance remain separate; see [rollout evidence](releases/2026-11-04-market-data-recovery-test.md).

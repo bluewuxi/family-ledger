@@ -480,7 +480,15 @@ async function loadDataSources() {
                   <td>{source.name}</td>
                   <td>{formatCapabilities(source.capabilities)}</td>
                   <td>{formatAcquisitionMethod(source.acquisitionMethod)}</td>
-                  <td><span className={`status-badge source-status-${source.status}`}>{formatSourceStatus(source.status)}</span></td>
+                  <td><span className={`status-badge source-status-${source.status}`}>{formatSourceStatus(source.status)}</span>
+                    {source.recovery && source.recovery.pending + source.recovery.needsAttention > 0 ? <p className="field-hint" role="status">
+                      历史价格仍有缺口：{source.recovery.pending} 项等待重试，{source.recovery.needsAttention} 项需处理。
+                      {source.recovery.unsupported > 0 ? `其中 ${source.recovery.unsupported} 项数据源不支持历史查询。` : ""}
+                      {source.recovery.oldestMissingDate ? `最早缺失 ${source.recovery.oldestMissingDate}。` : ""}
+                      {source.recovery.nextAttemptAt ? `下次重试 ${formatDateTime(source.recovery.nextAttemptAt)}。` : ""}
+                      {isAdmin ? "可在价格更新中重新提交任务重试。" : ""}
+                    </p> : null}
+                  </td>
                   <td className="numeric-cell">{source.configuredTargetCount ?? "-"}</td>
                   <td>{source.latestBatchRun ? `${formatStatus(source.latestBatchRun.status)} · ${formatDateTime(source.latestBatchRun.providerStartedAt)}` : "-"}</td>
                   <td>{source.latestAnchorDate ?? "-"}</td>

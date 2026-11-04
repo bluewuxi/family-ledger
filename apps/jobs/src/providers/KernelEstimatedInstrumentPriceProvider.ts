@@ -6,6 +6,7 @@ export interface KernelEstimatedInstrumentPriceProviderOptions {
   listAnchors?: (instrumentIds: string[]) => Promise<KernelPriceAnchor[]>;
 }
 export class KernelEstimatedInstrumentPriceProvider implements IInstrumentPriceProvider {
+  readonly capabilities = { latestQuote: false, dailyHistory: false, nativeBatch: false, maximumBatchSize: 1 };
   readonly name = KERNEL_NTA_PROVIDER;
   constructor(private readonly options: KernelEstimatedInstrumentPriceProviderOptions = {}) {}
   async fetchLatestPrices(input: FetchLatestInstrumentPricesInput): Promise<InstrumentPriceProviderResult> {

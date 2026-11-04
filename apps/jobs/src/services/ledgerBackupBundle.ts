@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 12;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261102130000_transaction_idempotency";
+export const LEDGER_BACKUP_VERSION = 13;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261104100000_snapshot_availability";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -24,7 +24,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -65,7 +65,8 @@ export function createLedgerBackupObject(input: {
     "app_users", "spending_accounts",
     "account_statements",
     "statement_rows",
-    "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state", "transaction_create_requests", "snapshot_repair_state"
+    "kernel_price_anchors", "education_reserve_funds", "education_reserve_entries", "kernel_nta_refresh_state", "transaction_create_requests", "snapshot_repair_state",
+    "price_acquisition_state", "price_acquisition_attempts", "instrument_price_revisions", "snapshot_pending_dates"
   ].includes(table.name)).map((table) =>
     legacy && table.name === "portfolio_snapshot_headers" ? { name: "portfolio_snapshots" as const, orderColumn: "id" } : table);
   const payloadRows = Object.fromEntries(tableDefinitions.map((table) => [table.name, input.rows[table.name]])) as LedgerBackupRows;
@@ -150,7 +151,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -175,6 +176,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
   }
 
   const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name)
+    .filter(name => payload.manifest.version >= 13 || !["price_acquisition_state", "price_acquisition_attempts", "instrument_price_revisions", "snapshot_pending_dates"].includes(name))
     .filter(name => payload.manifest.version >= 12 || !["transaction_create_requests", "snapshot_repair_state"].includes(name))
     .filter(name => payload.manifest.version >= 10 || !["account_access_policies", "account_ledger_grants", "account_spending_grants", "account_education_grants", "account_access_audit"].includes(name))
     .filter((name) => payload.manifest.version >= 9 || name !== "app_users")
@@ -368,6 +370,11 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
   rows.instrument_prices = rows.instrument_prices.map((value) => {
     const price = value as Record<string, unknown>;
     return { ...price, is_estimated: price.is_estimated ?? false };
+  });
+  rows.price_acquisition_state = rows.price_acquisition_state.map(value => ({ ...(value as Record<string, unknown>), lease_token: null, lease_expires_at: null }));
+  rows.portfolio_snapshot_headers = rows.portfolio_snapshot_headers.map(value => {
+    const row = value as Record<string, unknown>;
+    return { ...row, is_available: row.is_available ?? true };
   });
   const accounts = new Map(rows.spending_accounts.map(value => {
     const account = value as Record<string, unknown>;

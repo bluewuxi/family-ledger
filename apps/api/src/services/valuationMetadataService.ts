@@ -13,8 +13,10 @@ export function buildValuationMetadata(holdings: ValuedHoldingSummary[], rates: 
   const securities = holdings.filter(holding => holding.assetType !== "cash");
   const priceDates = securities.flatMap(holding => holding.latestPriceDate ? [holding.latestPriceDate] : []).sort();
   const quoteTimes = securities.flatMap(holding => holding.quoteFetchedAt ? [holding.quoteFetchedAt] : []).sort();
+  const occurrenceTimes = securities.flatMap(holding => holding.quoteAt ? [holding.quoteAt] : []).sort();
   return {
     valuedAt: now.toISOString(), fxDateFrom: dates[0] ?? null, fxDateTo: dates.at(-1) ?? null,
+    ...(occurrenceTimes.length ? { quoteAtFrom: occurrenceTimes[0], quoteAtTo: occurrenceTimes.at(-1) } : {}),
     quotedHoldingCount: securities.filter(holding => holding.latestPriceKind === "quote").length,
     storedPriceHoldingCount: securities.filter(holding => holding.latestPriceKind === "stored").length,
     missingPriceHoldingCount: securities.filter(holding => holding.latestPrice === null).length,

@@ -63,7 +63,7 @@ export function AssetSnapshotsTab({ refreshVersion = 0 }: { refreshVersion?: num
         return <tr key={snapshot.id}><td>{snapshot.snapshotDate}</td><td className="numeric-cell">{formatDisplayAmount(snapshot.marketValue)}</td>
           <td className={`numeric-cell ${signedToneClass(comparison?.changeAmount, preferences.gainColorScheme, 3)}`}>{formatSignedDisplayAmount(comparison?.changeAmount)}<br /><small>基准 {comparison?.previousSnapshotDate ?? "--"}</small></td>
           <td className={`numeric-cell ${signedToneClass(comparison?.changePct, preferences.gainColorScheme, 1)}`}>{comparison?.changePct == null ? "--" : `${formatSignedDisplayPercent(comparison.changePct)}%`}</td>
-          <td>{snapshot.warnings.length ? snapshot.warnings.map(warning => `${warning.instrumentShortName}：${warning.code === "MISSING_FX_RATE" ? "缺少汇率" : warning.code === "COST_BASIS_UNAVAILABLE" ? "成本不可用" : warning.code === "MISSING_LATEST_PRICE" ? "缺少价格" : "缺少前一价格"}`).join("；") : snapshot.marketValue === null ? "估值不可用" : "完整"}</td></tr>;
+          <td>{snapshot.isAvailable === false ? "等待数据修复，原记录暂不可用" : snapshot.warnings.length ? snapshot.warnings.map(warning => `${warning.instrumentShortName}：${warning.code === "MISSING_FX_RATE" ? "缺少汇率" : warning.code === "COST_BASIS_UNAVAILABLE" ? "成本不可用" : warning.code === "MISSING_LATEST_PRICE" ? "缺少价格" : "缺少前一价格"}`).join("；") : snapshot.marketValue === null ? "估值不可用" : "完整"}</td></tr>;
       })}
     </tbody></table></div>
     <PaginationControls pagination={data.pagination} loading={loading || error !== null} onPageChange={setOffset} />

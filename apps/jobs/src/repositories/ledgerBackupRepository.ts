@@ -19,6 +19,10 @@ export const LEDGER_BACKUP_TABLES = [
   { name: "education_reserve_entries", orderColumn: "id" },
   { name: "exchange_rates", orderColumn: "id" },
   { name: "instrument_prices", orderColumn: "id" },
+  { name: "price_acquisition_state", orderColumn: "source,instrument_id,query_kind,target_date" },
+  { name: "price_acquisition_attempts", orderColumn: "lease_token" },
+  { name: "instrument_price_revisions", orderColumn: "id" },
+  { name: "snapshot_pending_dates", orderColumn: "snapshot_date" },
   { name: "portfolio_snapshot_headers", orderColumn: "id" },
   { name: "portfolio_account_snapshots", orderColumn: "id" },
   { name: "dashboard_instrument_quotes", orderColumn: "id" },
@@ -46,6 +50,7 @@ export async function exportLedgerTables(input: { excludedJobRunId?: string | nu
   }
 
   if ((data as Record<string, unknown>).__account_access_encoding !== "typed-grants-v1") throw new Error("Backup exporter requires account access migration.");
+  if ((data as Record<string, unknown>).__price_acquisition_encoding !== "leases-reset-v1") throw new Error("Backup exporter requires acquisition recovery migration.");
   if ((data as Record<string, unknown>).__financial_numeric_encoding !== "decimal-strings-v1") {
     throw new Error("Backup exporter requires the lossless decimal migration.");
   }

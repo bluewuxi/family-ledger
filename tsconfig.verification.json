@@ -15,6 +15,12 @@
   "include": [
     "scripts/verification/**/*.ts",
     "scripts/verify-verification-tooling.ts",
-    "scripts/verify-docs-consistency.ts"
+    "scripts/verify-docs-consistency.ts",
+    "scripts/verify-price-acquisition.ts",
+    "scripts/verify-price-acquisition-db.ts",
+    "scripts/verify-price-recovery.ts",
+    "scripts/verify-snapshot-availability.ts",
+    "scripts/verify-valuation-client.ts",
+    "scripts/verify-source-price-correction.ts"
   ]
 }

@@ -6,6 +6,7 @@ import { readAllRows } from "../apps/api/src/repositories/readAllRows";
 import {
   calculateHoldings,
   calculatePortfolioSnapshotValuation,
+  withSnapshotEligibility,
   getAppBusinessDate,
   type ExchangeRateRecord,
   type Instrument,
@@ -151,7 +152,7 @@ async function main(): Promise<void> {
   }
 
   if (shouldFix) {
-    console.log("Mismatched portfolio snapshots were recalculated and rewritten.");
+    console.log("Snapshot repair requests were processed; dates missing required historical inputs remain pending.");
     logTimingWarnings(timingWarnings);
     return;
   }
@@ -273,13 +274,10 @@ function calculateExpectedValuation(
     { fxRates: input.rates.filter((rate) => rate.rateDate <= snapshotDate) }
   );
 
-  return calculatePortfolioSnapshotValuation({
-    snapshotDate,
-    holdings,
-    accounts: input.accounts,
-    prices: input.prices.filter((price) => price.priceDate <= snapshotDate),
-    fxRates: input.rates.filter((rate) => rate.rateDate <= snapshotDate)
-  });
+  const prices = input.prices.filter((price) => price.priceDate <= snapshotDate);
+  const fxRates = input.rates.filter((rate) => rate.rateDate <= snapshotDate);
+  return withSnapshotEligibility(calculatePortfolioSnapshotValuation({ snapshotDate, holdings, accounts: input.accounts, prices, fxRates }),
+    { holdings, instruments: input.instruments, prices, fxRates });
 }
 
 function compareSnapshot(

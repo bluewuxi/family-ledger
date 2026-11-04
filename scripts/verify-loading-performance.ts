@@ -41,7 +41,7 @@ async function main() {
   invalidateHistoryCache(); calls = 0;
   assert.deepEqual(await Promise.all([readHistoryCache("user:USD", read), readHistoryCache("user:USD", read)]), [1, 1]);
   invalidateHistoryCache(); assert.equal(await readHistoryCache("user:USD", read), 2);
-  assert.equal(parseQuoteMode(undefined), "refresh"); assert.equal(parseQuoteMode("cached"), "cached");
+  assert.equal(parseQuoteMode(undefined), "auto"); assert.equal(parseQuoteMode("cached"), "cached");
   assert.throws(() => parseQuoteMode("other"));
   console.log("Loading performance: bounded read retries, cancellation, deduplication, cache bypass and identity/write invalidation passed.");
 }

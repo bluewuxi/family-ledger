@@ -1,4 +1,7 @@
 import type { CreateInstrumentPriceInput, CurrencyCode, InstrumentPriceRecord, PriceSource } from "@family-ledger/shared";
+import { MARKET_DATA_SOURCE_DEFINITIONS } from "@family-ledger/shared";
+import Decimal from "decimal.js";
+import { ensurePriceAcquisition, claimPriceAcquisition, completePriceAcquisition } from "./priceAcquisitionRepository";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
 export interface PriceEnabledInstrument {
@@ -104,6 +107,19 @@ export async function insertInstrumentPriceIfNotExists(
     throw new Error("Failed to find existing instrument price.");
   }
 
+  const source = MARKET_DATA_SOURCE_DEFINITIONS.find(definition => definition.runProviderName === input.provider);
+  if (source && input.fetchedAt && (!existing.fetched_at || Date.parse(input.fetchedAt) > Date.parse(existing.fetched_at))
+    && (!new Decimal(existing.close_price).eq(input.closePrice) || existing.is_estimated !== (input.isEstimated ?? false)
+      || existing.is_adjusted !== (input.isAdjusted ?? false) || existing.currency !== input.currency)) {
+    const identity = { source: source.key, instrumentId: input.instrumentId, queryKind: "daily_history" as const, targetDate: input.priceDate };
+    await ensurePriceAcquisition(identity);
+    const lease = await claimPriceAcquisition({ ...identity, force: true });
+    if (lease && await completePriceAcquisition({ leaseToken: lease.leaseToken, status: "success", prices: [input] })) {
+      const { data: corrected, error: correctionError } = await supabase.from("instrument_prices").select(priceSelect).eq("id", existing.id).single<PriceRow>();
+      if (correctionError || !corrected) throw new Error("Failed to read corrected source price.");
+      return { record: mapInstrumentPriceRow(corrected), inserted: false };
+    }
+  }
   return { record: mapInstrumentPriceRow(existing), inserted: false };
 }
 

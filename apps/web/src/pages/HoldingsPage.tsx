@@ -55,7 +55,7 @@ export function HoldingsPage() {
     }
   }, [currencyManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
-  async function loadHoldings(_currency: SnapshotDisplayCurrency) { await reload(); }
+  async function loadHoldings(_currency: SnapshotDisplayCurrency) { await reload(true); }
 
   function openHoldingDetail(holding: ValuedHoldingSummary) {
     observeAsync(navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`));

@@ -168,14 +168,14 @@ export async function ingestLatestInstrumentPrices(
       jobRunRepository
     });
 
-    if (runResult.status === "succeeded") {
-      providerRuns.push(runResult.result);
-      instrumentPrices.push(...runResult.result.instrumentPrices);
-      recordsInserted += runResult.result.recordsInserted;
-      recordsSkipped += runResult.result.recordsSkipped;
-    } else {
-      providerFailures.push(runResult.failure);
+    if (runResult.status === "succeeded" || runResult.result) {
+      const completed = runResult.result!;
+      providerRuns.push(completed);
+      instrumentPrices.push(...runResult.result!.instrumentPrices);
+      recordsInserted += runResult.result!.recordsInserted;
+      recordsSkipped += runResult.result!.recordsSkipped;
     }
+    if (runResult.status === "failed") providerFailures.push(runResult.failure);
   }
 
   const finishedAt = now().toISOString();
@@ -344,7 +344,7 @@ class InstrumentPriceIngestionError extends Error {
 
 type ProviderRunOutcome =
   | { status: "succeeded"; result: InstrumentPriceProviderRunResult }
-  | { status: "failed"; failure: InstrumentPriceProviderRunFailure };
+  | { status: "failed"; failure: InstrumentPriceProviderRunFailure; result?: InstrumentPriceProviderRunResult };
 
 async function runProvider(input: {
   providerConfig: InstrumentPriceProviderConfig;
@@ -384,12 +384,14 @@ async function runProvider(input: {
         dataProviderRun: finishedProviderRun, fetchedAt: providerResult.fetchedAt, recordsInserted: changed,
         recordsSkipped: 0, recordsSkippedByClosePolicy: 0, instrumentPrices: [] } };
     }
+    const failedIds = new Set(providerResult.items?.filter(item => item.status !== "success").map(item => item.key) ?? []);
+    const failedSymbols = instruments.filter(instrument => failedIds.has(instrument.id)).map(instrument => instrument.priceSourceSymbol);
     const priceInputs = toInstrumentPriceInputs(
       instruments,
       providerResult.prices,
       providerConfig.provider.name,
       providerResult.fetchedAt,
-      providerResult.skippedSourceSymbols
+      [...(providerResult.skippedSourceSymbols ?? []), ...failedSymbols]
     );
     const recordsSkippedByClosePolicy = countUnconfirmedMarketClosePrices(
       instruments,
@@ -419,26 +421,15 @@ async function runProvider(input: {
       }
     }
 
+    const incomplete = failedSymbols.length > 0;
+    const errorMessage = incomplete ? "Some instrument prices could not be acquired." : null;
     const finishedProviderRun = await jobRunRepository.finishDataProviderRun(dataProviderRun.id, {
-      status: "succeeded",
-      finishedAt: now().toISOString(),
-      recordsInserted,
-      recordsSkipped
+      status: incomplete ? "failed" : "succeeded", finishedAt: now().toISOString(), recordsInserted, recordsSkipped, errorMessage
     });
+    const result = { provider: providerConfig.provider.name, priceSource: providerConfig.priceSource, dataProviderRun: finishedProviderRun,
+      fetchedAt: providerResult.fetchedAt, recordsInserted, recordsSkipped, recordsSkippedByClosePolicy, instrumentPrices };
+    return incomplete ? { status: "failed", result, failure: {provider: providerConfig.provider.name, priceSource: providerConfig.priceSource, dataProviderRun: finishedProviderRun, errorMessage: errorMessage!} } : {status: "succeeded", result};
 
-    return {
-      status: "succeeded",
-      result: {
-        provider: providerConfig.provider.name,
-        priceSource: providerConfig.priceSource,
-        dataProviderRun: finishedProviderRun,
-        fetchedAt: providerResult.fetchedAt,
-        recordsInserted,
-        recordsSkipped,
-        recordsSkippedByClosePolicy,
-        instrumentPrices
-      }
-    };
   } catch (error) {
     const errorMessage = sanitizeErrorMessage(error);
     const failedProviderRun =

@@ -43,6 +43,11 @@ void main();
 
 async function main(): Promise<void> {
   await verifySnapshotScope();
+  const missingPrincipalProfit = buildProfitChartData(buildTrendChartData([
+    { date: "2026-06-01", portfolioValue: 100, totalInvestment: 100, snapshotDate: "2026-06-01" },
+    { date: "2026-06-02", portfolioValue: 200, totalInvestment: null, snapshotDate: "2026-06-02" }
+  ], null, null));
+  assert.equal(missingPrincipalProfit[1]?.profitValue, null);
   const liveCurve = buildTrendChartData([
     {date:"2026-10-06",portfolioValue:120,totalInvestment:100},
     {date:"2026-10-07",portfolioValue:110,totalInvestment:100}
@@ -180,10 +185,10 @@ async function main(): Promise<void> {
     clampedTrend.points.find((point) => point.date === "2026-05-27"),
     {
       date: "2026-05-27",
-      portfolioValue: null,
+      portfolioValue: "130",
       snapshotDate: "2026-05-15",
       liveValue: null,
-      totalInvestment: "1100.000000"
+      totalInvestment: "0.000000"
     }
   );
 
@@ -193,8 +198,9 @@ async function main(): Promise<void> {
     principalTransactions: [transaction("2026-06-01", "deposit", "NZD", "1000"), transaction("2026-06-02", "deposit", "NZD", "500")],
     exactFxRates: []
   });
-  assert.equal(depositTrend.points.find((point) => point.date === "2026-06-02")?.portfolioValue, null);
-  assert.equal(depositTrend.points.at(-1)?.portfolioValue, null);
+  assert.equal(depositTrend.points.find((point) => point.date === "2026-06-02")?.portfolioValue, "1000");
+  assert.equal(depositTrend.points.at(-1)?.portfolioValue, "1000");
+  assert.equal(depositTrend.points.at(-1)?.totalInvestment, "1000.000000");
 
   const recoveredTrend = await buildPortfolioTrend({
     currency: "NZD", range: "1m", today: "2026-06-03",
@@ -206,7 +212,7 @@ async function main(): Promise<void> {
     ...point, portfolioValue: point.portfolioValue === null ? null : Number(point.portfolioValue),
     totalInvestment: point.totalInvestment === null ? null : Number(point.totalInvestment)
   })), null, null));
-  assert.deepEqual(profit.map((point) => point.profitValue), [0, null, 0]);
+  assert.deepEqual(profit.map((point) => point.profitValue), [0, 0, 0]);
   const withdrawalTrend = await buildPortfolioTrend({
     currency: "NZD", range: "1m", today: "2026-06-03",
     snapshots: [snapshot("2026-06-01", "1000")],
@@ -214,7 +220,8 @@ async function main(): Promise<void> {
       { ...transaction("2026-06-02", "deposit", "NZD", "500"), transactionType: "withdrawal" }],
     exactFxRates: []
   });
-  assert.equal(withdrawalTrend.points.at(-1)?.portfolioValue, null);
+  assert.equal(withdrawalTrend.points.at(-1)?.portfolioValue, "1000");
+  assert.equal(withdrawalTrend.points.at(-1)?.totalInvestment, "1000.000000");
 
   const weekly = await buildPortfolioTrend({
     currency: "NZD", range: "3y", today: "2026-06-03",
@@ -363,6 +370,10 @@ async function verifySnapshotScope(): Promise<void> {
   }
   assert(calls.includes("raw-cache") && calls.includes("raw-bypass"));
   const defaults = await getPortfolioSnapshotsResponse({currency:"USD",includeTrend:"true"},dependencies);
-  assert.deepEqual(defaults.snapshots,[]);
+  assert.equal(defaults.snapshots[0]?.snapshotDate,"2026-05-03");
+  const fallback = await getPortfolioSnapshotsResponse({ from: "2026-05-04", to: "2026-05-04", currency: "USD", purpose: "investment" }, dependencies);
+  assert.equal(fallback.resolution?.actualSnapshotDate, "2026-05-03");
+  assert.equal(fallback.resolution?.isFallback, true);
+  assert.equal(fallback.snapshots[0]?.snapshotDate, "2026-05-03");
   await assert.rejects(getPortfolioSnapshotsResponse({currency:"USD",purpose:"invalid"},dependencies));
 }

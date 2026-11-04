@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { getTimeZoneDateString, type CurrencyCode } from "@family-ledger/shared";
+import { getTimeZoneDateString, runPriceBatch, providerHttpError, type CurrencyCode } from "@family-ledger/shared";
 import type {
   FetchLatestInstrumentPricesInput,
   InstrumentPriceProviderPrice,
@@ -10,6 +10,7 @@ import type {
 interface FetchResponseLike {
   ok: boolean;
   status: number;
+  headers?: { get(name: string): string | null };
   text(): Promise<string>;
 }
 
@@ -24,6 +25,7 @@ export const FUNDROCK_DOCUMENTS_ENDPOINT =
   "https://www.fundrock.com/fundrock-new-zealand/frnz-documents-and-reporting/";
 
 export class FundRockPieUnitPriceProvider implements IInstrumentPriceProvider {
+  readonly capabilities = { latestQuote: false, dailyHistory: false, nativeBatch: true, maximumBatchSize: 3 };
   readonly name = "FundRock";
 
   private readonly fetchFn: FetchLike;
@@ -38,22 +40,26 @@ export class FundRockPieUnitPriceProvider implements IInstrumentPriceProvider {
     const response = await this.fetchFn(this.endpoint);
 
     if (!response.ok) {
-      throw new Error(`FundRock request failed with status ${response.status}.`);
+      throw providerHttpError(response);
     }
 
     const pageText = normalizeHtmlText(await response.text());
-    const prices = input.instruments.map((instrument) =>
-      extractFundUnitPrice(pageText, instrument.providerInstrumentName, instrument.sourceSymbol, instrument.currency)
-    );
     const fetchedDate = getTimeZoneDateString(input.fetchedAt, "Pacific/Auckland");
-    if (prices.some((price) => price.priceDate > fetchedDate)) {
-      throw new Error("FundRock unit price date is in the future.");
-    }
+    const errors: unknown[] = [];
+    const items = await runPriceBatch(input.instruments, { key: instrument => instrument.instrumentId ?? instrument.sourceSymbol, concurrency: 2, acquire: async instrument => {
+      try {
+        const price = extractFundUnitPrice(pageText, instrument.providerInstrumentName, instrument.sourceSymbol, instrument.currency);
+        if (price.priceDate > fetchedDate) throw new Error("FundRock unit price date is in the future.");
+        return price;
+      } catch(error) {errors.push(error); throw error;}
+    }});
+    const prices = items.flatMap(item => item.status === "success" ? [item.value] : []);
+    if (!prices.length && errors.length) throw errors[0];
 
     return {
       provider: this.name,
       fetchedAt: input.fetchedAt,
-      prices
+      prices, items
     };
   }
 }

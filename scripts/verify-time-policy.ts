@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   ]);
   assert.deepEqual(profitChart.map((point) => [point.date, point.profitValue]), [
     ["2026-05-28", 0],
-    ["2026-05-29", 10],
+    ["2026-05-29", null],
     ["2026-05-30", 0]
   ]);
 

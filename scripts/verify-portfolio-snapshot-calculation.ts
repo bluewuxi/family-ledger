@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   calculateHoldings,
   calculatePortfolioSnapshotValuation,
+  withSnapshotEligibility,
   convertSnapshotAmount,
   type AccountType,
   type AssetType,
@@ -75,6 +76,21 @@ assert.equal(complete.accounts.find((row) => row.accountId === "account-a")?.mar
 assert.equal(complete.accounts.find((row) => row.accountId === "account-b")?.marketValueUsd, "86.000000");
 assert.equal(holdings.find((holding) => holding.instrumentId === "usd-security")?.instrumentShortName, "usd-security");
 assert.deepEqual(complete.warnings, []);
+
+const automaticInstruments = instruments.map(row => row.assetType === "cash" ? row : { ...row, priceSource: "yahoo_finance" as const, priceUpdateEnabled: true });
+const saturdayHoldings = calculateHoldings([
+  ...transactions.filter(row => row.tradeDate <= snapshotDate),
+  transaction("weekend-deposit", "account-a", "usd-cash", "deposit", "2026-05-23", null, null, "20", "USD")
+], accounts, instruments, { fxRates: rates });
+const saturday = withSnapshotEligibility(calculatePortfolioSnapshotValuation({ snapshotDate: "2026-05-23", accounts,
+  holdings: saturdayHoldings, prices: prices.filter(row => row.priceDate <= snapshotDate), fxRates: rates.filter(row => row.rateDate <= snapshotDate) }),
+  { holdings: saturdayHoldings, instruments: automaticInstruments, prices: prices.filter(row => row.priceDate <= snapshotDate), fxRates: rates.filter(row => row.rateDate <= snapshotDate) });
+assert.equal(saturday.publicationStatus, "ready");
+assert.equal(saturday.marketValueUsd, "256.000000", "weekend uses current ledger, not a copied Friday snapshot");
+const monday = withSnapshotEligibility({ ...saturday, snapshotDate: "2026-05-25" }, { holdings: saturdayHoldings,
+  instruments: automaticInstruments, prices: prices.filter(row => row.priceDate <= snapshotDate), fxRates: rates.filter(row => row.rateDate <= snapshotDate) });
+assert.equal(monday.publicationStatus, "pending");
+assert.deepEqual(monday.missingInstrumentIds?.sort(), ["nzd-security", "usd-security"]);
 
 // Historical cash liabilities can exceed the marked value of the investment.
 // Snapshot persistence must retain this signed net value without clamping it.

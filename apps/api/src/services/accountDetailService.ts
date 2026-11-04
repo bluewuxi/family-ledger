@@ -1,3 +1,4 @@
+import { getNextQuoteRefreshAt } from "./priceAcquisitionService";
 import { getInvestmentPerformance, completeInvestmentPerformance } from "./investmentPerformanceService";
 import { refreshDashboardQuotes } from "./dashboardService";
 import { parseQuoteMode } from "./quoteMode";
@@ -101,7 +102,7 @@ export async function getAccountDetail(input: {
     .sort((left, right) => right.snapshotDate.localeCompare(left.snapshotDate))[0] ?? null;
 
   return {
-    quoteRefreshWarnings, investmentPerformance, valuedAt: now.toISOString(), warnings,
+    quoteRefreshWarnings, investmentPerformance, nextRefreshAt: await getNextQuoteRefreshAt(holdings, instruments, quotes, now), valuedAt: now.toISOString(), warnings,
     reportingCurrency,
     account,
     currentValue: {

@@ -20,6 +20,7 @@ async function main(): Promise<void> {
   const deletedIds: string[][] = [];
   const recalculatedDates: string[] = [];
   const callOrder: string[] = [];
+  const publicationStatuses: Array<string | undefined> = [];
   const result = await applyMarketCloseRepair({
     plan,
     data,
@@ -30,6 +31,7 @@ async function main(): Promise<void> {
     upsertSnapshot: async (valuation) => {
       callOrder.push(`snapshot:${valuation.snapshotDate}`);
       recalculatedDates.push(valuation.snapshotDate);
+      publicationStatuses.push(valuation.publicationStatus);
     }
   });
 
@@ -37,6 +39,7 @@ async function main(): Promise<void> {
   assert.deepEqual(recalculatedDates, ["2026-05-29", "2026-05-30", "2026-05-31"]);
   assert.deepEqual(callOrder, ["delete", "snapshot:2026-05-29", "snapshot:2026-05-30", "snapshot:2026-05-31"]);
   assert.deepEqual(result, { deletedPrices: 1, recalculatedSnapshots: 3 });
+  assert.deepEqual(publicationStatuses, ["pending", "ready", "ready"], "Operator repair preserves weekday gaps and weekend ledger snapshots");
 
   const cleanPlan = createMarketCloseRepairPlan({
     ...data,

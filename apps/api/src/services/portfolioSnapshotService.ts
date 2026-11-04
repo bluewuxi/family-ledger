@@ -3,6 +3,8 @@ import { timed } from "../utils/timing";
 import Decimal from "decimal.js";
 import {
   getAppBusinessDate,
+  resolveSnapshotAtOrBefore,
+  type SnapshotResolution,
   PORTFOLIO_TREND_RANGES,
   type AuthenticatedUser,
   type ExchangeRateRecord,
@@ -17,12 +19,12 @@ import {
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
 import { listExactValuationRatesToUsdForDates } from "../repositories/fxRateRepository";
-import { listPortfolioSnapshots, listPortfolioSnapshotTrendRows } from "../repositories/portfolioSnapshotRepository";
+import { getSnapshotWriteRevision, listPortfolioSnapshots, listPortfolioSnapshotTrendRows } from "../repositories/portfolioSnapshotRepository";
 import { listManualPrincipalTransactionsUntil } from "../repositories/transactionRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { optionalAccountPurpose } from "./accountPurpose";
-import { calculatePrincipalPoints, getRequiredPrincipalFxCurrencies, toPrincipalEvent, type PrincipalEvent } from "./principalService";
+import { calculatePrincipalPoints, getRequiredPrincipalFxCurrencies, toPrincipalEvent } from "./principalService";
 export { calculatePrincipalPoints, type PrincipalEvent } from "./principalService";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -30,6 +32,7 @@ const earliestDate = "0001-01-01";
 
 export interface PortfolioSnapshotsResponse {
   snapshots: PortfolioSnapshotSummary[];
+  resolution?: SnapshotResolution<PortfolioSnapshotSummary>;
   trend?: PortfolioTrend;
   pagination?: Pagination;
   comparisons?: Record<string, SnapshotComparison>;
@@ -53,7 +56,10 @@ export async function getPortfolioSnapshots(input: {
   user?: AuthenticatedUser;
 }): Promise<PortfolioSnapshotSummary[]> {
   const query = await resolveSnapshotQuery(input);
-  return listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) });
+  const history = await listPortfolioSnapshots({ ...query, from: query.from === query.to ? earliestDate : query.from, purpose: optionalAccountPurpose(input.purpose) });
+  if (query.from !== query.to) return history;
+  const resolution = resolveSnapshotAtOrBefore(history, query.to, row => row.marketValue !== null);
+  return resolution.value ? [resolution.value] : [];
 }
 
 export async function getPortfolioSnapshotsResponse(input: {
@@ -73,11 +79,17 @@ export async function getPortfolioSnapshotsResponse(input: {
   const query = await resolveSnapshotQuery(input);
   const includeComparison = optionalBoolean("includeComparison", input.includeComparison);
   const paginated = input.offset !== undefined || includeComparison;
+  if (!paginated && query.from === query.to && !optionalBoolean("includeTrend", input.includeTrend)) {
+    const history = await dependencies.listPortfolioSnapshots({ ...query, from: earliestDate, limit: undefined, purpose: optionalAccountPurpose(input.purpose) });
+    const resolution = resolveSnapshotAtOrBefore(history, query.to, row => row.marketValue !== null);
+    return { snapshots: resolution.value ? [resolution.value] : [], resolution };
+  }
   if (!paginated && optionalBoolean("includeTrend", input.includeTrend) && input.purpose === "investment") {
     const history = await dependencies.loadPortfolioHistory(input.user?.id, query.currency, query.to, optionalBoolean("bypassCache", input.bypassCache));
-    const snapshots = history.snapshots.filter(snapshot => snapshot.snapshotDate >= query.from && snapshot.snapshotDate <= query.to);
+    const resolution = query.from === query.to ? resolveSnapshotAtOrBefore(history.snapshots, query.to, row => row.marketValue !== null) : undefined;
+    const snapshots = resolution ? (resolution.value ? [resolution.value] : []) : history.snapshots.filter(snapshot => snapshot.snapshotDate >= query.from && snapshot.snapshotDate <= query.to);
     if (query.order === "desc") snapshots.reverse();
-    return { snapshots: query.limit === undefined ? snapshots : snapshots.slice(0, query.limit),
+    return { snapshots: query.limit === undefined ? snapshots : snapshots.slice(0, query.limit), ...(resolution ? { resolution } : {}),
       trend: await dependencies.buildPortfolioTrend({ currency: query.currency, range: optionalTrendRange(input.trendRange), today: query.to,
         snapshots: history.snapshots, principalTransactions: history.principalTransactions }) };
   }
@@ -85,10 +97,14 @@ export async function getPortfolioSnapshotsResponse(input: {
   if (paginated) {
     const offset = input.offset === undefined ? 0 : Number(input.offset);
     if (!Number.isSafeInteger(offset) || offset < 0) throw new ApiRequestError("VALIDATION_ERROR", "offset must be a non-negative integer.", 400);
-    const history = await dependencies.listPortfolioSnapshots({ from: earliestDate, to: query.to, currency: query.currency, order: "asc", purpose: optionalAccountPurpose(input.purpose) });
+    const history = await dependencies.listPortfolioSnapshots({ from: earliestDate, to: query.to, currency: query.currency, order: "asc", purpose: optionalAccountPurpose(input.purpose), includeUnavailable: true });
     result = paginateSnapshotHistory(history, { ...query, offset, limit: query.limit ?? 20 }, includeComparison);
   } else {
-    result = { snapshots: await dependencies.listPortfolioSnapshots({ ...query, purpose: optionalAccountPurpose(input.purpose) }) };
+    const history = await dependencies.listPortfolioSnapshots({ ...query, from: query.from === query.to ? earliestDate : query.from, limit: query.from === query.to ? undefined : query.limit, purpose: optionalAccountPurpose(input.purpose) });
+    if (query.from === query.to) {
+      const resolution = resolveSnapshotAtOrBefore(history, query.to, row => row.marketValue !== null);
+      result = { snapshots: resolution.value ? [resolution.value] : [], resolution };
+    } else result = { snapshots: history };
   }
 
   if (!optionalBoolean("includeTrend", input.includeTrend)) {
@@ -144,7 +160,7 @@ export async function buildPortfolioTrend(input: {
     input.snapshots ? Promise.resolve(input.snapshots) : listPortfolioSnapshotTrendRows({ from: earliestDate, to: rangeEnd, currency: input.currency, order: "asc", purpose: "investment" })
   ]));
   const [principalTransactions, allSnapshots] = input.userId && !input.snapshots && !input.principalTransactions && !input.bypassCache
-    ? await readHistoryCache(`${input.userId}:${input.currency}:${rangeEnd}`, readHistory) : await readHistory();
+    ? await readHistoryCache(`${input.userId}:${input.currency}:${rangeEnd}:${await getSnapshotWriteRevision()}`, readHistory) : await readHistory();
   const principalEvents = principalTransactions.map(toPrincipalEvent);
   const inceptionDate = principalEvents[0]?.date ?? null;
   const requestedRangeStart = getTrendRangeStart(input.range, rangeEnd, inceptionDate);
@@ -168,7 +184,11 @@ export async function buildPortfolioTrend(input: {
     rangeStart,
     rangeEnd
   });
-  const points = mergeTrendPoints(portfolioPoints, principal.principalPoints, allSnapshots, principalEvents);
+  const principalAtSnapshots = new Map(allSnapshots.map(snapshot => [snapshot.snapshotDate, calculatePrincipalPoints({
+    events: principalEvents.filter(event => event.date <= snapshot.snapshotDate), exactFxRates,
+    currency: input.currency, rangeStart: snapshot.snapshotDate, rangeEnd: snapshot.snapshotDate, inceptionDate
+  }).currentTotalInvestment]));
+  const points = mergeTrendPoints(portfolioPoints, principal.principalPoints, allSnapshots, principalAtSnapshots);
 
   return {
     points,
@@ -249,23 +269,14 @@ function findSnapshotAsOf(
   snapshots: PortfolioSnapshotSummary[],
   targetDate: string
 ): PortfolioSnapshotSummary | null {
-  let selected: PortfolioSnapshotSummary | null = null;
-
-  for (const snapshot of snapshots) {
-    if (snapshot.snapshotDate > targetDate) {
-      break;
-    }
-    selected = snapshot;
-  }
-
-  return selected;
+  return resolveSnapshotAtOrBefore(snapshots, targetDate, row => row.marketValue !== null).value;
 }
 
 function mergeTrendPoints(
   portfolioPoints: Array<Omit<PortfolioTrendPoint, "totalInvestment">>,
   principalPoints: PortfolioPrincipalPoint[],
   snapshots: PortfolioSnapshotSummary[],
-  principalEvents: PrincipalEvent[]
+  principalAtSnapshots: Map<string, string | null>
 ): PortfolioTrendPoint[] {
   const portfolioByDate = new Map(portfolioPoints.map((point) => [point.date, point]));
   const sortedSnapshots = [...snapshots].sort((left, right) => left.snapshotDate.localeCompare(right.snapshotDate));
@@ -277,16 +288,13 @@ function mergeTrendPoints(
     const snapshot = findSnapshotAsOf(sortedSnapshots, date);
     const portfolioPoint = portfolioByDate.get(date);
     const snapshotDate = snapshot?.snapshotDate ?? null;
-    const hasUnvaluedFlow = snapshotDate !== null && principalEvents.some(
-      (event) => event.date > snapshotDate && event.date <= date
-    );
 
     return {
       date,
-      portfolioValue: hasUnvaluedFlow ? null : snapshot?.marketValue ?? null,
+      portfolioValue: snapshot?.marketValue ?? null,
       snapshotDate,
       liveValue: portfolioPoint?.liveValue ?? null,
-      totalInvestment: principalByDate.get(date) ?? null
+      totalInvestment: snapshotDate !== null ? principalAtSnapshots.get(snapshotDate) ?? null : principalByDate.get(date) ?? null
     };
   });
 }
@@ -318,7 +326,8 @@ async function resolveSnapshotQuery(input: {
 }
 
 function validateDate(name: string, value: string): void {
-  if (!datePattern.test(value)) {
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (!datePattern.test(value) || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
     throw new ApiRequestError("VALIDATION_ERROR", `${name} must use YYYY-MM-DD format.`, 400);
   }
 }
@@ -408,5 +417,5 @@ async function loadPortfolioHistory(userId: string | undefined, currency: Snapsh
     ]);
     return { snapshots, principalTransactions };
   };
-  return userId && !bypass ? readHistoryCache(`${userId}:raw:${currency}:${to}`, load) : load();
+  return userId && !bypass ? readHistoryCache(`${userId}:raw:${currency}:${to}:${await getSnapshotWriteRevision()}`, load) : load();
 }

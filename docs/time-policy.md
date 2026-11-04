@@ -16,7 +16,7 @@ Use shared time helpers for app business dates and UI date defaults. Avoid ad ho
 
 Scheduled snapshot defaults must derive from scheduled time, not Lambda execution/retry time. The completed snapshot-date convention is defined in [Portfolio Valuation Snapshots](data-model.md#portfolio-valuation-snapshots); the required timezone-aware Scheduler settings and `<aws.scheduler.scheduled-time>` payload are defined in [Scheduled Jobs](deployment.md#scheduled-jobs).
 
-The local reliability change prepares daily snapshot maintenance at 06:30 Shanghai; price/FX schedules remain Tuesday-Saturday. Catch-up and repair never exceed the completed date derived from the original scheduled time. Manual snapshot dates must be real calendar dates and completed by that same bound. Activation and initial historical catch-up are separately authorized operator work.
+The existing reliability release configured daily snapshot maintenance at 06:30 Shanghai; price/FX schedules remain Tuesday-Saturday. Catch-up and repair never exceed the completed date derived from the original scheduled time. Manual snapshot dates must be real calendar dates and completed by that same bound. Activation and initial historical catch-up are separately authorized operator work.
 
 ## Provider dates
 
@@ -31,3 +31,7 @@ When adding date/time behavior, document new semantics and update focused verifi
 ## Authentication instants
 
 Session, temporary-password and rate-window expiry use server UTC instants/epoch seconds, independent of portfolio business dates. A full session lasts twelve hours; temporary credentials last twenty-four hours and restricted sessions at most ten minutes. DynamoDB TTL is asynchronous cleanup, never an authorization check.
+
+## Simplified market availability (local implementation)
+
+[Snapshot recovery](specs/market-data-and-snapshot-recovery.md) assumes only Saturday/Sunday closures. Weekend snapshot classification uses the already-resolved app snapshot date, while live acquisition suppression uses each source market local date. Weekday holidays can leave pending dates; no absence is proof of a holiday. Weekends use as-of closes and current-date ledger activity. Weekday formal dates require correctly dated inputs, including late fund/estimate publications. Historical fallback never chooses a future snapshot; source price dates, requested dates, actual snapshot dates, and acquisition instants remain distinct.

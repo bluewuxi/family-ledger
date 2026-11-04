@@ -115,7 +115,16 @@ async function main() {
     assert.throws(()=>sql(commitIntent(id(34),'c'.repeat(64),'stale',id(35))),/Atomic transaction write failed/);
     assert.equal(sql(`select count(*) from transaction_create_requests where request_key='${id(35)}'`),'0','Failed commit does not reserve a key');
     assert.equal(sql("select has_function_privilege('authenticated','find_transaction_create_replay(uuid,uuid,text)','execute')"),'f');
+    sql(`update instruments set price_source='yahoo_finance',price_source_symbol='TEST',price_update_enabled=true where id='${id(4)}';
+      select ensure_price_acquisition('yahoo_finance','${id(4)}','daily_history','2026-11-01');`);
+    const acquisitionToken = sql(`select lease_token from claim_price_acquisition('yahoo_finance','${id(4)}','daily_history','2026-11-01',120,false)`);
+    const recoveredPrice = JSON.stringify([{ instrumentId:id(4),priceDate:'2026-11-01',closePrice:'12345678901234.1234567890',currency:'USD',provider:'Yahoo Finance',sourceSymbol:'TEST',fetchedAt:'2026-11-02T00:00:00Z' }]);
+    sql(`select complete_price_acquisition('${acquisitionToken}','success',null,0,'${recoveredPrice}');
+      select ensure_price_acquisition('yahoo_finance','${id(4)}','daily_history','2026-11-02');
+      select lease_token from claim_price_acquisition('yahoo_finance','${id(4)}','daily_history','2026-11-02',120,false);
+      insert into snapshot_pending_dates(snapshot_date,missing_instrument_ids,missing_fx_currencies) values('2026-11-02','["${id(4)}"]','[]');`);
     const exported = JSON.parse(sql('select export_ledger_backup()'));
+    assert(exported.price_acquisition_state.every((row: Record<string,unknown>) => row.lease_token === null && row.lease_expires_at === null),'Ephemeral leases are excluded from recovery');
     for(const table of RESTORE_ORDER) assert(exported[table].length > 0,table+' fixture must be nonempty');
     const bundle = createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-10-31T00:00:00Z',rows:normalizeLedgerBackupRows(exported)});
     const decoded = JSON.parse(gunzipSync(bundle.body).toString('utf8')) as LedgerBackupPayload;

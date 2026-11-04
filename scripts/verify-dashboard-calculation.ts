@@ -409,7 +409,7 @@ const provider: IInstrumentQuoteProvider = {
       quotes: input.instruments.map((providerInstrument) => ({
         instrumentId: providerInstrument.instrumentId,
         sourceSymbol: providerInstrument.sourceSymbol,
-        quoteDate: "2026-05-23",
+        quoteDate: "2026-05-22",
         quotePrice: "80",
         currency: providerInstrument.currency
       }))
@@ -422,10 +422,10 @@ const storedQuotes = new Map<string, DashboardQuoteRecord>([
     dashboardQuote(
       "fresh-dashboard-quote",
       usdSecurity.instrumentId,
-      "2026-05-23",
+      "2026-05-22",
       "79",
       "USD",
-      "2026-05-23T10:56:00.000Z",
+      "2026-05-22T10:56:00.000Z",
       "Yahoo Finance"
     )
   ]
@@ -467,13 +467,13 @@ void verifyDashboardQuoteCache()
   });
 
 async function verifyDashboardQuoteCache(): Promise<void> {
-  const cachedOnly = await refreshDashboardQuotes({ holdings: [usdSecurity], instruments: [quoteInstrument], now: new Date("2026-05-23T11:02:00.000Z"), quoteMode: "cached", providers: { yahoo_finance: provider }, dashboardQuoteRepository: quoteRepository });
+  const cachedOnly = await refreshDashboardQuotes({ holdings: [usdSecurity], instruments: [quoteInstrument], now: new Date("2026-05-22T11:02:00.000Z"), quoteMode: "cached", providers: { yahoo_finance: provider }, dashboardQuoteRepository: quoteRepository });
   assert.equal(fetchCount, 0, "Cached mode must not call a provider even when stale");
   assert.deepEqual(cachedOnly, [], "Expired quotes cannot enter daily change");
   const freshQuotes = await refreshDashboardQuotes({
     holdings: [usdSecurity],
     instruments: [quoteInstrument],
-    now: new Date("2026-05-23T11:00:00.000Z"),
+    now: new Date("2026-05-22T11:00:00.000Z"),
     providers: { yahoo_finance: provider },
     dashboardQuoteRepository: quoteRepository
   });
@@ -483,12 +483,16 @@ async function verifyDashboardQuoteCache(): Promise<void> {
   const staleQuotes = await refreshDashboardQuotes({
     holdings: [usdSecurity],
     instruments: [quoteInstrument],
-    now: new Date("2026-05-23T11:02:00.000Z"),
+    now: new Date("2026-05-22T11:02:00.000Z"),
     providers: { yahoo_finance: provider },
     dashboardQuoteRepository: quoteRepository
   });
   assert.equal(fetchCount, 1);
   assert.equal(staleQuotes[0]?.quotePrice, "80");
+  await refreshDashboardQuotes({ holdings: [usdSecurity], instruments: [quoteInstrument], now: new Date("2026-05-22T11:02:30.000Z"), quoteMode: "refresh", providers: { yahoo_finance: provider }, dashboardQuoteRepository: quoteRepository });
+  assert.equal(fetchCount, 1, "Forced refresh respects the minimum sixty-second interval");
+  await refreshDashboardQuotes({ holdings: [usdSecurity], instruments: [quoteInstrument], now: new Date("2026-05-22T11:03:00.000Z"), quoteMode: "refresh", providers: { yahoo_finance: provider }, dashboardQuoteRepository: quoteRepository });
+  assert.equal(fetchCount, 2, "Forced refresh becomes due after sixty seconds");
 
   const staleOnlyRepository = {
     async listDashboardQuotes(): Promise<DashboardQuoteRecord[]> {
@@ -499,7 +503,7 @@ async function verifyDashboardQuoteCache(): Promise<void> {
           "2026-05-20",
           "70",
           "USD",
-          "2026-05-23T10:00:00.000Z",
+          "2026-05-22T10:00:00.000Z",
           "Yahoo Finance"
         )
       ];
@@ -521,7 +525,7 @@ async function verifyDashboardQuoteCache(): Promise<void> {
   const missingRefreshQuotes = await refreshDashboardQuotes({
     holdings: [usdSecurity],
     instruments: [quoteInstrument],
-    now: new Date("2026-05-23T10:06:00.000Z"),
+    now: new Date("2026-05-22T10:06:00.000Z"),
     providers: { yahoo_finance: missingRefreshProvider },
     dashboardQuoteRepository: staleOnlyRepository
   });

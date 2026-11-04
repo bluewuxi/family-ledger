@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   calculateHoldings,
   calculatePortfolioSnapshotValuation,
+  withSnapshotEligibility,
   type ExchangeRateRecord,
   type Instrument,
   type InstrumentPriceRecord,
@@ -253,13 +254,10 @@ function calculateSnapshotValuation(
     { fxRates: data.rates.filter((rate) => rate.rateDate <= snapshotDate) }
   );
 
-  return calculatePortfolioSnapshotValuation({
-    snapshotDate,
-    holdings,
-    accounts: data.accounts,
-    prices: data.prices.filter((price) => price.priceDate <= snapshotDate).map(toPriceRecord),
-    fxRates: data.rates.filter((rate) => rate.rateDate <= snapshotDate)
-  });
+  const prices = data.prices.filter((price) => price.priceDate <= snapshotDate).map(toPriceRecord);
+  const fxRates = data.rates.filter((rate) => rate.rateDate <= snapshotDate);
+  return withSnapshotEligibility(calculatePortfolioSnapshotValuation({ snapshotDate, holdings, accounts: data.accounts, prices, fxRates }),
+    { holdings, instruments: data.instruments, prices, fxRates });
 }
 
 async function readRepairDataSet(supabase: ReturnType<typeof createClient>): Promise<RepairDataSet> {

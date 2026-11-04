@@ -12,6 +12,7 @@ async function main() {
   const originalSend = SSMClient.prototype.send;
   SSMClient.prototype.send = (async () => ({ Parameter: { Value: "fixture-key" } })) as typeof SSMClient.prototype.send;
   let expected: string | null = null;
+  let carried = false;
   const scoped = (url: URL, column: string) => {
     assert.equal(url.searchParams.get(column), expected, `Missing scope on ${url.pathname}`);
     return expected === "in.()" ? [] : expected === null ? ["A", "B"] : ["A"];
@@ -22,7 +23,8 @@ async function main() {
     if (url.pathname.endsWith("/portfolio_snapshot_headers")) {
       const ids = scoped(url, "portfolio_account_snapshots.account_id");
       const start = url.searchParams.getAll("snapshot_date").includes("lte.2026-05-31");
-      rows = ids.length ? [{ id: start ? "start" : "end", snapshot_date: start ? "2026-05-31" : "2026-06-30", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7" }] : [];
+      assert.equal(url.searchParams.get("is_available"), "eq.true");
+      rows = ids.length ? [{ id: start ? "start" : "end", snapshot_date: start ? (carried ? "2026-05-29" : "2026-05-31") : (carried ? "2026-06-28" : "2026-06-30"), usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7" }] : [];
     } else if (url.pathname.endsWith("/portfolio_account_snapshots")) {
       const ids = scoped(url, "account_id");
       const start = url.searchParams.get("portfolio_snapshot_id") === "in.(start)";
@@ -40,12 +42,26 @@ async function main() {
     return new Response(JSON.stringify(rows), { headers: { "content-type": "application/json" } });
   };
   try {
-    for (const mode of ["selected", "empty", "all"] as const) {
+    for (const mode of ["selected", "empty", "all", "carried"] as const) {
+      carried = mode === "carried";
       expected = mode === "all" ? null : mode === "empty" ? "in.()" : "in.(A)";
       await withAccountAccessRequest(async () => {
         setRequestAccountAccess({ userId: "fixture", revision: 1, scope: mode === "all" ? { mode: "all" } : { mode: "selected", resources: mode === "empty" ? [] : [{ kind: "ledger", id: "A" }] } });
         const summary = await getMonthlySummary({ month: "2026-06", currency: "USD" });
-        if (mode === "selected") {
+        if (mode === "carried") {
+          assert.equal(summary.startValue, "100.00");
+          assert.equal(summary.endValue, "150.00");
+          assert.equal(summary.startSnapshotDate, "2026-05-29");
+          assert.equal(summary.endSnapshotDate, "2026-06-28");
+          assert.equal(summary.requestedStartSnapshotDate, "2026-05-31");
+          assert.equal(summary.requestedEndSnapshotDate, "2026-06-30");
+          assert.equal(summary.fullPeriodAvailable, false);
+          assert.equal(summary.assetChange, null);
+          assert.equal(summary.valuationMovement, null);
+          assert.equal(summary.netPrincipalFlow, "10.000000");
+          assert.ok(summary.accountChanges.every(row => row.valuationMovement === null && row.valuationContributionPct === null));
+          assert.equal(JSON.stringify(summary).includes("Hidden B"), false);
+        } else if (mode === "selected") {
           assert.equal(summary.startValue, "100.00");
           assert.equal(summary.endValue, "150.00");
           assert.equal(summary.assetChange, "50.000000");

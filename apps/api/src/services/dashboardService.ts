@@ -1,35 +1,19 @@
+import { getNextQuoteRefreshAt, getQuotes as refreshDashboardQuotes } from "./priceAcquisitionService";
 import { completeInvestmentPerformance } from "./investmentPerformanceService";
 import { timed } from "../utils/timing";
 import { parseQuoteMode } from "./quoteMode";
-import { logError } from "../utils/errorLogging";
 import type {
   AuthenticatedUser,
-  CurrencyCode,
-  DashboardQuoteRecord,
-  HoldingSummary,
   DashboardSummary,
   Instrument,
   InvestmentAccount,
-  InvestmentTransaction,
-  PriceSource
+  InvestmentTransaction
 } from "@family-ledger/shared";
 import { calculateHoldings, getAppBusinessDate } from "@family-ledger/shared";
 import { listAccounts } from "../repositories/accountRepository";
-import {
-  listDashboardQuotes,
-  upsertDashboardQuote,
-  upsertDashboardQuotes,
-  type UpsertDashboardQuoteInput
-} from "../repositories/dashboardQuoteRepository";
 import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listTransactions } from "../repositories/transactionRepository";
-import { EastMoneyInstrumentQuoteProvider } from "../providers/EastMoneyInstrumentQuoteProvider";
-import type {
-  IInstrumentQuoteProvider,
-  InstrumentQuoteProviderInstrument
-} from "../providers/IInstrumentQuoteProvider";
-import { YahooFinanceInstrumentQuoteProvider } from "../providers/YahooFinanceInstrumentQuoteProvider";
 import { calculateDashboardSummary, calculateHoldingsValuation, calculateTradingDayChange } from "./portfolioValuationService";
 import { resolveReportingCurrency } from "./reportingCurrencyService";
 import { listValuationRatesForHoldings } from "./valuationMarketDataService";
@@ -37,14 +21,6 @@ import { getInvestmentPerformance } from "./investmentPerformanceService";
 import { buildValuationMetadata } from "./valuationMetadataService";
 
 export { calculateDashboardSummary } from "./portfolioValuationService";
-
-const DASHBOARD_QUOTE_CACHE_TTL_MS = 5 * 60 * 1000;
-
-interface DashboardQuoteRepository {
-  listDashboardQuotes(instrumentIds: string[]): Promise<DashboardQuoteRecord[]>;
-  upsertDashboardQuote(input: UpsertDashboardQuoteInput): Promise<DashboardQuoteRecord>;
-  upsertDashboardQuotes?(inputs: UpsertDashboardQuoteInput[]): Promise<DashboardQuoteRecord[]>;
-}
 
 export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser; quoteMode?: string } = {}): Promise<DashboardSummary> {
   return (await getCurrentInvestmentPortfolio(input)).dashboard;
@@ -87,7 +63,7 @@ export async function getCurrentInvestmentPortfolio(input: { currency?: string; 
   const dashboard = calculateDashboardSummary(holdings, investmentAccounts, prices, fxRates, reportingCurrency, dashboardQuotes, dailyTradeCount);
   const valuedHoldings = calculateHoldingsValuation(holdings, prices, fxRates, reportingCurrency, dashboardQuotes);
   const investmentPerformance = completeInvestmentPerformance(preliminaryPerformance, dashboard.totalAssets);
-  const valuationMetadata = buildValuationMetadata(valuedHoldings.holdings, fxRates, now, reportingCurrency);
+  const valuationMetadata = { ...buildValuationMetadata(valuedHoldings.holdings, fxRates, now, reportingCurrency), nextRefreshAt: await getNextQuoteRefreshAt(holdings, instruments, dashboardQuotes, now) };
   return {
     dashboard: { ...dashboard, quoteRefreshWarnings, ...calculateTradingDayChange(holdings, instruments, prices, fxRates, reportingCurrency, dashboardQuotes, businessDate, dashboard.totalAssets), investmentPerformance, valuationMetadata },
     holdings: { ...valuedHoldings, quoteRefreshWarnings, investmentPerformance, valuationMetadata }
@@ -119,210 +95,8 @@ export function countDailyTrades(transactions: InvestmentTransaction[], instrume
 }
 
 
-export async function refreshDashboardQuotes(input: {
-  holdings: HoldingSummary[];
-  instruments: Instrument[];
-  now: Date;
-  quoteMode?: string;
-  quoteRefreshWarnings?: string[];
-  providers?: Partial<Record<PriceSource, IInstrumentQuoteProvider>>;
-  dashboardQuoteRepository?: DashboardQuoteRepository;
-}): Promise<DashboardQuoteRecord[]> {
-  const quoteInstruments = getDashboardQuoteInstruments(input.holdings, input.instruments);
+export { getQuotes as refreshDashboardQuotes } from "./priceAcquisitionService";
 
-  if (quoteInstruments.length === 0) {
-    return [];
-  }
-
-  const dashboardQuoteRepository = input.dashboardQuoteRepository ?? {
-    listDashboardQuotes,
-    upsertDashboardQuote, upsertDashboardQuotes
-  };
-  const existingQuotes = await dashboardQuoteRepository.listDashboardQuotes(quoteInstruments.map((instrument) => instrument.id));
-  const existingQuotesByInstrument = new Map(existingQuotes.map((quote) => [dashboardQuoteKey(quote.instrumentId, quote.provider), quote]));
-  if (parseQuoteMode(input.quoteMode) === "cached") return existingQuotes.filter(quote => !isQuoteStale(quote, input.now));
-  const staleInstruments = quoteInstruments.filter((instrument) =>
-    instrument.active !== false && (input.quoteMode === "refresh" || isQuoteStale(existingQuotesByInstrument.get(dashboardQuoteKey(instrument.id, providerNameForPriceSource(instrument.priceSource))), input.now))
-  );
-  const refreshedQuotes = await fetchAndStoreDashboardQuotes({
-    instruments: staleInstruments,
-    quoteRefreshWarnings: input.quoteRefreshWarnings,
-    fetchedAt: input.now.toISOString(),
-    providers: input.providers ?? defaultDashboardQuoteProviders(),
-    dashboardQuoteRepository
-  });
-  const refreshedByInstrument = new Map(refreshedQuotes.map((quote) => [dashboardQuoteKey(quote.instrumentId, quote.provider), quote]));
-
-  return quoteInstruments
-    .map((instrument) => {
-      const key = dashboardQuoteKey(instrument.id, providerNameForPriceSource(instrument.priceSource));
-      const refreshedQuote = refreshedByInstrument.get(key);
-      const existingQuote = existingQuotesByInstrument.get(key);
-
-      if (refreshedQuote) {
-        return refreshedQuote;
-      }
-
-      return existingQuote && !isQuoteStale(existingQuote, input.now) ? existingQuote : null;
-    })
-    .filter((quote): quote is DashboardQuoteRecord => quote !== null);
-}
-
-function getDashboardQuoteInstruments(holdings: HoldingSummary[], instruments: Instrument[]): Instrument[] {
-  const heldSecurityIds = new Set(
-    holdings.filter((holding) => holding.assetType !== "cash").map((holding) => holding.instrumentId)
-  );
-
-  return instruments.filter(
-    (instrument) =>
-      heldSecurityIds.has(instrument.id) &&
-      instrument.assetType !== "cash" &&
-      instrument.priceUpdateEnabled &&
-      instrument.priceSourceSymbol !== null &&
-      isSupportedQuoteSource(instrument.priceSource)
-  );
-}
-
-async function fetchAndStoreDashboardQuotes(input: {
-  quoteRefreshWarnings?: string[];
-  instruments: Instrument[];
-  fetchedAt: string;
-  providers: Partial<Record<PriceSource, IInstrumentQuoteProvider>>;
-  dashboardQuoteRepository: DashboardQuoteRepository;
-}): Promise<DashboardQuoteRecord[]> {
-  const storedQuotes: DashboardQuoteRecord[] = [];
-  const instrumentsBySource = groupInstrumentsByPriceSource(input.instruments);
-
-  await Promise.all([...instrumentsBySource].map(async ([priceSource, instruments]) => {
-    const provider = input.providers[priceSource];
-
-    if (!provider) {
-      return;
-    }
-
-    try {
-      const providerResult = await provider.fetchLatestQuotes({
-        instruments: instruments.map(toProviderInstrument),
-        fetchedAt: input.fetchedAt
-      });
-      if (providerResult.quotes.length < instruments.length) input.quoteRefreshWarnings?.push(`${priceSource} 部分行情未能更新`);
-      const inputs = toDashboardQuoteInputs(instruments, providerResult.provider, providerResult.fetchedAt, providerResult.quotes);
-
-      const saved = input.dashboardQuoteRepository.upsertDashboardQuotes
-        ? await input.dashboardQuoteRepository.upsertDashboardQuotes(inputs)
-        : await Promise.all(inputs.map(quote => input.dashboardQuoteRepository.upsertDashboardQuote(quote)));
-      storedQuotes.push(...saved);
-    } catch (error) {
-      logError("dashboardService.fetchAndStoreDashboardQuotes", error, "ERROR", { provider: priceSource });
-      input.quoteRefreshWarnings?.push(`${priceSource} 行情更新失败`);
-
-    }
-  }));
-
-  return storedQuotes;
-}
-
-function defaultDashboardQuoteProviders(): Partial<Record<PriceSource, IInstrumentQuoteProvider>> {
-  return {
-    yahoo_finance: new YahooFinanceInstrumentQuoteProvider(),
-    eastmoney: new EastMoneyInstrumentQuoteProvider()
-  };
-}
-
-function toProviderInstrument(instrument: Instrument): InstrumentQuoteProviderInstrument {
-  if (!instrument.priceSourceSymbol) {
-    throw new Error(`Instrument ${instrument.id} is missing price source symbol.`);
-  }
-
-  return {
-    instrumentId: instrument.id,
-    sourceSymbol: instrument.priceSourceSymbol,
-    currency: instrument.currency,
-    sourceExchange: instrument.priceSourceExchange
-  };
-}
-
-function toDashboardQuoteInputs(
-  instruments: Instrument[],
-  provider: string,
-  fetchedAt: string,
-  quotes: Array<{
-    instrumentId: string;
-    sourceSymbol: string;
-    quoteDate: string;
-    quotePrice: string;
-    currency: CurrencyCode;
-  }>
-): UpsertDashboardQuoteInput[] {
-  const instrumentsById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
-
-  return quotes.map((quote) => {
-    const instrument = instrumentsById.get(quote.instrumentId);
-
-    if (!instrument) {
-      throw new Error(`${provider} returned an unknown dashboard quote instrument ${quote.instrumentId}.`);
-    }
-
-    if (quote.currency !== instrument.currency) {
-      throw new Error(`${provider} returned ${quote.currency} currency for ${quote.sourceSymbol}; expected ${instrument.currency}.`);
-    }
-
-    return {
-      instrumentId: quote.instrumentId,
-      quoteDate: quote.quoteDate,
-      quotePrice: quote.quotePrice,
-      currency: quote.currency,
-      provider,
-      sourceSymbol: quote.sourceSymbol,
-      fetchedAt
-    };
-  });
-}
-
-function groupInstrumentsByPriceSource(instruments: Instrument[]): Map<PriceSource, Instrument[]> {
-  const grouped = new Map<PriceSource, Instrument[]>();
-
-  for (const instrument of instruments) {
-    const current = grouped.get(instrument.priceSource) ?? [];
-    current.push(instrument);
-    grouped.set(instrument.priceSource, current);
-  }
-
-  return grouped;
-}
-
-function isSupportedQuoteSource(priceSource: PriceSource): boolean {
-  return priceSource === "yahoo_finance" || priceSource === "eastmoney";
-}
-
-function providerNameForPriceSource(priceSource: PriceSource): string {
-  if (priceSource === "yahoo_finance") {
-    return "Yahoo Finance";
-  }
-
-  if (priceSource === "eastmoney") {
-    return "Eastmoney";
-  }
-
-  return priceSource;
-}
-
-function dashboardQuoteKey(instrumentId: string, provider: string): string {
-  return `${instrumentId}:${provider}`;
-}
-
-function isQuoteStale(quote: DashboardQuoteRecord | undefined, now: Date): boolean {
-  if (!quote) {
-    return true;
-  }
-
-  const fetchedAt = new Date(quote.fetchedAt);
-  if (Number.isNaN(fetchedAt.getTime())) {
-    return true;
-  }
-
-  return now.getTime() - fetchedAt.getTime() >= DASHBOARD_QUOTE_CACHE_TTL_MS;
-}
 function uniqueBy<T>(values: T[], keyOf: (value: T) => string): T[] {
   const seen = new Set<string>();
 

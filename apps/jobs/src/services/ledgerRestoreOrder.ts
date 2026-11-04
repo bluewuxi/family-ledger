@@ -15,6 +15,9 @@ export const RESTORE_ORDER = [
   "education_reserve_funds",
   "education_reserve_entries",
   "instrument_prices",
+  "price_acquisition_state",
+  "price_acquisition_attempts",
+  "instrument_price_revisions",
   "portfolio_snapshot_headers",
   "portfolio_account_snapshots",
   "dashboard_instrument_quotes",
@@ -26,5 +29,6 @@ export const RESTORE_ORDER = [
   "account_spending_grants",
   "account_education_grants",
   "account_access_audit",
+  "snapshot_pending_dates",
   "snapshot_repair_state"
 ] as const;

@@ -1,3 +1,4 @@
+import { runPriceBatch, providerHttpError } from "@family-ledger/shared";
 import Decimal from "decimal.js";
 import type { CurrencyCode } from "@family-ledger/shared";
 import type {
@@ -10,6 +11,7 @@ import type {
 interface FetchResponseLike {
   ok: boolean;
   status: number;
+  headers?: { get(name: string): string | null };
   json(): Promise<unknown>;
 }
 
@@ -24,6 +26,7 @@ const EASTMONEY_STOCK_ENDPOINT = "https://push2.eastmoney.com/api/qt/stock/get";
 const SUPPORTED_CURRENCIES = new Set<CurrencyCode>(["CNY"]);
 
 export class EastMoneyInstrumentPriceProvider implements IInstrumentPriceProvider {
+  readonly capabilities = { latestQuote: false, dailyHistory: false, nativeBatch: false, maximumBatchSize: 1 };
   readonly name = "Eastmoney";
 
   private readonly fetchFn: FetchLike;
@@ -35,9 +38,9 @@ export class EastMoneyInstrumentPriceProvider implements IInstrumentPriceProvide
   }
 
   async fetchLatestPrices(input: FetchLatestInstrumentPricesInput): Promise<InstrumentPriceProviderResult> {
-    const prices: InstrumentPriceProviderPrice[] = [];
-
-    for (const instrument of input.instruments) {
+    const errors: unknown[] = [];
+    const items = await runPriceBatch(input.instruments, { key: i => i.instrumentId ?? i.sourceSymbol, concurrency: 2, acquire: async instrument => {
+      try {
       if (!SUPPORTED_CURRENCIES.has(instrument.currency)) {
         throw new Error(`Eastmoney instrument ${instrument.sourceSymbol} uses unsupported currency ${instrument.currency}.`);
       }
@@ -45,17 +48,24 @@ export class EastMoneyInstrumentPriceProvider implements IInstrumentPriceProvide
       const response = await this.fetchFn(this.buildUrl(instrument.sourceSymbol, instrument.sourceExchange));
 
       if (!response.ok) {
-        throw new Error(`Eastmoney request failed for ${instrument.sourceSymbol} with status ${response.status}.`);
+        throw providerHttpError(response);
       }
 
-      prices.push(parseEastMoneyResponse(await response.json(), instrument.sourceSymbol, instrument.currency));
-    }
+      return parseEastMoneyResponse(await response.json(), instrument.sourceSymbol, instrument.currency);
+      } catch (error) { errors.push(error); throw error; }
+    } });
+    const prices = items.flatMap(item => item.status === "success" ? [item.value] : []);
+    if (!prices.length && errors.length) throw errors[0];
 
     return {
       provider: this.name,
       fetchedAt: input.fetchedAt,
-      prices
+      prices, items
     };
+  }
+
+  async fetchBatch(input: FetchLatestInstrumentPricesInput & {queries: import("@family-ledger/shared").PriceQuery[]}): Promise<import("@family-ledger/shared").PriceBatchResult<InstrumentPriceProviderPrice[]>> {
+    return {provider: this.name, fetchedAt: input.fetchedAt, items: input.queries.map(query => ({key: query.instrumentId, status: "unsupported", reason: "HISTORICAL_ENDPOINT_UNAVAILABLE"}))};
   }
 
   private buildUrl(sourceSymbol: string, sourceExchange: string | null | undefined): string {

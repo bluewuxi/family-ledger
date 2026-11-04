@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { getAppBusinessDate } from "@family-ledger/shared";
+import { getAppBusinessDate, resolveSnapshotAtOrBefore } from "@family-ledger/shared";
 import type {
   AuthenticatedUser,
   CurrencyCode,
@@ -61,12 +61,14 @@ export async function getMonthlySummary(input: {
   const { monthStart, monthEnd, previousDay } = getMonthBoundaries(month);
   const valuationEnd = getMonthlyValuationEnd(month);
   const [startSnapshots, endSnapshots, transactions] = await Promise.all([
-    listPortfolioSnapshots({ from: earliestDate, to: previousDay, currency, order: "desc", limit: 1, purpose: "investment" }),
-    listPortfolioSnapshots({ from: monthStart, to: valuationEnd, currency, order: "desc", limit: 1, purpose: "investment" }),
+    listPortfolioSnapshots({ from: earliestDate, to: previousDay, currency, order: "desc", purpose: "investment" }),
+    listPortfolioSnapshots({ from: earliestDate, to: valuationEnd, currency, order: "desc", purpose: "investment" }),
     listTransactions({ from: monthStart, to: valuationEnd, purpose: "investment" })
   ]);
-  const startSnapshot = requireMonthlySnapshotDate(startSnapshots[0] ?? null, previousDay);
-  const endSnapshot = requireMonthlySnapshotDate(endSnapshots[0] ?? null, valuationEnd);
+  const startSnapshot = resolveSnapshotAtOrBefore(startSnapshots, previousDay, row => row.marketValue !== null).value
+    ?? requireMonthlySnapshotDate(startSnapshots[0] ?? null, previousDay);
+  const endSnapshot = resolveSnapshotAtOrBefore(endSnapshots, valuationEnd, row => row.marketValue !== null).value
+    ?? requireMonthlySnapshotDate(endSnapshots[0] ?? null, valuationEnd);
   const principalTransactions = transactions
     .filter((transaction) => transaction.transactionSource === "manual")
     .filter((transaction) =>
@@ -118,7 +120,7 @@ export async function getMonthlySummary(input: {
   const bridgePrincipalTransactions = usesSyntheticStartValue ? contributionPrincipalTransactions : principalTransactions;
 
   addSnapshotWarnings(warnings, startSnapshot, endSnapshot, usesSyntheticStartValue);
-  for (const [snapshot, expectedDate] of [[startSnapshots[0], previousDay], [endSnapshots[0], valuationEnd]] as const) {
+  for (const [snapshot, expectedDate] of [[startSnapshot, previousDay], [endSnapshot, valuationEnd]] as const) {
     if (snapshot && snapshot.snapshotDate !== expectedDate) {
       addWarning(warnings, {
         code: "SNAPSHOT_DATE_MISMATCH", date: expectedDate, currency,
@@ -167,7 +169,10 @@ export async function getMonthlySummary(input: {
   });
   addWarnings(warnings, dividendSummary.warnings);
 
+  const fullPeriodAvailable = (usesSyntheticStartValue || startSnapshot?.snapshotDate === previousDay)
+    && endSnapshot?.snapshotDate === valuationEnd;
   const bridge = calculateMonthlyBridge({
+    fullPeriodAvailable,
     startValue: startSnapshot?.marketValue ?? (syntheticStartValue?.amount ? formatDecimal(syntheticStartValue.amount) : null),
     endValue: endSnapshot?.marketValue ?? null,
     netPrincipalFlow: netPrincipalFlow.amount === null ? null : formatDecimal(netPrincipalFlow.amount),
@@ -183,6 +188,9 @@ export async function getMonthlySummary(input: {
     monthEnd,
     startSnapshotDate: startSnapshot?.snapshotDate ?? null,
     endSnapshotDate: endSnapshot?.snapshotDate ?? null,
+    requestedStartSnapshotDate: previousDay,
+    requestedEndSnapshotDate: valuationEnd,
+    fullPeriodAvailable,
     startValue: bridge.startValue,
     endValue: bridge.endValue,
     assetChange: bridge.assetChange,
@@ -199,6 +207,7 @@ export async function getMonthlySummary(input: {
     }),
     principalTransactions: bridgePrincipalTransactions.sort(compareTransactionsDesc),
     accountChanges: buildAccountChanges({
+      fullPeriodAvailable,
       startSnapshot,
       endSnapshot,
       reportingCurrency: currency,
@@ -225,12 +234,11 @@ export function getMonthlyValuationEnd(month: string, now: Date | string = new D
 export function requireMonthlySnapshotDate(
   snapshot: PortfolioSnapshotSummary | null, expectedDate: string
 ): PortfolioSnapshotSummary | null {
-  if (!snapshot || snapshot.snapshotDate === expectedDate) return snapshot;
-  // Keep the row to distinguish an incomplete history from initialization.
-  return { ...snapshot, marketValue: null, accounts: snapshot.accounts.map((account) => ({ ...account, marketValue: null })) };
+  return snapshot && snapshot.snapshotDate <= expectedDate ? snapshot : null;
 }
 
 export function calculateMonthlyBridge(input: {
+  fullPeriodAvailable?: boolean;
   startValue: string | null;
   endValue: string | null;
   netPrincipalFlow: string | null;
@@ -244,7 +252,7 @@ export function calculateMonthlyBridge(input: {
   valuationMovement: string | null;
 } {
   const assetChange =
-    input.startValue !== null && input.endValue !== null
+    input.fullPeriodAvailable !== false && input.startValue !== null && input.endValue !== null
       ? formatDecimal(new Decimal(input.endValue).minus(input.startValue))
       : null;
   const valuationMovement =
@@ -266,11 +274,11 @@ export function getMonthlySnapshotWindows(month: string): {
   startWindow: { from: string; to: string };
   endWindow: { from: string; to: string };
 } {
-  const { monthStart, monthEnd, previousDay } = getMonthBoundaries(month);
+  const { monthEnd, previousDay } = getMonthBoundaries(month);
 
   return {
     startWindow: { from: earliestDate, to: previousDay },
-    endWindow: { from: monthStart, to: monthEnd }
+    endWindow: { from: earliestDate, to: monthEnd }
   };
 }
 
@@ -577,6 +585,7 @@ function buildCashAdjustmentSummaries(input: {
 }
 
 export function buildAccountChanges(input: {
+  fullPeriodAvailable?: boolean;
   startSnapshot: PortfolioSnapshotSummary | null;
   endSnapshot: PortfolioSnapshotSummary | null;
   reportingCurrency?: SnapshotDisplayCurrency;
@@ -625,7 +634,7 @@ export function buildAccountChanges(input: {
     const endValue = endAccount ? endAccount.marketValue
       : !endSnapshot || endSnapshot.marketValue === null ? null : "0.000000";
     const hasUnavailableValue = startValue === null || endValue === null;
-    const assetChange = hasUnavailableValue ? null : formatDecimal(new Decimal(endValue).minus(startValue));
+    const assetChange = hasUnavailableValue || input.fullPeriodAvailable === false ? null : formatDecimal(new Decimal(endValue).minus(startValue));
     const netPrincipalFlow = formatOptionalAccountFlow(netPrincipalFlowsByAccount, accountId);
     const cashAdjustmentImpact = formatOptionalAccountFlow(cashAdjustmentImpactsByAccount, accountId);
     const valuationMovement =

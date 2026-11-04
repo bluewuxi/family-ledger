@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from "../db/supabaseServer";
 import { readAllRows } from "./readAllRows";
 
 interface PortfolioSnapshotHeaderRow {
+  is_available?: boolean;
   id: string;
   snapshot_date: string;
   usd_to_nzd_rate: string;
@@ -69,6 +70,7 @@ export interface UpsertPortfolioSnapshotResult {
 }
 
 export async function listPortfolioSnapshots(input: {
+  includeUnavailable?: boolean;
   purpose?: AccountPurpose;
   from: string;
   to: string;
@@ -146,7 +148,7 @@ export async function listAccountSnapshotTrendRows(input: {
   // Explicit header lookup works both before and after the foreign-key cutover.
   const headers = await listPortfolioSnapshotRows({ ...input, limit: undefined });
   const byDate = new Map(headers.map((header) => [header.snapshot_date, header]));
-  return data.map((row) => {
+  return data.filter(row => byDate.has(row.snapshot_date)).map((row) => {
     const header = byDate.get(row.snapshot_date);
     if (!header) throw new Error("Account snapshot header is missing.");
     return mapAccountSnapshotTrendRow({ ...row, portfolio_snapshot_headers: header }, input.currency);
@@ -154,6 +156,7 @@ export async function listAccountSnapshotTrendRows(input: {
 }
 
 async function listPortfolioSnapshotRows(input: {
+  includeUnavailable?: boolean;
   from: string;
   to: string;
   currency: SnapshotDisplayCurrency;
@@ -171,6 +174,7 @@ async function listPortfolioSnapshotRows(input: {
     .order("snapshot_date", { ascending: input.order !== "desc" });
 
   if (visible !== null) snapshotQuery = snapshotQuery.in("portfolio_account_snapshots.account_id", visible);
+  if (!input.includeUnavailable) snapshotQuery = snapshotQuery.eq("is_available", true);
   if (input.limit !== undefined) {
     snapshotQuery = snapshotQuery.limit(input.limit);
   }
@@ -222,6 +226,7 @@ export async function upsertPortfolioSnapshot(
 }
 
 const snapshotSelect = [
+  "is_available",
   "id",
   "snapshot_date",
   "usd_to_nzd_rate",
@@ -289,9 +294,10 @@ function mapSnapshotRow(
 
   return {
     id: row.id,
+    isAvailable: row.is_available !== false,
     snapshotDate: row.snapshot_date,
     currency,
-    marketValue: convertSnapshotAmount(row.total_market_value_usd, currency, rates),
+    marketValue: row.is_available === false ? null : convertSnapshotAmount(row.total_market_value_usd, currency, rates),
     cost: convertSnapshotAmount(row.total_cost_usd, currency, rates),
     unrealizedGain: convertSnapshotAmount(row.unrealized_gain_usd, currency, rates),
     dailyChange: convertSnapshotAmount(row.daily_change_usd, currency, rates),

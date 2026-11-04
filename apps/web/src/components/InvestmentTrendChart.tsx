@@ -29,8 +29,8 @@ type ChartToneStyle = CSSProperties & {
 export function InvestmentTrendChart({ points, view, gainColorScheme }: { points: TrendChartPoint[]; view: "profit" | "assets"; gainColorScheme: GainColorScheme }) {
   const gradientPrefix = useId().replaceAll(":", "");
   const profitChartData = useMemo(() => buildProfitChartData(points), [points]);
-  const colorSplitTrendChartData = useMemo(() => buildColorSplitTrendChartData(points), [points]);
-  const colorSplitProfitChartData = useMemo(() => buildColorSplitProfitChartData(profitChartData), [profitChartData]);
+  const colorSplitTrendChartData = useMemo(() => markCarriedSegments(buildColorSplitTrendChartData(points)), [points]);
+  const colorSplitProfitChartData = useMemo(() => markCarriedSegments(buildColorSplitProfitChartData(profitChartData)), [profitChartData]);
   const trendValueDomain = getTrendValueDomain(points);
   const profitValueTicks = getProfitValueTicks(getProfitValueDomain(profitChartData));
   const profitAxisDomain: [number, number] = [profitValueTicks[0] ?? 0, profitValueTicks.at(-1) ?? 1];
@@ -129,6 +129,8 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         activeDot={props => renderTrendHoverDot(props, hoverDates)}
         connectNulls
       />
+      <Line dataKey="carriedValue" type="linear" stroke="var(--color-surface)" strokeWidth={5} dot={false} activeDot={false} isAnimationActive={false} tooltipType="none" connectNulls={false} />
+      <Line dataKey="carriedValue" type="linear" stroke="var(--color-muted)" strokeWidth={2.8} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} tooltipType="none" connectNulls={false} />
 
     </AreaChart>
       </ResponsiveContainer>
@@ -180,11 +182,23 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         activeDot={props => renderTrendHoverDot(props, hoverDates)}
         connectNulls={false}
       />
+      <Line dataKey="carriedValue" type="linear" stroke="var(--color-surface)" strokeWidth={5} dot={false} activeDot={false} isAnimationActive={false} tooltipType="none" connectNulls={false} />
+      <Line dataKey="carriedValue" type="linear" stroke="var(--color-muted)" strokeWidth={2.8} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} tooltipType="none" connectNulls={false} />
 
     </AreaChart>
       </ResponsiveContainer>
     )}
+    {points.some(point => point.snapshotDate && point.snapshotDate !== point.date) ? <p className="quote-update-note">虚线沿用此前快照；查看提示可见请求日期和实际快照日期。</p> : null}
   </div>;
+}
+
+function markCarriedSegments<T extends { date: string; value: number; snapshotDate?: string | null; isSynthetic?: boolean }>(points: T[]): Array<T & { carriedValue: number | null }> {
+  return points.map((point, index) => {
+    const next = points[index + 1];
+    const carried = !point.isSynthetic && point.snapshotDate && point.snapshotDate !== point.date;
+    const leadsToCarried = next && !next.isSynthetic && next.snapshotDate && next.snapshotDate !== next.date && next.snapshotDate === point.snapshotDate;
+    return { ...point, carriedValue: carried || leadsToCarried ? point.value : null };
+  });
 }
 function formatTrendTickDate(value: string): string {
   return value.startsWith("__chart_crossing__") ? "" : isSyntheticTrendDate(value) ? "当前" : value.slice(5);
@@ -337,7 +351,8 @@ function formatMetricWholeNumber(value: string | number, options: { signed?: boo
 }
 
 function renderTrendHoverDot(props: unknown, dates: Set<string>): ReactNode {
-  const point = props as { cx?: number; cy?: number; fill?: string; payload?: { date?: string } };
+  const point = props as { cx?: number; cy?: number; fill?: string; payload?: { date?: string; snapshotDate?: string | null } };
+  if (point.payload?.snapshotDate && point.payload.date !== point.payload.snapshotDate) return <g />;
   return point.payload?.date && dates.has(point.payload.date) ? <circle cx={point.cx} cy={point.cy} r={5} fill={point.fill} stroke="var(--color-surface)" strokeWidth={2} /> : <g />;
 }
 
@@ -346,7 +361,8 @@ function TrendHoverTooltip({ active, payload, label, dates, profit }: { active?:
   const point = payload?.[0]?.payload as { value?: number | null; totalInvestment?: number | null; snapshotDate?: string } | undefined;
   if (!point || point.value == null) return null;
   return <div style={{ ...chartTooltipContentStyle, padding: "10px 12px" }}>
-    <div style={chartTooltipLabelStyle}>{point.snapshotDate ?? label.replace("__live_endpoint__", "")}{label.startsWith("__live_endpoint__") ? " · 当前估值" : ""}</div>
+    <div style={chartTooltipLabelStyle}>{label.replace("__live_endpoint__", "")}{label.startsWith("__live_endpoint__") ? " · 当前估值" : ""}</div>
+    {point.snapshotDate && point.snapshotDate !== label ? <div>暂无当日快照，显示 {point.snapshotDate} 数据</div> : null}
     <div style={chartTooltipItemStyle}>{profit ? "期间盈利" : "资产净值"}：{profit ? formatSignedTooltipMoney(point.value) : formatTooltipMoney(point.value)}</div>
     {!profit && point.totalInvestment != null ? <div>累计净投入：{formatTooltipMoney(point.totalInvestment)}</div> : null}
   </div>;

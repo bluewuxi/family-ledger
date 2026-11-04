@@ -6,6 +6,7 @@ interface DashboardQuoteRow {
   id: string;
   instrument_id: string;
   quote_date: string;
+  quote_at: string | null;
   quote_price: string;
   currency: DashboardQuoteRecord["currency"];
   provider: string;
@@ -18,6 +19,7 @@ interface DashboardQuoteRow {
 export interface UpsertDashboardQuoteInput {
   instrumentId: string;
   quoteDate: string;
+  quoteAt?: string | null;
   quotePrice: string;
   currency: DashboardQuoteRecord["currency"];
   provider: string;
@@ -71,10 +73,18 @@ export async function upsertDashboardQuotes(inputs: UpsertDashboardQuoteInput[])
   return data.map(mapDashboardQuoteRow);
 }
 
+export async function saveClaimedDashboardQuote(input: UpsertDashboardQuoteInput, leaseToken: string): Promise<DashboardQuoteRecord | null> {
+  const supabase = await getSupabaseAdmin();
+  const { data, error } = await supabase.rpc("complete_dashboard_quote_acquisition", { lease_token: leaseToken, quote: toDashboardQuoteRow(input) });
+  if (error) throw new Error("Failed to publish claimed quote.");
+  return data ? mapDashboardQuoteRow(data as unknown as DashboardQuoteRow) : null;
+}
+
 const dashboardQuoteSelect = [
   "id",
   "instrument_id",
   "quote_date",
+  "quote_at",
   "quote_price",
   "currency",
   "provider",
@@ -89,6 +99,7 @@ function mapDashboardQuoteRow(row: DashboardQuoteRow): DashboardQuoteRecord {
     id: row.id,
     instrumentId: row.instrument_id,
     quoteDate: row.quote_date,
+    quoteAt: row.quote_at,
     quotePrice: row.quote_price,
     currency: row.currency,
     provider: row.provider,
@@ -103,6 +114,7 @@ function toDashboardQuoteRow(input: UpsertDashboardQuoteInput) {
   return {
     instrument_id: input.instrumentId,
     quote_date: input.quoteDate,
+    quote_at: input.quoteAt ?? null,
     quote_price: input.quotePrice,
     currency: input.currency,
     provider: input.provider,

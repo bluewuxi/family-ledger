@@ -1,7 +1,7 @@
 import { logCaughtError } from "../utils/errorLogging";
 import { randomUUID } from "node:crypto";
 import {
-  calculateHoldings, calculatePortfolioSnapshotValuation, validateTransactionTimeline,
+  calculateHoldings, calculatePortfolioSnapshotValuation, withSnapshotEligibility, validateTransactionTimeline,
   type CreateInvestmentTransactionInput, type InvestmentTransaction,
   type PortfolioSnapshotValuation, type PriceRecord
 } from "@family-ledger/shared";
@@ -73,8 +73,8 @@ export async function writeTransactionAtomically(input: {
       const preliminaryHoldings = calculateHoldings(datedTransactions, accounts, instruments);
       const fxRates = await listValuationRatesForHoldings({ valuationDate: snapshotDate, transactions: datedTransactions,
         holdings: preliminaryHoldings, extraCurrencies: ["NZD", "CNY"] });
-      snapshots.push(calculatePortfolioSnapshotValuation({ snapshotDate, accounts, prices, fxRates,
-        holdings: calculateHoldings(datedTransactions, accounts, instruments, { fxRates }) }));
+      const holdings = calculateHoldings(datedTransactions, accounts, instruments, { fxRates });
+      snapshots.push(withSnapshotEligibility(calculatePortfolioSnapshotValuation({ snapshotDate, accounts, prices, fxRates, holdings }), { holdings, instruments, prices, fxRates }));
     }
   } catch (error) {
     logCaughtError("atomicTransactionWriteService.writeTransactionAtomically", error);

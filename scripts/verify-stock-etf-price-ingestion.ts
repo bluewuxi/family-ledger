@@ -232,6 +232,27 @@ async function main(): Promise<void> {
   assert.deepEqual(laggedFundRockInputs.map((input) => [input.sourceSymbol, input.priceDate]), [["FS_US_500", "2026-05-27"]]);
 
   const failureCalls: string[] = [];
+  const partialCalls: string[] = [];
+  const partialPrices: CreateInstrumentPriceInput[] = [];
+  await assert.rejects(ingestLatestInstrumentPrices({
+    fetchedAt: "2026-05-23T01:00:00.000Z", now: fixedNow(),
+    providerConfigs: [providerConfig("yahoo_finance", {name: "Yahoo Finance", async fetchLatestPrices(input) {
+      const [first, second] = input.instruments;
+      const price = {sourceSymbol: first.sourceSymbol, priceDate: "2026-05-22", closePrice: "100", currency: first.currency};
+      return {provider: this.name, fetchedAt: input.fetchedAt, prices: [price], items: [{key: first.instrumentId, status: "success", value: price}, {key: second.instrumentId, status: "failed", reason: "ACQUISITION_FAILED"}]};
+    }}, ["AMD", "VOO"])],
+    jobRunRepository: createFakeJobRunRepository(partialCalls),
+    instrumentPriceRepository: {
+      async listPriceEnabledInstrumentsBySource(input) {return selectPriceEnabledInstruments(input.priceSource, input.sourceSymbols);},
+      async insertInstrumentPriceIfNotExists(input) {partialPrices.push(input); return {inserted: true, record: instrumentPriceRecord(input)};}
+    }
+  }), (error: unknown) => {
+    const result = (error as {result: InstrumentPriceIngestionResult}).result;
+    assert.equal(result.recordsInserted, 1, "Successful prices survive a failed provider item");
+    assert.equal(result.jobRun.status, "failed", "Partial coverage remains a failed retryable job");
+    return true;
+  });
+  assert.deepEqual(partialPrices.map(price => price.sourceSymbol), ["AMD"]);
   await assert.rejects(
     ingestLatestInstrumentPrices({
       fetchedAt: "2026-05-23T01:00:00.000Z",

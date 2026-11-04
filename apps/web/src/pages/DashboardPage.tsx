@@ -60,7 +60,6 @@ const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
   { value: "5y", label: "近5年" },
   { value: "inception", label: "投资以来" }
 ];
-const dashboardAutoRefreshIntervalMs = 5 * 60 * 1000;
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 export function DashboardPage() {
   const { preferences, loading: preferencesLoading } = usePreferences();
@@ -69,11 +68,10 @@ export function DashboardPage() {
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
   const [trendView, setTrendView] = useState<"profit" | "assets">("profit");
   const [trendRange, setTrendRange] = useState<PortfolioTrendRange>("1y");
-  const { data: dashboardResponse, loading: dashboardLoading, refreshing, error: dashboardError, reload: reloadDashboard } = useValuation<DashboardResponse>(currencyInitialized ? `/dashboard?currency=${reportingCurrency}` : null);
+  const { data: dashboardResponse, loading: dashboardLoading, refreshing, nextRefreshAt, error: dashboardError, reload: reloadDashboard } = useValuation<DashboardResponse>(currencyInitialized ? `/dashboard?currency=${reportingCurrency}` : null);
   const dashboard = dashboardResponse?.dashboard ?? null;
   const snapshotSequence = useRef(0);
   const activitySequence = useRef(0);
-  const lastDashboardRefresh = useRef(0);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([]);
   const [trend, setTrend] = useState<PortfolioTrend | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<InvestmentTransaction[]>([]);
@@ -134,11 +132,11 @@ const loadSnapshots = useEventCallback(async function(currency: SnapshotDisplayC
     }
 
     const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !refreshing && Date.now() - lastDashboardRefresh.current >= dashboardAutoRefreshIntervalMs) observeAsync(loadDashboard(reportingCurrency, { showLoading: false }));
-    }, dashboardAutoRefreshIntervalMs);
+      if (document.visibilityState === "visible" && !refreshing && nextRefreshAt !== null && Date.now() >= new Date(nextRefreshAt).getTime()) observeAsync(loadDashboard(reportingCurrency, { showLoading: false }));
+    }, 30_000);
 
     function refreshWhenVisible() {
-      if (document.visibilityState === "visible" && !refreshing && Date.now() - lastDashboardRefresh.current >= dashboardAutoRefreshIntervalMs) {
+      if (document.visibilityState === "visible" && !refreshing && nextRefreshAt !== null && Date.now() >= new Date(nextRefreshAt).getTime()) {
         observeAsync(loadDashboard(reportingCurrency, { showLoading: false }));
       }
     }
@@ -149,7 +147,7 @@ const loadSnapshots = useEventCallback(async function(currency: SnapshotDisplayC
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [currencyInitialized, reportingCurrency, refreshing, loadDashboard]);
+  }, [currencyInitialized, reportingCurrency, refreshing, nextRefreshAt, loadDashboard]);
 
   useEffect(() => {
     if (currencyInitialized) {
@@ -163,7 +161,6 @@ const loadSnapshots = useEventCallback(async function(currency: SnapshotDisplayC
     }
   }, [currencyInitialized]);
 
-  useEffect(() => { if (dashboardResponse && !refreshing && !dashboardError) lastDashboardRefresh.current = Date.now(); }, [dashboardResponse, refreshing, dashboardError]);
   useEffect(() => () => { snapshotSequence.current++; activitySequence.current++; }, []);
 
 async function loadActivity(options: { showLoading?: boolean } = {}) {
@@ -189,7 +186,7 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
   }
 
   function refreshDashboard() {
-    observeAsync(loadDashboard(reportingCurrency));
+    observeAsync(reloadDashboard(true));
     observeAsync(loadSnapshots(reportingCurrency, trendRange, true));
     observeAsync(loadActivity());
   }

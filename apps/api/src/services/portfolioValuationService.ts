@@ -228,6 +228,7 @@ function calculateValuedHoldings(
       latestPriceSource: latestPrice?.source ?? null,
       latestPriceKind: latestPrice ? (quotesByInstrument.has(holding.instrumentId) ? "quote" : "stored") : null,
       quoteFetchedAt: latestPrice && quotesByInstrument.has(holding.instrumentId) ? quotesByInstrument.get(holding.instrumentId)?.fetchedAt ?? null : null,
+      ...(latestPrice && quotesByInstrument.get(holding.instrumentId)?.quoteAt ? { quoteAt: quotesByInstrument.get(holding.instrumentId)!.quoteAt } : {}),
       valuationWarnings: rowWarnings
     });
   }

@@ -8,6 +8,14 @@ import type {
 } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 
+export async function listPriceGapSummaries(): Promise<Array<{ source: string; pending: number; needsAttention: number; unsupported: number; oldestMissingDate: string | null; nextAttemptAt: string | null }>> {
+  const db = await getSupabaseAdmin();
+  const { data, error } = await db.rpc("price_gap_summary");
+  if (error) throw new Error("Failed to read historical price coverage.");
+  const rows = (Array.isArray(data) ? data : []) as Array<{ source: string; pending: number; needs_attention: number; unsupported: number; oldest_missing_date: string | null; next_attempt_at: string | null }>;
+  return rows.map(row => ({ source: row.source, pending: Number(row.pending), needsAttention: Number(row.needs_attention), unsupported: Number(row.unsupported), oldestMissingDate: row.oldest_missing_date, nextAttemptAt: row.next_attempt_at }));
+}
+
 interface KernelInstrumentRow {
   id: string;
   price_update_enabled: boolean;

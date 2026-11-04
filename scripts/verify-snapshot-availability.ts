@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import { evaluateSnapshotEligibility, resolveSnapshotAtOrBefore } from "../packages/shared/src/snapshotAvailability";
+
+const inputs = [{ instrumentId: "security", requiresDailyPrice: true, priceDate: "2026-10-30" }];
+assert.equal(evaluateSnapshotEligibility({ snapshotDate: "2026-10-31", inputs }).status, "ready");
+assert.equal(evaluateSnapshotEligibility({ snapshotDate: "2026-11-02", inputs }).status, "pending");
+assert.equal(evaluateSnapshotEligibility({ snapshotDate: "2026-11-02", inputs: [{ ...inputs[0], priceDate: "2026-11-02" }] }).status, "ready");
+assert.equal(evaluateSnapshotEligibility({ snapshotDate: "2026-10-31", inputs: [{ ...inputs[0], priceDate: null }] }).status, "pending");
+assert.equal(evaluateSnapshotEligibility({ snapshotDate: "2026-10-31", inputs: [{ ...inputs[0], priceDate: "2026-11-02" }] }).status, "pending");
+assert.throws(() => evaluateSnapshotEligibility({ snapshotDate: "2026-02-30", inputs }));
+assert.equal(evaluateSnapshotEligibility({ snapshotDate: "2026-10-31", inputs, fxInputs: [{ currency: "NZD", rateDate: null }] }).status, "pending");
+assert.equal(evaluateSnapshotEligibility({ snapshotDate: "2026-10-31", inputs, fxInputs: [{ currency: "NZD", rateDate: "2026-11-02" }] }).status, "pending");
+const history = [{ snapshotDate: "2026-11-03", amount: "120" }, { snapshotDate: "2026-10-30", amount: "100" }];
+const carried = resolveSnapshotAtOrBefore(history, "2026-11-02");
+assert.equal(carried.actualSnapshotDate, "2026-10-30");
+assert.equal(carried.isFallback, true);
+assert.equal(carried.value?.amount, "100");
+assert.equal(resolveSnapshotAtOrBefore(history, "2026-10-29").value, null);
+assert.equal(resolveSnapshotAtOrBefore(history, "2026-11-03").isFallback, false);
+assert.equal(resolveSnapshotAtOrBefore([{ snapshotDate: "2026-11-03", valid: false }], "2026-11-03", row => row.valid).value, null);
+console.log("Snapshot availability fixtures passed.");

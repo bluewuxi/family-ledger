@@ -39,6 +39,11 @@ async function main(): Promise<void> {
 function restoreRows(payload: LedgerBackupPayload) { return prepareLedgerRestoreRows(payload, []); }
 
 function removeApplicationIdentities(payload: LedgerBackupPayload): void {
+ if(payload.manifest.version < 13) {
+  const names=['price_acquisition_state','price_acquisition_attempts','instrument_price_revisions','snapshot_pending_dates'];
+  for(const n of names) delete (payload.tables as unknown as Record<string,unknown>)[n];
+  payload.manifest.tables=payload.manifest.tables.filter(t=>!names.includes(t.name));payload.manifest.tableOrder=payload.manifest.tableOrder.filter(t=>!names.includes(t));
+ }
  if(payload.manifest.version < 12) {
   const names=['snapshot_repair_state','transaction_create_requests'];
   for(const n of names) delete (payload.tables as unknown as Record<string,unknown>)[n];
@@ -71,7 +76,7 @@ async function runSelfTests(): Promise<void> {
   const legacyActivity = structuredClone(inactive.payload); legacyActivity.manifest.version=10; delete (legacyActivity.tables.instruments[0] as Record<string,unknown>).active;
   // Rebuild checksums through the existing rehash fixture below for historical payloads.
 
-  assert.equal(backupObject.payload.manifest.version, 12);
+  assert.equal(backupObject.payload.manifest.version, 13);
   const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
   const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
   assert.equal((restoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
@@ -214,7 +219,7 @@ async function runSelfTests(): Promise<void> {
   assert.equal("portfolio_snapshots" in restored, false);
   assert.deepEqual(restored.portfolio_snapshot_headers, [{
     id: "snapshot-id", snapshot_date: "2026-05-29", usd_to_nzd_rate: "1.6", usd_to_cny_rate: "7",
-    notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z"
+    notes: "preserve", created_at: "2026-05-29T01:00:00Z", updated_at: "2026-05-29T02:00:00Z", is_available: true
   }]);
   assert.equal((restored.investment_accounts[0] as { purpose: string }).purpose, "investment");
   assert.deepEqual(restoreRows(backupObject.payload).portfolio_snapshot_headers, []);

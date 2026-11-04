@@ -97,7 +97,13 @@
     "verify:docs": "tsx scripts/verification/docs-cli.ts",
     "verify:docs-tests": "tsx scripts/verify-docs-consistency.ts",
     "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint . --fix --max-warnings 0"
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "verify:price-acquisition": "tsx scripts/verify-price-acquisition.ts",
+    "verify:snapshot-availability": "tsx scripts/verify-snapshot-availability.ts",
+    "verify:price-recovery": "tsx scripts/verify-price-recovery.ts",
+    "verify:price-acquisition-db": "tsx scripts/verify-price-acquisition-db.ts",
+    "verify:valuation-client": "tsx scripts/verify-valuation-client.ts",
+    "verify:source-price-correction": "tsx scripts/verify-source-price-correction.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",

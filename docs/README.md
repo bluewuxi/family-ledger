@@ -39,6 +39,7 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 | Interface and persistence | [API](api.md): endpoint/DTO contracts; [data model](data-model.md): persistence semantics; versioned SQL in `supabase/migrations` defines schema changes |
 | Shared frontend conventions | [Frontend guidelines](frontend-guidelines.md): UI language, mobile layout, shared back navigation; page behavior belongs in product specifications |
 | Date/time conventions | [Time policy](time-policy.md): instants, calendar dates, business-day cutoff, provider dates, and shared helper use; data model/deployment own storage and schedule details |
+| Market acquisition and historical recovery | [Market data and snapshot recovery](specs/market-data-and-snapshot-recovery.md) |
 | Investment behavior | [Investment overview](specs/investment-overview.md) |
 | Family cashflow behavior | [Spending](specs/spending.md), [education reserve](specs/education-reserve.md) |
 | Verification | [Local testing](local-testing.md): commands, focused checks, user-login handoff, and all five viewport requirements; specifications define behavioral acceptance criteria |
@@ -49,7 +50,9 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
-- [Ledger processing reliability plan](plans/2026-11-02-ledger-processing-reliability.md) proposes revision-guarded snapshot writes, chronological trade validation, durable late-input repair, daily snapshot coverage, and retry-idempotent transaction creation. Local implementation and validation are recorded in the plan; live migrations, schedule activation, deployment, historical repair, and authenticated visual acceptance remain pending.
+- [Market data and snapshot recovery plan](plans/2026-11-04-market-data-and-snapshot-recovery.md) records confirmed weekday-gap, weekend-ledger, and explicit historical-fallback rules, plus proposed batched acquisition, historical backfill, failure recovery, and documentation reconciliation. Local implementation and automated validation are complete; migrations, live repair, commit/push, and deployment remain unauthorized.
+
+- [Ledger processing reliability plan](plans/2026-11-02-ledger-processing-reliability.md) proposes revision-guarded snapshot writes, chronological trade validation, durable late-input repair, daily snapshot coverage, and retry-idempotent transaction creation. Existing reliability migrations/configuration and code delivery are recorded in [the TEST release evidence](releases/2026-11-02-ledger-processing-test.md); historical repair and authenticated visual acceptance remain separate, and current executor readiness must be checked against later operational evidence.
 
 - [Manual testing follow-up plan](plans/2026-11-01-manual-testing-follow-up.md) records seven chart, price-label, instrument-activity, monthly-review, and settings findings. Local implementation and TEST activity migration are complete; administrator browser checks are recorded. Restricted-viewer browser acceptance is user-deferred; deployment and clean-commit migration registration remain pending.
 

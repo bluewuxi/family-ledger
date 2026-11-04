@@ -18,6 +18,7 @@ import {
   listKernelPriceAnchors,
   refreshKernelNta,
   completeKernelNtaSnapshots,
+  listPriceGapSummaries,
 } from "../repositories/marketDataSourceRepository";
 import { ApiRequestError } from "../utils/apiError";
 import { recalculateSnapshotsFrom } from "./snapshotRecalculationService";
@@ -27,14 +28,16 @@ const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function getMarketDataSources(): Promise<MarketDataSourceSummary[]> {
   const anchorsPromise = listKernelPriceAnchors();
+  const recoveryPromise = listPriceGapSummaries();
   return Promise.all(
     MARKET_DATA_SOURCE_DEFINITIONS.map(async (definition): Promise<MarketDataSourceSummary> => {
-      const [latestBatchRun, configuredTargetCount, anchors] = await Promise.all([
+      const [latestBatchRun, configuredTargetCount, anchors, recoveryRows] = await Promise.all([
         findLatestProviderRun(definition.runProviderName),
         definition.priceSource
           ? countEnabledPriceTargets(definition.priceSource, definition.sourceSymbols)
           : Promise.resolve(null),
-        definition.key === "kernel_estimate" ? anchorsPromise : Promise.resolve([])
+        definition.key === "kernel_estimate" ? anchorsPromise : Promise.resolve([]),
+        recoveryPromise
       ]);
       const latestAnchorDate = anchors[0]?.anchorDate ?? null;
       const status = resolveMarketDataSourceStatus(definition.key, configuredTargetCount, anchors.length);
@@ -48,7 +51,8 @@ export async function getMarketDataSources(): Promise<MarketDataSourceSummary[]>
         status,
         configuredTargetCount,
         latestBatchRun,
-        latestAnchorDate
+        latestAnchorDate,
+        recovery: recoveryRows.find(row => row.source === definition.key) ?? { pending: 0, needsAttention: 0, unsupported: 0, oldestMissingDate: null, nextAttemptAt: null }
       };
     })
   );

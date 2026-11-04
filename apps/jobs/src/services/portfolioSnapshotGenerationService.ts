@@ -1,4 +1,7 @@
 import {
+  withSnapshotEligibility,
+  SnapshotPendingError,
+  MARKET_DATA_SOURCE_DEFINITIONS,
   calculateHoldings,
   calculatePortfolioSnapshotValuation,
   getAppBusinessDate,
@@ -24,6 +27,7 @@ import {
   upsertPortfolioSnapshot as defaultUpsertPortfolioSnapshot,
   type UpsertPortfolioSnapshotResult
 } from "../repositories/portfolioSnapshotRepository";
+import { ensurePriceAcquisition } from "../repositories/priceAcquisitionRepository";
 
 export const GENERATE_PORTFOLIO_SNAPSHOTS_JOB_NAME = "generate-portfolio-snapshots";
 
@@ -110,19 +114,30 @@ export async function generatePortfolioSnapshot(
       )
     ]);
     const holdings = calculateHoldings(transactions, accounts, instruments, { fxRates });
-    const valuation = calculatePortfolioSnapshotValuation({
+    const valuation = withSnapshotEligibility(calculatePortfolioSnapshotValuation({
       snapshotDate: options.snapshotDate,
       holdings,
       accounts,
       prices,
       fxRates
-    });
+    }), { holdings, instruments, prices, fxRates });
     if (options.deadline !== undefined && Date.now() >= options.deadline) throw new Error("Snapshot maintenance budget exhausted; publication remains pending.");
     let upsertResult: UpsertPortfolioSnapshotResult;
     try { upsertResult = await snapshotRepository.upsertPortfolioSnapshot(valuation, revision); }
     catch (error) {
       if (attempt < 2 && (error as {code?: string}).code === "40001") continue;
       throw error;
+    }
+    if (valuation.publicationStatus === "pending") {
+      // Fixture repositories never enqueue work against a shared environment.
+      if (!options.snapshotRepository) {
+        for (const instrumentId of valuation.missingInstrumentIds ?? []) {
+          const instrument = instruments.find(item => item.id === instrumentId);
+          const source = MARKET_DATA_SOURCE_DEFINITIONS.find(item => item.priceSource === instrument?.priceSource && (!item.sourceSymbols || item.sourceSymbols.includes(instrument?.priceSourceSymbol ?? "")));
+          if (source) await ensurePriceAcquisition({ source: source.key, instrumentId, queryKind: "daily_history", targetDate: options.snapshotDate });
+        }
+      }
+      throw new SnapshotPendingError(options.snapshotDate);
     }
     const finishedJobRun = await jobRunRepository.finishJobRun(jobRun.id, {
       status: "succeeded",

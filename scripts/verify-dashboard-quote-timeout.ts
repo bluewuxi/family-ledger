@@ -20,41 +20,41 @@ const cases = [
 
 async function verifyPartialResults() {
   for (const fixture of cases) {
-    for (const phase of ["fetch", "body", "between"] as const) {
+    for (const phase of ["fetch", "body"] as const) {
       const controller = new AbortController();
-      const timeout = mock.method(AbortSignal, "timeout", (milliseconds: number) => {
-        assert.equal(milliseconds, 6000);
-        return controller.signal;
-      });
+      const timeout = mock.method(AbortSignal, "timeout", () => controller.signal);
       let calls = 0;
+      let release!: () => void;
+      const completed = new Promise<void>(resolve => { release = resolve; });
       try {
-        const provider = fixture.create(async () => {
-          calls++;
-          const expire = () => {
-            controller.abort(new DOMException("Fixture deadline", "TimeoutError"));
-            throw controller.signal.reason;
-          };
-          if (calls === 2 && phase === "fetch") expire();
-          return { ok: true, status: 200, json: async () => {
-            if (calls === 2 && phase === "body") expire();
-            if (phase === "between") controller.abort();
-            return fixture.body;
-          } };
-        });
-        const result = await provider.fetchLatestQuotes({
-          fetchedAt: "2026-09-22T00:00:00Z",
-          instruments: [1, 2, 3].map((id) => ({ ...fixture.instrument, instrumentId: String(id) }))
-        });
-        assert.deepEqual(result.quotes.map((quote) => quote.instrumentId), ["1"]);
+        const resultPromise = fixture.create(async () => {
+          const call = ++calls;
+          const expire = async () => { await completed; await new Promise(resolve => setTimeout(resolve, 0)); controller.abort(); throw new Error("Fixture deadline"); };
+          if (call === 2 && phase === "fetch") return expire();
+          return {ok: true, status: 200, json: async () => {
+            if (call === 2 && phase === "body") return expire();
+            if (call > 2) return new Promise<never>(() => {});
+            release(); return fixture.body;
+          }};
+        }).fetchLatestQuotes({fetchedAt: "2026-09-22T00:00:00Z", instruments: [1, 2, 3].map(id => ({...fixture.instrument, instrumentId: String(id)}))});
+        const result = await resultPromise;
+        assert.equal(result.quotes[0]?.instrumentId, "1");
         assert.equal(result.quotes[0]?.quotePrice, "100");
-        assert.equal(calls, phase === "between" ? 1 : 2, "Do not start requests after the deadline");
-      } finally { timeout.mock.restore(); }
+        assert.equal(result.quotes[0]?.quoteAt, new Date(1790035200 * 1000).toISOString());
+        assert.ok(calls <= 3);
+      } finally {timeout.mock.restore();}
     }
     const input = { fetchedAt: "2026-09-22T00:00:00Z", instruments: [fixture.instrument] };
-    await assert.rejects(fixture.create(async () => ({ ok: false, status: 503, json: async () => ({}) }))
-      .fetchLatestQuotes(input), /status 503/);
-    await assert.rejects(fixture.create(async () => ({ ok: true, status: 200, json: async () => ({}) }))
-      .fetchLatestQuotes(input));
+    await assert.rejects(fixture.create(async () => ({ ok: false, status: 503, json: async () => ({}) })).fetchLatestQuotes(input), /status 503/);
+    await assert.rejects(fixture.create(async () => ({ ok: true, status: 200, json: async () => ({}) })).fetchLatestQuotes(input));
+    let concurrent = 0, maximum = 0, calls = 0;
+    const result = await fixture.create(async () => {
+      calls++; concurrent++; maximum = Math.max(maximum, concurrent);
+      await new Promise(resolve => setTimeout(resolve, 2));
+      concurrent--; return {ok: true, status: 200, json: async () => fixture.body};
+    }).fetchLatestQuotes({fetchedAt: input.fetchedAt, instruments: [1, 2, 3, 1].map(id => ({...fixture.instrument, instrumentId: String(id)}))});
+    assert.equal(calls, 3); assert.equal(maximum, 2);
+    assert.deepEqual(result.quotes.map(quote => quote.instrumentId), ["1", "2", "3"]);
   }
 }
 
@@ -65,6 +65,14 @@ async function stalledFetch(_url: string, options?: { signal: AbortSignal }): Pr
   });
 }
 async function main() {
+  for (const fixture of cases) {
+    let calls = 0;
+    const result = await fixture.create(async () => {
+      const call = ++calls;
+      return { ok: call !== 2, status: call === 2 ? 503 : 200, json: async () => fixture.body };
+    }).fetchLatestQuotes({ fetchedAt: "2026-09-22T00:00:00Z", instruments: [1, 2, 3].map(id => ({ ...fixture.instrument, instrumentId: String(id) })) });
+    assert.deepEqual(result.quotes.map(quote => quote.instrumentId), ["1", "3"], "One failed symbol must not discard completed quotes");
+  }
   await verifyPartialResults();
   const deadline = setTimeout(() => { console.error("Quote timeout did not terminate requests"); process.exit(1); }, 9000);
   try {

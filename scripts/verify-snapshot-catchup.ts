@@ -24,6 +24,18 @@ async function main() {
   changed=false;fail=true;advanced.length=0;
   await assert.rejects(maintainPortfolioSnapshots({eventTime:"2026-11-01T22:30:00Z"},dependencies),/crash/);
   assert.equal(advanced.length,0,"failed work remains pending");
+  const pendingDates: string[] = [];
+  const pendingDependencies: SnapshotMaintenanceDependencies = {
+    ...dependencies,
+    now: () => 0,
+    generate: async date => {
+      if (date === "2026-10-31") throw Object.assign(new Error("Inputs absent"), { code: "SNAPSHOT_PENDING" });
+      pendingDates.push(date);
+    },
+    advance: async () => true
+  };
+  await assert.rejects(maintainPortfolioSnapshots({eventTime:"2026-11-01T22:30:00Z"},pendingDependencies), error => (error as {code?:string}).code === "SNAPSHOT_PENDING");
+  assert.deepEqual(pendingDates,["2026-11-01"],"a durable pending date cannot starve later complete dates");
   fail=false;tick=0;written.length=0;
   assert.equal(await maintainPortfolioSnapshots({eventTime:"2026-11-01T22:30:00Z",budgetMs:1},dependencies),0);
   assert.equal(written.length,0);

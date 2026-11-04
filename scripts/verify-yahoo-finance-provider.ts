@@ -37,6 +37,12 @@ async function main(): Promise<void> {
     { sourceSymbol: "AMD", priceDate: "2026-05-22", closePrice: "123.45", currency: "USD" },
     { sourceSymbol: "1810.HK", priceDate: "2026-05-22", closePrice: "123.45", currency: "HKD" }
   ]);
+  const history = await provider.fetchBatch({ fetchedAt: "2026-05-23T01:00:00.000Z", instruments: [{instrumentId: "amd", sourceSymbol: "AMD", providerInstrumentName: "AMD", currency: "USD"}], queries: [{kind: "daily_history", instrumentId: "amd", sourceSymbol: "AMD", fromDate: "2026-05-21", toDate: "2026-05-22"}] });
+  assert.equal(history.items[0]?.status, "success");
+  assert.deepEqual(history.coverage?.[0]?.coveredDates, ["2026-05-22"]);
+  assert.deepEqual(history.coverage?.[0]?.missingDates, ["2026-05-21"], "A prior UTC timestamp belongs to May 20 in New York and cannot fill May 21");
+  assert.ok(new URL(requestedUrls.at(-1)!).searchParams.has("period1"));
+  assert.ok(new URL(requestedUrls.at(-1)!).searchParams.has("period2"));
 
   await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "CNY", 1_779_451_200, 123.45)), /expected USD/);
   await assert.rejects(providerWithResponse(yahooChartResponse("AMD", "USD", 1_779_451_200, null, null)), /no confirmed daily close/);

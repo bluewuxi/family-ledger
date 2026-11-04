@@ -87,7 +87,7 @@ export function AccountDetailPage() {
     }
   }, [controlsManuallySelected, preferences.preferredCurrency, preferencesLoading]);
 
-  async function loadDetail(_currency: SnapshotDisplayCurrency, _range: PortfolioTrendRange) { await reload(); }
+  async function loadDetail(_currency: SnapshotDisplayCurrency, _range: PortfolioTrendRange) { await reload(true); }
 
   const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
   const pageLoading = loading || !controlsInitialized;

@@ -1,4 +1,7 @@
-import type { ScheduledEvent } from "aws-lambda";
+import type { Context, ScheduledEvent } from "aws-lambda";
+import { recoverHistoricalPrices } from "../services/priceRecoveryService";
+import { retryHistoricalPriceGaps } from "../repositories/priceAcquisitionRepository";
+import { completedSnapshotDate } from "../services/snapshotRepairService";
 import {
   ingestLatestInstrumentPrices,
   UPDATE_PRICES_JOB_NAME,
@@ -15,12 +18,14 @@ interface MarketDataJobEvent extends Partial<ScheduledEvent> {
 
 export interface UpdatePricesHandlerDependencies {
   ingestLatestInstrumentPrices: (options?: IngestLatestInstrumentPricesOptions) => Promise<InstrumentPriceIngestionResult>;
+  recoverHistoricalPrices?: typeof recoverHistoricalPrices;
+  retryHistoricalPriceGaps?: typeof retryHistoricalPriceGaps;
 }
 
 export function createUpdatePricesHandler(
-  dependencies: UpdatePricesHandlerDependencies = { ingestLatestInstrumentPrices }
-): (event?: MarketDataJobEvent) => Promise<void> {
-  return async (event: MarketDataJobEvent = {}): Promise<void> => {
+  dependencies: UpdatePricesHandlerDependencies = { ingestLatestInstrumentPrices, recoverHistoricalPrices, retryHistoricalPriceGaps }
+): (event?: MarketDataJobEvent, context?: Pick<Context, "getRemainingTimeInMillis">) => Promise<void> {
+  return async (event: MarketDataJobEvent = {}, context?: Pick<Context, "getRemainingTimeInMillis">): Promise<void> => {
     const eventId = event.id ?? event.triggerRequestId ?? "manual";
     const eventTime = event.time ?? new Date().toISOString();
 
@@ -32,11 +37,17 @@ export function createUpdatePricesHandler(
     });
 
     try {
-      const result = await dependencies.ingestLatestInstrumentPrices({
+      const acquisition = await Promise.allSettled([dependencies.ingestLatestInstrumentPrices({
         triggerSource: event.triggerSource,
         triggeredByUserId: event.triggeredByUserId,
         triggerRequestId: event.triggerRequestId
-      });
+      })]);
+      if (event.triggerSource === "manual") await dependencies.retryHistoricalPriceGaps?.();
+      const coverage = await dependencies.recoverHistoricalPrices?.({ throughDate: completedSnapshotDate(eventTime),
+        budgetMs: Math.max(0, Math.min(30000, (context?.getRemainingTimeInMillis() ?? 40000) - 10000)) });
+      if (coverage) console.log("Historical price recovery coverage.", coverage);
+      if (acquisition[0].status === "rejected") throw acquisition[0].reason;
+      const result = acquisition[0].value;
       logScheduledJob({
         jobName: UPDATE_PRICES_JOB_NAME,
         eventId,

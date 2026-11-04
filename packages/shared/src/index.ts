@@ -1,6 +1,8 @@
 import Decimal from "decimal.js";
 import { compareTransactionOrder } from "./transactionTimeline";
 export * from "./accountAccess";
+export * from "./priceAcquisition";
+export * from "./snapshotAvailability";
 export * from "./transactionTimeline";
 
 export const APP_BUSINESS_TIME_ZONE = "Asia/Shanghai";
@@ -974,6 +976,9 @@ export function shiftCalendarDateMonths(value: string, months: number): string {
 }
 
 export interface ValuationMetadata {
+  quoteAtFrom?: string | null;
+  quoteAtTo?: string | null;
+  nextRefreshAt?: string | null;
   valuedAt: string;
   fxDateFrom: string | null;
   fxDateTo: string | null;
@@ -1013,6 +1018,7 @@ export interface DashboardSummary {
 }
 
 export interface DashboardQuoteRecord {
+  quoteAt?: string | null;
   id: string;
   instrumentId: string;
   quoteDate: string;
@@ -1026,6 +1032,7 @@ export interface DashboardQuoteRecord {
 }
 
 export interface ValuedHoldingSummary extends HoldingSummary {
+  quoteAt?: string | null;
   latestPriceSource?: string | null;
   latestPriceKind?: "quote" | "stored" | null;
   quoteFetchedAt?: string | null;
@@ -1128,6 +1135,7 @@ export interface AccountDetailTrend {
 }
 
 export interface AccountDetailSummary {
+  nextRefreshAt?: string | null;
   quoteRefreshWarnings?: string[];
   investmentPerformance?: InvestmentPerformance;
   valuedAt?: string;
@@ -1342,6 +1350,7 @@ export interface DataProviderRun {
 }
 
 export interface MarketDataSourceSummary {
+  recovery?: { pending: number; needsAttention: number; unsupported: number; oldestMissingDate: string | null; nextAttemptAt: string | null };
   key: MarketDataSourceKey;
   name: string;
   capabilities: MarketDataCapability[];
@@ -1561,6 +1570,9 @@ export interface MonthlySummary {
   monthEnd: string;
   startSnapshotDate: string | null;
   endSnapshotDate: string | null;
+  requestedStartSnapshotDate?: string;
+  requestedEndSnapshotDate?: string;
+  fullPeriodAvailable?: boolean;
   startValue: string | null;
   endValue: string | null;
   assetChange: string | null;
@@ -1609,6 +1621,7 @@ export interface PortfolioAccountSnapshotSummary {
 }
 
 export interface PortfolioSnapshotSummary {
+  isAvailable?: boolean;
   id: string;
   snapshotDate: string;
   currency: SnapshotDisplayCurrency;
@@ -1637,6 +1650,9 @@ export interface PortfolioSnapshotValuationAccount {
 }
 
 export interface PortfolioSnapshotValuation {
+  publicationStatus?: "ready" | "pending";
+  missingInstrumentIds?: string[];
+  missingFxCurrencies?: string[];
   snapshotDate: string;
   marketValueUsd: string | null;
   costUsd: string | null;

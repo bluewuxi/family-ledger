@@ -63,7 +63,7 @@ function validatePrimaryKeys(payload: LedgerBackupPayload): void {
   for (const name of RESTORE_ORDER) {
     const table = { name };
     const rows = payload.tables[table.name] as Array<Record<string, unknown>>;
-    const primaryKey = table.name === "transaction_create_requests" ? "actor_id,request_key" : table.name === "account_access_policies" ? "user_id" : table.name.endsWith("_grants") ? "user_id,resource_id" : table.name === "kernel_nta_refresh_state" ? "instrument_id" : table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
+    const primaryKey = table.name === "price_acquisition_state" ? "source,instrument_id,query_kind,target_date" : table.name === "price_acquisition_attempts" ? "lease_token" : table.name === "snapshot_pending_dates" ? "snapshot_date" : table.name === "transaction_create_requests" ? "actor_id,request_key" : table.name === "account_access_policies" ? "user_id" : table.name.endsWith("_grants") ? "user_id,resource_id" : table.name === "kernel_nta_refresh_state" ? "instrument_id" : table.name === "currencies" ? "code" : table.name === "monthly_reviews" ? "month" : "id";
     const fields=primaryKey.split(",");
     const values = rows.filter(row=>fields.every(field=>row[field]!==null && row[field]!==undefined)).map(row=>JSON.stringify(fields.map(field=>row[field])));
 
@@ -103,6 +103,9 @@ function validateInternalReferences(payload: LedgerBackupPayload): void {
   requireKnownValues(payload.tables.exchange_rates, "exchange_rates", "from_currency", currencies);
   requireKnownValues(payload.tables.exchange_rates, "exchange_rates", "to_currency", currencies);
   requireKnownValues(payload.tables.instrument_prices, "instrument_prices", "instrument_id", instruments);
+  for (const table of ["price_acquisition_state", "price_acquisition_attempts", "instrument_price_revisions"] as const) {
+    requireKnownValues(payload.tables[table], table, "instrument_id", instruments);
+  }
   requireKnownValues(payload.tables.instrument_prices, "instrument_prices", "currency", currencies);
   requireKnownValues(payload.tables.instrument_prices, "instrument_prices", "source_transaction_id", transactions);
   requireKnownValues(payload.tables.portfolio_account_snapshots, "portfolio_account_snapshots", "portfolio_snapshot_id", snapshots);

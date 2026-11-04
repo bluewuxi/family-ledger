@@ -1,4 +1,5 @@
-import { logDependencyError, logError } from "../utils/errorLogging";
+import { runPriceBatch, providerHttpError } from "@family-ledger/shared";
+import { logDependencyError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
 import type { CurrencyCode } from "@family-ledger/shared";
 import type {
@@ -11,6 +12,7 @@ import type {
 interface FetchResponseLike {
   ok: boolean;
   status: number;
+  headers?: { get(name: string): string | null };
   json(): Promise<unknown>;
 }
 
@@ -25,6 +27,7 @@ const YAHOO_CHART_ENDPOINT_BASE_URL = "https://query1.finance.yahoo.com/v8/finan
 const SUPPORTED_CURRENCIES = new Set<CurrencyCode>(["USD", "HKD"]);
 
 export class YahooFinanceInstrumentQuoteProvider implements IInstrumentQuoteProvider {
+  readonly capabilities = { latestQuote: true, dailyHistory: false, nativeBatch: false, maximumBatchSize: 1 };
   readonly name = "Yahoo Finance";
 
   private readonly fetchFn: FetchLike;
@@ -36,36 +39,37 @@ export class YahooFinanceInstrumentQuoteProvider implements IInstrumentQuoteProv
   }
 
   async fetchLatestQuotes(input: FetchLatestInstrumentQuotesInput): Promise<InstrumentQuoteProviderResult> {
-    const quotes: InstrumentQuoteProviderQuote[] = [];
-    const signal = AbortSignal.timeout(6000);
-
-    for (const instrument of input.instruments) {
-      if (signal.aborted) break;
-      if (!SUPPORTED_CURRENCIES.has(instrument.currency)) {
-        throw new Error(`Yahoo Finance instrument ${instrument.sourceSymbol} uses unsupported currency ${instrument.currency}.`);
+    const signal = input.signal ?? AbortSignal.timeout(6000);
+    const errors: unknown[] = [];
+    const items = await runPriceBatch(input.instruments, {
+      key: instrument => instrument.instrumentId,
+      concurrency: 2,
+      signal,
+      acquire: async instrument => {
+        try {
+          if (!SUPPORTED_CURRENCIES.has(instrument.currency)) throw new Error("Yahoo Finance currency is unsupported.");
+          const response = await this.fetchFn(this.buildUrl(instrument.sourceSymbol), { signal });
+          if (!response.ok) throw providerHttpError(response);
+          return parseYahooChartResponse(await response.json(), instrument.instrumentId, instrument.sourceSymbol, instrument.currency);
+        } catch (error) { errors.push(error); throw error; }
       }
+    });
+    const quotes = items.flatMap(item => item.status === "success" ? [item.value] : []);
+    if (!quotes.length && errors.length && !signal.aborted) throw errors[0];
+    return { provider: this.name, fetchedAt: input.fetchedAt, quotes, items };
+  }
 
-      try {
-        const response = await this.fetchFn(this.buildUrl(instrument.sourceSymbol), { signal });
-
-        if (!response.ok) {
-          throw new Error(`Yahoo Finance request failed for ${instrument.sourceSymbol} with status ${response.status}.`);
-        }
-
-        quotes.push(parseYahooChartResponse(await response.json(), instrument.instrumentId, instrument.sourceSymbol, instrument.currency));
-      } catch (error) {
-        logError("YahooFinanceInstrumentQuoteProvider.fetchLatestQuotes", error, signal.aborted ? "WARN" : "ERROR");
-        // Keep completed quotes when the shared deadline interrupts fetch or body reading.
-        if (signal.aborted) break;
-        throw error;
-      }
-    }
-
-    return {
-      provider: this.name,
-      fetchedAt: input.fetchedAt,
-      quotes
-    };
+  async fetchBatch(input: FetchLatestInstrumentQuotesInput & { queries: import("@family-ledger/shared").PriceQuery[] }): Promise<import("@family-ledger/shared").PriceBatchResult<InstrumentQuoteProviderQuote>> {
+    const requested = [...new Map(input.queries.map(query => [query.instrumentId, query])).values()];
+    const eligible = input.instruments.filter(instrument => requested.some(query => query.kind === "latest_quote" && query.instrumentId === instrument.instrumentId && query.sourceSymbol === instrument.sourceSymbol));
+    let result: InstrumentQuoteProviderResult;
+    try { result = await this.fetchLatestQuotes({...input, instruments: eligible}); }
+    catch { result = {provider: this.name, fetchedAt: input.fetchedAt, quotes: []}; }
+    return {provider: this.name, fetchedAt: input.fetchedAt, items: requested.map(query => {
+      if (query.kind !== "latest_quote") return {key: query.instrumentId, status: "unsupported" as const, reason: "HISTORY_REQUIRES_DAILY_ADAPTER"};
+      const value = result.quotes.find(quote => quote.instrumentId === query.instrumentId && quote.sourceSymbol === query.sourceSymbol);
+      return value ? {key: query.instrumentId, status: "success" as const, value} : {key: query.instrumentId, status: "failed" as const, reason: "ACQUISITION_FAILED" as const};
+    })};
   }
 
   private buildUrl(sourceSymbol: string): string {
@@ -110,6 +114,7 @@ function parseYahooChartResponse(
     instrumentId,
     sourceSymbol,
     quoteDate: timestampToIsoDate(meta.regularMarketTime, sourceSymbol),
+    quoteAt: new Date(Number(meta.regularMarketTime) * 1000).toISOString(),
     quotePrice: requiredPositiveDecimal(meta.regularMarketPrice, `Yahoo Finance quote price for ${sourceSymbol}`),
     currency: expectedCurrency
   };

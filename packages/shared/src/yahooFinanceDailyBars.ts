@@ -1,3 +1,4 @@
+import { providerHttpError } from "./priceAcquisition";
 import Decimal from "decimal.js";
 import type { CurrencyCode } from "./index";
 
@@ -20,6 +21,7 @@ export interface FetchYahooFinanceDailyBarsInput {
   expectedCurrency: CurrencyCode;
   fetchedAt: string;
   fromDate?: string;
+  toDate?: string;
   requiredPriceField?: "close" | "open";
   expectedExchangeTimeZone?: string;
   confirmationCutoff?: {
@@ -32,6 +34,7 @@ export interface FetchYahooFinanceDailyBarsInput {
 interface FetchResponseLike {
   ok: boolean;
   status: number;
+  headers?: { get(name: string): string | null };
   json(): Promise<unknown>;
 }
 
@@ -53,7 +56,7 @@ export async function fetchYahooFinanceDailyBars(
   const response = await fetchFn(url);
 
   if (!response.ok) {
-    throw new Error(`Yahoo Finance request failed for ${input.sourceSymbol} with status ${response.status}.`);
+    throw providerHttpError(response);
   }
 
   return parseYahooFinanceDailyBars(await response.json(), input);
@@ -120,6 +123,7 @@ export function parseYahooFinanceDailyBars(
 
     const priceDate = dateInTimeZone(new Date(timestamp * 1000), exchangeTimeZone);
     if (input.fromDate && priceDate < input.fromDate) continue;
+    if (input.toDate && priceDate > input.toDate) continue;
     if (input.confirmationCutoff && !isConfirmedBar(priceDate, fetchedAt, input.confirmationCutoff)) continue;
     const open = opens?.[index];
     const close = closes?.[index];
@@ -153,7 +157,7 @@ function buildYahooChartUrl(input: FetchYahooFinanceDailyBarsInput, endpointBase
   url.searchParams.set("interval", "1d");
   if (input.fromDate) {
     const from = Date.parse(`${input.fromDate}T00:00:00Z`);
-    const through = Date.parse(input.fetchedAt);
+    const through = input.toDate ? Date.parse(`${input.toDate}T00:00:00Z`) : Date.parse(input.fetchedAt);
     if (!Number.isFinite(from) || !Number.isFinite(through)) throw new Error("Yahoo Finance date range is invalid.");
     url.searchParams.set("period1", String(Math.floor(from / 1000) - 172800));
     url.searchParams.set("period2", String(Math.floor(through / 1000) + 172800));

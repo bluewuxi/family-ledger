@@ -213,6 +213,8 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
       {summary ? (
         <p className="quote-update-note">
           快照范围：{summary.startSnapshotDate ?? "缺少月初快照"} 至 {summary.endSnapshotDate ?? "缺少月末快照"}
+          {summary.requestedStartSnapshotDate && summary.requestedEndSnapshotDate ? `（请求边界：${summary.requestedStartSnapshotDate} 至 ${summary.requestedEndSnapshotDate}）` : ""}
+          {summary.fullPeriodAvailable === false ? "。边界快照不完整，显示已有资产；完整期间的资产变化、估值变动及贡献比例暂不可用。" : ""}
         </p>
       ) : null}
 

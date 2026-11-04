@@ -26,10 +26,13 @@ export interface InstrumentPriceProviderResult {
   provider: string;
   fetchedAt: string;
   prices: InstrumentPriceProviderPrice[];
+  items?: import("@family-ledger/shared").PriceItemOutcome<InstrumentPriceProviderPrice>[];
   skippedSourceSymbols?: string[];
 }
 
 export interface IInstrumentPriceProvider {
   readonly name: string;
+  readonly capabilities?: import("@family-ledger/shared").ProviderCapabilities;
+  fetchBatch?(input: FetchLatestInstrumentPricesInput & {queries: import("@family-ledger/shared").PriceQuery[]}): Promise<import("@family-ledger/shared").PriceBatchResult<InstrumentPriceProviderPrice[]>>;
   fetchLatestPrices(input: FetchLatestInstrumentPricesInput): Promise<InstrumentPriceProviderResult>;
 }

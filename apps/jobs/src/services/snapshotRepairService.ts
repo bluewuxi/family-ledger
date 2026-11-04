@@ -1,7 +1,8 @@
-import { getAppBusinessDate } from "@family-ledger/shared";
+import { getAppBusinessDate, SnapshotPendingError } from "@family-ledger/shared";
 import { getSupabaseAdmin } from "../db/supabaseServer";
 import { createJobRun, finishJobRun } from "../repositories/jobRunRepository";
 import { generatePortfolioSnapshot } from "./portfolioSnapshotGenerationService";
+import { recoverHistoricalPrices } from "./priceRecoveryService";
 
 export interface SnapshotMaintenanceDate { snapshot_date: string; repair_token: string; pending_from: string | null }
 export interface SnapshotMaintenanceDependencies {
@@ -9,7 +10,7 @@ export interface SnapshotMaintenanceDependencies {
   listDates(throughDate: string, catchupFrom?: string): Promise<SnapshotMaintenanceDate[]>;
   generate(snapshotDate: string, remainingMs?: number): Promise<unknown>;
   advance(token: string, nextDate: string | null): Promise<boolean>;
-  assertUpstreamReady(): Promise<void>;
+  assertUpstreamReady(throughDate?: string, budgetMs?: number): Promise<void>;
   now(): number;
   begin?(): Promise<string>;
   finish?(id: string, count: number, error?: unknown): Promise<void>;
@@ -36,13 +37,14 @@ const defaults: SnapshotMaintenanceDependencies = {
   },
   begin: async () => (await createJobRun({jobName: "generate-portfolio-snapshots",jobStartedAt:new Date().toISOString()})).id,
   finish: async (id,count,error) => { await finishJobRun(id,{status:error ? "failed":"succeeded",finishedAt:new Date().toISOString(),recordsInserted:count,errorMessage:error ? "Snapshot maintenance remains pending; inspect job diagnostics." : null}); },
-  async assertUpstreamReady() {
+  async assertUpstreamReady(throughDate, budgetMs) {
     const db = await getSupabaseAdmin();
     for(const name of ["ingest-frankfurter-fx-rates","update-prices"]) {
       const {data,error} = await db.from("job_runs").select("status,job_started_at").eq("job_name",name).order("job_started_at",{ascending:false}).limit(1);
       if(error) throw new Error("Could not inspect upstream job readiness.");
-      if(data?.[0] && data[0].status !== "succeeded") throw new Error("Snapshot maintenance pending: latest market input job is running, stale, or failed.");
+      if(data?.[0]?.status === "started" && Date.now() - new Date(data[0].job_started_at).getTime() < 3_600_000) throw new Error("Snapshot maintenance pending: market inputs are still being updated.");
     }
+    if (throughDate && (budgetMs ?? 0) > 0) await recoverHistoricalPrices({ throughDate, budgetMs: Math.min(30_000, budgetMs ?? 0) });
   },
   now: () => Date.now()
 };
@@ -63,24 +65,32 @@ export async function maintainPortfolioSnapshots(input: {eventTime: string; catc
   const deadline = dependencies.now() + (input.budgetMs ?? 240000);
   const jobId = await dependencies.begin?.();
   let count = 0;
+  let pendingCount = 0;
   try {
   const through = completedSnapshotDate(input.eventTime);
   if(input.catchupFrom) {
     assertCompletedSnapshotDate(input.catchupFrom,through);
     await dependencies.requestCatchup(input.catchupFrom);
   }
-  await dependencies.assertUpstreamReady();
+  await dependencies.assertUpstreamReady(through, Math.max(0, deadline - dependencies.now()));
   const dates = await dependencies.listDates(through,input.catchupFrom);
   for(const date of dates) {
     if(dependencies.now()>=deadline) break;
     assertCompletedSnapshotDate(date.snapshot_date,through);
-    await dependencies.generate(date.snapshot_date, deadline-dependencies.now());
-    count++;
+    try {
+      await dependencies.generate(date.snapshot_date, deadline-dependencies.now());
+      count++;
+    } catch (error) {
+      if ((error as { code?: string }).code !== "SNAPSHOT_PENDING") throw error;
+      pendingCount++;
+      // Publication durably recorded this date separately; do not starve later dates.
+    }
     if(date.pending_from && date.snapshot_date>=date.pending_from) {
       const next = new Date(new Date(`${date.snapshot_date}T00:00:00Z`).getTime()+86400000).toISOString().slice(0,10);
       if(!await dependencies.advance(date.repair_token,next)) break;
     }
   }
+  if (pendingCount > 0) throw new SnapshotPendingError(through);
   if(jobId) await dependencies.finish?.(jobId,count);
   return count;
   } catch(error) {

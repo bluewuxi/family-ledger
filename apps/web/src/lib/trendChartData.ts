@@ -91,21 +91,16 @@ export function buildTrendChartData(
 }
 
 export function buildProfitChartData(chartPoints: TrendChartPoint[]): ProfitChartPoint[] {
-  let carriedTotalInvestment: number | null = null;
   let periodStartProfit: number | null = null;
   let periodStartValue: number | null = null;
 
   return chartPoints
     .filter((point) => !point.date.startsWith("__live_midpoint__"))
     .map((point) => {
-      if (point.totalInvestment !== null && Number.isFinite(point.totalInvestment)) {
-        carriedTotalInvestment = point.totalInvestment;
-      }
-
       const portfolioValue = point.snapshotValue ?? point.liveValue;
       const cumulativeProfit =
-        portfolioValue !== null && carriedTotalInvestment !== null
-          ? portfolioValue - carriedTotalInvestment
+        portfolioValue !== null && point.totalInvestment !== null && Number.isFinite(point.totalInvestment)
+          ? portfolioValue - point.totalInvestment
           : null;
       if (cumulativeProfit !== null && periodStartProfit === null) {
         periodStartProfit = cumulativeProfit;
