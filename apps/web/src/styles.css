@@ -2758,8 +2758,15 @@ tr.editing-row td {
 
 .account-detail-trend-panel .chart-section-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: flex-start;
   justify-content: space-between;
+}
+
+.account-detail-trend-panel .chart-section-header > div {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .account-detail-trend-panel .account-detail-range-select {
@@ -2794,6 +2801,12 @@ tr.editing-row td {
 .account-detail-grid .holding-detail-panel,
 .account-detail-grid .chart-panel {
   margin-top: 0;
+}
+
+@media (max-width: 1180px) {
+  .account-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .account-detail-trend-panel {
