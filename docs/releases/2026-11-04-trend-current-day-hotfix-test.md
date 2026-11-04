@@ -1,6 +1,6 @@
 # Current-day Trend Hotfix
 
-Status: implementation verified locally; automatic TEST delivery pending.
+Status: implementation, CI and automatic TEST delivery verified. Authenticated visual acceptance remains pending.
 
 Issue: [#130](https://github.com/bluewuxi/family-ledger/issues/130). Baseline: `test` at `939aa93a77638a1fea5ca67de0e5b6ba4208f1b9`. The user authorized hotfix deployment through the existing TEST delivery workflow. Unrelated Kernel repair documents are excluded.
 
@@ -18,4 +18,4 @@ The shared chart helper treated a current-day carried valuation as a saved same-
 
 ## Delivery
 
-Commit and CI/automatic deployment evidence will be recorded after publication. Production is outside scope.
+Application commit: `207cc7066b50a255ee8dacf8eb8c6296cbaa68c8`. [CI and automatic TEST deployment](https://github.com/bluewuxi/family-ledger/actions/runs/41816755459) succeeded. Backend artifacts were unchanged; the workflow published web assets and verified TEST at `2026-11-04T10:53:25Z`. Artifact SHA-256: `2c6bf864b93b1d7903133ae30dd989457090453ac9277ebc5aecf0a6214d5864`. The configured publication gate waits for CloudFront invalidation and verifies API health, unauthenticated rejection, runtime configuration, HTML and referenced assets before reporting success. Production is outside scope.
