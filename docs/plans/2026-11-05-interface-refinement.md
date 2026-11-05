@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` to implement this plan task by task after implementation is requested. Follow project workflow adaptations; do not create branches or make automatic commits.
 
-**Status:** Approved; implementation and isolated regression checks completed on 2026-11-05; authenticated visual acceptance remains partial. Authorized incident cleanup is complete. Issue, scoped commit, push and automatic TEST delivery are authorized; deployment evidence is tracked separately.
+**Status:** Approved; implementation and isolated regression checks completed on 2026-11-05; authenticated visual acceptance remains partial. Authorized incident cleanup is complete. Scoped application commit be6cc04 was pushed and automatic TEST deployment passed; see linked release evidence.
 
 **Goal:** Refine Family Ledger into a calm, warm financial workspace with grouped navigation, clearer page hierarchy, and full-page statement import while retaining its original logo and existing financial behavior.
 
@@ -111,7 +111,7 @@ Move the About entry into Settings while keeping `/about` directly accessible. K
 
 ## Task 3: Refine investment information hierarchy
 
-**Actual progress:** Hierarchy, compact filtered totals, data-status detail and identity-based distribution colors implemented. Named financial fixtures passed; broader synthetic missing-data/long-name visual scenarios remain pending.
+**Actual progress:** Hierarchy, compact filtered totals, data-status detail and identity-based distribution colors implemented. Named financial fixtures passed; isolated long-name/negative import values passed. Broader investment missing-data visual scenarios remain pending.
 
 **Files:** `apps/web/src/pages/DashboardPage.tsx`, `HoldingsPage.tsx`, `AccountDetailPage.tsx`, `HoldingDetailPage.tsx`; `apps/web/src/components/InvestmentPerformanceCard.tsx`, `ValuationStatus.tsx`, `DistributionPanel.tsx`, `InvestmentTrendChart.tsx`; affected styles and investment specification.
 
@@ -136,7 +136,7 @@ Move the About entry into Settings while keeping `/about` directly accessible. K
 
 ## Task 5: Extract complex workflows into pages
 
-**Actual progress:** Routed import and staged account creation implemented. Existing committed batch selection and reload restored successfully. Statement response-loss/definitive-rejection fixtures passed. Premature Next-button submit found during acceptance, fixed and red/green verified locally; real final-submission and failure-recovery acceptance remain pending.
+**Actual progress:** Routed import and staged account creation implemented. Existing committed batch selection and reload restored successfully. Statement response-loss/definitive-rejection fixtures passed. Premature Next-button submit found during acceptance, fixed and red/green verified locally; real final-submission acceptance remains pending. Isolated failure/retry/revocation checks passed, including selected-file retention and partial-success duplicate prevention.
 
 **Files:** `apps/web/src/App.tsx`, `pages/SpendingPage.tsx`, `components/spending/SpendingStatementsDrawer.tsx`, `lib/spendingClient.ts`, `pages/AccountsPage.tsx`; create `pages/SpendingImportPage.tsx`, `components/spending/SpendingImportWorkspace.tsx`, and `pages/AccountCreatePage.tsx` under `apps/web/src/` as needed for these responsibilities.
 
@@ -168,7 +168,7 @@ The original plan was checked for scope, maintained-contract links and whitespac
 
 ## Execution evidence (2026-11-05)
 
-- Workspace remains test at 4e28c251057cf957e16d99af7a030f475ed7eda5. Existing task documentation and unrelated files are preserved; no issue, commit, push, deployment or migration was performed.
+- Workspace remains test at 4e28c251057cf957e16d99af7a030f475ed7eda5. Existing task documentation and unrelated files are preserved; no issue, commit, push, deployment or migration had been performed at that initial checkpoint. Subsequent delivery is tracked below.
 - Final core checks passed: corepack pnpm lint; corepack pnpm typecheck; corepack pnpm build. The production output excludes the development-only account creation fixture.
 - Earlier local fixture runs passed: verify:account-access-client, verify:family-cashflow-ui, verify:transaction-table, verify:transaction-idempotency, verify:dashboard, verify:portfolio-trend, verify:holdings, verify:account-detail, verify:spending, verify:account-purposes, and verify:auth. Disposable verify:spending-db passed with synthetic loopback data. No shared migrations were applied.
 - The synthetic apps/web/verify-interface-workflows.ts check passed after the last implementation changes. It covers exact statement token/decisions, no automatic write replay, committed-state recovery, unreadable/pending state and definitive rejection classification.
@@ -186,7 +186,7 @@ The user completed real login and confirmed readiness before authenticated inspe
 | Holdings | Five sizes sampled | Five sizes | Light tablet capture during transition needs settled recapture; table scroll and filtered/overall distinction inspected |
 | Import workspace | Five sizes | Five sizes | Upload/history layout only; existing committed deep link and reload inspected; no live preview/commit/undo/cancel acceptance |
 | Settings | Five sizes | Five sizes | Read-only panels and About entry; no preference/access/password writes |
-| Account edit drawer | Five sizes | Five sizes | Title/body/actions, focus loop, Escape, restoration and scroll cleanup; dirty-cancel and pending/failure paths pending |
+| Account edit drawer | Five sizes | Five sizes | Title/body/actions, focus loop, Escape, restoration and scroll cleanup; dirty-cancel and pending/failure paths passed in isolated fixtures |
 | Account creation | Five sizes for basic information; narrow opening layout | Five sizes for basic information; narrow opening layout | Final-step live acceptance failed due to the incident below; fix verified only in isolated fixture |
 | Grouped navigation | Desktop and narrow mobile | Desktop and narrow mobile | Mobile focus wrap verified; exhaustive routes/collapse/legacy redirect acceptance pending |
 
@@ -200,7 +200,7 @@ Root cause: React reused the advancing button DOM node as the final submit butto
 
 ### Remaining gates
 
-- Complete the unchecked acceptance items and settled light-tablet recapture; run remaining synthetic failure/revocation/long-name scenarios before declaring full UI acceptance.
+- Complete the unchecked acceptance items and settled light-tablet recapture; complete broader investment missing-input and extended page/zoom/print scenarios before declaring full UI acceptance.
 - Do not exercise account creation, import preview/commit, cancellation, undo, preferences or access writes against shared data under this authorization. Prefer isolated fixtures; any shared mutation requires its own explicit decision.
 - Authorized incident cleanup is complete. No further shared mutation is authorized by acceptance or environment naming.
 - Implementation is locally validated; automatic TEST delivery is authorized; visual acceptance remains partial/pending. No unrelated earlier waiver applies.
@@ -218,3 +218,7 @@ Root cause: React reused the advancing button DOM node as the final submit butto
 - Earlier no-delivery statements above describe the initial execution phase; the subsequent explicit TEST delivery authorization recorded here supersedes them. Remaining authenticated visual/zoom/print coverage remains pending.
 
 Delivery tracking: [issue #132](https://github.com/bluewuxi/family-ledger/issues/132) and [release evidence](../releases/2026-11-05-interface-refinement-test.md).
+
+### Verified TEST delivery
+
+Application commit `be6cc048c55efc246e25b996f738faf9a2897a7a` passed hosted CI and automatic TEST publication/live smoke checks in [run 41985227375](https://github.com/bluewuxi/family-ledger/actions/runs/41985227375). No migrations, infrastructure changes or production deployment were performed. Implementation is verified; TEST deployment passed; authenticated visual acceptance remains partial with the outstanding items above. The final documentation-only evidence update is tracked under issue #132.

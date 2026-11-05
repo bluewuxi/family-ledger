@@ -2,7 +2,7 @@
 
 ## Interface refinement (2026-11-05, locally validated; acceptance partial)
 
-Grouped navigation, paired themes, drawer safety and routed import/account creation are implemented and locally validated under the [approved plan](plans/2026-11-05-interface-refinement.md). Both-theme layout inspection used all five sizes, with partial coverage limits recorded in the plan. A premature Next-button submission caused an unintended shared account creation; the defect is fixed and isolated regression passed, authorized zero-association cleanup and isolated failure/retry/dismissal checks are complete. Authenticated visual acceptance remains partial; scoped automatic TEST delivery is authorized.
+Grouped navigation, paired themes, drawer safety and routed import/account creation are implemented and locally validated under the [approved plan](plans/2026-11-05-interface-refinement.md). Both-theme layout inspection used all five sizes, with partial coverage limits recorded in the plan. A premature Next-button submission caused an unintended shared account creation; the defect is fixed and isolated regression passed, authorized zero-association cleanup and isolated failure/retry/dismissal checks are complete. Authenticated visual acceptance remains partial. Application be6cc04 passed automatic TEST deployment; see [release evidence](releases/2026-11-05-interface-refinement-test.md).
 
 ## TEST rollout: independent Kernel actual anchors (2026-11-04)
 

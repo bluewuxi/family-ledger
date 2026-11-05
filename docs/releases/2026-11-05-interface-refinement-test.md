@@ -16,6 +16,6 @@ A native button-default defect caused unintended account creation during earlier
 
 ## Deployment and visual status
 
-Automatic TEST deployment is pending for this scoped change. Exact application commit, CI/deployment run and live smoke evidence will be published in issue #132 after verification; no deployment success is claimed by this pre-delivery record.
+Automatic TEST deployment passed for application commit `be6cc048c55efc246e25b996f738faf9a2897a7a` in [CI run 41985227375](https://github.com/bluewuxi/family-ledger/actions/runs/41985227375). Hosted validation and the deployment job succeeded. Backend artifacts were unchanged; web publication and live health/auth/config/HTML/asset checks completed before the release was marked verified. Artifact SHA-256: `120db9f16e0a6b1071a36bf2e2458cadd5528e0211f4b6c16f290b4c9369da1f`. The subsequent documentation-only evidence update does not change the deployed application; its expected skip is tracked in issue #132.
 
 Authenticated visual acceptance remains partial: both themes and all five required sizes were inspected for the main surfaces, with limits and pending settled tablet, wider detail/education/monthly/maintenance, zoom/reduced-motion/print and special data-state scenarios recorded in the [implementation plan](../plans/2026-11-05-interface-refinement.md). Isolated fixtures do not replace real-login acceptance. Production is not deployed.
