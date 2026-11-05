@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` to implement this plan task by task after implementation is requested. Follow project workflow adaptations; do not create branches or make automatic commits.
 
-**Status:** Approved; implementation and isolated regression checks completed on 2026-11-05; authenticated visual acceptance remains partial. Authorized incident cleanup is complete. Scoped application commit be6cc04 was pushed and automatic TEST deployment passed; see linked release evidence.
+**Status:** Approved; implementation and isolated regression checks completed on 2026-11-05; authenticated visual acceptance remains partial after additional light and dark read-only checks on 2026-11-06. Authorized incident cleanup is complete. Scoped application commit be6cc04 was pushed and automatic TEST deployment passed; see linked release evidence.
 
 **Goal:** Refine Family Ledger into a calm, warm financial workspace with grouped navigation, clearer page hierarchy, and full-page statement import while retaining its original logo and existing financial behavior.
 
@@ -183,14 +183,17 @@ The user completed real login and confirmed readiness before authenticated inspe
 | Surface | Light coverage | Dark coverage | Limits |
 | --- | --- | --- | --- |
 | Dashboard | Five sizes | Five sizes | Values, loss, chart/distribution layout and source warning inspected; not every missing-input/carried-date scenario |
-| Holdings | Five sizes sampled | Five sizes | Light tablet capture during transition needs settled recapture; table scroll and filtered/overall distinction inspected |
+| Holdings | Five sizes sampled; 320px TEST recheck | Five sizes | Table remains inside page viewport with inner horizontal scroll (document width 305px at 320px); filtered/overall distinction inspected. Broader data-state checks remain pending |
 | Import workspace | Five sizes | Five sizes | Upload/history layout only; existing committed deep link and reload inspected; no live preview/commit/undo/cancel acceptance |
 | Settings | Five sizes | Five sizes | Read-only panels and About entry; no preference/access/password writes |
+| Monthly review and data maintenance | 1440x1000 and narrow mobile samples | 1440x1000 and 320x740 | Settled report and provider table inspected; no print preview, refresh or maintenance actions |
+| Account detail | Desktop sample | Desktop sample | Performance, trend, holdings and transactions hierarchy inspected read-only |
+| Family cashflow and education | Narrow mobile samples | 320x740 | Filters, summary and scrollable rows inspected; no record details or editing |
 | Account edit drawer | Five sizes | Five sizes | Title/body/actions, focus loop, Escape, restoration and scroll cleanup; dirty-cancel and pending/failure paths passed in isolated fixtures |
 | Account creation | Five sizes for basic information; narrow opening layout | Five sizes for basic information; narrow opening layout | Final-step live acceptance failed due to the incident below; fix verified only in isolated fixture |
-| Grouped navigation | Desktop and narrow mobile | Desktop and narrow mobile | Mobile focus wrap verified; exhaustive routes/collapse/legacy redirect acceptance pending |
+| Grouped navigation | Desktop and narrow mobile | Desktop and narrow mobile | Mobile focus wrap verified; 320px and 768px mobile header/collapsed navigation inspected. Exhaustive routes/collapse/legacy redirect acceptance pending |
 
-These observations are partial acceptance, not a blanket visual pass. Browser zoom, reduced-motion behavior, safe-area extremes, remaining detail/education/monthly/maintenance surfaces and print layout remain pending. Scope revocation, empty-authorized datasets and both gain-color choices still require the appropriate isolated/live read-only scenarios. A build or mock fixture does not replace them.
+These observations are partial acceptance, not a blanket visual pass. Follow-up on the deployed TEST session used read-only views: at 320x740, the holdings page reported document/body width 305px with viewport width 320px, while the wide holdings table stays in its own horizontal-scroll region; account management retained legible name/platform columns. No refresh, preference change or business-data write was performed. At 768x1024, the dashboard showed the mobile header, stacked trend/recent activity and lower distributions. Additional 2026-11-06 checks are listed below. Browser zoom, reduced-motion behavior, safe-area extremes and print layout remain pending. Scope revocation, empty-authorized datasets and both gain-color choices still require the appropriate isolated/live read-only scenarios. A build or mock fixture does not replace them.
 
 ### Acceptance incident and isolated regression
 
@@ -200,7 +203,7 @@ Root cause: React reused the advancing button DOM node as the final submit butto
 
 ### Remaining gates
 
-- Complete the unchecked acceptance items and settled light-tablet recapture; complete broader investment missing-input and extended page/zoom/print scenarios before declaring full UI acceptance.
+- The authenticated real-user pass now includes further dark checks of dashboard, holdings, transaction history, monthly review, account list/detail, daily and education cashflow, import upload/history, Settings and data maintenance, plus a settled light dashboard check. Remaining theme/viewport combinations are not exhaustive. Print preview could not be opened through the current in-app browser, its zoom shortcut did not change scale, and reduced-motion/safe-area emulation was unavailable; these are not counted as passed. Validate account-scope-empty/revocation and additional missing-price/FX/carried-snapshot scenarios with read-only or isolated fixtures.
 - Do not exercise account creation, import preview/commit, cancellation, undo, preferences or access writes against shared data under this authorization. Prefer isolated fixtures; any shared mutation requires its own explicit decision.
 - Authorized incident cleanup is complete. No further shared mutation is authorized by acceptance or environment naming.
 - Implementation is locally validated; automatic TEST delivery is authorized; visual acceptance remains partial/pending. No unrelated earlier waiver applies.
@@ -222,3 +225,22 @@ Delivery tracking: [issue #132](https://github.com/bluewuxi/family-ledger/issues
 ### Verified TEST delivery
 
 Application commit `be6cc048c55efc246e25b996f738faf9a2897a7a` passed hosted CI and automatic TEST publication/live smoke checks in [run 41985227375](https://github.com/bluewuxi/family-ledger/actions/runs/41985227375). No migrations, infrastructure changes or production deployment were performed. Implementation is verified; TEST deployment passed; authenticated visual acceptance remains partial with the outstanding items above. The final documentation-only evidence update is tracked under issue #132.
+
+
+### Read-only visual follow-up (2026-11-05)
+
+Authenticated TEST browser remained on the real-user session. Inspected the deployed holdings table and accounts list at 320x740, and dashboard stacking at 768x1024. Holdings document/body width was 305 CSS pixels for a 320px viewport; the intentionally wide table scrolls inside its own region. Account name/platform columns remained legible. No unexpected page-level horizontal overflow or actionable defect was observed in these views. Real account/instrument/trading rows were viewed only; no values were copied into artifacts. Did not change preferences or submit any forms. At 1440x1000 the dashboard maintained its sidebar and two-column trend/activity composition. At 1440x1000, monthly review initially showed loading placeholders in the first capture; a later settled capture populated the report and explained that the Nov 4 boundary snapshot was missing, so full-period change/contribution was unavailable. The screen resolved normally after data loading; no persistent loading defect reproduced. At 1440x1000 the data-maintenance source tab showed its long provider-status table inside the page content. Read-only follow-up subsequently covered education/cashflow, settings and About; see the 2026-11-06 records below. Account detail and further dark-theme views were inspected later. Restricted empty/scope states and accessible zoom/reduced-motion/safe-area/print checks remain outstanding.
+
+
+### Additional read-only visual pass (2026-11-06)
+
+The authenticated local application session was already open and showed the grouped navigation and dashboard; API and Vite processes were available with authentication enabled. No login bypass was enabled. Inspected dashboard at 1440x1000, monthly review at 1440x1000, data-maintenance source tab at 1440x1000 and holdings at 320x740. Dashboard preserved the desktop sidebar and trend/recent activity arrangement. Maintenance provider rows fit within the page scrolling region. Monthly review initially showed loading placeholders. A later settled capture resolved all sections and showed the documented incomplete-snapshot boundary state; the loading display did not persist. At 320x740, education, monthly review, cashflow and settings each had document/body width 305px against a 320px viewport. Education list and daily cashflow table stayed in their own scroll containers. Settings retained distinct preference and user-access sections. `/about` still rendered the original brand artwork and content after its navigation moved under Settings. No refresh button was activated. No shared preference, trade, account, import, backup, recovery or other business-data writes occurred. Viewport override was reset and the local tab returned to dashboard. Browser zoom shortcut input did not change the captured viewport and is not counted as zoom acceptance. This pass did not cover every route or dark theme and does not complete visual acceptance.
+
+
+### Authenticated dark-theme follow-up (2026-11-06)
+
+The same real authenticated local session was used with a temporary source-only `data-theme="dark"` override; no preference was selected or saved. At 320x740, the education view showed its summary, date/currency/category filters and scrolling history without page-level overflow; the data-maintenance source table remained in its own horizontal scroll region and became readable after its initial loading state; Settings showed its preference and access sections without changing either. At desktop size, transaction history and monthly review remained legible with their tables and report content, and account detail retained its performance/holdings/history hierarchy. Earlier dark dashboard, holdings and import checks remain recorded in the coverage table. The dark review did not activate refresh, save, import, delete, recovery or account controls and did not copy live financial values into artifacts.
+
+After inspection, the temporary source override was restored byte-for-byte to its recorded baseline SHA-256 (`824ABEA58E7735C32E068EA9087C58CF80CC302EFB77A6602704CA40D5A1941C`), the browser viewport override was reset, and a full reload visibly restored the user's light dashboard. A transient temporary backup could not be removed by the shell policy and remains outside the repository under the system temp directory; it contains the original source file only. No application source diff remains from the theme override.
+
+After this restoration, fresh `corepack pnpm lint`, `corepack pnpm typecheck` and `corepack pnpm build` runs all exited successfully. `corepack pnpm verify:docs` and `git diff --check` also passed after the plan update. Visual acceptance remains partial: the existing browser did not expose its print preview, its zoom shortcut did not change display scale, and reduced-motion and safe-area emulation were not available. Scope-empty/revoked access and additional missing-market-data scenarios still require isolated or safe read-only coverage. No shared data writes, migrations or new delivery actions occurred.
