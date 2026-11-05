@@ -134,7 +134,7 @@ export function HoldingsPage() {
       {error ? <p className="form-error">{error}</p> : null}
 
       <div className="metric-grid portfolio-overview-metrics">
-        <article className="metric-card"><span>当前估值 · 全部投资账户</span><small className="metric-currency">{activeCurrency}</small><strong>{formatMetric(summary?.totalMarketValue ?? null, pageLoading)}</strong></article>
+        <article className="metric-card"><span>当前估值</span><small className="metric-currency">{activeCurrency}</small><strong>{formatMetric(summary?.totalMarketValue ?? null, pageLoading)}</strong></article>
         <InvestmentPerformanceCard performance={summary?.investmentPerformance} currency={activeCurrency} loading={pageLoading} fullScope />
       </div>
       {!pageLoading && summary ? <ValuationStatus metadata={summary.valuationMetadata} performance={summary.investmentPerformance} warnings={summary.warnings} /> : null}
@@ -198,6 +198,7 @@ export function HoldingsPage() {
         </article>
       </div>
 
+      <p className="table-scroll-hint">左右滑动查看完整持仓明细</p>
       <div className="table-wrap">
         <table className="holding-table">
           <thead>

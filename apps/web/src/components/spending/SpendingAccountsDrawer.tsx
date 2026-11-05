@@ -29,9 +29,11 @@ export function SpendingAccountsDrawer({
       default_currency: "CNY",
       is_active: true,
     });
+  const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   function reset() {
+    setDirty(false);
     setId(undefined);
     setForm({
       name: "",
@@ -72,16 +74,19 @@ export function SpendingAccountsDrawer({
     <Drawer
       open
       title="收支账户"
-      onClose={() => {
-        if (!busy) onClose();
-      }}
+      busy={busy}
+      dirty={dirty}
+      onClose={onClose}
     >
       <div className="spending-account-list">
         {accounts.map((a) => (
           <button
             className="secondary-button"
             key={a.id}
+            disabled={busy}
             onClick={() => {
+              if (dirty && !window.confirm("放弃未保存的账户修改？")) return;
+              setDirty(false);
               setId(a.id);
               setForm({
                 name: a.name,
@@ -107,7 +112,7 @@ export function SpendingAccountsDrawer({
       {admin && (
         <>
           <h3>{id ? "编辑账户" : "新建账户"}</h3>
-          <fieldset disabled={busy} className="spending-form">
+          <fieldset disabled={busy} className="spending-form" onChange={() => setDirty(true)}>
             <label>
               账户名称
               <input

@@ -1,3 +1,4 @@
+import { useEditDismissal } from "../lib/useEditDismissal";
 import { useEventCallback } from "../lib/useEventCallback";
 import { observeAsync } from "../lib/observeAsync";
 import { useSearchParams } from "react-router-dom";
@@ -237,7 +238,8 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
     createMenuRef.current?.querySelector<HTMLButtonElement>(".transaction-account-menu button")?.focus();
     document.addEventListener("mousedown", closeOnOutside);
     document.addEventListener("keydown", closeOnEscape);
-    return () => {
+
+  return () => {
       document.removeEventListener("mousedown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
@@ -503,6 +505,8 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
     Boolean(bankCashInstrumentError) ||
     Boolean(tradeAvailability.error) || balanceLoading || !holdingsSummary;
 
+  const requestDismiss = useEditDismissal(drawerOpen, saving, form, closeDrawer);
+
   return (
     <section>
       <header className="page-header account-header">
@@ -674,13 +678,14 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
         open={drawerOpen}
         title={drawerTitle}
         subtitle="现金类交易请选择对应币种的现金标的"
-        onClose={closeDrawer}
+        busy={saving}
+        onClose={requestDismiss}
         footer={
           <>
           {balanceError ? <p className="form-error">余额加载失败：{balanceError} <button type="button" className="text-button" onClick={() => observeAsync(loadBalances())}>重试</button></p> : null}
       {error ? <p className="form-error transaction-save-error" role="alert">{error}</p> : null}
           {drawerMode === "view" ? (
-            <button className="secondary-button" type="button" onClick={closeDrawer}>
+            <button className="secondary-button" type="button" onClick={requestDismiss}>
               <X size={17} aria-hidden="true" />
               <span>关闭</span>
             </button>
@@ -695,7 +700,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
                 <Save size={17} aria-hidden="true" />
                 <span>{saving ? "保存中..." : editingTransactionId ? "保存修改" : "新增交易"}</span>
               </button>
-              <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+              <button className="secondary-button" type="button" onClick={requestDismiss} disabled={saving}>
                 <X size={17} aria-hidden="true" />
                 <span>取消</span>
               </button>

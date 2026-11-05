@@ -1,3 +1,5 @@
+import { AccountCreatePage } from "./pages/AccountCreatePage";
+import { SpendingImportPage } from "./pages/SpendingImportPage";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
@@ -27,9 +29,12 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/accounts" element={<AccountsPage />} />
+      <Route path="/accounts/new" element={<AccountCreatePage />} />
       <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
       <Route path="/instruments" element={<InstrumentsPage />} />
       <Route path="/transactions" element={<TransactionsPage />} />
+      <Route path="/daily-expense/import" element={<SpendingImportPage />} />
+      <Route path="/daily-expense/import/:statementId" element={<SpendingImportPage />} />
       <Route path="/daily-expense" element={<DailyExpensePage />} />
       <Route path="/education" element={<LegacyCashflowRedirect tab="education" />} />
       <Route path="/cashflows" element={<LegacyCashflowRedirect tab="report" />} />

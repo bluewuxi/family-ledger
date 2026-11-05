@@ -21,6 +21,7 @@
     "scripts/verify-price-recovery.ts",
     "scripts/verify-snapshot-availability.ts",
     "scripts/verify-valuation-client.ts",
-    "scripts/verify-source-price-correction.ts"
+    "scripts/verify-source-price-correction.ts",
+    "apps/web/verify-interface-workflows.ts"
   ]
 }

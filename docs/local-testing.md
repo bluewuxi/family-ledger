@@ -385,3 +385,15 @@ Run `verify:price-acquisition`, `verify:snapshot-availability`, `verify:price-re
 ## Independent Kernel anchors (local verification)
 
 Run the reviewed `verify:kernel-price-estimation` fixture through `verify:checks`, plus `verify:kernel-price-estimation-db`, `verify:backup`, and `verify:backup-restore-db` under their effect-specific procedures. Kernel fixtures cover independent API save, pending intervals, delayed/amended reference publication, stale root/target announcements, idempotent/concurrent saves, manual/precision protection and local adoption preparation. The disposable full-schema restore covers pending roots, exact nullable references, source precision, snapshot invalidation/revision and all allowlisted tables. Add affected holdings/dashboard/account/trend/monthly/snapshot revision checks and lint/typecheck/build. These do not connect to TEST or apply its migration. The user explicitly waived visual acceptance on 2026-11-04 for this independent-anchor change, including maintenance text/status changes; record user-waived, not passed. No browser checks are claimed, and future UI work retains the normal real-login/five-viewport procedure.
+
+## Account creation button regression
+
+With the local web server running, open [the isolated account creation fixture](http://127.0.0.1:5181/fixtures/account-create.html). It mounts the actual AccountCreateWorkspace with a local submission counter and no API/auth clients. It is a Vite development fixture, not a production build entry or authenticated acceptance substitute.
+
+Click 下一步 twice: review must appear with Simulated submissions still 0. Click 确认创建 once: the counter becomes 1. Reload, use Enter from the name input, enable the empty opening field, return to basic information and use Enter again: the opening step must remain reachable with counter 0. Never exercise this regression against shared account creation.
+
+The regression protects against React reusing an advancing button as a submit button during the native click default action. Advance and confirm controls have distinct keys, and advancing cancels the click default action. Run corepack pnpm exec tsx apps/web/verify-interface-workflows.ts for statement response-loss and definitive-rejection fixtures; these use synthetic local inputs only.
+
+### Isolated import and drawer acceptance
+
+Development-only `/fixtures/import-workspace.html` and `/fixtures/drawer.html` mount real components with synthetic in-memory clients and deterministic discard controls. Unexpected fetches throw; inspect displayed counters. Import scenarios cover duplicate choices, response loss/recovery, rejection, expiry, malformed input, viewer and revoked access; verify selected-file retention after cancelling a history switch. Drawer scenarios cover dirty dismissal, pending close, failed/successful saves, focus restoration and revocation. Never substitute shared clients. These fixtures are not production entries or authenticated acceptance.

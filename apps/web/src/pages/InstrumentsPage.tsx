@@ -1,3 +1,4 @@
+import { useEditDismissal } from "../lib/useEditDismissal";
 import { observeAsync } from "../lib/observeAsync";
 import { type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { Eye, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
@@ -224,6 +225,8 @@ export function InstrumentsPage() {
     setForm(emptyForm);
   }
 
+  const requestDismiss = useEditDismissal(drawerOpen, saving, form, closeDrawer);
+
   return (
     <section>
       <header className="page-header account-header">
@@ -335,10 +338,11 @@ export function InstrumentsPage() {
             ? `${drawerMode === "modify" ? "正在编辑" : "正在查看"}：${editingInstrument.name}`
             : "价格来源仅保存配置，不会自动抓取行情"
         }
-        onClose={closeDrawer}
+        busy={saving}
+        onClose={requestDismiss}
         footer={
           drawerMode === "view" ? (
-            <button className="secondary-button" type="button" onClick={closeDrawer}>
+            <button className="secondary-button" type="button" onClick={requestDismiss}>
               <X size={17} aria-hidden="true" />
               <span>关闭</span>
             </button>
@@ -348,7 +352,7 @@ export function InstrumentsPage() {
                 {saving ? <RefreshCw size={17} aria-hidden="true" /> : editingInstrumentId ? <Save size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
                 <span>{saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}</span>
               </button>
-              <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+              <button className="secondary-button" type="button" onClick={requestDismiss} disabled={saving}>
                 <X size={17} aria-hidden="true" />
                 <span>取消</span>
               </button>

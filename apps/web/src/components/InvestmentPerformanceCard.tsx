@@ -15,7 +15,7 @@ export function InvestmentPerformanceCard({ performance, currency, loading, full
       {loading ? <LoadingState label="加载中" /> : performance?.investmentProfit == null ? "--" : (wholeAmounts ? formatSignedDisplayWholeAmount : formatSignedDisplayAmount)(performance.investmentProfit)}
     </strong>
     <small>占总资产 {loading || performance?.profitPercentageOfAssets == null ? "--" : `${formatDisplayPercent(performance.profitPercentageOfAssets)}%`} · 自投资以来</small>
-    {fullScope ? <small>全部投资账户 · 不随下方筛选变化</small> : null}
+    {fullScope ? <small>整体指标 · 不随下方筛选变化</small> : null}
     {performance?.inceptionDate ? <small>记录起点 {performance.inceptionDate}</small> : null}
   </article>;
 }

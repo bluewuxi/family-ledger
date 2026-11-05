@@ -1,3 +1,6 @@
+import { AccountCreateWorkspace } from "../components/AccountCreateWorkspace";
+import { useWorkflowDeparture } from "../lib/useWorkflowDeparture";
+import { useEditDismissal } from "../lib/useEditDismissal";
 import { observeAsync } from "../lib/observeAsync";
 import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -110,7 +113,10 @@ interface AccountTotalDisplay {
   marketValue: string | null;
 }
 
-export function AccountsPage() {
+export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
+  const FormSurface = createOnly ? AccountCreateWorkspace : Drawer;
+  const completed = useRef(false);
+  const createdAccount = useRef<string | null>(null);
   const navigate = useNavigate();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
@@ -132,7 +138,7 @@ export function AccountsPage() {
   const [form, setForm] = useState<AccountFormState>(emptyForm);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(createOnly);
   const [includeOpeningAssets, setIncludeOpeningAssets] = useState(false);
   const [openingTradeDate, setOpeningTradeDate] = useState(today);
   const [openingRows, setOpeningRows] = useState<OpeningEntryFormRow[]>(() => [emptyOpeningRow()]);
@@ -159,15 +165,16 @@ export function AccountsPage() {
   const totalsSequence = useRef(0);
   useEffect(() => { observeAsync(loadAccounts()); }, []);
   useEffect(() => {
-    if (preferencesLoading || !accounts.length) return;
+    if (createOnly || preferencesLoading || !accounts.length) return;
     const id = ++totalsSequence.current;
     setTotalsLoading(true);
     void loadAccountTotals(accounts, fallbackSnapshotCurrency).then(totals => { if (id === totalsSequence.current) setAccountTotals(totals); })
       .catch(failure => { if (id === totalsSequence.current) setAuxError(toErrorMessage(failure)); })
       .finally(() => { if (id === totalsSequence.current) setTotalsLoading(false); });
     const requests = totalsSequence;
+
     return () => { requests.current++; };
-  }, [accounts, preferencesLoading, fallbackSnapshotCurrency]);
+  }, [accounts, preferencesLoading, fallbackSnapshotCurrency, createOnly]);
 
   async function loadAccounts() {
     const id = ++accountSequence.current;
@@ -192,7 +199,8 @@ export function AccountsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isDrawerReadOnly) {
+    if (createOnly && !event.currentTarget.reportValidity()) return;
+    if (isDrawerReadOnly || saving || (createOnly && createdAccount.current)) {
       return;
     }
 
@@ -217,16 +225,17 @@ export function AccountsPage() {
         });
       }
 
+      if (createOnly) createdAccount.current = data.account.id;
       const createdOpeningTransactions = includeOpeningAssets
         ? await createOpeningTransactions(data.account.id)
         : [];
 
       void data;
       void createdOpeningTransactions;
-      await loadAccounts();
-      closeDrawer();
+      if (createOnly) { completed.current = true; observeAsync(navigate("/accounts")); }
+      else { await loadAccounts(); closeDrawer(); }
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(createOnly && createdAccount.current ? "账户已创建，期初资产可能部分保存。请返回账户管理检查交易记录，不要再次创建账户。" : toErrorMessage(requestError));
     } finally {
       setSaving(false);
     }
@@ -283,13 +292,7 @@ export function AccountsPage() {
     }
   }
 
-  function startCreate() {
-    setEditingAccountId(null);
-    setDrawerMode("create");
-    resetDrawerForm();
-    resetTradingPasswordReveal();
-    setDrawerOpen(true);
-  }
+  function startCreate() { observeAsync(navigate("/accounts/new")); }
 
   function startDetail(account: InvestmentAccount) {
     setEditingAccountId(account.id);
@@ -342,6 +345,7 @@ export function AccountsPage() {
   }
 
   function closeDrawer() {
+    if (createOnly) { observeAsync(navigate("/accounts")); return; }
     setDrawerOpen(false);
     setEditingAccountId(null);
     setDrawerMode("create");
@@ -399,8 +403,13 @@ export function AccountsPage() {
     }
   }
 
+  const requestDismiss = useEditDismissal(drawerOpen, saving, [form, includeOpeningAssets, openingTradeDate, openingRows, revealedTradingPassword !== null && newTradingPassword !== revealedTradingPassword ? newTradingPassword : null], closeDrawer);
+
+  useWorkflowDeparture(createOnly && (JSON.stringify(form) !== JSON.stringify(emptyForm) || includeOpeningAssets), createOnly && saving, completed);
+
   return (
     <section>
+      {!createOnly && <>
       <header className="page-header account-header">
         <div>
           <PageTitle route="/accounts">账户管理</PageTitle>
@@ -545,7 +554,9 @@ export function AccountsPage() {
         </table>
       </div>
 
-      <Drawer
+      </>}
+      {createOnly && error ? <p role="alert" className="form-error">{error}</p> : null}
+      {createOnly && !isAdmin ? <p role="status">{loading ? "正在加载账户…" : "仅管理员可创建账户。"}</p> : <FormSurface
         open={drawerOpen}
         title={formTitle}
         subtitle={
@@ -553,10 +564,12 @@ export function AccountsPage() {
             ? `${drawerMode === "modify" ? "正在编辑" : "正在查看"}：${editingAccount.name}`
             : "新增后会立即显示在列表中"
         }
-        onClose={closeDrawer}
+        busy={saving}
+        {...(createOnly ? { submitBlocked: !!createdAccount.current } : {})}
+        onClose={createOnly ? closeDrawer : requestDismiss}
         footer={
           drawerMode === "view" ? (
-            <button className="secondary-button" type="button" onClick={closeDrawer}>
+            <button className="secondary-button" type="button" onClick={requestDismiss}>
               关闭
             </button>
           ) : (
@@ -564,14 +577,15 @@ export function AccountsPage() {
               <button className="primary-button" type="submit" form="account-drawer-form" disabled={saving}>
                 {saving ? "保存中..." : editingAccountId ? "保存修改" : "新增账户"}
               </button>
-              <button className="secondary-button" type="button" onClick={closeDrawer} disabled={saving}>
+              <button className="secondary-button" type="button" onClick={requestDismiss} disabled={saving}>
                 取消
               </button>
             </>
           )
         }
       >
-        <form className="account-form drawer-form" id="account-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
+        <form noValidate={createOnly} className="account-form drawer-form" id="account-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
+          <div className="account-basic-fields">
           <label>
             账户名称
             <input
@@ -722,6 +736,8 @@ export function AccountsPage() {
             </section>
           ) : null}
 
+          </div>
+          <div className="account-opening-fields">
           {drawerMode !== "view" ? (
             <label className="checkbox-field wide-field">
               <input
@@ -752,20 +768,14 @@ export function AccountsPage() {
               ) : null}
 
               <div className="opening-entry-table wide-field">
-                <div className="opening-entry-row opening-entry-head">
-                  <span>标的</span>
-                  <span>数量</span>
-                  <span>总成本/余额</span>
-                  <span>备注</span>
-                  <span>操作</span>
-                </div>
-                {openingRows.map((row) => {
+                {openingRows.map((row, index) => {
                   const instrument = instruments.find((item) => item.id === row.instrumentId);
                   const isCash = instrument?.assetType === "cash";
 
                   return (
                     <div className="opening-entry-row" key={row.id}>
-                      <select
+                      <label>标的<select
+                        aria-label={`第 ${index + 1} 行标的`}
                         value={row.instrumentId}
                         onChange={(event) => updateOpeningRow(row.id, { instrumentId: event.target.value, quantity: "" })}
                         required
@@ -776,26 +786,28 @@ export function AccountsPage() {
                             {formatInstrument(item)}
                           </option>
                         ))}
-                      </select>
-                      <input
+                      </select></label>
+                      <label>数量<input
+                        aria-label={`第 ${index + 1} 行数量`}
                         value={isCash ? "现金余额" : row.quantity}
                         onChange={(event) => updateOpeningRow(row.id, { quantity: event.target.value })}
                         disabled={isCash}
                         placeholder="0.0000000000"
                         required={!isCash}
-                      />
-                      <input
+                      /></label>
+                      <label>总成本/余额<input
+                        aria-label={`第 ${index + 1} 行总成本或余额`}
                         value={row.grossAmount}
                         onChange={(event) => updateOpeningRow(row.id, { grossAmount: event.target.value })}
                         placeholder={isCash ? "期初余额" : "总成本"}
                         required
-                      />
-                      <input
-                        className="opening-entry-notes"
+                      /></label>
+                      <label className="opening-entry-notes">备注<input
+                        aria-label={`第 ${index + 1} 行备注`}
                         value={row.notes}
                         onChange={(event) => updateOpeningRow(row.id, { notes: event.target.value })}
                         placeholder="可选"
-                      />
+                      /></label>
                       <button
                         aria-label="删除期初资产行"
                         className="icon-button danger-icon-button opening-entry-delete"
@@ -818,8 +830,9 @@ export function AccountsPage() {
               </div>
             </>
           ) : null}
+          </div>
         </form>
-      </Drawer>
+      </FormSurface>}
     </section>
   );
 }

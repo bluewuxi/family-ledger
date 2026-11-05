@@ -97,7 +97,7 @@ return (
       <header className="page-header account-header holding-detail-header account-detail-header">
         <div>
           <PageBackLink to="/accounts" label="投资账户" />
-          <PageTitle route="/accounts">账户详情</PageTitle>
+          <PageTitle route="/accounts">账户表现</PageTitle>
           <p>
             {detail
               ? `${detail.account.name} · ${detail.account.broker ?? "未填写平台"} · ${MARKET_REGION_LABELS[detail.account.marketRegion]}`
@@ -128,7 +128,7 @@ return (
           </button>
           <button className="secondary-button" type="button" onClick={() => observeAsync((() => navigate("/accounts"))())}>
             <Edit3 size={17} aria-hidden="true" />
-            <span>返回编辑</span>
+            <span>管理账户信息</span>
           </button>
         </div>
       </header>

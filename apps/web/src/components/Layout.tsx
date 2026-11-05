@@ -1,6 +1,5 @@
 import { observeAsync } from "../lib/observeAsync";
 import { getCurrentSession } from "../lib/authClient";
-import { AccountScopeNotice } from "./AccountScopeNotice";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Banknote,
@@ -12,7 +11,7 @@ import {
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/authContext";
-import { navigationItems } from "../lib/navigation";
+import { navigationGroups, navigationItems } from "../lib/navigation";
 
 const sidebarStorageKey = "family-ledger.sidebar.collapsed";
 const mobileSidebarMediaQuery = "(max-width: 820px)";
@@ -65,6 +64,13 @@ export function Layout({ children }: LayoutProps) {
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setMobileSidebarOpen(false);
+        window.requestAnimationFrame(() => mobileToggleRef.current?.focus());
+      }
+      if (event.key === "Tab") {
+        const items = Array.from(sidebarRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href]') ?? []).filter(item => item.getClientRects().length > 0);
+        const first = items[0]; const last = items.at(-1);
+        if (event.shiftKey && (document.activeElement === first || !sidebarRef.current?.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !sidebarRef.current?.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
       }
     }
 
@@ -167,7 +173,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         <nav className="nav-list" aria-label="主导航">
-          {navigationItems.map((item) => {
+          {navigationGroups.map(group => <div key={group} className={`nav-group${group === "工具" ? " nav-utilities" : ""}`}><h2 className="nav-group-label">{group}</h2>{navigationItems.filter(item => item.group === group).map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -182,7 +188,7 @@ export function Layout({ children }: LayoutProps) {
                 <span>{item.label}</span>
               </NavLink>
             );
-          })}
+          })}</div>)}
         </nav>
 
         <button
@@ -207,8 +213,6 @@ export function Layout({ children }: LayoutProps) {
           <div className="local-auth-banner">本地调试登录：{localAuthBypassEmail}</div>
         ) : null}
         <main className="main-content">
-          {sidebarCollapsed ? <CollapsedContentBrand /> : null}
-          <AccountScopeNotice />
           {children}
         </main>
         <AppFooter />
@@ -245,20 +249,6 @@ function MobileAppHeader() {
         </span>
       </div>
     </header>
-  );
-}
-
-function CollapsedContentBrand() {
-  return (
-    <div className="collapsed-content-brand" aria-label="金财屋 Family Ledger">
-      <strong>
-        <em>金</em>财<span>屋</span>
-      </strong>
-      <small>
-        <span>Family</span>
-        <span>Ledger</span>
-      </small>
-    </div>
   );
 }
 

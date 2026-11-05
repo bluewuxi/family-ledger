@@ -50,6 +50,8 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
+- [Interface refinement plan](plans/2026-11-05-interface-refinement.md) records the approved warm visual direction, original-logo preservation, grouped navigation, removal of user-facing account-scope reminders, and staged page/drawer improvements. The implementation plan is Draft; application changes and delivery have not started.
+
 - [Market data and snapshot recovery plan](plans/2026-11-04-market-data-and-snapshot-recovery.md) records confirmed weekday-gap, weekend-ledger, and explicit historical-fallback rules, plus proposed batched acquisition, historical backfill, failure recovery, and documentation reconciliation. Local implementation and automated validation are complete; migrations, live repair, commit/push, and deployment remain unauthorized.
 
 - [Ledger processing reliability plan](plans/2026-11-02-ledger-processing-reliability.md) proposes revision-guarded snapshot writes, chronological trade validation, durable late-input repair, daily snapshot coverage, and retry-idempotent transaction creation. Existing reliability migrations/configuration and code delivery are recorded in [the TEST release evidence](releases/2026-11-02-ledger-processing-test.md); historical repair and authenticated visual acceptance remain separate, and current executor readiness must be checked against later operational evidence.

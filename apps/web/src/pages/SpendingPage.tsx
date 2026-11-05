@@ -1,7 +1,7 @@
 import { observeAsync } from "../lib/observeAsync";
 import { SPENDING_CURRENCIES } from "@family-ledger/shared";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   SPENDING_CLASSES,
   SPENDING_CLASS_LABELS,
@@ -14,13 +14,13 @@ import { spendingClient } from "../lib/spendingClient";
 import { formatSpendingAmount as money } from "../lib/spendingFormat";
 import { PaginationControls } from "../components/PaginationControls";
 import { SpendingAccountsDrawer } from "../components/spending/SpendingAccountsDrawer";
-import { SpendingStatementsDrawer } from "../components/spending/SpendingStatementsDrawer";
 import { SpendingRowDrawer } from "../components/spending/SpendingRowDrawer";
 import { SpendingCharts } from "../components/spending/SpendingCharts";
 import { familyCashflowFilters } from "../lib/familyCashflowNavigation";
 import { useCashflowQuery } from "../lib/useCashflowQuery";
 import { DatePresets } from "../components/cashflow/DatePresets";
 export function SpendingPage() {
+  const navigate = useNavigate();
   const filters = useCashflowQuery("spending");
   const [params, setParams] = useSearchParams(),
     [accounts, setAccounts] = useState<SpendingAccount[]>([]),
@@ -132,7 +132,7 @@ export function SpendingPage() {
         <div className="spending-actions">
           <button
             className="primary-button"
-            onClick={() => setDrawer("imports")}
+            onClick={() => observeAsync(navigate("/daily-expense/import?" + params.toString()))}
           >
             {admin ? "导入 CSV / PDF" : "导入记录"}
           </button>
@@ -425,18 +425,7 @@ export function SpendingPage() {
           onSaved={refresh}
         />
       )}
-      {drawer === "imports" && (
-        <SpendingStatementsDrawer
-          accounts={accounts}
-          admin={admin}
-          onClose={() => setDrawer(null)}
-          onSaved={refresh}
-          onViewRows={(id) => {
-            setParams({ tab: "spending", statementId: id });
-            setDrawer(null);
-          }}
-        />
-      )}
+
       {drawer === "row" && (
         <SpendingRowDrawer
           row={row}

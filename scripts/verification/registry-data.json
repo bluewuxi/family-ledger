@@ -377,17 +377,26 @@
       "entryPoints": [
         "scripts/verify-account-purposes.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-account-purposes.ts"
+          ]
+        }
+      ],
       "domains": [
         "general"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-account-purposes.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "workspace dependencies; reviewed synthetic adapters only"
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -968,17 +977,26 @@
       "entryPoints": [
         "scripts/verify-family-cashflow-ui.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-family-cashflow-ui.ts"
+          ]
+        }
+      ],
       "domains": [
         "general"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-family-cashflow-ui.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "workspace dependencies; reviewed synthetic adapters only"
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -1634,17 +1652,26 @@
       "entryPoints": [
         "scripts/verify-spending.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-spending.ts"
+          ]
+        }
+      ],
       "domains": [
         "general"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-spending.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "workspace dependencies; reviewed synthetic adapters only"
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -1830,7 +1857,14 @@
       "entryPoints": [
         "scripts/verify-transaction-table.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-transaction-table.ts"
+          ]
+        }
+      ],
       "domains": [
         "transactions",
         "valuation"
@@ -1838,10 +1872,12 @@
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-transaction-table.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "workspace dependencies; reviewed synthetic adapters only"
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -2086,6 +2122,38 @@
       ],
       "timeoutMs": 30000,
       "profiles": []
+    },
+    {
+      "id": "file:apps/web/verify-interface-workflows.ts",
+      "entryPoints": [
+        "apps/web/verify-interface-workflows.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-interface-workflows.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "frontend",
+        "spending"
+      ],
+      "contracts": [
+        "docs/local-testing.md",
+        "docs/specs/spending.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-interface-workflows.ts",
+        "apps/web/src/lib/statementCommit.ts"
+      ],
+      "requirements": [
+        "workspace dependencies; synthetic injected callbacks only"
+      ],
+      "timeoutMs": 180000,
+      "profiles": []
     }
   ],
   "auditFiles": {
@@ -2227,7 +2295,7 @@
     "apps/web/src/lib/familyCashflowNavigation.ts": "6bc075dbbd909f0ebcb6b45fb9257d6038308cdfbd587495e0249af0fd2addd6",
     "apps/web/src/lib/holdingDisplay.tsx": "b28d0318b1689e110fa7c3171e70027cc3cfae3c731c5aa6aa8371828da0781d",
     "apps/web/src/lib/localAuthBypass.ts": "a92bd9814b9d1cd12fe37328f4bd8af5073ba8522e769e69c150a290596c1a67",
-    "apps/web/src/lib/navigation.ts": "54239f1503d6ba9c34e83c4a6f23dd761aafed1e2d48ba309f6755f99712f4b5",
+    "apps/web/src/lib/navigation.ts": "20e19fab34f6c508c99e52c252caee3703862de136fe3b9ff7d45e8136b8676a",
     "apps/web/src/lib/numberFormat.ts": "5891ce27a6b1032d390384a5784a4a52eb009cbe9408fdc7037ac9dae9d6e939",
     "apps/web/src/lib/preferencesContext.tsx": "824abea58e7735c32e068ea9087c58cf80cc302efb77a6602704ca40d5a1941c",
     "apps/web/src/lib/readCache.ts": "1742fadfb89c30bbf08e835143e11e6fcc033d113f96e8e6a98b04f9d5d56718",
@@ -2294,7 +2362,7 @@
     "scripts/verify-user-access.ts": "4059805ef3b54e1b3dfe2b0744121141173dcb100a3c444d23cd2157866fb045",
     "scripts/verify-verification-tooling.ts": "cb58a8cf465ea6bb9438f2ce46a9c369ab32531445f803de20dec21c674d703c",
     "tsconfig.deployment.json": "ffe1db6d12a02433a99dde76af8ad1d2baec26782c5dc57cc3dce5c8f18a21da",
-    "tsconfig.verification.json": "c7c1e20e5e7a216d651399c9d1e1026be37c5d49125e572154d42d8c275c43a0",
+    "tsconfig.verification.json": "fa3aaf10ae4cdee7ea3418c5c20780715f4db0e105fc61caa0aba68ab9e879b9",
     "package.json": "79ab53d9c37f1e7d70cf1ccbeb6cb4945d19608b6f20ed3394bf533b9932d7c0",
     "apps/api/package.json": "0282f75bd8944ce8948b76a38c292e62bfada6e179a39a900754ad82d1006e05",
     "apps/jobs/package.json": "4834d1a6ef1e567eb244607e97356d7031c046e16068588fe926b3effaa89ba1",
@@ -2338,7 +2406,15 @@
     "apps/jobs/src/services/kernelAnchorRestore.ts": "309170d8ef8e67fd6cefc3c50ac77ecba2185add63ac865942cf04bc8ae31b1b",
     "packages/shared/src/kernelAnchorAdoption.ts": "f9fbe811890bf350b289dabfa47740a93efc1f4b226efc35c15dd3fd4ab568de",
     "scripts/verify-holding-detail.ts": "e5b6b1c2a03cc1c2f5d3b442f36a18a55af70ff8e4aeab3ca7f721dc2c41cb70",
-    "scripts/verify-transaction-price-backfill.ts": "fc83ef376a2f3d0ce827a8428bf9d392396be2c18c4505d0db42cfb3830582e8"
+    "scripts/verify-transaction-price-backfill.ts": "fc83ef376a2f3d0ce827a8428bf9d392396be2c18c4505d0db42cfb3830582e8",
+    "apps/web/src/lib/statementCommit.ts": "4160d646b6f5298a95208d8a54c1dd3fd75749809006371f9e97d6d254c09508",
+    "apps/web/src/lib/useEditDismissal.ts": "3b9e4751acb7a61bc71956550be90d884cdec087b13390e214c4190c58c23bd6",
+    "apps/web/src/lib/useWorkflowDeparture.ts": "14a9da4eb7de825e04806ffc4fec84f98875a9735c50068a8cc4f086da17aeea",
+    "apps/web/verify-interface-workflows.ts": "898d55d2b83305b6cbeee40429ac3b4189c394d31817fb0a598e32c5324f94c8",
+    "scripts/verify-account-purposes.ts": "02a5216e99ac944938aba91ae11148f40b3747e6aecb2a969df5f32677a940b8",
+    "scripts/verify-family-cashflow-ui.ts": "75b8479d462709940be3def1b439f1ca39417ad1cc8686345c0367529ac5c8c5",
+    "scripts/verify-spending.ts": "22a40a2204dfe847a3a541dc134a43249b22cebd2150818ee8d7953a589a58b6",
+    "scripts/verify-transaction-table.ts": "772e72e333eadad2951e6ec57011bda8f0cab98ddae44227933f73927c01cc19"
   },
   "auditScopes": [
     "apps/api/src",

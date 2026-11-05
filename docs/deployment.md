@@ -1,5 +1,9 @@
 # Deployment
 
+## Launch and database lifecycle
+
+The project has not formally launched. The current database connected to the `test` branch / TEST environment contains real family records. Formal launch will promote this existing TEST database directly to PROD and create a separate new TEST database. This direction does not authorize the cutover now; promotion, provisioning, configuration changes and any data operations require their separately approved operator procedure. Continue using isolated local fixtures for acceptance until then.
+
 ## Automatic TEST delivery
 
 Routine `test` pushes are validated and deployed by GitHub Actions. See [TEST automatic deployment](test-auto-deployment.md) for OIDC bootstrap, full-manifest migration approvals, code-only change sets, independent changes, failure recovery and deployment verification. Do not duplicate a running workflow with a local deployment. Historical release evidence and one-time procedures are maintained in [historical TEST releases](releases/test-release-history.md); they do not bypass the automatic release gates. Production remains operator-run.

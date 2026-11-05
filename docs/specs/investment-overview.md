@@ -2,7 +2,7 @@
 
 ## Account visibility
 
-All references to all investment accounts mean all authorized investment accounts. Authorization scope is applied before valuation inputs, principal, distributions, ratios, counts, snapshots, trend predecessors, and monthly reports. Holdings table filters remain independent of the scoped headline. Hidden-account missing prices/FX do not invalidate visible totals. Calculated views are labeled 可见账户合计; no per-user snapshots are persisted. Current grants determine the entire displayed history. See [account visibility design](2026-10-31-account-visibility-design.md); local implementation awaits migration/deployment.
+All references to all investment accounts mean all authorized investment accounts. Authorization scope is applied before valuation inputs, principal, distributions, ratios, counts, snapshots, trend predecessors, and monthly reports. Holdings table filters remain independent of the scoped headline. Hidden-account missing prices/FX do not invalidate visible totals. Calculated views use ordinary metric labels without account-scope reminders; no per-user snapshots are persisted. Current grants determine the entire displayed history. See [account visibility design](2026-10-31-account-visibility-design.md); local implementation awaits migration/deployment.
 
 This document consolidates the dashboard, holdings overview, and asset-snapshot changes agreed on 2026-10-08, with account-detail and navigation refinements agreed on 2026-10-12. API DTOs are documented in [api.md](../api.md), valuation semantics in [data-model.md](../data-model.md), and verification in [local-testing.md](../local-testing.md).
 
@@ -51,7 +51,7 @@ Weekdays missing required dated prices remain pending; weekends reconstruct the 
 ## Monthly Review Display
 
 - Monthly calculated sections use only authorized accounts, including asset changes, net principal details, account contribution denominators, trades, dividends, cash adjustments, and warnings. Shared authored review notes/status retain the explicit exception in [Auth](../auth.md).
-- Use `资产变化` in the monthly page wording. Do not label this area `家庭资产变化` or `可见账户合计`; this is a page-specific wording exception to the general scoped-total label.
+- Use `资产变化` in the monthly page wording. Do not label this area `家庭资产变化` or `可见账户合计`; aggregate views do not display account-scope reminders.
 
 Shared navigation and responsive conventions follow [frontend guidelines](../frontend-guidelines.md), including the [shared back-navigation pattern](../frontend-guidelines.md#shared-back-navigation).
 
@@ -78,3 +78,9 @@ The original implementation boundary is recorded with the [2026-10-08 release](.
 ## Independent Kernel actual anchors
 
 Actual prices remain usable before NTA pairing. A latest applicable unpaired actual root blocks its following estimate interval; no older-root fallback is generated. Actual dates, weekday mapping, financial ratio and snapshot eligibility/revision protection remain unchanged. Late pairing resumes eligible estimates and pending snapshot repair. TEST migration, actual-root adoption and automatic application delivery are verified in the [rollout record](../releases/2026-11-04-kernel-independent-anchors-test.md). The user explicitly waived visual acceptance for this change, including maintenance copy and pending-pairing display (2026-11-04); record user-waived, not passed. See the [approved design](2026-11-04-kernel-pending-anchors-design.md).
+
+## Refined workspace hierarchy
+
+The dashboard emphasizes 当前估值 and 投资盈利, with 本日变动 and cash secondary. Trend and bounded recent trades precede the two distributions. Securities remain grouped by each investment account with pooled cash; no distribution denominator or valuation rule changes. Expandable data status retains real price/FX dates and data-quality warnings. Distribution colors follow stable row identity in both themes.
+
+Holdings presents two overall headline metrics, compact filters and a clearly labelled filtered summary before its horizontally scrolling table. Account and holding analysis remain independent detail pages. Account information edits stay contextual; complex account creation uses /accounts/new with basic-information, opening-assets and review stages. Account creation and opening transactions remain separate requests; partial success is reported without suggesting atomic completion.

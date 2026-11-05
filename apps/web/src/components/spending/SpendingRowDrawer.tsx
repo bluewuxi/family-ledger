@@ -1,3 +1,4 @@
+import { useEditDismissal } from "../../lib/useEditDismissal";
 import { observeAsync } from "../../lib/observeAsync";
 import { useState } from "react";
 import {
@@ -50,13 +51,13 @@ export function SpendingRowDrawer({
       setBusy(false);
     }
   }
+  const requestDismiss = useEditDismissal(true, busy, form, onClose);
   return (
     <Drawer
       open
       title={row ? "交易详情" : "手动新增交易"}
-      onClose={() => {
-        if (!busy) onClose();
-      }}
+      busy={busy}
+      onClose={requestDismiss}
     >
       {error && (
         <p role="alert" className="form-error">

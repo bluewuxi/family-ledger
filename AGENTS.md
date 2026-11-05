@@ -3,6 +3,7 @@
 ## Product and scope
 
 - Repository/package: `family-ledger`. User-facing names: `金财屋` / `Family Ledger`; never display the repository name as the product name.
+- The project has not formally launched. The database used by the `test` branch / TEST environment contains real family data, not disposable test fixtures. At formal launch, the current TEST database will be promoted directly to PROD, and a separate new TEST database will be created. Treat current TEST data with production-level care; environment names never authorize fixture writes or cleanup.
 - This Simplified Chinese family investment ledger usually serves no more than three family members and tracks US stocks/ETFs, Hong Kong stocks, China A-share ETFs/funds, NZ PIE funds, and cash accounts.
 - Keep access simple: `viewer` is read-only for ledger data; `admin` manages ledger data and access. Follow the documented endpoint exceptions in [Auth](docs/auth.md#enforcement). Do not add complex RBAC, teams, organizations, workspaces, invitations, or permission matrices unless explicitly requested.
 - Do not introduce an always-on backend, unnecessary microservices, or a full early-stage tax engine. Do not use DynamoDB for the core ledger unless explicitly requested. Price scraping requires a clear data-source decision; tax features must not promise compliance.

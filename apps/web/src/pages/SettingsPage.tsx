@@ -215,6 +215,7 @@ async function loadManagedUsers() {
       <header className="page-header account-header">
         <div>
           <PageTitle route="/settings">设置</PageTitle>
+          <Link className="page-back-link" to="/about">关于金财屋</Link>
           <p>维护当前用户的显示偏好。管理员可停用访问并维护用户角色。</p>
         </div>
         <button className="secondary-button" type="button" onClick={() => observeAsync((loadPreferences)())} disabled={loading || saving || loadingUsers}>

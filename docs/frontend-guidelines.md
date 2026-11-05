@@ -31,3 +31,15 @@ The required viewport sizes and user-login handoff are maintained in [local test
 Settings groups the user-access heading, management actions, feedback, and user table in one panel. The extra-password form is a separate panel. Administrators find `修改登录密码` immediately before `刷新用户`; viewers retain their self-service password link in user preferences. Extra-password recovery guidance appears only after activating `忘记密码？`, in a dismissible modal dialog with keyboard focus containment and return.
 
 For changed UI, provide labeled inputs, perceivable field validation, keyboard-operable controls, visible focus, dialog focus entry and return, readable contrast, and explicit loading, empty, and failure states. Apply this baseline proportionally; it does not certify an audit of existing pages. Preserve the required [authenticated acceptance procedure](local-testing.md#authenticated-browser-acceptance).
+
+## Workspace composition and workflows
+
+Use warm near-white and warm charcoal canvases, quiet neutral surfaces, fine borders, restrained brown/gold actions, and tabular financial numerals in both themes. Authenticated pages do not use decorative tree, star, glow or strong gradient backgrounds. Retain the original logo files and brand lettering; a light backing may support original artwork in dark mode. Reserve substantial shadows for overlays.
+
+Group navigation as 概览 (财富足迹, 月度回顾), 投资 (持仓总览, 交易记录, 投资标的), and 家庭 (家庭收支, 账户管理). Place 数据维护 and 设置 in bottom utilities. Reach 关于 through Settings and retain its direct route. Desktop collapse preferences and initially closed mobile navigation remain unchanged.
+
+Aggregate labels describe the metric without reminders about partial account visibility. Neutral empty states must not disclose hidden accounts. Headline investment metrics remain independent of table filters; label table summaries 筛选结果.
+
+Short edits and record details use labelled drawers with focus containment/return, Escape/backdrop/close dismissal, pending-save protection and confirmation after meaningful edits. Keep one scrolling content region and an accessible action footer. Phones use full-width drawers and horizontally scrolling tables.
+
+Statement import uses /daily-expense/import and /daily-expense/import/:statementId, retaining spending query parameters for return navigation. Account creation uses /accounts/new with basic information, opening assets and review stages; basic edits remain in drawers. In-progress workflows protect departure and never automatically replay writes. Account and opening-asset requests remain separate; partial success must be explicit.

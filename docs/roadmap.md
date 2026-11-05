@@ -1,5 +1,9 @@
 # Roadmap
 
+## Interface refinement (2026-11-05, locally validated; acceptance partial)
+
+Grouped navigation, paired themes, drawer safety and routed import/account creation are implemented and locally validated under the [approved plan](plans/2026-11-05-interface-refinement.md). Both-theme layout inspection used all five sizes, with partial coverage limits recorded in the plan. A premature Next-button submission caused an unintended shared account creation; the defect is fixed and isolated regression passed, authorized zero-association cleanup and isolated failure/retry/dismissal checks are complete. Authenticated visual acceptance remains partial; scoped automatic TEST delivery is authorized.
+
 ## TEST rollout: independent Kernel actual anchors (2026-11-04)
 
 Approved scope separates actual roots from delayed NTA pairing and blocks an unpaired winning interval. Local migration/API/jobs/backup/UI work and validation are tracked in the [implementation plan](plans/2026-11-04-kernel-pending-anchors.md). TEST migration application, idempotent adoption of the two existing actual prices, clean-commit registration and automatic delivery passed for `3f08345`. See [rollout evidence](releases/2026-11-04-kernel-independent-anchors-test.md); issue #129 tracks the delivered scope. The user explicitly waived visual acceptance for this change, including maintenance copy and pending-pairing display, on 2026-11-04; this is user-waived, not passed.
