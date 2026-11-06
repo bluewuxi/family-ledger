@@ -50,6 +50,8 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
+- [Custom investment groups design](specs/2026-11-06-investment-groups-design.md) records the confirmed current-allocation scope and distribution-tab interaction, with proposed persistence, API, backup, and acceptance contracts. Status: Draft for final document approval; product implementation and delivery are not authorized. Grouped historical curves are deferred.
+
 - [Interface refinement plan](plans/2026-11-05-interface-refinement.md) records the approved warm visual direction, original-logo preservation, grouped navigation, removal of user-facing account-scope reminders, and staged page/drawer improvements. The implementation plan is Draft; application changes and delivery have not started.
 
 - [Market data and snapshot recovery plan](plans/2026-11-04-market-data-and-snapshot-recovery.md) records confirmed weekday-gap, weekend-ledger, and explicit historical-fallback rules, plus proposed batched acquisition, historical backfill, failure recovery, and documentation reconciliation. Local implementation and automated validation are complete; migrations, live repair, commit/push, and deployment remain unauthorized.
