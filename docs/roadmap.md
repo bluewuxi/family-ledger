@@ -1,8 +1,12 @@
 # Roadmap
 
+## UI internationalization (2026-11-07, design approved)
+
+The [approved design](specs/2026-11-07-ui-internationalization-design.md) and [five-phase roadmap](plans/2026-11-07-ui-internationalization-roadmap.md) cover bundled Chinese/English resources, browser-local language selection, complete workflow migration and bilingual acceptance. All implementation phases are Not started. Detailed implementation plans, application changes and deployment are outside the current documentation-only authorization. Cross-device preference synchronization is deferred.
+
 ## Kernel NTA same-date correction (2026-11-06, deployed to TEST)
 
-The [repair plan](plans/2026-11-06-kernel-nta-same-date-repair.md) corrects NTA title-date mapping across shared logic, versioned database references and backup format 15. Under explicit authorization, TEST migration and the October 1–November 5 repair passed: nine root references, sixteen estimate revisions, one retirement and one new estimate over 36 dates. All 36 publication decisions and accounts passed comparison; twenty-nine dates are available and seven remain pending for separate source gaps. Automatic application delivery passed for `9a3cbe4`; see the [release record](releases/2026-11-06-kernel-nta-same-date-test.md). FundRock gaps remain outside this repair. Visual acceptance is user-waived for this task.
+The [repair plan](plans/2026-11-06-kernel-nta-same-date-repair.md) corrects NTA title-date mapping across shared logic, versioned database references and backup format 15. Under explicit authorization, TEST migration and the October 1�CNovember 5 repair passed: nine root references, sixteen estimate revisions, one retirement and one new estimate over 36 dates. All 36 publication decisions and accounts passed comparison; twenty-nine dates are available and seven remain pending for separate source gaps. Automatic application delivery passed for `9a3cbe4`; see the [release record](releases/2026-11-06-kernel-nta-same-date-test.md). FundRock gaps remain outside this repair. Visual acceptance is user-waived for this task.
 
 ## Interface refinement (2026-11-05, locally validated; acceptance partial)
 
@@ -36,7 +40,7 @@ Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC 
 
 ## Test Deployed: API Error Tracking (2026-10-12)
 
-- Deployed to test under issue #109: structured redacted raw-error diagnostics, reviewed INFO/WARN/ERROR classification, admin-only ERROR queries and handling state under `数据维护`, atomic observation deduplication and recurrence tracking, and a 30-day policy for project CloudWatch groups.
+- Deployed to test under issue #109: structured redacted raw-error diagnostics, reviewed INFO/WARN/ERROR classification, admin-only ERROR queries and handling state under `����ά��`, atomic observation deduplication and recurrence tracking, and a 30-day policy for project CloudWatch groups.
 - Applied the additive migration and verified restricted database access. CloudFormation reached `UPDATE_COMPLETE`; all six test log groups retain 30 days. Live API authorization, CloudWatch query, summaries and event details passed. Authenticated responsive verification was deferred by the user. Production was not deployed.
 
 ## Stage 0: Project Foundation
@@ -73,7 +77,7 @@ Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC 
 - Portfolio summary (implemented: reporting-currency dashboard cards using stored prices, FX rates, and dashboard quote cache where available)
 - Account purposes (implemented: investment, daily expense, and education accounts; investment-only dashboard and dedicated flow pages)
 - Education logical fund and shared cashflow UI (deployed to test on 2026-10-04, #101): [specification](specs/education-reserve.md); manual multi-currency reserve, dedicated remaining/used summaries, independent domain totals, additive schema and verified seven-entry legacy cutover. Authenticated responsive checks passed at all five required sizes; version-6 backup checks and restore dry-run passed.
-- Family cashflow navigation (deployed to test under #103; authenticated responsive acceptance passed on 2026-10-06): one 家庭收支 entry with 日常交易, 教育收支, and 收支查询 tabs; isolated URL filters and legacy route redirects. No schema or calculation changes.
+- Family cashflow navigation (deployed to test under #103; authenticated responsive acceptance passed on 2026-10-06): one ��ͥ��֧ entry with �ճ�����, ������֧, and ��֧��ѯ tabs; isolated URL filters and legacy route redirects. No schema or calculation changes.
 - Derived portfolio snapshots (implemented and deployed to test; separate cutover completed on 2026-09-23 after fresh backup and exact parity verification)
 - Dashboard account allocation and holding allocation (implemented; securities by account plus pooled cash, with explicit incomplete/negative distribution states)
 - Holding detail page (implemented: account/instrument drill-down with valuation, transactions, dividend summary, linked cash-leg context, and price context)
@@ -82,7 +86,7 @@ Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC 
 
 - Investment overview performance and layout (deployed to test on 2026-10-08, #105): API cumulative profit and asset ratio, shared live valuation for dashboard/holdings, default one-year period-profit tab with an asset-trend tab, full curves and sparse hover nodes, and paginated read-only snapshots in data maintenance. Dashboard authenticated responsive acceptance passed on 2026-10-08; holdings and snapshot-tab visual acceptance remain separate. See [investment overview specification](specs/investment-overview.md).
 - Dashboard display hotfix (deployed to test on 2026-10-08, #106): rounded whole monetary totals, vertical chart cursors with daily tooltips, and bounded recent trades matching the trend panel height with a full-history link. Authenticated responsive visual checks are deferred at the user's request.
-- Trading-day movement correction (deployed to test on 2026-10-08, #107): `本日变动` uses only current-business-day quotes or estimates, excluding stale prices and published historical closes. Eligibility is data-based, including funds only when a current estimate/quote exists. The original participating-only percentage denominator is superseded by the total-assets contract below.
+- Trading-day movement correction (deployed to test on 2026-10-08, #107): `���ձ䶯` uses only current-business-day quotes or estimates, excluding stale prices and published historical closes. Eligibility is data-based, including funds only when a current estimate/quote exists. The original participating-only percentage denominator is superseded by the total-assets contract below.
 - Dashboard percentage and live-curve correction (deployed to test on 2026-10-08, #108): daily movement percentage uses current total investment assets, including cash and instruments excluded from the numerator. Both trend tabs connect the live valuation endpoint to its valid predecessor, preserving actual gaps and color crossings. These contracts are maintained in the [investment overview specification](specs/investment-overview.md#dashboard-composition-and-trends) and [API documentation](api.md#dashboard-read-api), with focused regression verification.
 
 ## Stage 4: Prices, FX, and Scheduled Jobs
@@ -96,14 +100,14 @@ Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC 
 - Price-source adapters for `yahoo_finance`, `eastmoney`, and `kernel_estimate` (implemented for enabled instruments)
 - EventBridge jobs for prices and snapshots (implemented for price updates, FX updates, and portfolio snapshots)
 - Portfolio snapshots (implemented: daily USD-canonical aggregate and account-level snapshots with NZD/USD/CNY API display)
-- Data maintenance UI (implemented: first/default `数据源` tab, Kernel anchor drawer, FX, price, task log, data backup monitor, and data restore instruction tabs with filters and offset pagination where applicable)
+- Data maintenance UI (implemented: first/default `����Դ` tab, Kernel anchor drawer, FX, price, task log, data backup monitor, and data restore instruction tabs with filters and offset pagination where applicable)
 - Settings user preferences (implemented: report default currency, gain/loss color convention, and light/dark theme backed by profiles)
 - User access management (implemented: admins can view existing application users, maintain `viewer`/`admin` role, and pause/resume access)
 - Password management: opaque-session migration adds self-change and administrator temporary-password reset; no email recovery. Local implementation verification is separate from operator cutover and authenticated visual acceptance.
 
 ## Stage 5: Tax-Assist and Reports
 
-- Monthly value bridge (implemented: snapshot-based `资产变化 = 净投入 + 现金校准 + 估值变动`; dividends flow through snapshots into `估值变动` rather than a separate family-facing section)
+- Monthly value bridge (implemented: snapshot-based `�ʲ��仯 = ��Ͷ�� + �ֽ�У׼ + ��ֵ�䶯`; dividends flow through snapshots into `��ֵ�䶯` rather than a separate family-facing section)
 - Monthly family review report (implemented: extends the monthly bridge with account contribution, buy/sell activity, linked settlement context, cash calibration notes, data-quality warnings, saved family notes, review completion status, and print-friendly export)
 - Tax notes
 - Tax-year summaries
@@ -129,7 +133,7 @@ Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC 
 
 ## Spending Queries and Statements
 
-- Deployed to test (2026-10-01, #96): own/counterparty suffix fields and filters, multi-card CCB imports, debit counterparty names/summary-location descriptions, rebate/repayment/FX suggestions, metadata redaction, pending import cancellation, import counts, 退款/返现 wording, and exact total-page pagination.
+- Deployed to test (2026-10-01, #96): own/counterparty suffix fields and filters, multi-card CCB imports, debit counterparty names/summary-location descriptions, rebate/repayment/FX suggestions, metadata redaction, pending import cancellation, import counts, �˿�/���� wording, and exact total-page pagination.
 - Release reset completed: removed 941 imported spending transactions and 5 import batches after a verified backup; retained all 3 spending accounts. Protected account/investment data hashes were unchanged. Pre/post version-4 backups passed restoration dry runs; schema, API health/auth boundary, runtime configuration and current assets passed. Bank-specific import/preview/undo acceptance remains separate from the general responsive checks passed under #103. See [deployment evidence](deployment.md).
 
 - Deployed to test on 2026-09-27 (#91): [spending specification](specs/spending.md) for CCB debit/credit and BNZ; automatic strict UTF-8/GB18030/UTF-16 detection; bank-specific dates; import previews, duplicates, atomic confirmation/retry and undo; simplified classification/manual rows; bulk tags; monthly and tag charts; retained CSV/PDF sources.
@@ -138,7 +142,7 @@ Deployed to TEST on 2026-10-26 under #113: GitHub CI for `test`/`main`/PR, OIDC 
 - TEST received the redesigned schema in place of the 2026-09-24 is_spending/statement-month model; later releases extended the backup format.
 - PDF extraction, budgets, FX conversion and investment integration remain out of scope.
 
-UI refinement: filters use draft values and explicit 查询/重置 actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. This revision was deployed to TEST under #103 on 2026-10-06, with authenticated responsive acceptance at all five required viewport sizes.
+UI refinement: filters use draft values and explicit ��ѯ/���� actions. Applied filters remain in URLs; tab changes discard drafts and restore applied conditions. Legacy `tab=accounts` retains valid date bounds only before redirecting to spending, because its account IDs belong to a different domain. Transaction filters, pagination, and sorting also use URLs. Date presets use the shared application business date. No financial schema or calculations changed. This revision was deployed to TEST under #103 on 2026-10-06, with authenticated responsive acceptance at all five required viewport sizes.
 
 ## Account Detail and Staged Loading (2026-10-12)
 
@@ -165,6 +169,6 @@ TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. I
 
 The two new migrations, 39 authorized price inputs and 166-date snapshot reclassification are verified on TEST: 152 dates available and 14 user-confirmed closure dates pending. Automatic TEST application delivery passed for 412eee0; Kernel estimation-anchor pairing remains pending, and the user explicitly waived visual acceptance for this rollout; see [rollout evidence](releases/2026-11-04-market-data-recovery-test.md).
 
-## Custom investment groups — TEST delivery
+## Custom investment groups �� TEST delivery
 
 Current classification, scoped grouped allocation, administrator maintenance and backup format 16 were delivered to TEST under #134 at `99941b0`; see [automatic delivery evidence](releases/2026-11-06-investment-groups-test-delivery.md) and the [plan](plans/2026-11-06-investment-groups.md). Migration 20261106120000_investment_groups.sql was independently applied after compatibility verification, then registered without replay; see [schema-first evidence](releases/2026-11-06-investment-groups-test-schema.md). Dual-theme, five-viewport read-only local administrator/drawer/viewer acceptance is complete; shared write scenarios remain unperformed under the user's restriction. See [acceptance evidence and limits](releases/2026-11-06-investment-groups-local-acceptance.md). No scheduled format-16 cloud backup run is claimed. Group history and evaluation/migration of existing revision mechanisms remain deferred as [design TODOs](specs/2026-11-06-investment-groups-design.md#future-todo-evaluate-existing-revision-mechanisms).
