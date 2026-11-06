@@ -22,4 +22,4 @@ Lint, typecheck, build, reviewed core and focused Kernel/backup/availability/mon
 
 ## Delivery and acceptance
 
-Migration registration and automatic application delivery are pending the reviewed commit. No manual deployment was attempted. Visual acceptance is user-waived for this task, not passed. Real scheduled cloud backup acceptance is not claimed by the local file checks.
+Migration registration passed for `9a3cbe4d1fb2e7699a155fc1d5b8b406b1a168d5`. [Automatic CI and TEST deployment](https://github.com/bluewuxi/family-ledger/actions/runs/42143724020) passed for that commit at 2026-11-06T01:29:55Z (14:29 NZDT). The deployment verified active/successful Lambda updates, API health, unauthenticated rejection, exact public runtime configuration, HTML and referenced entry assets. `last-success` independently matches this commit/run and artifact SHA-256 `708b8bd70ccc7f8f32c85cfe7fece1d86d2dadef150cf94777b6806c4cc5abcc`. No manual deployment was attempted. Visual acceptance is user-waived for this task, not passed. Real scheduled cloud backup acceptance is not claimed by the local file checks.
