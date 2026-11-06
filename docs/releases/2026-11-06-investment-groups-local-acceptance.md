@@ -34,3 +34,5 @@ After the styling correction, lint, typecheck, build and reviewed group-client, 
 ## Delivery status
 
 Read-only authenticated acceptance is complete for the matrix above; shared write scenarios remain deliberately unperformed. The [separately authorized TEST schema application](2026-11-06-investment-groups-test-schema.md) resolved the missing-table/RPC blocker. Migration registration still awaits a clean committed migration. No issue, commit, push or application deployment occurred. Do not populate operational groups before compatible format-16 backup coverage is delivered or separately verified operator backup coverage exists.
+
+Subsequent separately authorized registration and automatic TEST publication are recorded in [delivery evidence](2026-11-06-investment-groups-test-delivery.md). The no-delivery statements above describe the local acceptance phase; publication does not add live write acceptance or scheduled cloud-backup evidence.
