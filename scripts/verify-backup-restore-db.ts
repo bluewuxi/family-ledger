@@ -3,6 +3,7 @@ import { normalizeLedgerBackupRows } from "../apps/jobs/src/repositories/ledgerB
 import { RESTORE_ORDER } from "../apps/jobs/src/services/ledgerRestoreOrder";
 import { gunzipSync } from "node:zlib";
 import assert from "node:assert/strict";
+import { snapshotBatchTransaction } from "./kernel-nta-repair-sql";
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -128,8 +129,29 @@ async function main() {
     assert.equal(pendingKernel.anchor.pairing_status,'pending');
     assert.notEqual(sql('select get_ledger_write_revision()'),beforeActualRevision);
     assert.equal(sql("select is_available from portfolio_snapshot_headers where snapshot_date='2026-10-31'"),'f','Actual input invalidates existing snapshots under revision protection');
+    sql(`insert into kernel_price_anchors(instrument_id,anchor_date,kernel_unit_price,proxy_symbol,proxy_currency,proxy_close,proxy_price_date,proxy_fetched_at,created_by_user_id,proxy_value_type,proxy_announcement_id,proxy_published_at,derived_from_anchor_id,nta_mapping_version)
+      select instrument_id,anchor_date,kernel_unit_price,proxy_symbol,proxy_currency,23.7,anchor_date,proxy_fetched_at,created_by_user_id,'nta',101,'2026-10-01T00:00Z',id,2 from kernel_price_anchors where id='${id(20)}';
+      update kernel_nta_refresh_state set nta_observations='{"v2:2026-10-01":{"unit_nta":"23.7","announcement_id":101,"published_at":"2026-10-01T00:00:00Z"}}';`);
+    const operatorState=()=>({revision:sql('select get_ledger_write_revision()'),fingerprint:sql('select md5(export_ledger_backup()::text)')});
+    const operatorTarget=sql("select id from instruments where price_source='kernel_estimate'");
+    const operatorToken=sql("select refresh_token from kernel_nta_refresh_state where instrument_id='"+operatorTarget+"'");
+    const batchValues=Array.from({length:35},(_,i)=>{const d=new Date('2026-10-01T00:00Z');d.setUTCDate(d.getUTCDate()+i);return repairValuation(d.toISOString().slice(0,10));});
+    const beforeBatch=sql('select export_ledger_backup()::text');
+    assert.throws(()=>sql(snapshotBatchTransaction(operatorState(),batchValues.slice(0,30),operatorTarget,'00000000-0000-4000-8000-000000000000')),/Kernel token drift/);
+    assert.equal(sql('select export_ledger_backup()::text'),beforeBatch);
+    sql(snapshotBatchTransaction(operatorState(),batchValues.slice(0,30),operatorTarget,operatorToken));
+    // Resume from durable state after the first bounded transaction; no in-memory revision is reused.
+    sql(snapshotBatchTransaction(operatorState(),batchValues.slice(30),operatorTarget,operatorToken));
+    for(const v of batchValues)assert.equal(sql(`select market_value_usd::text from portfolio_account_snapshots where snapshot_date='${v.snapshotDate}' and account_id='${id(2)}'`),v.accounts[0].marketValueUsd??'');
+    assert.throws(()=>snapshotBatchTransaction(operatorState(),batchValues,operatorTarget,operatorToken),/1–30/);
+    const beforePending=sql("select to_jsonb(a)::text from portfolio_account_snapshots a where snapshot_date='2026-11-04'");
+    sql(snapshotBatchTransaction(operatorState(),[{...repairValuation('2026-11-04'),publicationStatus:'pending',missingInstrumentIds:[operatorTarget],missingFxCurrencies:[]}],operatorTarget,operatorToken));
+    assert.equal(sql("select is_available from portfolio_snapshot_headers where snapshot_date='2026-11-04'"),'f');
+    assert.equal(sql("select to_jsonb(a)::text from portfolio_account_snapshots a where snapshot_date='2026-11-04'"),beforePending,'Pending publication preserves old account audit values');
+    console.log('Exact operator SQL: 30+5 snapshot publications, token rejection, pending audit preservation and resumed revision chaining passed.');
     const exported = JSON.parse(sql('select export_ledger_backup()'));
     assert.equal(exported._kernel_anchor_schema,'independent-actual-v1');
+    assert.equal(exported._kernel_nta_mapping,'same-date-v2');
     assert(exported.price_acquisition_state.every((row: Record<string,unknown>) => row.lease_token === null && row.lease_expires_at === null),'Ephemeral leases are excluded from recovery');
     for(const table of RESTORE_ORDER) assert(exported[table].length > 0,table+' fixture must be nonempty');
     const bundle = createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-10-31T00:00:00Z',rows:normalizeLedgerBackupRows(exported)});
@@ -167,10 +189,10 @@ async function main() {
     assert.equal(targetSql('select count(*) from kernel_nta_refresh_state where pending_snapshot_from is not null'),'1');
     assert.equal(targetSql("select has_function_privilege('authenticated','export_ledger_backup(uuid)','execute')"),'f');
     assert.equal(targetSql("select has_function_privilege('service_role','export_ledger_backup(uuid)','execute')"),'t');
-    assert.equal(targetSql('select count(*) from kernel_price_anchors where derived_from_anchor_id is not null'),'1');
+    assert.equal(targetSql('select count(*) from kernel_price_anchors where derived_from_anchor_id is not null'),'2');
     assert.equal(targetSql(`select sum(case when transaction_type='withdrawal' then -gross_amount else gross_amount end)::text from transactions where instrument_id='${id(3)}'`),'12345678901214.123456');
     assert.equal(targetSql(`select sum(quantity)::text from transactions where instrument_id='${id(4)}'`),'2.0000000000');
-    assert.equal(targetSql("select sum(market_value_usd)::text from portfolio_account_snapshots where snapshot_date='2026-10-02'"),'12345678901236.123456');
+    assert.equal(targetSql("select sum(market_value_usd)::text from portfolio_account_snapshots where snapshot_date='2026-10-02'"),exported.portfolio_account_snapshots.find((a:Record<string,unknown>)=>a.snapshot_date==='2026-10-02').market_value_usd??'');
     console.log('Current-format full-table restore passed: '+RESTORE_ORDER.length+' tables, '+migrations.length+' real migrations, version '+decoded.manifest.version+', exact data equality, linked cash, pending state, application identity dependencies, privileges and late-failure rollback.');
 
   } finally {

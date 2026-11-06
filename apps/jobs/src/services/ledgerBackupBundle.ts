@@ -5,8 +5,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 14;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261104110000_kernel_pending_actual_anchors";
+export const LEDGER_BACKUP_VERSION = 15;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261106090000_kernel_nta_same_date";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -25,7 +25,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -152,7 +152,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -365,6 +365,9 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
   if (payload.manifest.version < 14) rows.kernel_price_anchors = rows.kernel_price_anchors.map(value => ({
     ...(value as Record<string, unknown>), actual_source: null, actual_price_precision: null
   }));
+  if (payload.manifest.version < 15) rows.kernel_price_anchors = rows.kernel_price_anchors.map(value => ({
+    ...(value as Record<string, unknown>), nta_mapping_version: 1
+  }));
   validateKernelAnchorRestore(rows.kernel_price_anchors);
   rows.kernel_nta_refresh_state = rows.kernel_nta_refresh_state.map(value => {
     const state = value as Record<string, unknown>;
@@ -374,7 +377,7 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
     }
     for (const [date, value] of Object.entries(state.nta_observations)) {
       const observation = value as Record<string, unknown>;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !observation || typeof observation.unit_nta !== "string"
+      if (!/^(?:v2:)?\d{4}-\d{2}-\d{2}$/.test(date) || !observation || typeof observation.unit_nta !== "string"
         || !/^\d+(?:\.\d{1,10})?$/.test(observation.unit_nta) || !/[1-9]/.test(observation.unit_nta)
         || !Number.isSafeInteger(observation.announcement_id) || Number(observation.announcement_id) <= 0
         || !Number.isFinite(Date.parse(String(observation.published_at)))) throw new Error("Invalid Kernel NTA observation reference.");

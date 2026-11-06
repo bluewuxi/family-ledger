@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { guardedTransaction } from "./kernel-nta-repair-sql";
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -279,6 +280,47 @@ async function main(): Promise<void> {
     assert.throws(()=>sql(newRefresh(stalePayload,[targetNta])),/Stale Kernel anchor set/);
     assert.equal(sql("select has_function_privilege('authenticated','public.save_kernel_actual_anchor(uuid,date,numeric,text,integer,uuid,timestamptz)','EXECUTE')"),"f");
     assert.equal(sql("select has_function_privilege('service_role','public.save_kernel_actual_anchor(uuid,date,numeric,text,integer,uuid,timestamptz)','EXECUTE')"),"t");
+    sql("alter table instrument_prices add column source_transaction_id uuid; create table instrument_price_revisions(instrument_id uuid,provider text,price_date date,lease_token uuid,before_value jsonb,after_value jsonb)");
+    sql("create function get_ledger_write_revision() returns text language sql stable as 'select revision::text from ledger_write_state where id'");
+    const migrationBody=readFileSync("supabase/migrations/20261106090000_kernel_nta_same_date.sql", "utf8").trim().replace(/^begin;/i,"").replace(/commit;$/i,"");
+    const beforeMigration={revision:sql("select get_ledger_write_revision()"),fingerprint:sql("select md5(export_ledger_backup()::text)")};
+    assert.throws(()=>sql(guardedTransaction({...beforeMigration,fingerprint:"stale"},migrationBody)),/Input drift/);
+    sql(guardedTransaction(beforeMigration,migrationBody));
+    const afterMigration={revision:sql("select get_ledger_write_revision()"),fingerprint:sql("select md5(export_ledger_backup()::text)")};
+    assert.throws(()=>sql(guardedTransaction({...afterMigration,revision:"stale"},"select 1;")),/Input drift/);
+    assert.throws(()=>sql(guardedTransaction(afterMigration,"select 1/0;")),/division by zero/);
+    assert.equal(sql("select md5(export_ledger_backup()::text)"),afterMigration.fingerprint);
+    assert.throws(()=>sql(newRefresh(stalePayload,[targetNta])),/mapping version/);
+    const currentRoots=JSON.parse(sql("select jsonb_agg(jsonb_build_object('source_id',id,'anchor_date',anchor_date,'kernel_unit_price',kernel_unit_price::text,'proxy_close',null,'proxy_price_date',null,'announcement_id',null,'published_at',null,'created_by_user_id',created_by_user_id,'revision_at',created_at,'mapping_version',2)) from kernel_price_anchors where derived_from_anchor_id is null"));
+    // Legacy references do not make pending v2 roots stale, or paired.
+    sql(newRefresh(currentRoots));
+    assert.equal(sql(`select value->>'pairing_status' from jsonb_array_elements(list_kernel_nta_anchors()) where value->>'id'='${pendingActual.anchor.id}'`),"pending");
+    const sameDatePayload=currentRoots.map((a:Record<string,unknown>)=>a.source_id===pendingActual.anchor.id?{...a,proxy_close:"23.32715",proxy_price_date:"2026-11-03",announcement_id:483034,published_at:"2026-11-03T21:52:11Z"}:a);
+    sql(newRefresh(sameDatePayload));
+    assert.equal(sql(`select count(*) from kernel_price_anchors where derived_from_anchor_id='${pendingActual.anchor.id}' and nta_mapping_version=2`),"1");
+    sql(newRefresh(sameDatePayload));
+    assert.equal(sql(`select count(*) from kernel_price_anchors where derived_from_anchor_id='${pendingActual.anchor.id}' and nta_mapping_version=2`),"1");
+    assert.throws(()=>sql(newRefresh(currentRoots)),/stale NTA reference/);
+    const oldShift=sameDatePayload.map((a:Record<string,unknown>)=>a.source_id===pendingActual.anchor.id?{...a,proxy_price_date:"2026-11-04"}:a);
+    assert.throws(()=>sql(newRefresh(oldShift)),/Invalid NTA reference/);
+    const pairedSeptember=sameDatePayload.map((a:Record<string,unknown>)=>a.anchor_date==="2026-09-30"?{...a,proxy_close:"23.70040",proxy_price_date:"2026-09-30",announcement_id:480923,published_at:"2026-09-30T21:22:05Z"}:a);
+    const october=[{price_date:"2026-10-01",close_price:"6.6445305986",nta_date:"2026-10-01",unit_nta:"23.60990",announcement_id:481058,published_at:"2026-10-02T00:00Z"},
+      {price_date:"2026-10-02",close_price:"6.7028935208",nta_date:"2026-10-02",unit_nta:"23.81728",announcement_id:481059,published_at:"2026-10-03T00:00Z"}];
+    sql(`insert into instrument_prices(instrument_id,price_date,close_price,currency,provider,is_estimated) values('${instrumentId}','2026-10-02',9,'NZD','Kernel Estimate (USF NTA)',true)`);
+    const protectedBefore=sql("select jsonb_agg(to_jsonb(p) order by id) from instrument_prices p where not is_estimated");
+    sql(newRefresh(pairedSeptember,october));
+    assert.equal(sql("select close_price from instrument_prices where provider='Kernel Estimate (USF NTA)' and price_date='2026-10-01'"),"6.6445305986");
+    assert.equal(sql("select count(*) from instrument_prices where provider='Kernel Estimate (USF NTA)' and price_date='2026-10-02'"),"0");
+    assert.equal(sql("select close_price from instrument_prices where provider='manual' and price_date='2026-10-02'"),"6.7565670000");
+    assert.equal(sql("select jsonb_agg(to_jsonb(p) order by id) from instrument_prices p where not is_estimated"),protectedBefore);
+    const auditCount=sql("select count(*) from instrument_price_revisions");
+    assert(Number(auditCount)>0);
+    sql(newRefresh(pairedSeptember,october));assert.equal(sql("select count(*) from instrument_price_revisions"),auditCount,"Retry creates no price revision audit");
+    const beforeRollback=sql("select export_ledger_backup()::text");
+    assert.throws(()=>sql("begin;"+newRefresh(pairedSeptember,october)+";select 1/0;commit;"),/division by zero/);
+    assert.equal(sql("select export_ledger_backup()::text"),beforeRollback);
+    const amended=pairedSeptember.map((a:Record<string,unknown>)=>a.anchor_date==="2026-09-30"?{...a,proxy_close:"23.8",announcement_id:480924,published_at:"2026-09-30T22:00Z"}:a);
+    sql(newRefresh(amended));assert.throws(()=>sql(newRefresh(pairedSeptember)),/Stale.*NTA/);
     console.log("Kernel price-estimation database verification: success");
   } finally {
     if (started) {

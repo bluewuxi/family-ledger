@@ -1,8 +1,18 @@
 import Decimal from "decimal.js";
-import { getKernelValuationDateForNzxSession } from "./kernelPriceEstimation";
+
 import type { KernelPriceAnchor } from "./index";
 
 export const KERNEL_NTA_PROVIDER = "Kernel Estimate (USF NTA)";
+export const KERNEL_NTA_MAPPING_VERSION = 2;
+/** Announcement title dates are valuation dates, independent of publication time. */
+export function getKernelValuationDateForNta(ntaDate: string): string {
+  const date = new Date(ntaDate + "T00:00:00Z");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ntaDate) || !Number.isFinite(date.getTime())
+    || date.toISOString().slice(0, 10) !== ntaDate || [0, 6].includes(date.getUTCDay())) {
+    throw new Error("NTA valuation date must be a valid weekday.");
+  }
+  return ntaDate;
+}
 const KernelDecimal = Decimal.clone({ precision: 80 });
 export interface NzxNtaRecord {
   ntaDate: string;
@@ -35,7 +45,7 @@ export function parseNzxNtaAnnouncements(value: unknown, fetchedAt: string): Nzx
       throw new Error("Invalid USF NTA announcement.");
     }
     const ntaDate = `${match[3]}-${match[2]}-${match[1]}`;
-    getKernelValuationDateForNzxSession(ntaDate);
+    getKernelValuationDateForNta(ntaDate);
     const price = new Decimal(match[4]);
     if (!price.isFinite() || price.lte(0) || price.decimalPlaces() > 10 || price.gte("1e18")) throw new Error("Invalid USF NTA value.");
     const milliseconds = row.publicationDate * 1000;
@@ -71,11 +81,15 @@ export function prepareKernelNtaPlan(anchors: KernelPriceAnchor[], records: NzxN
   const roots = anchors.filter(anchor => !anchor.derivedFromAnchorId);
   if (!roots.length) throw new Error("Kernel has no actual price anchor.");
   if (new Set(roots.map(anchor => anchor.instrumentId)).size !== 1) throw new Error("Mixed Kernel targets.");
+  const cutoff = Date.parse(fetchedAt);
+  if (!Number.isFinite(cutoff)) throw new Error("Invalid NTA fetch time.");
+  records = records.filter(row => Date.parse(row.publishedAt) <= cutoff);
   const exactDates = new Set(roots.map(anchor => anchor.anchorDate));
   const converted = roots.map(anchor => {
-    const available = records.filter(row => getKernelValuationDateForNzxSession(row.ntaDate) === anchor.anchorDate);
-    for (const reference of anchors.filter(a => a.instrumentId === anchor.instrumentId && a.anchorDate === anchor.anchorDate)) {
-      if (reference.proxyValueType === "nta" && reference.proxyClose && reference.proxyPriceDate
+    const available = records.filter(row => getKernelValuationDateForNta(row.ntaDate) === anchor.anchorDate);
+    for (const reference of anchors.filter(a => a.instrumentId === anchor.instrumentId && (a.id === anchor.id || a.derivedFromAnchorId === anchor.id))) {
+      if (reference.ntaMappingVersion === KERNEL_NTA_MAPPING_VERSION && reference.proxyValueType === "nta"
+        && reference.proxyClose && reference.proxyPriceDate === anchor.anchorDate
         && reference.proxyAnnouncementId && reference.proxyPublishedAt) {
         available.push({ ntaDate: reference.proxyPriceDate, unitNta: reference.proxyClose,
           announcementId: reference.proxyAnnouncementId, publishedAt: reference.proxyPublishedAt });
@@ -83,14 +97,14 @@ export function prepareKernelNtaPlan(anchors: KernelPriceAnchor[], records: NzxN
     }
     const nta = available.filter(row => Date.parse(row.publishedAt) <= Date.parse(fetchedAt))
       .sort((a,b) => b.publishedAt.localeCompare(a.publishedAt) || b.announcementId - a.announcementId)[0];
-    if (!nta) return { ...anchor, proxyValueType: "pending" as const, pairingStatus: "pending" as const,
+    if (!nta) return { ...anchor, ntaMappingVersion: KERNEL_NTA_MAPPING_VERSION, proxyValueType: "pending" as const, pairingStatus: "pending" as const,
       proxyClose: null, proxyPriceDate: null, proxyFetchedAt: null, proxyAnnouncementId: null, proxyPublishedAt: null };
-    return { ...anchor, proxyValueType: "nta" as const, proxyClose: nta.unitNta,
+    return { ...anchor, ntaMappingVersion: KERNEL_NTA_MAPPING_VERSION, proxyValueType: "nta" as const, proxyClose: nta.unitNta,
       proxyPriceDate: nta.ntaDate, proxyFetchedAt: fetchedAt,
       proxyAnnouncementId: nta.announcementId, proxyPublishedAt: nta.publishedAt, pairingStatus: "paired" as const };
   }).sort((a, b) => b.anchorDate.localeCompare(a.anchorDate) || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
   const estimates = records.flatMap(row => {
-    const priceDate = getKernelValuationDateForNzxSession(row.ntaDate);
+    const priceDate = getKernelValuationDateForNta(row.ntaDate);
     if (exactDates.has(priceDate)) return [];
     // Choose the actual revision first. A pending winner blocks its own interval.
     const anchor = converted.find(a => a.anchorDate <= priceDate);
@@ -106,7 +120,7 @@ export function prepareKernelNtaPlan(anchors: KernelPriceAnchor[], records: NzxN
 export function kernelNtaRpcArguments(plan: KernelNtaPlan) {
   return {
     p_instrument_id: plan.instrumentId, p_from_date: plan.fromDate, p_fetched_at: plan.fetchedAt,
-    p_anchors: plan.anchors.map(a => ({ source_id: a.id, anchor_date: a.anchorDate, kernel_unit_price: a.kernelUnitPrice,
+    p_anchors: plan.anchors.map(a => ({ mapping_version: KERNEL_NTA_MAPPING_VERSION, source_id: a.id, anchor_date: a.anchorDate, kernel_unit_price: a.kernelUnitPrice,
       proxy_close: a.proxyClose, proxy_price_date: a.proxyPriceDate, announcement_id: a.proxyAnnouncementId,
       published_at: a.proxyPublishedAt, created_by_user_id: a.createdByUserId, revision_at: a.createdAt })),
     p_estimates: plan.estimates.map(e => ({ price_date: e.priceDate, close_price: e.closePrice,

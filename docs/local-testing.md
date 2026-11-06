@@ -200,7 +200,7 @@ corepack pnpm verify:time-policy
 corepack pnpm verify:backup
 ```
 
-The in-process Kernel check uses synthetic NZX NTA lists. It verifies published-time eligibility, amendments, cross-year requests, weekday mapping, missing-date omission, direct decimal anchor ratios and actual revision priority. The database check applies the historical Kernel migrations and the new independent actual-anchor migration in an isolated loopback PostgreSQL cluster and verifies atomic replacement, manual-price protection, repeated refreshes, failed-write rollback, pending snapshot state and restricted RPC access. See [Kernel NTA repair](operations/kernel-nta-repair.md) for test-only dry-run and cutover commands.
+The in-process Kernel check uses synthetic NZX NTA lists. It verifies published-time eligibility, amendments, cross-year requests, same-date mapping including Monday, legacy-reference exclusion, missing-date omission, direct decimal anchor ratios and actual revision priority. The database check applies the historical Kernel migrations and the new independent actual-anchor migration in an isolated loopback PostgreSQL cluster and verifies atomic replacement, manual-price protection, repeated refreshes, failed-write rollback, pending snapshot state and restricted RPC access. See [Kernel NTA repair](operations/kernel-nta-repair.md) for test-only dry-run and cutover commands.
 
 `scripts/verify-snapshot-atomicity.sql` is an integration check for an **empty, disposable local PostgreSQL database**. Run it with `psql -v ON_ERROR_STOP=1 -f scripts/verify-snapshot-atomicity.sql` and explicit local connection arguments. It creates minimal schema/roles, applies the real migration twice, and verifies retries, rollback after account-write failure, empty-account replacement, and RPC execution permissions. Do not run this fixture against test or production business data.
 
@@ -381,6 +381,10 @@ All maintained JavaScript/TypeScript receives syntax checks. Type-aware Promise 
 ## Market acquisition and recovery verification
 
 Run `verify:price-acquisition`, `verify:snapshot-availability`, `verify:price-recovery`, and `verify:valuation-client` through the reviewed fixture runner. `verify:price-acquisition-db` uses a disposable loopback PostgreSQL cluster and all migrations; it does not use shared credentials. Also run affected provider/ingestion, dashboard/holdings/account, trend/monthly, snapshot catch-up/revision/signed-snapshot, time-policy, backup and full restore checks, then lint/typecheck/build. Scenarios include partial HTTP failure, deadlines, lease expiry, unchanged versus corrected inputs, invalidated headers, weekday missing prices, actual weekend cash changes, strict-mode request replay, carried principal, and incomplete month boundaries. Real-login acceptance remains separately required at the five maintained viewports; these fixtures do not certify deployed behavior.
+
+## Same-date Kernel NTA verification
+
+Run the reviewed Kernel fixture through `verify:checks`, then disposable `verify:kernel-price-estimation-db` and `verify:backup-restore-db`, plus backup, availability, snapshot, monthly and time-policy fixtures. The same-date migration is additive and is not applied to TEST by these checks. The default operator preview performs live TEST/provider reads and writes ignored local evidence only; `--migrate` and `--apply` are separate operator mutations requiring explicit manifest review and authorization. See [repair procedure](operations/kernel-nta-repair.md#same-date-repair). This task's visual acceptance is user-waived (2026-11-06), never passed.
 
 ## Independent Kernel anchors (local verification)
 

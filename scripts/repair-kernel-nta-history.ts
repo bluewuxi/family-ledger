@@ -10,6 +10,7 @@ import { createLedgerBackupObject } from "../apps/jobs/src/services/ledgerBackup
 import { normalizeLedgerBackupRows } from "../apps/jobs/src/repositories/ledgerBackupRepository";
 
 async function main() {
+  if (process.argv.includes("--apply")) throw new Error("Historical Kernel cutover apply is retired. Use repair-kernel-nta-same-date.ts with a reviewed manifest and separate operator authorization.");
   if (process.argv.some(a => a.includes("prod"))) throw new Error("Kernel NTA repair is test-only.");
   dotenv.config({ path: ".env.test", quiet: true });
   const db = await getSupabaseAdmin();

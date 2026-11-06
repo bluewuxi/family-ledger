@@ -1,11 +1,12 @@
 import Decimal from "decimal.js";
-import { getKernelValuationDateForNzxSession } from "@family-ledger/shared";
+import { getKernelValuationDateForNzxSession, getKernelValuationDateForNta } from "@family-ledger/shared";
 
 /** Validate reference shape after original-version checksum verification and normalization. */
 export function validateKernelAnchorRestore(values: unknown[]): void {
   const anchors = values as Array<Record<string, unknown>>;
   const referenceFields = ["proxy_close", "proxy_price_date", "proxy_fetched_at", "proxy_announcement_id", "proxy_published_at"];
   for (const anchor of anchors) {
+    if (![1,2].includes(Number(anchor.nta_mapping_version))) throw new Error("Invalid Kernel NTA mapping version.");
     const price = new Decimal(String(anchor.kernel_unit_price));
     if (!price.isFinite() || price.lte(0)) throw new Error("Invalid Kernel actual price.");
     if (anchor.actual_price_precision !== null && anchor.actual_price_precision !== undefined
@@ -22,7 +23,7 @@ export function validateKernelAnchorRestore(values: unknown[]): void {
         || !new Decimal(String(anchor.proxy_close)).isPositive()
         || !Number.isSafeInteger(anchor.proxy_announcement_id) || Number(anchor.proxy_announcement_id) <= 0
         || !Number.isFinite(Date.parse(String(anchor.proxy_published_at)))
-        || getKernelValuationDateForNzxSession(String(anchor.proxy_price_date)) !== anchor.anchor_date) {
+        || (anchor.nta_mapping_version === 2 ? getKernelValuationDateForNta : getKernelValuationDateForNzxSession)(String(anchor.proxy_price_date)) !== anchor.anchor_date) {
         throw new Error("Invalid Kernel NTA reference.");
       }
     } else if (anchor.proxy_value_type !== "open") throw new Error("Unknown Kernel reference type.");

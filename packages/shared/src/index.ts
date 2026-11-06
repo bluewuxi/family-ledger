@@ -1363,6 +1363,7 @@ export interface MarketDataSourceSummary {
 }
 
 export interface KernelPriceAnchor {
+  ntaMappingVersion?: number;
   proxyValueType?: "open" | "nta" | "pending";
   pairingStatus?: "pending" | "paired";
   actualSource?: string | null;

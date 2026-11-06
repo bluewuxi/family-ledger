@@ -20,6 +20,9 @@ importers:
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
+      decimal.js:
+        specifier: 10.6.0
+        version: 10.6.0
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2

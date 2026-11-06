@@ -1,5 +1,9 @@
 # Roadmap
 
+## Kernel NTA same-date correction (2026-11-06, TEST schema and repair verified)
+
+The [repair plan](plans/2026-11-06-kernel-nta-same-date-repair.md) corrects NTA title-date mapping across shared logic, versioned database references and backup format 15. Under explicit authorization, TEST migration and the October 1–November 5 repair passed: nine root references, sixteen estimate revisions, one retirement and one new estimate over 36 dates. All 36 publication decisions and accounts passed comparison; twenty-nine dates are available and seven remain pending for separate source gaps. Automatic application delivery is tracked in the [release record](releases/2026-11-06-kernel-nta-same-date-test.md). FundRock gaps remain outside this repair. Visual acceptance is user-waived for this task.
+
 ## Interface refinement (2026-11-05, locally validated; acceptance partial)
 
 Grouped navigation, paired themes, drawer safety and routed import/account creation are implemented and locally validated under the [approved plan](plans/2026-11-05-interface-refinement.md). Both-theme layout inspection used all five sizes, with partial coverage limits recorded in the plan. A premature Next-button submission caused an unintended shared account creation; the defect is fixed and isolated regression passed, authorized zero-association cleanup and isolated failure/retry/dismissal checks are complete. Authenticated visual acceptance remains partial. Application be6cc04 passed automatic TEST deployment; see [release evidence](releases/2026-11-05-interface-refinement-test.md).

@@ -22,6 +22,8 @@
     "scripts/verify-snapshot-availability.ts",
     "scripts/verify-valuation-client.ts",
     "scripts/verify-source-price-correction.ts",
-    "apps/web/verify-interface-workflows.ts"
+    "apps/web/verify-interface-workflows.ts",
+    "scripts/kernel-nta-repair-model.ts",
+    "scripts/repair-kernel-nta-same-date.ts"
   ]
 }

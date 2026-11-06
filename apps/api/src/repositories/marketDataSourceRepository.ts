@@ -24,6 +24,7 @@ interface KernelInstrumentRow {
 }
 
 interface KernelAnchorRow {
+  nta_mapping_version: number;
   proxy_value_type: "open" | "nta" | "pending";
   pairing_status: "pending" | "paired";
   actual_source: string | null;
@@ -127,7 +128,7 @@ const providerRunSelect = [
 
 function mapKernelAnchor(row: KernelAnchorRow): KernelPriceAnchor {
   return {
-    pairingStatus: row.pairing_status, actualSource: row.actual_source, actualPricePrecision: row.actual_price_precision,
+    ntaMappingVersion: row.nta_mapping_version, pairingStatus: row.pairing_status, actualSource: row.actual_source, actualPricePrecision: row.actual_price_precision,
     proxyValueType: row.proxy_value_type, proxyAnnouncementId: row.proxy_announcement_id,
     proxyPublishedAt: row.proxy_published_at, derivedFromAnchorId: row.derived_from_anchor_id,
     id: row.id,
