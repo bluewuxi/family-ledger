@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+export * from "./investmentGroups";
 import { compareTransactionOrder } from "./transactionTimeline";
 export * from "./accountAccess";
 export * from "./priceAcquisition";

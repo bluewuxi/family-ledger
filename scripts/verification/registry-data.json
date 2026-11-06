@@ -1180,18 +1180,25 @@
       "entryPoints": [
         "scripts/verify-instrument-active.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-instrument-active.ts"
+          ]
+        }
+      ],
       "domains": [
         "general"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
-      "requirements": [
-        "effect review; use the owning procedure"
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-instrument-active.ts"
       ],
+      "requirements": [],
       "timeoutMs": 180000,
       "profiles": []
     },
@@ -2155,6 +2162,120 @@
       ],
       "timeoutMs": 180000,
       "profiles": []
+    },
+    {
+      "id": "verify:investment-groups",
+      "packageScript": "verify:investment-groups",
+      "command": "tsx scripts/verify-investment-groups.ts",
+      "entryPoints": [
+        "scripts/verify-investment-groups.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-investment-groups.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "investment"
+      ],
+      "contracts": [
+        "docs/specs/2026-11-06-investment-groups-design.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-investment-groups.ts"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
+    },
+    {
+      "id": "verify:investment-groups-db",
+      "packageScript": "verify:investment-groups-db",
+      "command": "tsx scripts/verify-investment-groups-db.ts",
+      "entryPoints": [
+        "scripts/verify-investment-groups-db.ts"
+      ],
+      "steps": [],
+      "domains": [
+        "investment",
+        "database"
+      ],
+      "contracts": [
+        "docs/local-testing.md"
+      ],
+      "effect": "disposable-db",
+      "auditFiles": [],
+      "requirements": [
+        "Disposable loopback PostgreSQL; no project credentials"
+      ],
+      "timeoutMs": 180000,
+      "profiles": []
+    },
+    {
+      "id": "verify:investment-group-api",
+      "packageScript": "verify:investment-group-api",
+      "command": "tsx scripts/verify-investment-group-api.ts",
+      "entryPoints": [
+        "scripts/verify-investment-group-api.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-investment-group-api.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "investment",
+        "auth"
+      ],
+      "contracts": [
+        "docs/api.md",
+        "docs/auth.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-investment-group-api.ts"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
+    },
+    {
+      "id": "verify:investment-groups-client",
+      "packageScript": "verify:investment-groups-client",
+      "command": "tsx apps/web/verify-investment-groups-client.ts",
+      "entryPoints": [
+        "apps/web/verify-investment-groups-client.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-investment-groups-client.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "investment",
+        "web"
+      ],
+      "contracts": [
+        "docs/specs/2026-11-06-investment-groups-design.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-investment-groups-client.ts",
+        "apps/web/src/components/investments/InvestmentGroupEditor.tsx"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
     }
   ],
   "auditFiles": {
@@ -2188,7 +2309,7 @@
     "apps/api/src/repositories/dataMaintenanceRepository.ts": "b5b7e6bf3a140fbf7cd9a3ff60bdae66826f5d027ef2cd3ae1e5172425e78aea",
     "apps/api/src/repositories/educationReserveRepository.ts": "5adccebeb9b33ce1ca1d929d67f0cd484b909c08a8f9498740ee9d33e60e3d0f",
     "apps/api/src/repositories/fxRateRepository.ts": "41af53485e465e27208d20219adb301d65ba0ff962f382cdd105bbd0a59c1a44",
-    "apps/api/src/repositories/instrumentRepository.ts": "10b00129bb4979cd66524f19abccfc9dfeb465dc8af1ed5098aa6107badbadd8",
+    "apps/api/src/repositories/instrumentRepository.ts": "890b768890c91e4c2676d144d6a51f174f68211cdd9ebd7719a40e4c98241931",
     "apps/api/src/repositories/jobRunRepository.ts": "683a45e26d6a851442463a522794bac5353244dfec31dc2582c2660cfd2617fb",
     "apps/api/src/repositories/managedUserRepository.ts": "b03dd33586d3df0b06d33d1e1a3c92bdedc73f55884d809f24a339eb3f4a4b9d",
     "apps/api/src/repositories/marketDataSourceRepository.ts": "a8af30628ea9028a34dfd6c7f3fe6c254815d5b8046a9f810c38c39eee6ef38f",
@@ -2203,7 +2324,7 @@
     "apps/api/src/routes/apiErrorRoutes.ts": "9f7869411a00e23b33547fcae7b13d5a11bee576e4d4d7ad4d8eee4a3e01b5b1",
     "apps/api/src/routes/authRoutes.ts": "4d21b8cdd092ca3417ef6cff1b878173bf9255cff4ffbc762cb5844917f23c9c",
     "apps/api/src/routes/educationReserveRoutes.ts": "910cc0d05ab3ac24c0e9cd61935abcf970a8a9df231ed208dd137d3a8444f2d8",
-    "apps/api/src/routes/router.ts": "c87eb6ba6ca6de246dea73913cd2331739bb17c00ed781e687e2c642379b4d16",
+    "apps/api/src/routes/router.ts": "ab1bd5b1ff52e1f2a404a6b4ed46c90311a3753b54b53bd0a38b1bdda7d066e4",
     "apps/api/src/routes/spendingRoutes.ts": "3bcbeea66f7932052aaa44589242ebc6d177b475fd9c5432d945a4a08bccbc45",
     "apps/api/src/services/accountAccessService.ts": "528efb9fa868e50035fd60930f87edd6ea3c96a0ca7261bb69270c44fcf67ea6",
     "apps/api/src/services/accountDetailService.ts": "0c658aa74eaebad6349c0f923ae499ac0b165ec65b5cc27ac7ad1c91e1f6bba0",
@@ -2213,7 +2334,7 @@
     "apps/api/src/services/apiErrorTrackingService.ts": "9d26bba6a9f3c4b2373eb79183f7b04f80ca6ff6a2eaccf0ed3d6ce3660c2f3f",
     "apps/api/src/services/atomicTransactionWriteService.ts": "804b9feaeead164530a2e2ad8d95f98a52505e6ecfdef1935f2b5d6fa9745582",
     "apps/api/src/services/authService.ts": "4d0c2a21f9584534a18c3d5388b6a9cb96869d1d36f03017e44e798973692426",
-    "apps/api/src/services/dashboardService.ts": "12e8eb8c8b99e750a5d8aa0ebbb77de3fc11b1b5bde6ca004e570a3acf8886fd",
+    "apps/api/src/services/dashboardService.ts": "e4ccad2f2f672f77e5aa5b170a2a4b7a504292f6310a8f073645995d407b61f8",
     "apps/api/src/services/dataMaintenanceService.ts": "43c9c361cb2aea66d4e714f31c9a7bba7be289e50514f547319206c7847dc96b",
     "apps/api/src/services/educationReserveService.ts": "9f67f2680a94793b710bbe0affba68ada79ea630996e0166ff96b9b23b552621",
     "apps/api/src/services/historyCache.ts": "827f740aded49aa9148b7b16b7668ef79fef3bef3516380306bff38afa883b00",
@@ -2269,7 +2390,7 @@
     "apps/jobs/src/repositories/jobRunRepository.ts": "ac452a02fac947663695ab274b61693de9eae11920cad1811af95a665be77005",
     "apps/jobs/src/repositories/kernelNtaRefreshRepository.ts": "266de85ce487ff7f4f3ef864caa79f4e1c63ddc1d95e2bbec46ed64c5be49ddb",
     "apps/jobs/src/repositories/kernelPriceAnchorRepository.ts": "0df7d3301727ba0b70f24c6dedd9bdd68bd2e2df9267ffe4bff590a71f5768bf",
-    "apps/jobs/src/repositories/ledgerBackupRepository.ts": "78209b297d9565360ad912c1c0982cc2a9da403a5db51e23b563c9063e3baf19",
+    "apps/jobs/src/repositories/ledgerBackupRepository.ts": "46612eec8d77c0e739f5c80f336be669ecc2619517cc9a506a8ba19eb4ef89e9",
     "apps/jobs/src/repositories/portfolioSnapshotRepository.ts": "437751cb0f4b8012c765db534ee536ed058984ebbfe1ac900f193d33479ade52",
     "apps/jobs/src/repositories/readAllRows.ts": "577d20b5133f3fbb6b6267c59778818f4401343dc5c077fde7a6c0891da0bb24",
     "apps/jobs/src/services/backupBlockingJobs.ts": "2c5fe5fd79ade6136333e681f442d43615532525c32fd46f0e86a643e9994207",
@@ -2278,9 +2399,9 @@
     "apps/jobs/src/services/fxRateIngestionService.ts": "7c98612070a9a03d962f1184a5219a6e1ccb4a648e882f48f0234a70e44b459b",
     "apps/jobs/src/services/instrumentPriceIngestionService.ts": "ac15b5ea4f9b6b5d634a3784779f5ab8409bcdf88cfeebfcfefcdaa855c5a0d3",
     "apps/jobs/src/services/kernelNtaRefreshService.ts": "a5cb26937b086442754eeda4a0e9cc84b5bbc124739194c81df81796e57ffe8c",
-    "apps/jobs/src/services/ledgerBackupBundle.ts": "c30f3c0dbf6c97ed6a73eb66e5726ea6f4a6b70feb421d8d290fa9ccda9f56a4",
+    "apps/jobs/src/services/ledgerBackupBundle.ts": "bff746cefee355bd32785d10b30109555c901331b7fdb431ddf1b0840bdafa39",
     "apps/jobs/src/services/ledgerBackupService.ts": "a5cea58d99baf0fc86c9af9e03d167ff7bea3a35d163d6b89a401a196a413dc0",
-    "apps/jobs/src/services/ledgerRestoreOrder.ts": "5b25d18ee4c344af8d59c39aeaefa807daea3a40f23ad7c16f14cfb94dc68f75",
+    "apps/jobs/src/services/ledgerRestoreOrder.ts": "d8c3987e7d1c7d2e301b776fcc9d750c2c381339bd027699adbe569c59da9a1c",
     "apps/jobs/src/services/marketClosePolicy.ts": "b679ecfc53510d3375ce55a576c5de9cec618c71891ce1681eb813c7481a53de",
     "apps/jobs/src/services/portfolioSnapshotGenerationService.ts": "08462defe4ac623e77cef3d875b9b28f828704b20b0a97e0a0f5a7aec7619b0b",
     "apps/jobs/src/services/snapshotRepairService.ts": "b75121745a84a612baaede3184791f5c153c94945f12e0a8eafcb3df41205b0d",
@@ -2318,7 +2439,7 @@
     "infra/aws/template.yaml": "f6149cd4ad3c173a30e2744bd90181a69236bf45c842cc0949feda9b4eaebe43",
     "packages/shared/src/accountAccess.ts": "902be8d853243672f5e06331e200550cdccd03d2b97ed21df48c13d61e1489e4",
     "packages/shared/src/educationReserve.ts": "b752c879329fe2352c951a50f94fb217bf5d0f1ef7407875348ebde848bf75c6",
-    "packages/shared/src/index.ts": "5457046817e80a25ba0bd97654614fabc6f72a78fccdd5dfa305cbceab8a1fc8",
+    "packages/shared/src/index.ts": "8e194a0f4571044b5d9472e10acae797aaeca6ce5d20926f906dc1a36b7159ec",
     "packages/shared/src/kernelPriceEstimation.ts": "60acbc77b1554e7085b798b785e92363b584dbfb91188d766241e829695123e3",
     "packages/shared/src/nzxNta.ts": "a29f78be381e4a0b2802a3d88d6a80ab32c707c56a2284b1fdc3059b291644c1",
     "packages/shared/src/spending.ts": "6469dde8ded60a97974da7f8a9889742b2dc1c0d91933d9fdc5f2c53798dc944",
@@ -2349,7 +2470,7 @@
     "scripts/verify-auth-state.ts": "ecffcdf079e3578e464456b2e4383b2f1cb6a6fa5a9b59410c9b2780e0bc925e",
     "scripts/verify-auth-user-operations.ts": "6df5a64a877cea06eb119b5aed8c4c28743525424d49aac1b517fea20db6cccc",
     "scripts/verify-auth.ts": "2b8b1e6a778af632744bfa4f1f21077f4880ce3ea85e4a2fce0fdebc0ee90dda",
-    "scripts/verify-backup.ts": "bfc7eef5f34aa8aa8520529f94630fb5c79d970ad1c83f2fb5b08e4d44c64663",
+    "scripts/verify-backup.ts": "a7b40c01f2556bf346638be23b21267394d7816397feb3388997ba9e8acefd60",
     "scripts/verify-dashboard-calculation.ts": "f6db2f713c14a71f5526b27427b73a1ec51c8a537400c99df4a60da548c611a5",
     "scripts/verify-deployment.ts": "3f50ee64647cf1e6b8ce3c743f2e30f4e8fb690b355346b06f306aff38f3458c",
     "scripts/verify-dividend-cash-leg.ts": "26b4f44aa7189f59502c4129ecf2b8b20afceba5999fd440504e6cac7752a17a",
@@ -2363,8 +2484,8 @@
     "scripts/verify-user-access.ts": "4059805ef3b54e1b3dfe2b0744121141173dcb100a3c444d23cd2157866fb045",
     "scripts/verify-verification-tooling.ts": "cb58a8cf465ea6bb9438f2ce46a9c369ab32531445f803de20dec21c674d703c",
     "tsconfig.deployment.json": "ffe1db6d12a02433a99dde76af8ad1d2baec26782c5dc57cc3dce5c8f18a21da",
-    "tsconfig.verification.json": "f422f725b3619b749450337c9d3adf702c7b074bed1eace927ec9965c50f3404",
-    "package.json": "070e0adbff214651862918a024f180de963398138a91f1ad9f034373c34c428a",
+    "tsconfig.verification.json": "6a4eb3a035c2af7ea7f7e3f2c1658b418dbd1c96afb8a6e25774e1cbf776d384",
+    "package.json": "a43e051731737bb48f157f453daf6ae7c3a048e3ae4f11cb3059da7474b1d820",
     "apps/api/package.json": "0282f75bd8944ce8948b76a38c292e62bfada6e179a39a900754ad82d1006e05",
     "apps/jobs/package.json": "4834d1a6ef1e567eb244607e97356d7031c046e16068588fe926b3effaa89ba1",
     "apps/web/package.json": "c3382474cc4cb43244db765f93d59f15ffddc6c57c7df87de0b17beece6091ec",
@@ -2410,13 +2531,24 @@
     "scripts/verify-transaction-price-backfill.ts": "fc83ef376a2f3d0ce827a8428bf9d392396be2c18c4505d0db42cfb3830582e8",
     "apps/web/src/lib/statementCommit.ts": "4160d646b6f5298a95208d8a54c1dd3fd75749809006371f9e97d6d254c09508",
     "apps/web/src/lib/useEditDismissal.ts": "3b9e4751acb7a61bc71956550be90d884cdec087b13390e214c4190c58c23bd6",
-    "apps/web/src/lib/useWorkflowDeparture.ts": "14a9da4eb7de825e04806ffc4fec84f98875a9735c50068a8cc4f086da17aeea",
+    "apps/web/src/lib/useWorkflowDeparture.ts": "ad0b0708813c817e352df506a547f9d16b9746013f9ee856152e122b5a8d13cf",
     "apps/web/verify-interface-workflows.ts": "898d55d2b83305b6cbeee40429ac3b4189c394d31817fb0a598e32c5324f94c8",
     "scripts/verify-account-purposes.ts": "02a5216e99ac944938aba91ae11148f40b3747e6aecb2a969df5f32677a940b8",
     "scripts/verify-family-cashflow-ui.ts": "75b8479d462709940be3def1b439f1ca39417ad1cc8686345c0367529ac5c8c5",
     "scripts/verify-spending.ts": "22a40a2204dfe847a3a541dc134a43249b22cebd2150818ee8d7953a589a58b6",
     "scripts/verify-transaction-table.ts": "772e72e333eadad2951e6ec57011bda8f0cab98ddae44227933f73927c01cc19",
-    "scripts/kernel-nta-repair-model.ts": "728a8c9dedd6a86f42fc5c3fe499aadc85deddfafe8bfc66272f363e6cb1baff"
+    "scripts/kernel-nta-repair-model.ts": "728a8c9dedd6a86f42fc5c3fe499aadc85deddfafe8bfc66272f363e6cb1baff",
+    "scripts/verify-investment-groups.ts": "872e2530a507f0853cc4219686d3a628b9f6f3c56086e76fc7387c717a957104",
+    "packages/shared/src/investmentGroups.ts": "59b2460fe99513a86ce6fb8d441218c95a66b90d32f02042ea0c3fcedd30965c",
+    "apps/api/src/services/groupAllocationService.ts": "b2242723c262ad59311587da60161245a0bf85be0ada299748d819dd162b42d6",
+    "scripts/verify-investment-group-api.ts": "fb16420b1236f8ce76a4a3ed5261e809dc28dcb07644e2ecc01708eba595afdc",
+    "apps/api/src/routes/investmentGroupRoutes.ts": "4468ddf0af9cf9dccbdd9b15f20967e2ee000cc35e8baf7a3721c32b44d5601c",
+    "apps/api/src/services/investmentGroupService.ts": "4307033291dd4850adbdf4ad53be8c01eb245523aefcc70f76fe30f9ac336ba8",
+    "apps/api/src/repositories/investmentGroupRepository.ts": "54af2402460b24b8822975c5022f5758fce696d93cf832cb1e9ca719cc68eaf8",
+    "apps/web/verify-investment-groups-client.ts": "9bb81bf83a3e595a5c8421dca7478b5d2d6859346a3216154c73e61c2bece4cd",
+    "apps/web/src/lib/investmentGroupsClient.ts": "b97b2230d3ae311a45c666b88e21c9e6844b13836e35076abafd8adbd2391ff7",
+    "scripts/verify-instrument-active.ts": "a989141c5855395de7df3ccba7dca1e694aeb441db82e3f9016125bdbc0b3d2c",
+    "apps/web/src/components/investments/InvestmentGroupEditor.tsx": "c59e78a290b0c92772279af12060664133699876e42596e2fa2ea4bbe96160e7"
   },
   "auditScopes": [
     "apps/api/src",

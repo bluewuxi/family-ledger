@@ -39,6 +39,7 @@ async function main(): Promise<void> {
 function restoreRows(payload: LedgerBackupPayload) { return prepareLedgerRestoreRows(payload, []); }
 
 function removeApplicationIdentities(payload: LedgerBackupPayload): void {
+ if(payload.manifest.version<16){const names=['investment_groups','investment_group_members','resource_revisions'];for(const n of names)delete (payload.tables as unknown as Record<string,unknown>)[n];payload.manifest.tables=payload.manifest.tables.filter(t=>!names.includes(t.name));payload.manifest.tableOrder=payload.manifest.tableOrder.filter(t=>!names.includes(t));}
  if(payload.manifest.version < 13) {
   const names=['price_acquisition_state','price_acquisition_attempts','instrument_price_revisions','snapshot_pending_dates'];
   for(const n of names) delete (payload.tables as unknown as Record<string,unknown>)[n];
@@ -54,6 +55,7 @@ function removeApplicationIdentities(payload: LedgerBackupPayload): void {
   for(const n of names) delete (payload.tables as unknown as Record<string,unknown>)[n];
   payload.manifest.tables=payload.manifest.tables.filter(t=>!names.includes(t.name));payload.manifest.tableOrder=payload.manifest.tableOrder.filter(t=>!names.includes(t));
  }
+ payload.manifest.totalRows=payload.manifest.tables.reduce((n,t)=>n+t.rowCount,0);
  if(payload.manifest.version >= 9) return;
  delete (payload.tables as Partial<LedgerBackupRows>).app_users;
  payload.manifest.tables=payload.manifest.tables.filter(t=>t.name!=="app_users");
@@ -63,6 +65,15 @@ function removeApplicationIdentities(payload: LedgerBackupPayload): void {
 }
 async function runSelfTests(): Promise<void> {
   const rows = sampleBackupRows();
+  const groupRows = {...rows, instruments:[{id:'security',active:true,asset_type:'stock'},{id:'cash',active:true,asset_type:'cash'}], investment_groups:[{id:'group',name:'科技',name_key:'科技'}], investment_group_members:[{group_id:'group',instrument_id:'security'}],resource_revisions:[{scope_key:'investment_groups',revision:'9007199254740993'}]};
+  const grouped=createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-11-06T00:00:00Z',rows:groupRows});
+  assert.equal(grouped.payload.manifest.version,16);
+  const groupedRestored=restoreRows(grouped.payload);
+  assert.deepEqual(groupedRestored.investment_group_members,groupRows.investment_group_members);
+  assert.deepEqual(groupedRestored.resource_revisions,groupRows.resource_revisions);
+  for(const resource_revisions of [[],[{scope_key:'ledger',revision:'1'}],[{scope_key:'investment_groups',revision:'-1'}],[{scope_key:'investment_groups',revision:1}],[{scope_key:'investment_groups',revision:'01'}],[...groupRows.resource_revisions,...groupRows.resource_revisions]]) assert.throws(()=>createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-11-06T00:00Z',rows:{...groupRows,resource_revisions}}),/revision/);
+  for(const investment_group_members of [[{group_id:'missing',instrument_id:'security'}],[{group_id:'group',instrument_id:'cash'}],[...groupRows.investment_group_members,...groupRows.investment_group_members]])assert.throws(()=>createLedgerBackupObject({environment:'synthetic',generatedAt:'2026-11-06T00:00Z',rows:{...groupRows,investment_group_members}}),/membership/);
+
   assert.throws(() => createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: { ...rows, transactions: [{ gross_amount: 12345678901234.123 }] } }), /decimal string/);
   const backupObject = createLedgerBackupObject({
     environment: "test",
@@ -76,7 +87,7 @@ async function runSelfTests(): Promise<void> {
   const legacyActivity = structuredClone(inactive.payload); legacyActivity.manifest.version=10; delete (legacyActivity.tables.instruments[0] as Record<string,unknown>).active;
   // Rebuild checksums through the existing rehash fixture below for historical payloads.
 
-  assert.equal(backupObject.payload.manifest.version, 15);
+  assert.equal(backupObject.payload.manifest.version, 16);
   const exactRows = { ...rows, transactions: [{ gross_amount: "12345678901234.123456", price: "0", tax: null }] };
   const exact = createLedgerBackupObject({ environment: "test", generatedAt: "2026-10-31T00:00:00Z", rows: exactRows });
   assert.equal((restoreRows(JSON.parse(gunzipSync(exact.body).toString("utf8"))).transactions[0] as Record<string, unknown>).gross_amount, "12345678901234.123456");
@@ -91,6 +102,7 @@ async function runSelfTests(): Promise<void> {
     payload.manifest.payloadChecksumSha256 = hash({ manifest, tables: payload.tables });
     payload.manifest.fileChecksumSha256 = hash({ manifest: { ...manifest, payloadChecksumSha256: payload.manifest.payloadChecksumSha256 }, tables: payload.tables });
   };
+  const badCurrent=structuredClone(grouped.payload);badCurrent.tables.resource_revisions=[{scope_key:'ledger',revision:'1'}];rehash(badCurrent);assert.throws(()=>validateLedgerBackupPayload(badCurrent),/revision/);
   rehash(legacyActivity);
   assert.equal((restoreRows(legacyActivity).instruments[0] as Record<string,unknown>).active,true);
   const legacyShape = structuredClone(exact.payload);
@@ -254,7 +266,7 @@ async function runSelfTests(): Promise<void> {
   assert.deepEqual(restoreRows(backupObject.payload).portfolio_snapshot_headers, []);
   assert.equal(backupObject.key, "backups/test/2026/05/29/family-ledger-test-2026-05-29T01-00-00-000Z.json.gz");
   assert.equal(backupObject.payload.manifest.secretsExcluded, true);
-  assert.equal(backupObject.payload.manifest.totalRows, 2);
+  assert.equal(backupObject.payload.manifest.totalRows, 3);
   assert.equal(backupObject.payload.tables.investment_accounts.length, 1);
 
   const tamperedPayload = structuredClone(backupObject.payload);
@@ -289,13 +301,13 @@ async function runSelfTests(): Promise<void> {
     }
   });
 
-  assert.equal(successResult.totalRows, 2);
+  assert.equal(successResult.totalRows, 3);
   assert.equal(excludedJobRunId, "backup-job-run-id");
   assert.ok(successCalls.includes(`job:start:${BACKUP_LEDGER_JOB_NAME}`));
   assert.ok(successCalls.includes("list-started"));
   assert.ok(successCalls.includes("export"));
   assert.ok(successCalls.some((call) => call.startsWith("s3:backup-bucket:backups/test/")));
-  assert.ok(successCalls.includes("job:finish:succeeded:2:0"));
+  assert.ok(successCalls.includes("job:finish:succeeded:3:0"));
 
   const blockedCalls: string[] = [];
   await assert.rejects(
@@ -448,6 +460,7 @@ function sampleBackupRows(): LedgerBackupRows {
   const entries = LEDGER_BACKUP_TABLES.map((table) => [table.name, []]);
   const rows = Object.fromEntries(entries) as LedgerBackupRows;
 
+  rows.resource_revisions = [{scope_key:"investment_groups",revision:"0"}];
   rows.investment_accounts = [{ id: "account-id", name: "Test Account" }];
   rows.job_runs = [{ id: "job-run-id", job_name: "previous-job", status: "succeeded" }];
 

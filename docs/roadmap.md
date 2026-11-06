@@ -164,3 +164,7 @@ TEST authentication migrated to Lambda/DynamoDB opaque sessions on 2026-10-31. I
 ## Market data recovery TEST rollout (2026-11-04)
 
 The two new migrations, 39 authorized price inputs and 166-date snapshot reclassification are verified on TEST: 152 dates available and 14 user-confirmed closure dates pending. Automatic TEST application delivery passed for 412eee0; Kernel estimation-anchor pairing remains pending, and the user explicitly waived visual acceptance for this rollout; see [rollout evidence](releases/2026-11-04-market-data-recovery-test.md).
+
+## Custom investment groups — local implementation
+
+Current classification, scoped grouped allocation, administrator maintenance and backup format 16 are implemented locally under the [plan](plans/2026-11-06-investment-groups.md). Migration 20261106120000_investment_groups.sql was independently applied to TEST after compatibility verification; see [schema-first evidence](releases/2026-11-06-investment-groups-test-schema.md). Registration awaits a clean committed migration; application deployment is not requested. Dual-theme, five-viewport read-only administrator/drawer/viewer acceptance is complete; shared write scenarios remain unperformed under the user's restriction. See [acceptance evidence and limits](releases/2026-11-06-investment-groups-local-acceptance.md). Group history and evaluation/migration of existing revision mechanisms remain deferred as [design TODOs](specs/2026-11-06-investment-groups-design.md#future-todo-evaluate-existing-revision-mechanisms).

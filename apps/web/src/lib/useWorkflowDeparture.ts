@@ -1,8 +1,8 @@
 import { useBeforeUnload, useBlocker } from "react-router-dom";
 import { useCallback, useEffect, type RefObject } from "react";
 
-export function useWorkflowDeparture(dirty: boolean, busy: boolean, allowExit?: RefObject<boolean>, internalRoot?: string) {
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => !allowExit?.current && (busy || dirty) && currentLocation.pathname !== nextLocation.pathname && !(internalRoot && nextLocation.pathname.startsWith(internalRoot)));
+export function useWorkflowDeparture(dirty: boolean, busy: boolean, allowExit?: RefObject<boolean>, internalRoot?: string, includeSearch = false) {
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => !allowExit?.current && (busy || dirty) && (currentLocation.pathname !== nextLocation.pathname || (includeSearch && currentLocation.search !== nextLocation.search)) && !(internalRoot && nextLocation.pathname.startsWith(internalRoot)));
   useEffect(() => {
     if (blocker.state !== "blocked") return;
     if (busy) { blocker.reset(); return; }

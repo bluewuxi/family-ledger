@@ -149,6 +149,7 @@ async function main() {
     assert.equal(sql("select is_available from portfolio_snapshot_headers where snapshot_date='2026-11-04'"),'f');
     assert.equal(sql("select to_jsonb(a)::text from portfolio_account_snapshots a where snapshot_date='2026-11-04'"),beforePending,'Pending publication preserves old account audit values');
     console.log('Exact operator SQL: 30+5 snapshot publications, token rejection, pending audit preservation and resumed revision chaining passed.');
+    sql(`select write_investment_group('create',null,'Restore group',array['${id(4)}']::uuid[],'0','${id(1)}');update resource_revisions set revision=9007199254740993 where scope_key='investment_groups';`);
     const exported = JSON.parse(sql('select export_ledger_backup()'));
     assert.equal(exported._kernel_anchor_schema,'independent-actual-v1');
     assert.equal(exported._kernel_nta_mapping,'same-date-v2');
@@ -167,7 +168,7 @@ async function main() {
     const tables = RESTORE_ORDER.join(',');
     targetSql('truncate '+tables+' cascade');
 
-    const inserts = RESTORE_ORDER.map(table => `insert into public.${table} select * from jsonb_populate_recordset(null::public.${table},${literal(restored[table])}) ${table==="account_access_policies" ? "on conflict(user_id) do update set mode=excluded.mode,revision=excluded.revision" : ""};`).join('\n');
+    const inserts = RESTORE_ORDER.map(table => `insert into public.${table} select * from jsonb_populate_recordset(null::public.${table},${literal(restored[table])}) ${table==="resource_revisions" ? "on conflict(scope_key) do update set revision=excluded.revision" : table==="account_access_policies" ? "on conflict(user_id) do update set mode=excluded.mode,revision=excluded.revision" : ""};`).join('\n');
     const withoutUsers = inserts.replace(/insert into public.app_users[^\n]+/, '');
     assert.throws(()=>targetSql('begin; set constraints all deferred;'+withoutUsers+' commit;'), /foreign key/);
     assert.equal(targetSql('select count(*) from profiles'),'0');
@@ -176,6 +177,9 @@ async function main() {
     for(const table of RESTORE_ORDER) assert.equal(targetSql('select count(*) from '+table),'0',table+' must roll back');
     assert.equal(targetSql('select count(*) from transactions'),'0');
     targetSql('begin; set constraints all deferred;'+inserts+' commit;');
+    const revisionRestore=inserts.split("\n").find(statement=>statement.startsWith("insert into public.resource_revisions "));
+    assert(revisionRestore);
+    assert.equal(targetSql('begin; update resource_revisions set revision=0 where scope_key=\'investment_groups\';'+revisionRestore+"select revision::text from resource_revisions where scope_key='investment_groups';rollback;"),'9007199254740993','Default-row conflict restores exact revision');
     assert.equal(targetSql("select count(*) from pg_constraint where confrelid='auth.users'::regclass and connamespace='public'::regnamespace"),'0');
     for(const role of ['anon','authenticated']) {
       assert.equal(targetSql(`select has_table_privilege('${role}','public.profiles','select')`),'f');

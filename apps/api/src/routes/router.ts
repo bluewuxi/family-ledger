@@ -1,3 +1,4 @@
+import { investmentGroupRoute } from "./investmentGroupRoutes";
 import { authRoute } from "./authRoutes";
 import { withAccountAccessRequest, requestAccountPolicy, isSelectedAccountRequest } from "../auth/accountAccessContext";
 import { readManagedAccountAccess, saveManagedAccountAccess } from "../services/accountAccessService";
@@ -397,6 +398,7 @@ async function routeRequest(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
     }
 
     if (event.rawPath.startsWith("/auth/") || /^\/settings\/users\/[^/]+\/reset-password$/.test(event.rawPath)) return await authRoute(event);
+    if (event.rawPath === "/investment-groups" || event.rawPath.startsWith("/investment-groups/")) return await investmentGroupRoute(event);
     if (event.rawPath === "/data-maintenance/errors" || event.rawPath.startsWith("/data-maintenance/errors/")) return await apiErrorRoute(event);
     if (event.rawPath === "/education-reserve" || event.rawPath.startsWith("/education-reserve/")) return await educationReserveRoute(event);
     if (event.rawPath === "/cashflows" && event.requestContext.http.method === "GET") {

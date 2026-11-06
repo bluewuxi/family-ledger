@@ -1,3 +1,5 @@
+import { InvestmentDistributionPanel } from "../components/InvestmentDistributionPanel";
+import { useAuth } from "../lib/authContext";
 import { useEventCallback } from "../lib/useEventCallback";
 import { observeAsync } from "../lib/observeAsync";
 import { InvestmentTrendChart, getChartToneStyle, formatChartMoney } from "../components/InvestmentTrendChart";
@@ -13,6 +15,7 @@ import {
   getAppBusinessDayEndInstant,
   SNAPSHOT_DISPLAY_CURRENCIES,
   type DashboardSummary,
+  type InvestmentDashboardSummary,
   type InvestmentTransaction,
   type PortfolioSnapshotSummary,
   type PortfolioTrend,
@@ -40,7 +43,7 @@ import {
 
 
 interface DashboardResponse {
-  dashboard: DashboardSummary;
+  dashboard: InvestmentDashboardSummary;
 }
 
 interface PortfolioSnapshotsResponse {
@@ -62,6 +65,7 @@ const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
 ];
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 export function DashboardPage() {
+  const { session } = useAuth();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
   const [currencyInitialized, setCurrencyInitialized] = useState(false);
@@ -475,7 +479,7 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
           )}
           <Link className="activity-more-link" to="/transactions">更多...</Link>
         </article>
-        <DistributionPanel title="持仓分布" rows={(dashboard?.holdingAllocations ?? []).map(row => ({ id: row.id, name: row.name, marketValue: row.marketValue }))} total={dashboard?.totalAssets} loading={allocationLoading} />
+        <InvestmentDistributionPanel dashboard={dashboard} loading={allocationLoading} isAdmin={session?.user.role === "admin"} onRetry={() => observeAsync(reloadDashboard())} />
         <DistributionPanel title="证券账户与现金" description="各账户仅统计证券市值，现金统一汇总。占比以全部投资资产为分母。" rows={dashboard?.allocations ?? []} total={dashboard?.totalAssets} loading={allocationLoading} />
 
 

@@ -5010,3 +5010,24 @@ body:has(.app-shell) #root::before, body:has(.app-shell) #root::after { content:
 .app-shell :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .app-shell button { min-height: 44px; }
 .app-shell .icon-button, .app-shell .sidebar-mobile-toggle, .app-shell .sidebar-mobile-close { min-width: 44px; }
+
+.investment-distribution { display: flex; flex-direction: column; min-width: 0; }
+.investment-distribution > section { flex: 1; min-width: 0; }
+.investment-distribution-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 16px; }
+.investment-distribution-footer p { margin: 0; color: var(--color-text-muted); overflow-wrap: anywhere; font-size: .85rem; }
+.investment-distribution-footer a { min-height: 44px; white-space: nowrap; display: inline-flex; align-items: center; }
+.allocation-members { display: block; font-size: .75rem; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.allocation-row > span { min-width: 0; overflow-wrap: anywhere; }
+
+
+.group-management { margin-top: 20px; min-width: 0; }
+.group-management-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.group-member-list { display: grid; gap: 8px; }
+.group-member-option { display: flex; align-items: center; min-height: 44px; gap: 10px; }
+.group-member-option input { width: auto; flex: 0 0 auto; }
+.group-member-option small { display: block; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.investment-group-form { grid-template-columns: minmax(0, 1fr); }
+.investment-group-form > label { min-width: 0; }
+.investment-group-form fieldset { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: 6px; }
+.investment-group-form .group-member-option { display: flex; }
+.investment-group-form .group-member-option input { width: 20px; height: 20px; min-height: 20px; margin: 0; padding: 0; accent-color: var(--color-brand-brown); }

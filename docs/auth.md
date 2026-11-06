@@ -53,3 +53,7 @@ Settings exposes extra-password recovery guidance through a `忘记密码？` di
 Server database/service credentials and the trading-password gate verifier remain in AWS SSM and never enter frontend configuration, responses or logs. Auth passwords, tokens, verifiers and sensitive request bodies never enter logs or ledger backups. A newly issued session token is returned only by login and held in browser session storage.
 
 Trading account passwords retain the independent shared extra-password gate. Its SSM SecureString is `empty` before setup or a salted scrypt verifier. Only the explicitly gated reveal endpoint may return an account trading password. Ordinary DTOs, logs, backups and persistent browser storage exclude it. Admin alone updates account trading passwords and the gate. Extra-password throttling remains a separate open hardening decision.
+
+## Investment group authorization (local implementation)
+
+GET/POST /investment-groups and PUT/DELETE /investment-groups/:id are administrator-only, including global configuration reads. Restricted sessions remain denied. Viewer/admin dashboard reads expose classification only for contributing authorized holdings, with no hidden member names or configured counts. SQL mutation additionally requires an active administrator. This introduces no new role, grant domain or permission model.

@@ -1,8 +1,10 @@
 # Custom Investment Groups: Current Allocation
 
-Status: Draft for final document approval. Product scope and mockup interactions were confirmed in conversation; technical choices below are design recommendations. No implementation or delivery is authorized.
+Status: Approved by the user on 2026-11-06, including the purpose-keyed revision amendment. Implementation planning is authorized; product implementation and delivery have not started and are not authorized by this approval alone.
 
 Date: 2026-11-06.
+
+Implementation plan: [Custom investment groups](../plans/2026-11-06-investment-groups.md).
 
 ## Intent and confirmed scope
 
@@ -254,9 +256,9 @@ Design review on 2026-11-06: an independent builder check of the initial dedicat
 
 Future implementation requires the project lint, typecheck, build, affected dashboard/holdings/authorization/backup checks, and focused isolated tests for membership and aggregation. Existing snapshot checks should establish non-regression without shared-environment writes. Update maintained investment/API/data-model/auth/backup contracts and roadmap only for the implemented scope.
 
-Implementation: not started. Migration: not prepared or applied. Deployment: not requested. Authenticated visual acceptance: not applicable to this design-only delivery; required for later UI implementation.
+Execution update (2026-11-06): local implementation and migration source are prepared under the implementation plan; automated validation and independent review passed. TEST schema was subsequently applied under the separately authorized [schema-first procedure](../releases/2026-11-06-investment-groups-test-schema.md), removing the dependency blocker. Registration and application deployment remain pending. Dual-theme, five-viewport read-only administrator/drawer/viewer acceptance is complete; [acceptance evidence](../releases/2026-11-06-investment-groups-local-acceptance.md) records the user-confirmed dirty-draft check and excluded shared write scenarios. The preceding design-phase evidence does not establish implementation acceptance.
 
-## Recommendations requiring final document approval
+## Designer choices included in the approved design
 
 The following details were filled in by the designer rather than individually selected by the user: default instrument tab with session-local restoration; 32-code-point name limit and normalized uniqueness; separate membership storage; additive dashboard DTO and admin-only configuration endpoints; scoped contributor names/counts; contextual editor using existing drawer conventions; and versioned backup integration. The generic revision table, its single initial purpose, and deferral of existing-mechanism migration were explicitly confirmed by the user. These choices implement the confirmed interaction without changing investment calculations or historical scope.
 

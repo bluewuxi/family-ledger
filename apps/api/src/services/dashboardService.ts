@@ -1,10 +1,13 @@
+import { readInvestmentGroupConfiguration } from "../repositories/investmentGroupRepository";
+import { buildGroupDistribution } from "./groupAllocationService";
+import { ApiRequestError } from "../utils/apiError";
 import { getNextQuoteRefreshAt, getQuotes as refreshDashboardQuotes } from "./priceAcquisitionService";
 import { completeInvestmentPerformance } from "./investmentPerformanceService";
 import { timed } from "../utils/timing";
 import { parseQuoteMode } from "./quoteMode";
 import type {
   AuthenticatedUser,
-  DashboardSummary,
+  InvestmentDashboardSummary,
   Instrument,
   InvestmentAccount,
   InvestmentTransaction
@@ -22,8 +25,15 @@ import { buildValuationMetadata } from "./valuationMetadataService";
 
 export { calculateDashboardSummary } from "./portfolioValuationService";
 
-export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser; quoteMode?: string } = {}): Promise<DashboardSummary> {
-  return (await getCurrentInvestmentPortfolio(input)).dashboard;
+export async function getDashboard(input: { currency?: string; user?: AuthenticatedUser; quoteMode?: string } = {}): Promise<InvestmentDashboardSummary> {
+  const dashboard = (await getCurrentInvestmentPortfolio(input)).dashboard;
+  try {
+    const configuration = await readInvestmentGroupConfiguration();
+    return {...dashboard, groupDistribution: buildGroupDistribution({allocations:dashboard.holdingAllocations,totalAssets:dashboard.totalAssets,configuration})};
+  } catch(error) {
+    if (!(error instanceof ApiRequestError) || error.code !== 'DEPENDENCY_UNAVAILABLE') throw error;
+    return {...dashboard,groupDistribution:{status:'unavailable',revision:null,rows:[],canShowPercentages:false,reason:'classification_unavailable'}};
+  }
 }
 
 export async function getCurrentInvestmentPortfolio(input: { currency?: string; user?: AuthenticatedUser; quoteMode?: string } = {}) {

@@ -103,7 +103,11 @@
     "verify:price-recovery": "tsx scripts/verify-price-recovery.ts",
     "verify:price-acquisition-db": "tsx scripts/verify-price-acquisition-db.ts",
     "verify:valuation-client": "tsx scripts/verify-valuation-client.ts",
-    "verify:source-price-correction": "tsx scripts/verify-source-price-correction.ts"
+    "verify:source-price-correction": "tsx scripts/verify-source-price-correction.ts",
+    "verify:investment-groups": "tsx scripts/verify-investment-groups.ts",
+    "verify:investment-groups-db": "tsx scripts/verify-investment-groups-db.ts",
+    "verify:investment-group-api": "tsx scripts/verify-investment-group-api.ts",
+    "verify:investment-groups-client": "tsx apps/web/verify-investment-groups-client.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",

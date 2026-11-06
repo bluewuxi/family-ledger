@@ -8,6 +8,7 @@ export const RESTORE_ORDER = [
   "user_roles",
   "investment_accounts",
   "instruments",
+  "investment_groups", "investment_group_members",
   "kernel_price_anchors", "kernel_nta_refresh_state",
   "exchange_rates",
   "transactions",
@@ -30,5 +31,6 @@ export const RESTORE_ORDER = [
   "account_education_grants",
   "account_access_audit",
   "snapshot_pending_dates",
-  "snapshot_repair_state"
+  "snapshot_repair_state",
+  "resource_revisions"
 ] as const;

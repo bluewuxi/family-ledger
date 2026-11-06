@@ -10,6 +10,9 @@ export const LEDGER_BACKUP_TABLES = [
   { name: "currencies", orderColumn: "code" },
   { name: "investment_accounts", orderColumn: "id" },
   { name: "instruments", orderColumn: "id" },
+  { name: "investment_groups", orderColumn: "id" },
+  { name: "investment_group_members", orderColumn: "instrument_id" },
+  { name: "resource_revisions", orderColumn: "scope_key" },
   { name: "kernel_price_anchors", orderColumn: "id" },
   { name: "kernel_nta_refresh_state", orderColumn: "instrument_id" },
   { name: "transactions", orderColumn: "id" },
@@ -56,6 +59,7 @@ export async function exportLedgerTables(input: { excludedJobRunId?: string | nu
   }
   if ((data as Record<string, unknown>)._kernel_anchor_schema !== "independent-actual-v1") throw new Error("Backup exporter requires independent Kernel actual anchors migration.");
   if ((data as Record<string, unknown>)._kernel_nta_mapping !== "same-date-v2") throw new Error("Backup exporter requires same-date Kernel NTA migration.");
+  if ((data as Record<string, unknown>).__investment_groups_encoding !== "purpose-revisions-v1") throw new Error("Backup exporter requires investment groups migration.");
   return normalizeLedgerBackupRows(data);
 }
 

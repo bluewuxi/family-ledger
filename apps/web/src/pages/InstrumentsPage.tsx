@@ -1,6 +1,13 @@
+import { InvestmentInstrumentTabs } from "../components/investments/InvestmentInstrumentTabs";
+import { PageBackLink } from "../components/PageBackLink";
+import { useAuth } from "../lib/authContext";
+import { useSearchParams } from "react-router-dom";
+import { InvestmentGroupsManager } from "../components/investments/InvestmentGroupsManager";
+import { loadInvestmentGroups } from "../lib/investmentGroupsClient";
+import type { InvestmentGroupConfiguration } from "@family-ledger/shared";
 import { useEditDismissal } from "../lib/useEditDismissal";
 import { observeAsync } from "../lib/observeAsync";
-import { type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type MouseEvent, useEffect, useId, useMemo, useState } from "react";
 import { Eye, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ASSET_TYPE_LABELS,
@@ -86,6 +93,15 @@ const emptyForm: InstrumentFormState = {
 const supportedPriceSources = new Set<PriceSource>(["manual", "yahoo_finance", "eastmoney", "custom", "investnow_manual"]);
 
 export function InstrumentsPage() {
+  const {session}=useAuth();
+  return <InstrumentsWorkspace key={`${session?.user.id}:${session?.user.role}:${session?.expiresAt}`} />;
+}
+
+function InstrumentsWorkspace() {
+  const [params,setParams]=useSearchParams();
+  const [groupConfiguration,setGroupConfiguration]=useState<InvestmentGroupConfiguration|null>(null);
+  const groupTab=params.get("tab")==="groups";
+  const tabsId=useId();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +113,8 @@ export function InstrumentsPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isAdmin = user?.role === "admin";
+  useEffect(()=>{if(!isAdmin||groupTab)return;let active=true;void loadInvestmentGroups().then(value=>{if(active)setGroupConfiguration(value);}).catch(()=>{if(active)setGroupConfiguration(null);});return()=>{active=false;};},[isAdmin,groupTab]);
+  const tabs=<InvestmentInstrumentTabs id={tabsId} groups={groupTab&&isAdmin} isAdmin={isAdmin} onSelect={groups=>{const next=new URLSearchParams(params);if(groups)next.set('tab','groups');else next.delete('tab');setParams(next);}}/>;
   const formTitle = drawerMode === "create" ? "新增投资标的" : drawerMode === "modify" ? "编辑投资标的" : "投资标的详情";
   const editingInstrument = useMemo(
     () => instruments.find((instrument) => instrument.id === editingInstrumentId) ?? null,
@@ -227,6 +245,8 @@ export function InstrumentsPage() {
 
   const requestDismiss = useEditDismissal(drawerOpen, saving, form, closeDrawer);
 
+  if(groupTab && isAdmin) return <section>{params.get('from')==='distribution'?<PageBackLink to="/dashboard?distribution=groups" label="分组分布"/>:null}<header className="page-header"><PageTitle route="/instruments">投资标的</PageTitle></header>{tabs}<div id={tabsId+'-panel'} role="tabpanel" aria-labelledby={tabsId+'-tab-1'}><InvestmentGroupsManager instruments={instruments} onConfiguration={setGroupConfiguration}/></div></section>;
+
   return (
     <section>
       <header className="page-header account-header">
@@ -248,19 +268,20 @@ export function InstrumentsPage() {
         </div>
       </header>
 
+      {tabs}
       {error ? <p className="form-error">{error}</p> : null}
 
       {!isAdmin && !loading && user ? (
         <p className="readonly-note">当前角色为 viewer，可查看投资标的信息。新增、编辑和删除仅限 admin。</p>
       ) : null}
 
-      <div className="table-wrap">
+      <div className="table-wrap" id={tabsId+"-panel"} role="tabpanel" aria-labelledby={tabsId+"-tab-0"}>
         <table className="instrument-table">
           <thead>
             <tr>
               <th>代码</th>
               <th>简称</th>
-              <th>名称</th>
+              <th>名称</th>{isAdmin?<th>分组</th>:null}
               <th>市场</th>
               <th>交易所/平台</th>
               <th>币种</th>
@@ -290,7 +311,7 @@ export function InstrumentsPage() {
                 >
                   <td>{instrument.symbol ?? "-"}</td>
                   <td>{instrument.shortName}</td>
-                  <td>{instrument.name}</td>
+                  <td>{instrument.name}</td>{isAdmin?<td>{instrument.assetType==="cash"?"—":<button type="button" className="text-button" onClick={()=>{const next=new URLSearchParams(params);next.set("tab","groups");setParams(next);}}>{groupConfiguration?groupConfiguration.groups.find(group=>group.instrumentIds.includes(instrument.id))?.name??"未分组":"分组管理"}</button>}</td>:null}
                   <td>{MARKET_REGION_LABELS[instrument.marketRegion]}</td>
                   <td>{instrument.exchange ?? "-"}</td>
                   <td>{instrument.currency}</td>

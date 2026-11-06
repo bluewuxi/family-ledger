@@ -5,8 +5,8 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { LEDGER_BACKUP_TABLES, type LedgerBackupRows, type LedgerBackupTableName } from "../repositories/ledgerBackupRepository";
 
-export const LEDGER_BACKUP_VERSION = 15;
-export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261106090000_kernel_nta_same_date";
+export const LEDGER_BACKUP_VERSION = 16;
+export const LEDGER_BACKUP_MIGRATION_HIGH_WATER_MARK = "20261106120000_investment_groups";
 const HASH_ALGORITHM = "sha256";
 const JSON_SERIALIZATION = "stable-json-v1";
 
@@ -25,7 +25,7 @@ export interface LedgerBackupExternalDependencies {
 }
 
 export interface LedgerBackupManifest {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | typeof LEDGER_BACKUP_VERSION;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | typeof LEDGER_BACKUP_VERSION;
   backupKind: "postgres_public_ledger";
   environment: string;
   generatedAt: string;
@@ -60,9 +60,10 @@ export function createLedgerBackupObject(input: {
   rows: LedgerBackupRows;
 }): LedgerBackupObject {
   const legacy = Array.isArray(input.rows.portfolio_snapshots);
-  if (!legacy) validateBackupFinancialValues(input.rows);
+  if (!legacy) { validateBackupFinancialValues(input.rows); validateInvestmentGroupBackup(input.rows); }
   const tableDefinitions = LEDGER_BACKUP_TABLES.filter((table) => !legacy || ![
     "account_access_policies", "account_ledger_grants", "account_spending_grants", "account_education_grants", "account_access_audit",
+    "investment_groups", "investment_group_members", "resource_revisions",
     "app_users", "spending_accounts",
     "account_statements",
     "statement_rows",
@@ -98,7 +99,7 @@ export function createLedgerBackupObject(input: {
       restoreRequiresMatchingAuthUserIdsOrRemap: legacy,
       userIdFields: [
         "profiles.id",
-        ...["spending_accounts", "account_statements", "statement_rows", "education_reserve_funds", "education_reserve_entries"].flatMap((table) => [`${table}.created_by_user_id`, `${table}.updated_by_user_id`]),
+        ...["investment_groups", "spending_accounts", "account_statements", "statement_rows", "education_reserve_funds", "education_reserve_entries"].flatMap((table) => [`${table}.created_by_user_id`, `${table}.updated_by_user_id`]),
         "user_roles.user_id",
         "investment_accounts.created_by_user_id",
         "investment_accounts.updated_by_user_id",
@@ -152,7 +153,7 @@ export function createLedgerBackupObject(input: {
 }
 
 export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, LEDGER_BACKUP_VERSION].includes(payload.manifest.version)) {
     throw new Error(`Unsupported backup version: ${String(payload.manifest.version)}.`);
   }
 
@@ -177,6 +178,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
   }
 
   const currentTableNames = LEDGER_BACKUP_TABLES.map((table) => table.name)
+    .filter(name => payload.manifest.version >= 16 || !["investment_groups", "investment_group_members", "resource_revisions"].includes(name))
     .filter(name => payload.manifest.version >= 13 || !["price_acquisition_state", "price_acquisition_attempts", "instrument_price_revisions", "snapshot_pending_dates"].includes(name))
     .filter(name => payload.manifest.version >= 12 || !["transaction_create_requests", "snapshot_repair_state"].includes(name))
     .filter(name => payload.manifest.version >= 10 || !["account_access_policies", "account_ledger_grants", "account_spending_grants", "account_education_grants", "account_access_audit"].includes(name))
@@ -271,6 +273,7 @@ export function validateLedgerBackupPayload(payload: LedgerBackupPayload): void 
   if (payload.manifest.fileChecksumSha256 !== expectedFileChecksum) {
     throw new Error("Backup file checksum does not match the manifest.");
   }
+  if (payload.manifest.version >= 16) validateInvestmentGroupBackup(payload.tables);
 }
 
 function backupObjectKey(environment: string, generatedAt: string): string {
@@ -328,6 +331,8 @@ export function prepareLedgerRestoreRows(payload: LedgerBackupPayload, identityM
       rows[table.name] = structuredClone(source[table.name] ?? []);
     }
   }
+  if (payload.manifest.version < 16) rows.resource_revisions = [{scope_key:"investment_groups",revision:"0"}];
+  validateInvestmentGroupBackup(rows);
   if (payload.manifest.version < 9) {
     if (!identityMapping) throw new Error("Legacy backups require an explicit application identity mapping.");
     rows.app_users = structuredClone(identityMapping);
@@ -446,4 +451,21 @@ function validateAccountAccessRestore(rows: LedgerBackupRows): void {
   }
  }
  for(const v of rows.account_access_audit){const r=v as Record<string,unknown>;if(!users.has(r.actor_id)||!users.has(r.target_id))throw new Error('Unmapped account access audit identity.');}
+}
+
+function validateInvestmentGroupBackup(rows: LedgerBackupRows): void {
+  const revisions=rows.resource_revisions as Record<string,unknown>[];
+  if (!Array.isArray(revisions)||revisions.length!==1||revisions[0].scope_key!=='investment_groups'||typeof revisions[0].revision!=='string'||!/^(0|[1-9][0-9]*)$/.test(revisions[0].revision)||revisions[0].revision.length>19||BigInt(revisions[0].revision)>9223372036854775807n) throw new Error('Invalid investment group revision.');
+  const groups=new Set<string>(),names=new Set<string>();
+  for(const value of rows.investment_groups) {
+    const row=value as Record<string,unknown>;
+    if(typeof row.id!=='string'||groups.has(row.id)||typeof row.name!=='string'||row.name!==row.name.trim()||![...row.name].length||[...row.name].length>32||typeof row.name_key!=='string'||names.has(row.name_key))throw new Error('Invalid investment group name or identity.');
+    groups.add(row.id);names.add(row.name_key);
+  }
+  const instruments=new Map(rows.instruments.map(value=>{const row=value as Record<string,unknown>;return [row.id,row.asset_type] as const;})),members=new Set<unknown>();
+  for(const value of rows.investment_group_members) {
+    const row=value as Record<string,unknown>;
+    if(!groups.has(String(row.group_id))||!instruments.has(row.instrument_id)||instruments.get(row.instrument_id)==='cash'||members.has(row.instrument_id))throw new Error('Invalid investment group membership.');
+    members.add(row.instrument_id);
+  }
 }

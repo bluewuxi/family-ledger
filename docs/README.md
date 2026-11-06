@@ -50,7 +50,7 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
-- [Custom investment groups design](specs/2026-11-06-investment-groups-design.md) records the confirmed current-allocation scope and distribution-tab interaction, with proposed persistence, API, backup, and acceptance contracts. Status: Draft for final document approval; product implementation and delivery are not authorized. Grouped historical curves are deferred.
+- [Custom investment groups design](specs/2026-11-06-investment-groups-design.md) is Approved, including purpose-keyed `resource_revisions` with only `investment_groups` initially. The [implementation plan](plans/2026-11-06-investment-groups.md) records local execution, validation and handoff. Local implementation, automated validation and independent review are complete; TEST schema is applied under the [schema-first evidence](releases/2026-11-06-investment-groups-test-schema.md), and dual-theme/five-viewport read-only [authenticated acceptance](releases/2026-11-06-investment-groups-local-acceptance.md) is complete with shared write scenarios excluded. [TEST delivery](releases/2026-11-06-investment-groups-test-delivery.md) tracks separately authorized registration and automatic publication. Grouped historical curves and migration of existing revision mechanisms are deferred.
 
 - [Interface refinement plan](plans/2026-11-05-interface-refinement.md) records the approved warm visual direction, original-logo preservation, grouped navigation, removal of user-facing account-scope reminders, and staged page/drawer improvements. The implementation plan is Draft; application changes and delivery have not started.
 

@@ -21,16 +21,16 @@ assert.throws(()=>parseUpdateInstrumentInput({active:"false"}));
 const instrument = {...base,id:"fixture",active:false} as Instrument;
 const holding = {instrumentId:"fixture",assetType:"etf"} as HoldingSummary;
 let calls=0;
-const provider={name:"yahoo_finance",fetchLatestQuotes:async()=>{calls++;return {provider:"yahoo_finance",fetchedAt:"2026-11-01T00:00:00Z",quotes:[]};}};
+const provider={name:"yahoo_finance",fetchLatestQuotes:async()=>{calls++;return {provider:"yahoo_finance",fetchedAt:"2026-11-02T20:00:00Z",quotes:[]};}};
 const repository={listDashboardQuotes:async()=>[],upsertDashboardQuote:async()=>{},upsertDashboardQuotes:async()=>[]};
 async function main(){
- await refreshDashboardQuotes({holdings:[holding],instruments:[instrument],now:new Date("2026-11-01T00:00:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:repository});
+ await refreshDashboardQuotes({holdings:[holding],instruments:[instrument],now:new Date("2026-11-02T20:00:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:repository});
  assert.equal(calls,0,"Inactive holdings must not trigger provider calls");
- const cached = {instrumentId:"fixture",provider:"Yahoo Finance",fetchedAt:"2026-11-01T00:00:00Z"} as DashboardQuoteRecord;
- const retained = await refreshDashboardQuotes({holdings:[holding],instruments:[instrument],now:new Date("2026-11-01T00:01:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:{...repository,listDashboardQuotes:async()=>[cached]}});
+ const cached = {instrumentId:"fixture",provider:"Yahoo Finance",currency:"USD",sourceSymbol:"VGT",fetchedAt:"2026-11-02T20:00:00Z"} as DashboardQuoteRecord;
+ const retained = await refreshDashboardQuotes({holdings:[holding],instruments:[instrument],now:new Date("2026-11-02T20:01:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:{...repository,listDashboardQuotes:async()=>[cached]}});
  assert.equal(retained.length,1,"Fresh cached data remains readable for inactive holdings");
  assert.equal(calls,0);
- await refreshDashboardQuotes({holdings:[holding],instruments:[{...instrument,active:true}],now:new Date("2026-11-01T00:00:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:repository});
+ await refreshDashboardQuotes({holdings:[holding],instruments:[{...instrument,active:true}],now:new Date("2026-11-02T20:00:00Z"),quoteMode:"refresh",providers:{yahoo_finance:provider},dashboardQuoteRepository:repository});
  assert.equal(calls,1,"Re-enabled instruments regain automatic acquisition");
  console.log("Instrument activity defaults, validation and quote exclusion passed.");
 }

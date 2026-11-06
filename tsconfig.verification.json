@@ -10,7 +10,17 @@
     "types": [
       "node"
     ],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@family-ledger/shared": [
+        "packages/shared/src/index.ts"
+      ],
+      "aws-lambda": [
+        "apps/api/node_modules/@types/aws-lambda"
+      ]
+    }
   },
   "include": [
     "scripts/verification/**/*.ts",
@@ -24,6 +34,10 @@
     "scripts/verify-source-price-correction.ts",
     "apps/web/verify-interface-workflows.ts",
     "scripts/kernel-nta-repair-model.ts",
-    "scripts/repair-kernel-nta-same-date.ts"
+    "scripts/repair-kernel-nta-same-date.ts",
+    "scripts/verify-investment-groups.ts",
+    "scripts/verify-investment-group-api.ts",
+    "scripts/verify-investment-groups-db.ts",
+    "apps/web/verify-investment-groups-client.ts"
   ]
 }
