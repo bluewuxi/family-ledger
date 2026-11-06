@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` for inline execution, or `superpowers:subagent-driven-development` if that execution method is selected. Complete the checkboxes task by task. Project authorization and workflow override generic worktree, commit, and delivery steps.
 
-**Status:** Implemented locally on 2026-11-06; automated validation and independent review passed. Separately authorized TEST schema application removed the dependency blocker. Dual-theme, five-viewport read-only authenticated acceptance is complete; shared write scenarios were deliberately excluded. Migration registration awaits a clean committed migration; commit, push and application deployment are not authorized. See [acceptance evidence](../releases/2026-11-06-investment-groups-local-acceptance.md).
+**Status:** Implemented and automatically deployed to TEST on 2026-11-06 under issue #134; automated validation and independent review passed. The already-applied schema was registered without SQL replay. See [delivery evidence](../releases/2026-11-06-investment-groups-test-delivery.md). Dual-theme, five-viewport read-only authenticated local acceptance is complete; shared write scenarios were deliberately excluded. See [acceptance evidence](../releases/2026-11-06-investment-groups-local-acceptance.md).
 
 **Goal:** Add mutually exclusive, administrator-maintained investment groups and current grouped allocation alongside current instrument allocation.
 
@@ -230,3 +230,7 @@ The local real-login dashboard now renders ready ungrouped allocations; manageme
 ## Subsequent authenticated read-only acceptance — 2026-11-06
 
 Administrator dashboard and unsaved group drawer, plus viewer dashboard and direct management URL, were inspected in both themes at all five required sizes. A native unthemed 27–30px name input was corrected by reusing maintained form styling; rendered controls were then 44–46px. The user confirmed dirty cancellation retained the name before signing in as viewer. Viewer dark was inspected after user-only local theme adjustment. No group save/delete or agent preference save occurred. The viewport override was reset. See the [durable matrix, verification and coverage limits](../releases/2026-11-06-investment-groups-local-acceptance.md). Earlier blocked evidence above is historical. Shared named-group write/recovery/edge-state acceptance remains unperformed; isolated fixtures do not replace it. No commit, push or application deployment occurred.
+
+## Authorized TEST delivery — 2026-11-06
+
+Issue #134 tracks feature commit f418340 and corrective tooling-fixture commit 99941b0. All 61 already-applied migration files were registered without SQL replay. First CI failed before deployment at an immediate Unix descendant-exit assertion; bounded exit waiting passed local validation and Ubuntu CI. Automatic API/web/jobs publication and live verification passed. See [release evidence](../releases/2026-11-06-investment-groups-test-delivery.md). No shared group/business mutations or manual deployment occurred. Historical no-delivery statements above describe their original authorization phase.
