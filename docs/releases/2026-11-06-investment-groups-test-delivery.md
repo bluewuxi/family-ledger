@@ -14,4 +14,8 @@ Local lint, typecheck, build and the audited core/group checks are rerun for del
 
 ## Publication
 
-Pending the committed source, migration registration and configured automatic CI/TEST workflow. No manual application deployment or repeated migration is part of this procedure. Record the actual commit, registration and run evidence after verification; do not infer success from a push alone.
+Feature commit `f41834062270564f6909a67e4c8d901d06e0d342` was created and pushed. Complete migration approval was registered at `2026-11-06T08:57:36.519Z`, with evidence `#134`; readback matched all 61 committed migration files and confirmed lock release. The longer evidence path exceeded standard record size before writing; the documented concise issue reference preserved the full manifest without a storage change. No SQL was replayed.
+
+The [first CI run](https://github.com/bluewuxi/family-ledger/actions/runs/42191527900) passed lint/typecheck/build, then failed in the existing tooling fixture's immediate descendant-PID disappearance assertion. Deployment did not start. The same tooling fixture passed locally on Windows. The Unix adapter kills the process group, while the fixture probed PID existence immediately after the direct child closed; group termination/reaping need not complete in that order. The corrective fixture waits up to five seconds for `ESRCH` for timeout and cancellation, still failing for a surviving process or permission error. It changes no runtime termination or deployment gate. Effect review: bounded local process probes and timer only, no credentials/network/new child commands; its registry fingerprint was updated after that review.
+
+Automatic delivery of the corrective commit remains pending. No manual application deployment or repeated migration is part of this procedure. Record actual run evidence after verification; do not infer success from a push alone.

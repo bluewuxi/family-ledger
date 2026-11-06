@@ -8,6 +8,18 @@ import { runChecks, executionEnvironment, nodeProcessAdapter } from './verificat
 import { changedPaths } from './verification/cli-git';
 import { execFileSync } from 'node:child_process';
 const root = mkdtempSync(join(tmpdir(), 'ledger verification registry '));
+async function assertProcessExited(pid:number, message:string):Promise<void> {
+  const deadline=Date.now()+5000;
+  // Group SIGKILL and descendant reaping can complete after the direct child's close event.
+  for (;;) {
+    try {process.kill(pid,0);} catch(error) {
+      if(error && typeof error==='object' && 'code' in error && error.code==='ESRCH')return;
+      throw error;
+    }
+    assert(Date.now()<deadline,message);
+    await new Promise(resolve=>setTimeout(resolve,25));
+  }
+}
 async function main(){try {
   mkdirSync(join(root, 'scripts'), {recursive:true});
   writeFileSync(join(root, 'package.json'), JSON.stringify({scripts:{'verify:one':'tsx scripts/verify-one.ts'}}));
@@ -67,9 +79,9 @@ async function main(){try {
   const result=await nodeProcessAdapter.run(process.cwd(),{tool:'tsx',args:[child]},5000);assert.equal(result.exitCode,0);assert.match(result.output,/benign child output/);
   writeFileSync(child,'const {spawn}=require("node:child_process");const child=spawn(process.execPath,["-e","setInterval(()=>{},1000)"]);console.log("descendant="+child.pid);setInterval(()=>{},1000);');
   const timed=await nodeProcessAdapter.run(process.cwd(),{tool:'tsx',args:[child]},1200);assert(timed.timedOut);assert.notEqual(timed.exitCode,0);
-  const descendant=Number(timed.output.match(/descendant=(\d+)/)?.[1]);assert(descendant>0);assert.throws(()=>process.kill(descendant,0),'Timeout must terminate descendants');
+  const descendant=Number(timed.output.match(/descendant=(\d+)/)?.[1]);assert(descendant>0);await assertProcessExited(descendant,'Timeout must terminate descendants');
   const controller=new AbortController();const abortTimer=setTimeout(()=>controller.abort(),1200);
-  try {const cancelled=await nodeProcessAdapter.run(process.cwd(),{tool:'tsx',args:[child]},10000,controller.signal);assert(cancelled.timedOut);const pid=Number(cancelled.output.match(/descendant=(\d+)/)?.[1]);assert(pid>0);assert.throws(()=>process.kill(pid,0),'Cancellation must terminate descendants');}finally{clearTimeout(abortTimer);}
+  try {const cancelled=await nodeProcessAdapter.run(process.cwd(),{tool:'tsx',args:[child]},10000,controller.signal);assert(cancelled.timedOut);const pid=Number(cancelled.output.match(/descendant=(\d+)/)?.[1]);assert(pid>0);await assertProcessExited(pid,'Cancellation must terminate descendants');}finally{clearTimeout(abortTimer);}
   console.log('Verification registry, selection, Git discovery, execution and process fixtures passed.');
 } finally {rmSync(root,{recursive:true,force:true});}}
 main().catch(error=>{console.error(error);process.exitCode=1;});
