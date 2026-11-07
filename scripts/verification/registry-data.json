@@ -2429,6 +2429,86 @@
       "requirements": [],
       "timeoutMs": 180000,
       "profiles": []
+    },
+    {
+      "id": "verify:i18n-phase2",
+      "packageScript": "verify:i18n-phase2",
+      "command": "tsx apps/web/verify-i18n-phase2.ts",
+      "entryPoints": [
+        "apps/web/verify-i18n-phase2.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-i18n-phase2.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "web",
+        "i18n"
+      ],
+      "contracts": [
+        "docs/specs/ui-internationalization.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-i18n-phase2.ts"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
+    },
+    {
+      "id": "verify:i18n-phase2-client",
+      "packageScript": "verify:i18n-phase2-client",
+      "command": "tsx apps/web/verify-i18n-phase2-client.ts",
+      "entryPoints": [
+        "apps/web/verify-i18n-phase2-client.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-i18n-phase2-client.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "web",
+        "i18n"
+      ],
+      "contracts": [
+        "docs/specs/ui-internationalization.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-i18n-phase2-client.ts",
+        "apps/web/src/App.tsx",
+        "apps/web/src/main.tsx",
+        "apps/web/src/components/CurrencySelect.tsx",
+        "apps/web/src/components/Layout.tsx",
+        "apps/web/src/components/LoadingState.tsx",
+        "apps/web/src/components/PageBackLink.tsx",
+        "apps/web/src/components/PaginationControls.tsx",
+        "apps/web/src/components/PlaceholderTable.tsx",
+        "apps/web/src/components/investments/InvestmentGroupsManager.tsx",
+        "apps/web/src/components/investments/InvestmentInstrumentTabs.tsx",
+        "apps/web/src/components/RouteDocumentTitle.tsx",
+        "apps/web/src/pages/LoginPage.tsx",
+        "apps/web/src/pages/ForgotPasswordPage.tsx",
+        "apps/web/src/pages/ResetPasswordPage.tsx",
+        "apps/web/src/pages/ChangePasswordPage.tsx",
+        "apps/web/src/pages/InstrumentsPage.tsx",
+        "apps/web/src/i18n/typecheck.ts",
+        "apps/web/src/fixtures/I18nPhase2Fixture.tsx",
+        "apps/web/src/fixtures/i18n-phase2.css",
+        "apps/web/fixtures/i18n-phase2.html"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
     }
   ],
   "auditFiles": {
@@ -2564,13 +2644,13 @@
     "apps/web/src/lib/accountScopeState.ts": "39de81de967bf5ef63cfc1ad0dd109b017f3b24380e0b422aa779c8a8090c2fa",
     "apps/web/src/lib/apiClient.ts": "605e23e296ec5de3827e2c454790bea26de3beb67169562c227e679fe7c2cd57",
     "apps/web/src/lib/authClient.ts": "23817956973960268561d08d56d596a704232cf24a7ea693ae3cfd9f9629d5ac",
-    "apps/web/src/lib/authContext.tsx": "080e2bb1a8be665ebbfdc7e7d8fcc5239f66753f1f37703ea13ec6328f633489",
+    "apps/web/src/lib/authContext.tsx": "091a0045af0b00a087c7edf9621e27ed6184598503d50a5a2b135b2504d3afd5",
     "apps/web/src/lib/cashflowDates.ts": "5d71e65f9bffad91ba6f7c051fedf7d83235b6a7d1292b36b954f86ec8aed00b",
     "apps/web/src/lib/educationReserveClient.ts": "2d0b42c8a185adbb2b172d872875b333e50e26953b63ed5695df81e2e97cf022",
     "apps/web/src/lib/familyCashflowNavigation.ts": "6bc075dbbd909f0ebcb6b45fb9257d6038308cdfbd587495e0249af0fd2addd6",
     "apps/web/src/lib/holdingDisplay.tsx": "b28d0318b1689e110fa7c3171e70027cc3cfae3c731c5aa6aa8371828da0781d",
     "apps/web/src/lib/localAuthBypass.ts": "a92bd9814b9d1cd12fe37328f4bd8af5073ba8522e769e69c150a290596c1a67",
-    "apps/web/src/lib/navigation.ts": "20e19fab34f6c508c99e52c252caee3703862de136fe3b9ff7d45e8136b8676a",
+    "apps/web/src/lib/navigation.ts": "3de4fb6ab7889f90cae422af2fd056c45f4f5dbf903b587b2d14aaaeac16e19c",
     "apps/web/src/lib/numberFormat.ts": "9983fdd7d28bfcde4989966239aa9a89908ab675910df15de3e996def53b0640",
     "apps/web/src/lib/preferencesContext.tsx": "824abea58e7735c32e068ea9087c58cf80cc302efb77a6602704ca40d5a1941c",
     "apps/web/src/lib/readCache.ts": "1742fadfb89c30bbf08e835143e11e6fcc033d113f96e8e6a98b04f9d5d56718",
@@ -2637,8 +2717,8 @@
     "scripts/verify-user-access.ts": "4059805ef3b54e1b3dfe2b0744121141173dcb100a3c444d23cd2157866fb045",
     "scripts/verify-verification-tooling.ts": "ba4f06d414304cd157947a3dce819999c7b383f306fc10310d934f1b92d16dab",
     "tsconfig.deployment.json": "ffe1db6d12a02433a99dde76af8ad1d2baec26782c5dc57cc3dce5c8f18a21da",
-    "tsconfig.verification.json": "1f0c16e80496b86b51fb5b2f00873d31fedf3ee6e7ec39f3c70aedd9177f7a2d",
-    "package.json": "9fe6d1293cb77e72e20658fedca90bffda811f47ef63b6c363900de9cdc6d3c0",
+    "tsconfig.verification.json": "758bac4d80088e5be10a61d4b618649e2134e9663d3cc266a0007ac6b6426ae6",
+    "package.json": "6ab221f46da036ca7f9e10f5e62a9c6b64abbecf1b8276271eb1bd75eb201e56",
     "apps/api/package.json": "0282f75bd8944ce8948b76a38c292e62bfada6e179a39a900754ad82d1006e05",
     "apps/jobs/package.json": "4834d1a6ef1e567eb244607e97356d7031c046e16068588fe926b3effaa89ba1",
     "apps/web/package.json": "d9c61d3c459554ef42627a44fe4cc544aef379fd84ff59e56ea977344053f571",
@@ -2683,8 +2763,8 @@
     "scripts/verify-holding-detail.ts": "e5b6b1c2a03cc1c2f5d3b442f36a18a55af70ff8e4aeab3ca7f721dc2c41cb70",
     "scripts/verify-transaction-price-backfill.ts": "fc83ef376a2f3d0ce827a8428bf9d392396be2c18c4505d0db42cfb3830582e8",
     "apps/web/src/lib/statementCommit.ts": "4160d646b6f5298a95208d8a54c1dd3fd75749809006371f9e97d6d254c09508",
-    "apps/web/src/lib/useEditDismissal.ts": "3b9e4751acb7a61bc71956550be90d884cdec087b13390e214c4190c58c23bd6",
-    "apps/web/src/lib/useWorkflowDeparture.ts": "ad0b0708813c817e352df506a547f9d16b9746013f9ee856152e122b5a8d13cf",
+    "apps/web/src/lib/useEditDismissal.ts": "d7bc97a8ffdf2e9f8ab5b470b747a44ff75dafe2dde6af0ee51926f99ff722a6",
+    "apps/web/src/lib/useWorkflowDeparture.ts": "d6d1ed026b7edd993015e97c6e8e100a5257389f472de798f11e07264ef1803a",
     "apps/web/verify-interface-workflows.ts": "898d55d2b83305b6cbeee40429ac3b4189c394d31817fb0a598e32c5324f94c8",
     "scripts/verify-account-purposes.ts": "02a5216e99ac944938aba91ae11148f40b3747e6aecb2a969df5f32677a940b8",
     "scripts/verify-family-cashflow-ui.ts": "75b8479d462709940be3def1b439f1ca39417ad1cc8686345c0367529ac5c8c5",
@@ -2692,32 +2772,67 @@
     "scripts/verify-transaction-table.ts": "772e72e333eadad2951e6ec57011bda8f0cab98ddae44227933f73927c01cc19",
     "scripts/kernel-nta-repair-model.ts": "728a8c9dedd6a86f42fc5c3fe499aadc85deddfafe8bfc66272f363e6cb1baff",
     "scripts/verify-investment-groups.ts": "872e2530a507f0853cc4219686d3a628b9f6f3c56086e76fc7387c717a957104",
-    "packages/shared/src/investmentGroups.ts": "59b2460fe99513a86ce6fb8d441218c95a66b90d32f02042ea0c3fcedd30965c",
+    "packages/shared/src/investmentGroups.ts": "7babbf6d573e183d1e8bb13e09043e6211ea734a048e982d2adbdebcf9154685",
     "apps/api/src/services/groupAllocationService.ts": "b2242723c262ad59311587da60161245a0bf85be0ada299748d819dd162b42d6",
     "scripts/verify-investment-group-api.ts": "fb16420b1236f8ce76a4a3ed5261e809dc28dcb07644e2ecc01708eba595afdc",
     "apps/api/src/routes/investmentGroupRoutes.ts": "4468ddf0af9cf9dccbdd9b15f20967e2ee000cc35e8baf7a3721c32b44d5601c",
     "apps/api/src/services/investmentGroupService.ts": "4307033291dd4850adbdf4ad53be8c01eb245523aefcc70f76fe30f9ac336ba8",
     "apps/api/src/repositories/investmentGroupRepository.ts": "54af2402460b24b8822975c5022f5758fce696d93cf832cb1e9ca719cc68eaf8",
-    "apps/web/verify-investment-groups-client.ts": "9bb81bf83a3e595a5c8421dca7478b5d2d6859346a3216154c73e61c2bece4cd",
+    "apps/web/verify-investment-groups-client.ts": "f38b04d148a62ec931dc2722f3077dd9e1d63fb928491559eef4e763368cbd29",
     "apps/web/src/lib/investmentGroupsClient.ts": "b97b2230d3ae311a45c666b88e21c9e6844b13836e35076abafd8adbd2391ff7",
     "scripts/verify-instrument-active.ts": "a989141c5855395de7df3ccba7dca1e694aeb441db82e3f9016125bdbc0b3d2c",
-    "apps/web/src/components/investments/InvestmentGroupEditor.tsx": "c59e78a290b0c92772279af12060664133699876e42596e2fa2ea4bbe96160e7",
+    "apps/web/src/components/investments/InvestmentGroupEditor.tsx": "9cba201f90d7ae28c7494a43c34ef35420b204008330db666a49faf3631ad3b0",
     "apps/web/verify-i18n.ts": "8b13cbe4b8d745116e05a2715d6dcd2c6a4d462cb347257354157aa3c82377e6",
     "apps/web/src/i18n/language.ts": "4d358c989191d833d11a4ee31321ad5603ff126f8d45d9b45e846eae931d3fba",
     "apps/web/verify-i18n-resources.ts": "44f2aa8ca546c6308044cc777a2088b13b8dd8dc1e3b92d7b29c30c1969dc3e2",
-    "apps/web/src/i18n/resourceValidation.ts": "c37eb84161c8e7f1f1015219337996531d4e2f5e67799f6b6c8bc2a784e6f062",
-    "apps/web/src/i18n/resources.ts": "e63b6c3cf93301da5dc82f80ab718482683f8e138577ee530a05320cb93dc03e",
-    "apps/web/src/i18n/resources/en/common.ts": "42dfd70d303a21902145a1ba787f112440139d73e3466260aa266f45b7b9c1c9",
-    "apps/web/src/i18n/resources/zh-CN/common.ts": "577b24cbda22d0627460bffffd452a20b51fcecc14ffe436d4152c50083419c6",
+    "apps/web/src/i18n/resourceValidation.ts": "90b25a133e02f0407c8ca295a6cc8b186c7e2eab1c62ae6d562fbadfb66e1537",
+    "apps/web/src/i18n/resources.ts": "7592dfab9d5b77fae2ad3c7bf01c57e64a4e5ed7d847c31aba59f6c365f5bb53",
+    "apps/web/src/i18n/resources/en/common.ts": "42030d3a144d7b78730081c9ae288d80dfb186054f97856379a56bb886777e1d",
+    "apps/web/src/i18n/resources/zh-CN/common.ts": "5b77acf571d7940e044f8486c3d31f0254b9b4da8f62551c8b456db44ab208e0",
     "apps/web/src/i18n/resources/en/format.ts": "f00e569869d9966872c823ea129dfe49733cb5942d1bc82ad7c66dd05f9d98d0",
     "apps/web/src/i18n/resources/zh-CN/format.ts": "93796c71a9d972d636d9debf365a787df152541a65a4b9d7bc8ef4ba48142813",
     "apps/web/src/i18n/resources/en/preview.ts": "0234ef1e4ee6790440085f8fa66938cb5279c866686d2859d2b6096deda43daa",
     "apps/web/src/i18n/resources/zh-CN/preview.ts": "61d473512db88f42c91acf3b18707e8ab0cc7f44a25a7b96faf75660369d8d56",
-    "apps/web/src/i18n/instance.ts": "08221c8d6578a1609056c83e525ffc129e45addb22648eaeee665a68c2700c66",
+    "apps/web/src/i18n/instance.ts": "1f6a8589bab4161e884848f00aca0d9d669ac37b58e9f0e16ca4c39c40e25811",
     "apps/web/verify-i18n-client.ts": "adca354cf0154d88ee890ab3dd838d0d32acd0d558fc0ffc10a2ada42a5477cd",
     "apps/web/src/i18n/LanguageProvider.tsx": "e5a8fe7d50afb4535cb4068cc92eb3935bca5c3827673bf5ba89e82dec122da0",
-    "apps/web/src/main.tsx": "c3b2420e2e44101e29d5d22ca1085648381c0eb744180b33db601b0660e16939",
-    "apps/web/src/i18n/DevelopmentLanguagePreview.tsx": "93857547e3a2d462c8746e3a6935bdb8c4a64226a977fd2872a48168436b2321"
+    "apps/web/src/main.tsx": "0802d8e3254c553e4b6214f2265bed4d6e01152ce9f414d04e7ef067f9a5c595",
+    "apps/web/src/i18n/DevelopmentLanguagePreview.tsx": "93857547e3a2d462c8746e3a6935bdb8c4a64226a977fd2872a48168436b2321",
+    "apps/web/verify-i18n-phase2.ts": "79d11f68b69e1244e608ac6c95987c68f31d1ef788433c726d6d3ccc84ae3d7d",
+    "apps/web/verify-i18n-phase2-client.ts": "b3d0d0f1dd5b41eb2ebe1ec5986b771da02a5ad09d09aaef77a03bea668a4d1c",
+    "apps/web/src/i18n/resources/zh-CN/auth.ts": "12d100d13434241d2fd56757e091e6fcf400b656290e6f3c41df15f460d99d87",
+    "apps/web/src/i18n/resources/zh-CN/navigation.ts": "638787ce65bde8affb0c15086efb310f563ec500086105dae6dc5a7fde5d5d9d",
+    "apps/web/src/i18n/resources/zh-CN/errors.ts": "44acd5f64bf303773bfe84bbd4377aee8dde209c2ae5fbbce5a1392f16facaa0",
+    "apps/web/src/i18n/resources/zh-CN/investmentGroups.ts": "5044cb8672db16fd2c6ac3058f7fd6fac35c1f2f1f6b4ba73ee2fcabaefb3d56",
+    "apps/web/src/i18n/resources/en/auth.ts": "8b79fd3fe1c050ef7f018c3273ad87300e4f9878c25d66e1e46e249a0b5675f9",
+    "apps/web/src/i18n/resources/en/navigation.ts": "a694868ed3e8160862020a66a6ea05780b9688f40da0230ded13969ed65d6f54",
+    "apps/web/src/i18n/resources/en/errors.ts": "28aba17e260f29155a8cb83ec620796c2c7dfb9caf2d115fe0d7f40aaa0ca1d8",
+    "apps/web/src/i18n/resources/en/investmentGroups.ts": "31cca7d47a7093b25d9370709f1535a7bc5a768b0c56e35d70031658bfb285a4",
+    "apps/web/src/components/BrandName.tsx": "7889ced1ce0f99e7685549b03f021883ccd243eb8854c68a54fb1a4161db1357",
+    "apps/web/src/components/LanguageSwitch.tsx": "39919175d150510192a058120e6e26078a2428b61fe632c31fe5875940616fec",
+    "apps/web/src/components/ConfirmationDialog.tsx": "24f97d468fd71925b7a16390fe2015714b39b0e495beb5beb89afd20822eb508",
+    "apps/web/src/components/Drawer.tsx": "81e1c9a44c18317843e125900a2fa8fdc9a67f426a39ee3541ed300e5e0efd6d",
+    "apps/web/src/components/StartupFailure.tsx": "48fa9c9ef8582f1e77c04b56b90ae8f19d100a0bbc088ea0057d87f92033a018",
+    "apps/web/src/i18n/uiErrors.ts": "4d5532a8bab3bb6615b8f3f55eed3828b6961a3a21119169decb23a61c121e2c",
+    "apps/web/src/App.tsx": "e28a494c1c11c5914e28178165d9e78a2ea6e837053fcf17f32d5b0d05bed0fe",
+    "apps/web/src/components/CurrencySelect.tsx": "4c40f82bcaa29bb8b2c9e0e089c7dde21763e252675c81ceb42c9c726a2e0d50",
+    "apps/web/src/components/Layout.tsx": "7b1b1db5e9e74eff08f02d9fe02d634f68a503ac592724d250ef44b27dd1d72f",
+    "apps/web/src/components/LoadingState.tsx": "e143f11c8978de2bcaa480ed7ab04f9d1694dbfa3c3a34645696112b9eb26dde",
+    "apps/web/src/components/PageBackLink.tsx": "c60f51f6599e908a13dc31925253081949eb526b64b79d2d71a4d85e237945f2",
+    "apps/web/src/components/PaginationControls.tsx": "42e619cc20a792b736168e0804d0e23fc34ccfd88a9c3fd5d0b9660e4694418e",
+    "apps/web/src/components/PlaceholderTable.tsx": "680265a1e6321d2b9e660398690b939568a80d9e0016d998b56b1dfcb5766313",
+    "apps/web/src/components/investments/InvestmentGroupsManager.tsx": "787ef40a5c245731d31f42ea1e67d3feda2c50913961d36ded1cdb113327091b",
+    "apps/web/src/components/investments/InvestmentInstrumentTabs.tsx": "59cc2fe9c408dcf2222bbe02a3302de98c66214d9abbb6f4fb3d1bf0d38a073e",
+    "apps/web/src/components/RouteDocumentTitle.tsx": "7dabd1d478bc2c442c27cbc15555ae77275b15ab963a62e1a68b8868b81b292e",
+    "apps/web/src/pages/LoginPage.tsx": "b5fb1cef659ca916faae8fcfce5c3797d660ba4d52481b95c3e30c45a0108762",
+    "apps/web/src/pages/ForgotPasswordPage.tsx": "33986159a5b4860a23f50170f1f54b12fd9f2b5ad736cd9857c312d20bb91746",
+    "apps/web/src/pages/ResetPasswordPage.tsx": "61352edd9d6e1757e1e3f0cadfd5c5fb9bfad63e837e0465fd3938394e65e014",
+    "apps/web/src/pages/ChangePasswordPage.tsx": "dcb48dd56f108873fb7053f53011fd67dd587cf0c45ee68e414451acb7d16456",
+    "apps/web/src/pages/InstrumentsPage.tsx": "2a2e6116ad3fc5fd0df10e24b5d5bc414ae431369a1a5c11acbe538f5e350c1a",
+    "apps/web/src/i18n/typecheck.ts": "b65aa461df07830234bde3a169ec0385d4cc3fcbd02097b3de1c7af8616b4376",
+    "apps/web/src/fixtures/I18nPhase2Fixture.tsx": "e8d2b7d6f4c67bbeb5018a24af4afb3a9c21389848547bf0a0fb4046dba229ae",
+    "apps/web/src/fixtures/i18n-phase2.css": "03afe76e78dc10eb8773db47376261f96115505ee04b7ba83f7845dafcb8e404",
+    "apps/web/fixtures/i18n-phase2.html": "49844a31730a8ea7ee98e718422b6fb7124c6cd5a9bc2fdc1e53fe7f50ee5d17"
   },
   "auditScopes": [
     "apps/api/src",

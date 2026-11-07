@@ -1,3 +1,7 @@
+import { RouteDocumentTitle } from "./components/RouteDocumentTitle";
+import { useTranslation } from "react-i18next";
+import { useUiLanguage } from "./i18n/LanguageProvider";
+import { translateUiError } from "./i18n/uiErrors";
 import { AccountCreatePage } from "./pages/AccountCreatePage";
 import { SpendingImportPage } from "./pages/SpendingImportPage";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
@@ -51,7 +55,7 @@ function AppRoutes() {
 export function App() {
 
   return (
-    <AuthProvider>
+    <AuthProvider><RouteDocumentTitle />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -63,6 +67,7 @@ export function App() {
 }
 
 function ProtectedApp() {
+  const {t} = useTranslation("common"); const {language} = useUiLanguage();
   const [scopeEpoch, setScopeEpoch] = useState(0);
   useEffect(() => {
     const changed = () => setScopeEpoch(value => value + 1);
@@ -75,12 +80,12 @@ function ProtectedApp() {
   if (loading) {
     return (
       <main className="loading-page">
-        <LoadingState label="正在加载" />
+        <LoadingState />
       </main>
     );
   }
 
-  if (error) return <main className="login-page"><section className="login-panel"><p role="alert">{error}</p><button onClick={retry}>重试</button></section></main>;
+  if (error) return <main className="login-page"><section className="login-panel"><p role="alert">{translateUiError(error, language)}</p><button type="button" className="secondary-button" onClick={retry}>{t("retry")}</button></section></main>;
 
   if (!session) {
     return <Navigate to="/login" replace />;

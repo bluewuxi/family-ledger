@@ -1,3 +1,4 @@
+import { StartupFailure } from "./components/StartupFailure";
 import { lazy, Suspense, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
@@ -35,13 +36,7 @@ initializeI18n().then(() => initializeRuntimeConfig())
     root.render(
       <StrictMode>
         <LanguageProvider>
-        <main className="login-page">
-          <section className="login-panel" aria-labelledby="config-error-title">
-            <p className="eyebrow">Family Ledger</p>
-            <h1 id="config-error-title">应用配置加载失败</h1>
-            <p className="login-note">请检查 config.json 或 Vite 环境变量配置。</p>
-          </section>
-        </main>
+        <StartupFailure />
         <DevelopmentPreview />
         </LanguageProvider>
       </StrictMode>

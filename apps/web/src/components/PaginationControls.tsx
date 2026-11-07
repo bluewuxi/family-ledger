@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
 import type { Pagination } from "@family-ledger/shared";
 
@@ -8,6 +9,7 @@ interface PaginationControlsProps {
 }
 
 export function PaginationControls({ pagination, loading, onPageChange }: PaginationControlsProps) {
+  const {t} = useTranslation("common");
   const pages = Math.ceil(pagination.total / pagination.limit);
   const page = pages ? Math.min(pages, Math.floor(pagination.offset / pagination.limit) + 1) : 0;
   const lastOffset = Math.max(0, (pages - 1) * pagination.limit);
@@ -23,16 +25,16 @@ export function PaginationControls({ pagination, loading, onPageChange }: Pagina
         disabled={loading || !pagination.total || pagination.offset === 0}
         onClick={() => onPageChange(Math.max(0, pagination.offset - pagination.limit))}
       >
-        上一页
+        {t("previous")}
       </button>
-      <span>{pagination.total ? `第 ${page} / ${pages} 页 · 共 ${pagination.total} 条` : "共 0 条"}</span>
+      <span>{pagination.total ? t("pagination", {page, pages, total:pagination.total}) : t("paginationEmpty")}</span>
       <button
         className="secondary-button"
         type="button"
         disabled={loading || !pagination.hasMore || !pagination.total}
         onClick={() => onPageChange(pagination.offset + pagination.limit)}
       >
-        下一页
+        {t("next")}
       </button>
     </div>
   );

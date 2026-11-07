@@ -1,17 +1,18 @@
+import { describeUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { getRuntimeConfig } from "./runtimeConfig";
 import { createLocalAuthBypassSession, isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_EMAIL } from "./localAuthBypass";
 import { getCurrentSession, loadSession, logout, subscribeAuthState, type AuthSession } from "./authClient";
 interface AuthContextValue {
-  session: AuthSession | null; loading: boolean; error: string | null; retry: () => void;
+  session: AuthSession | null; loading: boolean; error: UiErrorDescriptor | null; retry: () => void;
   signOut: () => Promise<boolean>; localAuthBypassEmail: string | null;
 }
 const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiErrorDescriptor | null>(null);
   const [attempt, setAttempt] = useState(0);
   const bypass = isLocalAuthBypassEnabled(getRuntimeConfig());
   useEffect(() => {
@@ -19,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (bypass) { setSession(createLocalAuthBypassSession()); setLoading(false); return; }
     const unsubscribe = subscribeAuthState(() => { setSession(getCurrentSession()); setError(null); });
     void loadSession().then(value => { if (active) setSession(value); }).catch(reason => {
-      if (active && reason?.status !== 401) setError(reason?.status === 403 ? "当前用户没有访问权限，请联系管理员。" : "登录服务暂时不可用，请重试。");
+      if (active && reason?.status !== 401) setError(describeUiError(reason, "session"));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; unsubscribe(); };
   }, [attempt, bypass]);

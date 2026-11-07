@@ -1,18 +1,30 @@
+import { useTranslation } from "react-i18next";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { LanguageSwitch } from "../components/LanguageSwitch";
+import { BrandName } from "../components/BrandName";
 import { observeAsync } from "../lib/observeAsync";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../lib/authClient";
 
 export function LoginPage() {
+  const {t} = useTranslation(["auth", "common"]);
+  const {language} = useUiLanguage();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiErrorDescriptor | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (loading) return;
+    const input = event.currentTarget.elements.namedItem("email") as HTMLInputElement;
+    if (!email.trim()) { setError({key:"emailRequired"}); return; }
+    if (input.validity.typeMismatch || !input.validity.valid) { setError({key:"emailInvalid"}); return; }
+    if (!password) { setError({key:"passwordEmpty"}); return; }
     setLoading(true);
     setError(null);
 
@@ -20,7 +32,7 @@ export function LoginPage() {
       const session = await login(email, password);
       observeAsync(navigate(session.mustChangePassword ? "/change-password" : "/dashboard", { replace: true }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "登录暂时不可用，请稍后重试。");
+      setError(describeUiError(reason, "login"));
     } finally { setPassword(""); setLoading(false); }
   }
 
@@ -30,11 +42,7 @@ export function LoginPage() {
         <div className="login-brand-lockup">
           <img className="brand-mark login-brand-mark" src="/icon-128x128.png" alt="" aria-hidden="true" />
           <div>
-            <h1 className="brand-name login-brand-name" id="login-title" aria-label="金财屋">
-              <span className="brand-name-gold">金</span>
-              <span>财</span>
-              <span className="brand-name-emphasis">屋</span>
-            </h1>
+            <h1 className="brand-name login-brand-name" id="login-title"><BrandName /></h1>
             <p className="brand-subtitle login-brand-subtitle" aria-label="Family Ledger">
               <span>Family</span>
               <span>Ledger</span>
@@ -42,13 +50,13 @@ export function LoginPage() {
           </div>
         </div>
 
-        <p className="login-note">透明记录, 共同理解家庭财富变化</p>
-        {params.has("passwordChanged") && <p role="status">密码已修改，请使用新密码登录。</p>}
-        {params.has("logoutUnconfirmed") && <p className="form-error" role="alert">本机已退出，服务器会话撤销未确认。请联系管理员或稍后重试。</p>}
+        <p className="login-note">{t("note")}</p>
+        {params.has("passwordChanged") && <p role="status">{t("passwordChanged")}</p>}
+        {params.has("logoutUnconfirmed") && <p className="form-error" role="alert">{t("logoutUnconfirmed")}</p>}
 
-        <form className="login-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
+        <LanguageSwitch /><form noValidate className="login-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
           <label>
-            邮箱
+            {t("email")}
             <input
               type="email"
               name="email"
@@ -60,25 +68,25 @@ export function LoginPage() {
             />
           </label>
           <label>
-            密码
+            {t("password")}
             <input
               type="password"
               name="password"
-              placeholder="请输入密码"
+              placeholder={t("passwordPlaceholder")}
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
           </label>
-          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          {error ? <p className="form-error" role="alert">{translateUiError(error, language)}</p> : null}
           <button type="submit" disabled={loading}>
-            {loading ? "登录中..." : "登录"}
+            {loading ? t("loggingIn") : t("login")}
           </button>
           <div className="login-form-footer">
-            <p className="login-motto">聚沙成塔 - 资金永无眠</p>
+            <p className="login-motto">{t("common:motto")}</p>
             <Link className="login-secondary-link" to="/forgot-password">
-              忘记密码？
+              {t("forgotLink")}
             </Link>
           </div>
         </form>

@@ -43,6 +43,8 @@
     "apps/web/src/i18n/types.d.ts",
     "apps/web/verify-i18n-resources.ts",
     "apps/web/verify-i18n-client.ts",
-    "apps/web/src/vite-env.d.ts"
+    "apps/web/src/vite-env.d.ts",
+    "apps/web/verify-i18n-phase2.ts",
+    "apps/web/verify-i18n-phase2-client.ts"
   ]
 }

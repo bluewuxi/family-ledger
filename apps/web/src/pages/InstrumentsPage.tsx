@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
 import { InvestmentInstrumentTabs } from "../components/investments/InvestmentInstrumentTabs";
 import { PageBackLink } from "../components/PageBackLink";
 import { useAuth } from "../lib/authContext";
@@ -98,6 +101,10 @@ export function InstrumentsPage() {
 }
 
 function InstrumentsWorkspace() {
+  const {t} = useTranslation(["investmentGroups", "navigation", "common"]);
+  const {language} = useUiLanguage();
+  const {session} = useAuth();
+  const [groupReadError,setGroupReadError] = useState<UiErrorDescriptor|null>(null);
   const [params,setParams]=useSearchParams();
   const [groupConfiguration,setGroupConfiguration]=useState<InvestmentGroupConfiguration|null>(null);
   const groupTab=params.get("tab")==="groups";
@@ -112,7 +119,7 @@ function InstrumentsWorkspace() {
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = session?.user.role === "admin" && !session.mustChangePassword;
   useEffect(()=>{if(!isAdmin||groupTab)return;let active=true;void loadInvestmentGroups().then(value=>{if(active)setGroupConfiguration(value);}).catch(()=>{if(active)setGroupConfiguration(null);});return()=>{active=false;};},[isAdmin,groupTab]);
   const tabs=<InvestmentInstrumentTabs id={tabsId} groups={groupTab&&isAdmin} isAdmin={isAdmin} onSelect={groups=>{const next=new URLSearchParams(params);if(groups)next.set('tab','groups');else next.delete('tab');setParams(next);}}/>;
   const formTitle = drawerMode === "create" ? "新增投资标的" : drawerMode === "modify" ? "编辑投资标的" : "投资标的详情";
@@ -127,6 +134,7 @@ function InstrumentsWorkspace() {
   }, []);
 
   async function loadInstruments(bypassCache = false) {
+    setGroupReadError(null);
     setLoading(true);
     setError(null);
 
@@ -135,6 +143,7 @@ function InstrumentsWorkspace() {
       setUser(data.user);
       setInstruments(data.instruments);
     } catch (requestError) {
+      setGroupReadError(describeUiError(requestError,"groupLoad"));
       setError(toErrorMessage(requestError));
     } finally {
       setLoading(false);
@@ -245,7 +254,7 @@ function InstrumentsWorkspace() {
 
   const requestDismiss = useEditDismissal(drawerOpen, saving, form, closeDrawer);
 
-  if(groupTab && isAdmin) return <section>{params.get('from')==='distribution'?<PageBackLink to="/dashboard?distribution=groups" label="分组分布"/>:null}<header className="page-header"><PageTitle route="/instruments">投资标的</PageTitle></header>{tabs}<div id={tabsId+'-panel'} role="tabpanel" aria-labelledby={tabsId+'-tab-1'}><InvestmentGroupsManager instruments={instruments} onConfiguration={setGroupConfiguration}/></div></section>;
+  if(groupTab) return <section>{params.get('from')==='distribution'?<PageBackLink to="/dashboard?distribution=groups" label={t("distribution")}/>:null}<header className="page-header"><PageTitle route="/instruments">{t("navigation:instruments")}</PageTitle></header>{tabs}<div id={tabsId+'-panel'} role="tabpanel" aria-labelledby={isAdmin?tabsId+'-tab-1':undefined}>{!isAdmin?<p role="alert">{translateUiError({key:session?.mustChangePassword?"passwordRequired":"forbidden"},language)}</p>:loading?<p role="status">{t("instrumentLoading")}</p>:groupReadError?<div role="alert"><p>{translateUiError(groupReadError,language)}</p><button type="button" className="secondary-button" onClick={()=>observeAsync(loadInstruments(true))}>{t("common:retry")}</button></div>:<InvestmentGroupsManager instruments={instruments} onConfiguration={setGroupConfiguration}/>}</div></section>;
 
   return (
     <section>

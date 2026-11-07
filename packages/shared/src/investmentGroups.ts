@@ -23,21 +23,26 @@ export interface GroupDistribution {
 }
 export interface InvestmentDashboardSummary extends DashboardSummary { groupDistribution: GroupDistribution }
 
+export type InvestmentGroupInputReason = "invalid_request" | "invalid_revision" | "invalid_name" | "invalid_members" | "duplicate_members";
+export class InvestmentGroupInputError extends Error {
+  constructor(public readonly reason: InvestmentGroupInputReason, message: string) { super(message); }
+}
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function inputRecord(value: unknown, keys: string[]): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => !keys.includes(key))) throw new Error("分组请求无效。");
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => !keys.includes(key))) throw new InvestmentGroupInputError("invalid_request", "分组请求无效。");
   return value as Record<string, unknown>;
 }
 function revision(value: unknown): string {
-  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value) || value.length > 19 || BigInt(value) > 9223372036854775807n) throw new Error("请重新加载分组后重试。");
+  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value) || value.length > 19 || BigInt(value) > 9223372036854775807n) throw new InvestmentGroupInputError("invalid_revision", "请重新加载分组后重试。");
   return value;
 }
 export function parseSaveInvestmentGroupInput(value: unknown): SaveInvestmentGroupInput {
   const row = inputRecord(value, ["name", "instrumentIds", "expectedRevision"]);
-  if (typeof row.name !== "string" || !row.name.trim() || [...row.name.trim()].length > 32) throw new Error("分组名称须为1至32个字符。");
-  if (!Array.isArray(row.instrumentIds) || row.instrumentIds.some(id => typeof id !== "string" || !uuid.test(id))) throw new Error("请选择有效的非现金证券。");
+  if (typeof row.name !== "string" || !row.name.trim() || [...row.name.trim()].length > 32) throw new InvestmentGroupInputError("invalid_name", "分组名称须为1至32个字符。");
+  if (!Array.isArray(row.instrumentIds) || row.instrumentIds.some(id => typeof id !== "string" || !uuid.test(id))) throw new InvestmentGroupInputError("invalid_members", "请选择有效的非现金证券。");
   const instrumentIds = (row.instrumentIds as string[]).map(id => id.toLowerCase());
-  if (new Set(instrumentIds).size !== instrumentIds.length) throw new Error("证券不能重复。");
+  if (new Set(instrumentIds).size !== instrumentIds.length) throw new InvestmentGroupInputError("duplicate_members", "证券不能重复。");
   return { name: row.name.trim(), instrumentIds, expectedRevision: revision(row.expectedRevision) };
 }
 export function parseDeleteInvestmentGroupInput(value: unknown): DeleteInvestmentGroupInput {

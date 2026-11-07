@@ -1,3 +1,4 @@
+import { i18n, getUiLanguage } from "../i18n/instance";
 import { useBeforeUnload, useBlocker } from "react-router-dom";
 import { useCallback, useEffect, type RefObject } from "react";
 
@@ -6,7 +7,7 @@ export function useWorkflowDeparture(dirty: boolean, busy: boolean, allowExit?: 
   useEffect(() => {
     if (blocker.state !== "blocked") return;
     if (busy) { blocker.reset(); return; }
-    if (window.confirm("有未保存的修改，确定离开吗？")) blocker.proceed();
+    if (window.confirm(i18n.getFixedT(getUiLanguage(), "common")("discard"))) blocker.proceed();
     else blocker.reset();
   }, [blocker, busy]);
   useBeforeUnload(useCallback(event => {

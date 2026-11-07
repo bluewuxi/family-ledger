@@ -2,11 +2,13 @@
 
 **Status:** Approved
 
-Phase 1: locally implemented and validated; scoped foundation acceptance recorded. Phases 2–5: Not started.
+Phase 1: locally implemented and validated; scoped foundation acceptance recorded. Phase 2: locally implemented and validated; Phase 2 local visual acceptance complete. See its [plan](2026-11-07-ui-internationalization-phase-2.md) and [evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phases 3–5: Not started.
 
-This is an overall roadmap, not a detailed implementation plan. The [approved design](../specs/2026-11-07-ui-internationalization-design.md) owns architectural decisions and acceptance boundaries. The user accepted both documents and authorized committing and pushing related documentation on 2026-11-07. The user subsequently approved the [Phase 1 detailed plan](2026-11-07-ui-internationalization-phase-1.md) and authorized inline implementation, validation and review only. See [local evidence](../releases/2026-11-07-ui-internationalization-phase-1.md); Phase 1 commit/push and automatic TEST delivery were subsequently authorized under [#136](https://github.com/bluewuxi/family-ledger/issues/136); later phases remain unauthorized.
+This is an overall roadmap, not a detailed implementation plan. The [approved design](../specs/2026-11-07-ui-internationalization-design.md) owns architectural decisions and acceptance boundaries. The user accepted both documents and authorized committing and pushing related documentation on 2026-11-07. The user subsequently approved the [Phase 1 detailed plan](2026-11-07-ui-internationalization-phase-1.md) and authorized inline implementation, validation and review only. See [local evidence](../releases/2026-11-07-ui-internationalization-phase-1.md); Phase 1 commit/push and automatic TEST delivery were subsequently authorized under [#136](https://github.com/bluewuxi/family-ledger/issues/136); Phase 2 implementation was subsequently authorized; its commit/push and automatic TEST monitoring were subsequently authorized under [issue #137](https://github.com/bluewuxi/family-ledger/issues/137); Phases 3–5 remain unauthorized.
 
 ## Dependencies and phase gates
+
+The subsequent implementation request authorizes Phase 2 changes, validation and review. A subsequent delivery request authorizes issue creation, commit/push and configured automatic TEST monitoring; shared-data writes and later-phase detailed planning remain excluded. Phase 2 local acceptance is complete with the documented browser-tool limits; public switching remains gated until Phase 5.
 
 Default order is Phase 1 -> Phase 2 -> Phase 3 -> Phase 4 -> Phase 5. Phases 3 and 4 both depend technically on Phase 2; execute sequentially by default to avoid competing changes to shared resources/helpers. Phase 5 requires both. Detailed planning for a phase begins only when requested and after its prerequisite evidence is available; later phases remain at roadmap level.
 

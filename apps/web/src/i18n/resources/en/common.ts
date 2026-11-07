@@ -1,1 +1,24 @@
-export default { productName: "Family Ledger", chinese: "中文", english: "English" } as const;
+export default {
+  "productName": "Family Ledger",
+  "chinese": "中文",
+  "english": "English",
+  "loading": "Loading",
+  "retry": "Retry",
+  "empty": "No data yet",
+  "close": "Close",
+  "cancel": "Cancel",
+  "discard": "You have unsaved changes. Leave without saving?",
+  "back": "Back to {{destination}}",
+  "previous": "Previous",
+  "next": "Next",
+  "pagination": "Page {{page}} of {{pages}} · {{total}} records",
+  "paginationEmpty": "0 records",
+  "motto": "Small steps build lasting wealth",
+  "partial": "Local language preview: some pages are not translated yet.",
+  "countryNzd": "New Zealand",
+  "countryUsd": "United States",
+  "countryHkd": "Hong Kong",
+  "countryCny": "China",
+  "countryGbp": "United Kingdom",
+  "countryEur": "European Union"
+} as const;

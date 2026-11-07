@@ -1,3 +1,6 @@
+import { i18n } from "./src/i18n/instance";
+import { ApiClientError } from "./src/lib/apiClient";
+const translationFixture = (namespaces: import("i18next").Namespace) => ({t:i18n.getFixedT("zh-CN",namespaces)});
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
@@ -44,14 +47,14 @@ main().catch(error=>{console.error(error);process.exitCode=1;});
 
 async function verifyEditor() {
   const require=createRequire(import.meta.url);
-  const bundle=await build({entryPoints:['apps/web/src/components/investments/InvestmentGroupEditor.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',external:['react','react/jsx-runtime','../../lib/investmentGroupsClient','../../lib/useWorkflowDeparture','../Drawer']});
+  const bundle=await build({entryPoints:['apps/web/src/components/investments/InvestmentGroupEditor.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',define:{'import.meta.env':JSON.stringify({DEV:false})},external:['react-i18next','../../i18n/LanguageProvider','*/lib/apiClient','../ConfirmationDialog','react','react/jsx-runtime','../../lib/investmentGroupsClient','../../lib/useWorkflowDeparture','../Drawer']});
   type El={type:unknown;props:Record<string,unknown>};
   const all=(v:unknown):El[]=>Array.isArray(v)?v.flatMap(all):v&&typeof v==='object'&&'props' in v?[v as El,...all((v as El).props.children),...all((v as El).props.footer)]:[];
   const states:unknown[]=[],refs:Array<{current:unknown}>=[],effects:Array<()=>unknown>=[];let si=0,ri=0;
   let saved:Record<string,unknown>|null=null,writes=0,closed=0,deletes=0;let reject!:(e:Error)=>void;
   const react={...require('react'),useState:(initial:unknown)=>{const i=si++;if(!(i in states))states[i]=typeof initial==='function'?(initial as ()=>unknown)():initial;return [states[i],(v:unknown)=>{states[i]=typeof v==='function'?(v as (p:unknown)=>unknown)(states[i]):v;}];},useRef:(v:unknown)=>refs[ri++]??={current:v},useEffect:(effect:()=>unknown)=>{effects.push(effect);}};
   const module={exports:{} as {InvestmentGroupEditor:(p:Record<string,unknown>)=>El}};
-  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,(n:string)=>n==='react'?react:n==='../../lib/useWorkflowDeparture'?{useWorkflowDeparture:()=>{}}:n==='../Drawer'?{Drawer:'drawer'}:n==='../../lib/investmentGroupsClient'?{saveInvestmentGroup:(_id:unknown,input:Record<string,unknown>)=>{saved=input;writes++;return new Promise((_r,j)=>{reject=j;});},deleteInvestmentGroup:async()=>{deletes++;return {revision:'5',group:null};}}:require(n));
+  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,(n:string)=>n==='react-i18next'?{useTranslation:translationFixture}:n==='../../i18n/LanguageProvider'?{useUiLanguage:()=>({language:'zh-CN'})}:n.endsWith('/lib/apiClient')?{ApiClientError}:n==='../ConfirmationDialog'?{ConfirmationDialog:'confirmation'}:n==='react'?react:n==='../../lib/useWorkflowDeparture'?{useWorkflowDeparture:()=>{}}:n==='../Drawer'?{Drawer:'drawer'}:n==='../../lib/investmentGroupsClient'?{saveInvestmentGroup:(_id:unknown,input:Record<string,unknown>)=>{saved=input;writes++;return new Promise((_r,j)=>{reject=j;});},deleteInvestmentGroup:async()=>{deletes++;return {revision:'5',group:null};}}:require(n));
   const id='00000000-0000-4000-8000-000000000001';
   const props={open:true,group:null,configuration:{revision:'4',groups:[{id:'other',name:'Other',instrumentIds:[id]}]},instruments:[{id,shortName:'Inactive',assetType:'stock',active:false},{id:'cash',shortName:'Cash',assetType:'cash'}],onClose:()=>{closed++;},onSaved:()=>{closed++;}};
   const render=(extra={})=>{si=ri=0;effects.length=0;return module.exports.InvestmentGroupEditor({...props,...extra});};
@@ -72,28 +75,28 @@ async function verifyEditor() {
   assert.equal(writes,1,'Pending saves cannot submit twice');
   assert.equal((saved as unknown as {expectedRevision:string}).expectedRevision,'4','Draft keeps original revision');
   assert.deepEqual((saved as unknown as {instrumentIds:string[]}).instrumentIds,[],'Empty groups are allowed');
-  reject(Object.assign(new Error('Conflict: reload and review'),{status:409}));
+  reject(new ApiClientError('Ignored raw message','CONFLICT',409));
   await new Promise(r=>setTimeout(r,0));tree=render();
   assert.equal(all(tree).find(e=>e.type==='input'&&e.props.type!=='checkbox')!.props.value,'New');assert.equal(closed,0);
-  assert(JSON.stringify(tree).includes('Conflict: reload and review'));
+  assert(JSON.stringify(tree).includes('分组已被其他操作修改'));
   assert.equal(all(tree).find(e=>e.props.type==='submit')!.props.disabled,true,'Conflict blocks replay until review');
   const globals=globalThis as unknown as {window?:{confirm:(message:string)=>boolean}};const previousWindow=globals.window;
   try {
-    globals.window={confirm:()=>false};(tree.props.onClose as ()=>void)();assert.equal(closed,0,'Dirty dismissal cancellation preserves draft');
-    globals.window.confirm=()=>true;(tree.props.onClose as ()=>void)();assert.equal(closed,1);
+    globals.window={confirm:()=>false};(all(tree).find(e=>e.type==='drawer')!.props.onClose as ()=>void)();assert.equal(closed,0,'Dirty dismissal cancellation preserves draft');
+    globals.window.confirm=()=>true;(all(tree).find(e=>e.type==='drawer')!.props.onClose as ()=>void)();assert.equal(closed,1);
     states.length=0;refs.length=0;tree=render({group:{id:'group',name:'Delete',instrumentIds:[]}});for(const effect of effects)effect();
     const remove=all(tree).find(e=>e.props.className==='danger-button')!;
     globals.window.confirm=()=>false;(remove.props.onClick as ()=>void)();await new Promise(r=>setTimeout(r,0));assert.equal(deletes,0);
-    globals.window.confirm=()=>true;(remove.props.onClick as ()=>void)();await new Promise(r=>setTimeout(r,0));assert.equal(deletes,1,'Delete requires explicit confirmation');
+    tree=render({group:{id:'group',name:'Delete',instrumentIds:[]}});const confirmation=all(tree).find(e=>e.type==='confirmation')!;assert.equal(confirmation.props.open,true);(confirmation.props.onCancel as ()=>void)();assert.equal(deletes,0);tree=render({group:{id:'group',name:'Delete',instrumentIds:[]}});(all(tree).find(e=>e.props.className==='danger-button')!.props.onClick as ()=>void)();tree=render({group:{id:'group',name:'Delete',instrumentIds:[]}});(all(tree).find(e=>e.type==='confirmation')!.props.onConfirm as ()=>void)();await new Promise(r=>setTimeout(r,0));assert.equal(deletes,1,'Delete requires explicit confirmation');
   } finally {globals.window=previousWindow;}
 }
 
 async function verifyDeparture() {
   const require=createRequire(import.meta.url);
-  const bundle=await build({entryPoints:['apps/web/src/lib/useWorkflowDeparture.ts'],bundle:true,write:false,platform:'node',format:'cjs',external:['react','react-router-dom']});
+  const bundle=await build({entryPoints:['apps/web/src/lib/useWorkflowDeparture.ts'],bundle:true,write:false,platform:'node',format:'cjs',define:{'import.meta.env':JSON.stringify({DEV:false})},external:['react','react-router-dom']});
   let guard!:(input:unknown)=>boolean;let unload!:(event:{preventDefault:()=>void;returnValue?:string})=>void;
   const module={exports:{} as {useWorkflowDeparture:(dirty:boolean,busy:boolean,exit?:unknown,root?:unknown,search?:boolean)=>void}};
-  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,(name:string)=>name==='react'?{...require('react'),useCallback:(cb:unknown)=>cb,useEffect:(effect:()=>void)=>effect()}:name==='react-router-dom'?{useBlocker:(cb:typeof guard)=>{guard=cb;return {state:'unblocked'};},useBeforeUnload:(cb:typeof unload)=>{unload=cb;}}:require(name));
+  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,(name:string)=>name.endsWith('/lib/apiClient')?{ApiClientError}:name==='react-i18next'?{useTranslation:translationFixture}:name==='../../i18n/LanguageProvider'?{useUiLanguage:()=>({language:'zh-CN'})}:name==='react'?{...require('react'),useCallback:(cb:unknown)=>cb,useEffect:(effect:()=>void)=>effect()}:name==='react-router-dom'?{useBlocker:(cb:typeof guard)=>{guard=cb;return {state:'unblocked'};},useBeforeUnload:(cb:typeof unload)=>{unload=cb;}}:require(name));
   module.exports.useWorkflowDeparture(true,false,undefined,undefined,true);
   assert(guard({currentLocation:{pathname:'/instruments',search:'?tab=groups'},nextLocation:{pathname:'/instruments',search:''}}),'Dirty editor must protect tab changes');
   assert(guard({currentLocation:{pathname:'/instruments',search:''},nextLocation:{pathname:'/dashboard',search:''}}));
@@ -103,19 +106,19 @@ async function verifyDeparture() {
 }
 async function verifyManagerCancellation() {
   const require=createRequire(import.meta.url);
-  const bundle=await build({entryPoints:['apps/web/src/components/investments/InvestmentGroupsManager.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',external:['react','react/jsx-runtime','react-router-dom','../../lib/investmentGroupsClient','./InvestmentGroupEditor']});
+  const bundle=await build({entryPoints:['apps/web/src/components/investments/InvestmentGroupsManager.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',define:{'import.meta.env':JSON.stringify({DEV:false})},external:['react-i18next','../../i18n/LanguageProvider','*/lib/apiClient','../ConfirmationDialog','react','react/jsx-runtime','react-router-dom','../../lib/investmentGroupsClient','./InvestmentGroupEditor']});
   const effects:Array<()=>()=>void>=[];let published=0,finish!:(value:unknown)=>void;
   const module={exports:{} as {InvestmentGroupsManager:(props:unknown)=>unknown}};
-  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,(name:string)=>name==='react'?{...require('react'),useState:(value:unknown)=>[value,()=>{published++;}],useRef:(value:unknown)=>({current:value}),useEffect:(effect:()=>()=>void)=>{effects.push(effect);}}:name==='react-router-dom'?{Link:'a',useSearchParams:()=>[new URLSearchParams()]}:name==='../../lib/investmentGroupsClient'?{loadInvestmentGroups:()=>new Promise(resolve=>{finish=resolve;})}:name==='./InvestmentGroupEditor'?{InvestmentGroupEditor:'editor'}:require(name));
+  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,(name:string)=>name.endsWith('/lib/apiClient')?{ApiClientError}:name==='react-i18next'?{useTranslation:translationFixture}:name==='../../i18n/LanguageProvider'?{useUiLanguage:()=>({language:'zh-CN'})}:name==='react'?{...require('react'),useState:(value:unknown)=>[value,()=>{published++;}],useRef:(value:unknown)=>({current:value}),useEffect:(effect:()=>()=>void)=>{effects.push(effect);}}:name==='react-router-dom'?{Link:'a',useSearchParams:()=>[new URLSearchParams()]}:name==='../../lib/investmentGroupsClient'?{loadInvestmentGroups:()=>new Promise(resolve=>{finish=resolve;})}:name==='./InvestmentGroupEditor'?{InvestmentGroupEditor:'editor'}:require(name));
   module.exports.InvestmentGroupsManager({instruments:[]});const cleanup=effects[0]();cleanup();const before=published;finish({revision:'old',groups:[]});await new Promise(r=>setTimeout(r,0));assert.equal(published,before,'Obsolete configuration cannot publish after identity/unmount cleanup');
 }
 
 async function verifyMaintenanceTabs() {
   const require=createRequire(import.meta.url);
-  const bundle=await build({entryPoints:['apps/web/src/components/investments/InvestmentInstrumentTabs.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',external:['react/jsx-runtime']});
+  const bundle=await build({entryPoints:['apps/web/src/components/investments/InvestmentInstrumentTabs.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',define:{'import.meta.env':JSON.stringify({DEV:false})},external:['react-i18next','react/jsx-runtime']});
   type El={props:Record<string,unknown>};
   const module={exports:{} as {InvestmentInstrumentTabs:(props:unknown)=>El}};
-  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,require);
+  new Function('module','exports','require',bundle.outputFiles[0].text)(module,module.exports,(name:string)=>name.endsWith('/lib/apiClient')?{ApiClientError}:name==='react-i18next'?{useTranslation:translationFixture}:require(name));
   let selected=false;const tree=module.exports.InvestmentInstrumentTabs({id:'tabs',groups:false,isAdmin:true,onSelect:(value:boolean)=>{selected=value;}});
   const buttons=tree.props.children as El[];
   assert.equal(buttons[0].props.tabIndex,0);assert.equal(buttons[1].props.tabIndex,-1);assert.equal(buttons[1].props['aria-controls'],'tabs-panel');assert.equal(buttons[0].props.id,'tabs-tab-0');

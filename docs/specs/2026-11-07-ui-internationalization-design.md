@@ -1,10 +1,12 @@
 # UI Internationalization Design
 
-Status: Approved (overall direction and phased scope approved in the conversation on 2026-11-07). Phase 1 is locally implemented; see [foundation contract](ui-internationalization.md) and [local evidence](../releases/2026-11-07-ui-internationalization-phase-1.md). Phases 2–5 have not started.
+Status: Approved (overall direction and phased scope approved in the conversation on 2026-11-07). Phase 1 is locally implemented; see [foundation contract](ui-internationalization.md) and [local evidence](../releases/2026-11-07-ui-internationalization-phase-1.md). Phase 2 is locally implemented and validated with Phase 2 local visual acceptance complete; see [Phase 2 evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phases 3–5 have not started.
 
-The user accepted this design and roadmap and authorized committing and pushing the related documentation on 2026-11-07. The user subsequently approved the [Phase 1 detailed plan](../plans/2026-11-07-ui-internationalization-phase-1.md) and authorized inline implementation, validation and review only. Phase 1 commit/push and automatic TEST delivery were subsequently authorized under [#136](https://github.com/bluewuxi/family-ledger/issues/136); later phases remain unauthorized. Implementation defaults below are design decisions, not claims that the user individually specified each detail.
+The user accepted this design and roadmap and authorized committing and pushing the related documentation on 2026-11-07. The user subsequently approved the [Phase 1 detailed plan](../plans/2026-11-07-ui-internationalization-phase-1.md) and authorized inline implementation, validation and review only. Phase 1 commit/push and automatic TEST delivery were subsequently authorized under [#136](https://github.com/bluewuxi/family-ledger/issues/136); Phase 2 implementation was subsequently authorized; its commit/push and automatic TEST monitoring were subsequently authorized under [issue #137](https://github.com/bluewuxi/family-ledger/issues/137); Phases 3–5 remain unauthorized. Implementation defaults below are design decisions, not claims that the user individually specified each detail.
 
 ## Intent and scope
+
+The subsequent Phase 2 request authorizes implementation, validation and review under its [detailed plan](../plans/2026-11-07-ui-internationalization-phase-2.md). It does not authorize delivery or later-phase work; architectural decisions below remain unchanged.
 
 Provide a single-language-at-a-time Simplified Chinese or English interface for Family Ledger. Preserve existing Chinese behavior and financial meaning while making the complete application usable in English. Chinese remains the default. Product display names are `金财屋` and `Family Ledger`; original logo artwork is preserved.
 

@@ -1,1 +1,24 @@
-export default { productName: "金财屋", chinese: "中文", english: "English" } as const;
+export default {
+  "productName": "金财屋",
+  "chinese": "中文",
+  "english": "English",
+  "loading": "正在加载",
+  "retry": "重试",
+  "empty": "暂无数据",
+  "close": "关闭",
+  "cancel": "取消",
+  "discard": "有未保存的修改，确定离开吗？",
+  "back": "返回{{destination}}",
+  "previous": "上一页",
+  "next": "下一页",
+  "pagination": "第 {{page}} / {{pages}} 页 · 共 {{total}} 条",
+  "paginationEmpty": "共 0 条",
+  "motto": "聚沙成塔 - 资金永无眠",
+  "partial": "本地语言预览：部分页面尚未翻译。",
+  "countryNzd": "新西兰",
+  "countryUsd": "美国",
+  "countryHkd": "香港",
+  "countryCny": "中国",
+  "countryGbp": "英国",
+  "countryEur": "欧盟"
+} as const;

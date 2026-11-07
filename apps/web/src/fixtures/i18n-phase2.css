@@ -1,0 +1,5 @@
+.fixture-controls { position: relative; z-index: 1; margin: 12px; padding: 12px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.fixture-controls pre { max-width: calc(100vw - 56px); overflow: auto; }
+@media (min-width:821px) { .fixture-controls { margin-left:260px; } }
+
+.fixture-controls-compact { display: none; }

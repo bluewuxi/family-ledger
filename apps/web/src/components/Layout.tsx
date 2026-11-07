@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import { BrandName } from "./BrandName";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { observeAsync } from "../lib/observeAsync";
 import { getCurrentSession } from "../lib/authClient";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -21,6 +24,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
+  const {t} = useTranslation(["navigation", "common", "auth"]);
   const { localAuthBypassEmail, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -119,7 +123,7 @@ export function Layout({ children }: LayoutProps) {
         ref={mobileToggleRef}
         aria-controls="app-sidebar"
         aria-expanded={mobileSidebarOpen}
-        aria-label="打开导航"
+        aria-label={t("open")}
         onClick={() => setMobileSidebarOpen(true)}
       >
         <Menu size={18} aria-hidden="true" />
@@ -127,7 +131,7 @@ export function Layout({ children }: LayoutProps) {
       <button
         className="sidebar-backdrop"
         type="button"
-        aria-label="关闭导航"
+        aria-label={t("close")}
         onClick={() => closeMobileSidebar({ restoreFocus: true })}
       />
       <aside
@@ -140,11 +144,7 @@ export function Layout({ children }: LayoutProps) {
           <div className={`brand${sidebarCollapsed ? " brand-collapsed" : ""}`}>
             <img className="brand-mark" src="/icon-64x64.png" alt="" aria-hidden="true" />
             <div className="brand-copy">
-              <strong className="brand-name" aria-label="金财屋">
-                <span className="brand-name-gold">金</span>
-                <span>财</span>
-                <span className="brand-name-emphasis">屋</span>
-              </strong>
+              <strong className="brand-name"><BrandName /></strong>
               <span className="brand-subtitle" aria-label="Family Ledger">
                 <span>Family</span>
                 <span>Ledger</span>
@@ -155,8 +155,8 @@ export function Layout({ children }: LayoutProps) {
           <button
             className="sidebar-toggle"
             type="button"
-            aria-label={sidebarCollapsed ? "展开导航" : "收起导航"}
-            title={sidebarCollapsed ? "展开导航" : "收起导航"}
+            aria-label={sidebarCollapsed ? t("expand") : t("collapse")}
+            title={sidebarCollapsed ? t("expand") : t("collapse")}
             onClick={() => setSidebarCollapsed((current) => !current)}
           >
             {sidebarCollapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
@@ -165,27 +165,27 @@ export function Layout({ children }: LayoutProps) {
             className="sidebar-mobile-close"
             type="button"
             ref={mobileCloseRef}
-            aria-label="关闭导航"
+            aria-label={t("close")}
             onClick={() => closeMobileSidebar({ restoreFocus: true })}
           >
             <X size={18} aria-hidden="true" />
           </button>
         </div>
 
-        <nav className="nav-list" aria-label="主导航">
-          {navigationGroups.map(group => <div key={group} className={`nav-group${group === "工具" ? " nav-utilities" : ""}`}><h2 className="nav-group-label">{group}</h2>{navigationItems.filter(item => item.group === group).map((item) => {
+        <nav className="nav-list" aria-label={t("primary")}>
+          {navigationGroups.map(group => <div key={group} className={`nav-group${group === "tools" ? " nav-utilities" : ""}`}><h2 className="nav-group-label">{t(group)}</h2>{navigationItems.filter(item => item.group === group).map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) => (isActive ? "active" : undefined)}
-                title={sidebarCollapsed ? item.label : undefined}
-                data-tooltip={sidebarCollapsed ? item.label : undefined}
+                title={sidebarCollapsed ? t(item.labelKey) : undefined}
+                data-tooltip={sidebarCollapsed ? t(item.labelKey) : undefined}
                 onClick={() => closeMobileSidebar()}
               >
                 <Icon size={18} aria-hidden="true" />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </NavLink>
             );
           })}</div>)}
@@ -194,13 +194,14 @@ export function Layout({ children }: LayoutProps) {
         <button
           className="logout-button"
           type="button"
-          title={sidebarCollapsed ? "退出登录" : undefined}
-          data-tooltip={sidebarCollapsed ? "退出登录" : undefined}
+          title={sidebarCollapsed ? t("auth:logout") : undefined}
+          data-tooltip={sidebarCollapsed ? t("auth:logout") : undefined}
           onClick={() => observeAsync((handleSignOut)())}
         >
           <LogOut size={17} aria-hidden="true" />
-          <span>退出登录</span>
+          <span>{t("auth:logout")}</span>
         </button>
+        <LanguageSwitch />
       </aside>
 
       <div
@@ -210,7 +211,7 @@ export function Layout({ children }: LayoutProps) {
       >
         <MobileAppHeader />
         {localAuthBypassEmail ? (
-          <div className="local-auth-banner">本地调试登录：{localAuthBypassEmail}</div>
+          <div className="local-auth-banner">{t("debug", {email:localAuthBypassEmail})}</div>
         ) : null}
         <main className="main-content">
           {children}
@@ -234,15 +235,12 @@ function setElementInert(element: HTMLElement | null, inert: boolean): void {
 }
 
 function MobileAppHeader() {
+  const {t} = useTranslation("common");
   return (
-    <header className="mobile-app-header" aria-label="金财屋 Family Ledger">
+    <header className="mobile-app-header" aria-label={t("productName")}>
       <img className="mobile-app-logo" src="/icon-64x64.png" alt="" aria-hidden="true" />
       <div className="brand-copy mobile-app-brand-copy">
-        <strong className="brand-name" aria-label="金财屋">
-          <span className="brand-name-gold">金</span>
-          <span>财</span>
-          <span className="brand-name-emphasis">屋</span>
-        </strong>
+        <strong className="brand-name"><BrandName /></strong>
         <span className="brand-subtitle" aria-label="Family Ledger">
           <span>Family</span>
           <span>Ledger</span>
@@ -253,6 +251,7 @@ function MobileAppHeader() {
 }
 
 function AppFooter() {
+  const {t} = useTranslation("common");
   return (
     <footer className="app-footer">
       <div className="footer-brand">
@@ -260,18 +259,14 @@ function AppFooter() {
           <img className="footer-brand-mark" src="/icon-64x64.png" alt="" />
         </span>
         <div className="footer-brand-copy">
-          <strong className="footer-brand-name" aria-label="金财屋">
-            <span className="footer-brand-gold">金</span>
-            <span>财</span>
-            <span className="footer-brand-emphasis">屋</span>
-          </strong>
+          <strong className="footer-brand-name"><BrandName /></strong>
           <span className="brand-subtitle footer-brand-subtitle" aria-label="Family Ledger">
             <span>Family</span>
             <span>Ledger</span>
           </span>
         </div>
       </div>
-      <p>聚沙成塔 - 资金永无眠  © 2026 Ricky Yu</p>
+      <p>{t("motto")}  © 2026 Ricky Yu</p>
       <Banknote className="footer-status-icon" size={18} aria-hidden="true" />
     </footer>
   );

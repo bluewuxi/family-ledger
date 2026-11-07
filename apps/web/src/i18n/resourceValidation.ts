@@ -4,7 +4,7 @@ export interface ResourceDiagnostic {
 }
 type Dictionary = Record<string, unknown>;
 const languages = ["zh-CN", "en"] as const;
-const namespaces = ["common", "format", "preview"];
+const namespaces = ["common","format","preview","auth","navigation","errors","investmentGroups"];
 const record = (value: unknown): value is Dictionary => value !== null && typeof value === "object" && !Array.isArray(value);
 const parameters = (value: string): string => [...new Set([...value.matchAll(/{{\s*([A-Za-z][\w]*)\s*}}/g)].map(m => m[1]))].sort().join(",");
 // Phase 1 permits plain named text parameters only. Reject, rather than ignore,

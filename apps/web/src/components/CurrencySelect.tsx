@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import type { CurrencyCode, SnapshotDisplayCurrency } from "@family-ledger/shared";
 
@@ -11,21 +12,23 @@ interface CurrencySelectProps<T extends CurrencyValue> {
   disabled?: boolean;
 }
 
-const currencyCountryLabels: Record<string, string> = {
-  NZD: "新西兰",
-  USD: "美国",
-  HKD: "香港",
-  CNY: "中国",
-  GBP: "英国",
-  EUR: "欧盟"
+const currencyCountryLabels: Record<string, "countryNzd" | "countryUsd" | "countryHkd" | "countryCny" | "countryGbp" | "countryEur"> = {
+  NZD: "countryNzd",
+  USD: "countryUsd",
+  HKD: "countryHkd",
+  CNY: "countryCny",
+  GBP: "countryGbp",
+  EUR: "countryEur"
 };
 
 export function CurrencySelect<T extends CurrencyValue>({ label, options, value, onChange, disabled }: CurrencySelectProps<T>) {
+  const {t} = useTranslation("common");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Element && event.target.closest(".language-switch")) return;
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
@@ -65,7 +68,7 @@ export function CurrencySelect<T extends CurrencyValue>({ label, options, value,
             >
               <CurrencyFlagIcon currency={currency} />
               <span>{currency}</span>
-              <small>{currencyCountryLabels[currency]}</small>
+              <small>{t(currencyCountryLabels[currency])}</small>
             </button>
           ))}
         </div>

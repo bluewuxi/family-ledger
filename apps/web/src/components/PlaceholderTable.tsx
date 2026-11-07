@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 interface PlaceholderTableProps {
   title: string;
   description: string;
@@ -5,6 +6,7 @@ interface PlaceholderTableProps {
 }
 
 export function PlaceholderTable({ title, description, columns }: PlaceholderTableProps) {
+  const {t} = useTranslation("common");
   return (
     <section>
       <header className="page-header">
@@ -23,7 +25,7 @@ export function PlaceholderTable({ title, description, columns }: PlaceholderTab
           </thead>
           <tbody>
             <tr>
-              <td colSpan={columns.length}>暂无数据</td>
+              <td colSpan={columns.length}>{t("empty")}</td>
             </tr>
           </tbody>
         </table>

@@ -4,7 +4,7 @@ This document owns shared UI language, responsive layout, and navigation convent
 
 ## Language and terminology
 
-The [Phase 1 internationalization foundation](specs/ui-internationalization.md) adds typed resources, explicit formatting and a loopback-development-only preview. Ordinary builds remain Chinese; login, navigation and business workflows have not yet migrated. Preserve current labels until their approved workflow phase.
+The [internationalization contract](specs/ui-internationalization.md) owns typed resources and the loopback-development-only preview. Phase 2 migrates authentication, shell/shared controls and the group-maintenance pilot in local preview; other page bodies remain deferred. Ordinary builds remain Chinese. Preserve stable IDs, drafts, overlays and requests when translating presentation; use semantic error descriptors and whole sentences. Native departure prompts translate at invocation; pilot delete/reload dialogs retranslate while open.
 
 The UI uses Simplified Chinese and the product names `金财屋` / `Family Ledger`. Preserve established labels such as 登录, 财富足迹, 投资账户, 投资标的, 交易记录, 持仓总览, 设置, 总资产, 最新变动, 未实现收益, and 账户数量. Follow the relevant specification for metric-specific wording rather than substituting a similar financial term.
 
