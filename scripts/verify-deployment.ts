@@ -89,12 +89,18 @@ assert.doesNotThrow(() => assertManifest({ a: "same" }, { a: "same" }, "Migratio
 const fullManifest = migrationManifest();
 assert.deepEqual(decodeState(encodeState({ commit: "a".repeat(40), files: fullManifest })), { commit: "a".repeat(40), files: fullManifest });
 const currentMigrationApproval = approval(migrationManifest(), "#122");
-const encodedMigrationApproval = encodeState(currentMigrationApproval);
+assert.deepEqual(currentMigrationApproval.files, fullManifest);
+assert.match(currentMigrationApproval.commit, /^[a-f0-9]{40}$/);
+assert.equal(new Date(currentMigrationApproval.confirmedAt).toISOString(), currentMigrationApproval.confirmedAt);
+assert.equal(currentMigrationApproval.evidence, "#122");
+// Keep complete-manifest codec coverage independent of HEAD/time compression variance.
+const migrationApprovalFixture = { ...currentMigrationApproval, commit: "3886dbdcf033e333345eeaf74063379bdb74eebd", confirmedAt: "2026-11-07T00:00:00.000Z" };
+const encodedMigrationApproval = encodeState(migrationApprovalFixture);
 assert(Buffer.byteLength(encodedMigrationApproval) <= 4096, "Complete current migration approval must fit an SSM standard parameter");
-assert.deepEqual(decodeState(encodedMigrationApproval), currentMigrationApproval);
-assert.deepEqual(decodeState(gzipSync(Buffer.from(JSON.stringify(currentMigrationApproval))).toString("base64")), currentMigrationApproval, "Previously registered gzip records remain readable");
+assert.deepEqual(decodeState(encodedMigrationApproval), migrationApprovalFixture);
+assert.deepEqual(decodeState(gzipSync(Buffer.from(JSON.stringify(migrationApprovalFixture))).toString("base64")), migrationApprovalFixture, "Previously registered gzip records remain readable");
 assert.throws(() => encodeState({ data: randomBytes(8192).toString("hex") }), /exceeds SSM standard size/);
-const changedApproval = structuredClone(currentMigrationApproval);
+const changedApproval = structuredClone(migrationApprovalFixture);
 const firstMigration = Object.keys(changedApproval.files)[0];
 changedApproval.files[firstMigration] = "0".repeat(64);
 assert.throws(() => assertManifest(decodeState<typeof currentMigrationApproval>(encodeState(changedApproval)).files, fullManifest, "Migration manifest"));

@@ -2705,7 +2705,7 @@
     "scripts/verify-auth.ts": "2b8b1e6a778af632744bfa4f1f21077f4880ce3ea85e4a2fce0fdebc0ee90dda",
     "scripts/verify-backup.ts": "a7b40c01f2556bf346638be23b21267394d7816397feb3388997ba9e8acefd60",
     "scripts/verify-dashboard-calculation.ts": "f6db2f713c14a71f5526b27427b73a1ec51c8a537400c99df4a60da548c611a5",
-    "scripts/verify-deployment.ts": "3f50ee64647cf1e6b8ce3c743f2e30f4e8fb690b355346b06f306aff38f3458c",
+    "scripts/verify-deployment.ts": "95954f256e9aff5dbc97507d6f470f40407bce524a087a35cbda85225e36ddde",
     "scripts/verify-dividend-cash-leg.ts": "26b4f44aa7189f59502c4129ecf2b8b20afceba5999fd440504e6cac7752a17a",
     "scripts/verify-docs-consistency.ts": "79ab4a956bde2562513a26b880dacb2b60f4d2fa660c9aef6c6a0789aa750805",
     "scripts/verify-holdings-calculation.ts": "e41b891f3658198809efc2548cbd3d16f8f9a7e80d04216d498294bbc0302cf4",
