@@ -1,38 +1,39 @@
-const displayLocale = "zh-CN";
+import type { DisplayLocale } from "../i18n/language";
 
-export function formatDisplayPrice(value: string | number | null | undefined): string {
-  return formatDisplayDecimal(value, 4);
+export function formatDisplayPrice(value: string | number | null | undefined, locale: DisplayLocale = "zh-CN"): string {
+  return formatDisplayDecimal(value, 4, 0, locale);
 }
 
-export function formatDisplayAmount(value: string | number | null | undefined): string {
-  return formatDisplayDecimal(value, 3);
+export function formatDisplayAmount(value: string | number | null | undefined, locale: DisplayLocale = "zh-CN"): string {
+  return formatDisplayDecimal(value, 3, 0, locale);
 }
 
-export function formatDisplayWholeAmount(value: string | number | null | undefined): string {
-  const formatted = formatDisplayDecimal(value, 0);
+export function formatDisplayWholeAmount(value: string | number | null | undefined, locale: DisplayLocale = "zh-CN"): string {
+  const formatted = formatDisplayDecimal(value, 0, 0, locale);
   return isFormattedZero(formatted) ? "0" : formatted;
 }
 
-export function formatSignedDisplayWholeAmount(value: string | number | null | undefined): string {
-  return formatSignedDisplayDecimal(value, formatDisplayWholeAmount);
+export function formatSignedDisplayWholeAmount(value: string | number | null | undefined, locale: DisplayLocale = "zh-CN"): string {
+  return formatSignedDisplayDecimal(value, input => formatDisplayWholeAmount(input, locale));
 }
 
-export function formatDisplayPercent(value: string | number | null | undefined): string {
-  return formatDisplayDecimal(value, 1, 1);
+export function formatDisplayPercent(value: string | number | null | undefined, locale: DisplayLocale = "zh-CN"): string {
+  return formatDisplayDecimal(value, 1, 1, locale);
 }
 
-export function formatSignedDisplayAmount(value: string | number | null | undefined): string {
-  return formatSignedDisplayDecimal(value, formatDisplayAmount);
+export function formatSignedDisplayAmount(value: string | number | null | undefined, locale: DisplayLocale = "zh-CN"): string {
+  return formatSignedDisplayDecimal(value, input => formatDisplayAmount(input, locale));
 }
 
-export function formatSignedDisplayPercent(value: string | number | null | undefined): string {
-  return formatSignedDisplayDecimal(value, formatDisplayPercent);
+export function formatSignedDisplayPercent(value: string | number | null | undefined, locale: DisplayLocale = "zh-CN"): string {
+  return formatSignedDisplayDecimal(value, input => formatDisplayPercent(input, locale));
 }
 
 function formatDisplayDecimal(
   value: string | number | null | undefined,
   maximumFractionDigits: number,
-  minimumFractionDigits = 0
+  minimumFractionDigits = 0,
+  locale: DisplayLocale = "zh-CN"
 ): string {
   if (value === null || value === undefined) {
     return "--";
@@ -48,7 +49,7 @@ function formatDisplayDecimal(
     return normalized;
   }
 
-  return numericValue.toLocaleString(displayLocale, {
+  return numericValue.toLocaleString(locale, {
     minimumFractionDigits,
     maximumFractionDigits
   });

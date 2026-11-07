@@ -1,5 +1,13 @@
 # Local Testing
 
+## UI internationalization foundation
+
+Phase 1 adds foundation coverage only; see the [contract and glossary](specs/ui-internationalization.md) and [local acceptance evidence](releases/2026-11-07-ui-internationalization-phase-1.md). Run `verify:i18n`, `verify:i18n-resources`, and `verify:i18n-client` through `corepack pnpm verify:checks -- run --check <id>`. They use synthetic storage, resources and bundled browser/client fixtures; no credentials or ledger requests. Also run time-policy, dashboard, portfolio-trend, auth, session-reads, tooling, lint, root typecheck/build and docs checks.
+
+For local preview, run `corepack pnpm --filter @family-ledger/web exec vite --host 127.0.0.1 --port 5181 --strictPort`. Expand the initially collapsed language foundation panel after the app content. Use `中文` / `English`; the preview theme selector affects only the synthetic panel/dialog, without saving an account theme. Exercise draft, selected ID, page, filter, dialog/focus and parameterized error retention. Inspect both languages/themes at all five required viewports. Authenticated read-only regression still requires agreement and real user login/readiness under the procedure below; never submit ledger forms. Production and non-loopback development retain Chinese and no preview controls, even with stored English. Other workflows remain untranslated.
+
+The existing `dev:web:local` script forwards an extra `--` with this pnpm/Vite combination and was observed opening 5173 instead of 5181; the explicit exec command above pins the acceptance target without changing deployment configuration. The package-local `web typecheck` command also hits TS6310 with its referenced project; use the required root `corepack pnpm typecheck` for complete verification.
+
 ## Ledger processing reliability
 
 Run `verify:transaction-timeline` and `verify:transaction-idempotency` for synthetic chronological-deficit and request-fingerprint checks. Run `verify:snapshot-catchup` for bounded maintenance, completed dates, interruption, and token-conflict fixtures. Run `verify:snapshot-revision-db` and `verify:signed-snapshots-db` against their automatically created disposable loopback PostgreSQL clusters for guarded writes, atomic transaction rollback, and revision behavior. `verify:backup-restore-db` exercises all migrations and current-format restore, including durable repair and transaction replay state. None of these commands uses shared ledger credentials.

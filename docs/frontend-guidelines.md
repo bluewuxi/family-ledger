@@ -4,6 +4,8 @@ This document owns shared UI language, responsive layout, and navigation convent
 
 ## Language and terminology
 
+The [Phase 1 internationalization foundation](specs/ui-internationalization.md) adds typed resources, explicit formatting and a loopback-development-only preview. Ordinary builds remain Chinese; login, navigation and business workflows have not yet migrated. Preserve current labels until their approved workflow phase.
+
 The UI uses Simplified Chinese and the product names `金财屋` / `Family Ledger`. Preserve established labels such as 登录, 财富足迹, 投资账户, 投资标的, 交易记录, 持仓总览, 设置, 总资产, 最新变动, 未实现收益, and 账户数量. Follow the relevant specification for metric-specific wording rather than substituting a similar financial term.
 
 Tax features use cautious wording such as 税务辅助, 税务估算, or 税务记录. Do not promise compliance through labels such as 自动报税, 准确报税, or 税务申报系统. The project's limited tax scope is defined in [AGENTS.md](../AGENTS.md#product-and-scope).

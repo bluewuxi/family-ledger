@@ -107,7 +107,10 @@
     "verify:investment-groups": "tsx scripts/verify-investment-groups.ts",
     "verify:investment-groups-db": "tsx scripts/verify-investment-groups-db.ts",
     "verify:investment-group-api": "tsx scripts/verify-investment-group-api.ts",
-    "verify:investment-groups-client": "tsx apps/web/verify-investment-groups-client.ts"
+    "verify:investment-groups-client": "tsx apps/web/verify-investment-groups-client.ts",
+    "verify:i18n": "tsx apps/web/verify-i18n.ts",
+    "verify:i18n-resources": "tsx apps/web/verify-i18n-resources.ts",
+    "verify:i18n-client": "tsx apps/web/verify-i18n-client.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",

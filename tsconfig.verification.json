@@ -38,6 +38,11 @@
     "scripts/verify-investment-groups.ts",
     "scripts/verify-investment-group-api.ts",
     "scripts/verify-investment-groups-db.ts",
-    "apps/web/verify-investment-groups-client.ts"
+    "apps/web/verify-investment-groups-client.ts",
+    "apps/web/verify-i18n.ts",
+    "apps/web/src/i18n/types.d.ts",
+    "apps/web/verify-i18n-resources.ts",
+    "apps/web/verify-i18n-client.ts",
+    "apps/web/src/vite-env.d.ts"
   ]
 }

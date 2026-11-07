@@ -37,7 +37,7 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 | Execution | [Project workflow](project-workflow.md): implementation, validation, delivery scope, and completion reporting |
 | Architecture and identity | [Architecture](architecture.md), [auth](auth.md) |
 | Interface and persistence | [API](api.md): endpoint/DTO contracts; [data model](data-model.md): persistence semantics; versioned SQL in `supabase/migrations` defines schema changes |
-| Shared frontend conventions | [Frontend guidelines](frontend-guidelines.md): UI language, mobile layout, shared back navigation; page behavior belongs in product specifications |
+| Shared frontend conventions | [Frontend guidelines](frontend-guidelines.md): mobile layout and navigation; [internationalization foundation](specs/ui-internationalization.md): Phase 1 resources, glossary, lifecycle and formatting |
 | Date/time conventions | [Time policy](time-policy.md): instants, calendar dates, business-day cutoff, provider dates, and shared helper use; data model/deployment own storage and schedule details |
 | Market acquisition and historical recovery | [Market data and snapshot recovery](specs/market-data-and-snapshot-recovery.md) |
 | Investment behavior | [Investment overview](specs/investment-overview.md) |
@@ -50,7 +50,7 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
-- [UI internationalization design](specs/2026-11-07-ui-internationalization-design.md) and [phased roadmap](plans/2026-11-07-ui-internationalization-roadmap.md) are Approved for minimal bundled Chinese/English support. Detailed phase planning and implementation have not started; current Chinese-only behavior remains unchanged.
+- [UI internationalization design](specs/2026-11-07-ui-internationalization-design.md) and [phased roadmap](plans/2026-11-07-ui-internationalization-roadmap.md) are Approved for minimal bundled Chinese/English support. The [Phase 1 implementation plan](plans/2026-11-07-ui-internationalization-phase-1.md) is locally implemented and validated; [local evidence](releases/2026-11-07-ui-internationalization-phase-1.md) records scoped acceptance. Public builds remain Chinese; Phases 2–5 are Not started.
 
 - [Custom investment groups design](specs/2026-11-06-investment-groups-design.md) is Approved, including purpose-keyed `resource_revisions` with only `investment_groups` initially. The [implementation plan](plans/2026-11-06-investment-groups.md) records local execution, validation and handoff. Local implementation, automated validation and independent review are complete; TEST schema is applied under the [schema-first evidence](releases/2026-11-06-investment-groups-test-schema.md), and dual-theme/five-viewport read-only [authenticated acceptance](releases/2026-11-06-investment-groups-local-acceptance.md) is complete with shared write scenarios excluded. [TEST delivery](releases/2026-11-06-investment-groups-test-delivery.md) tracks separately authorized registration and automatic publication. Grouped historical curves and migration of existing revision mechanisms are deferred.
 

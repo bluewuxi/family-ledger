@@ -4,7 +4,7 @@ import { normalizeQuery } from "../apps/api/src/services/spendingValidation";
 import { bankDate } from "../apps/api/src/services/spendingCsvParser";
 import { formatDateTimeInTimeZone, getAppBusinessDate, getAppBusinessDayEndInstant, shiftCalendarDateMonths, getMarketDateForAppBusinessDate } from "@family-ledger/shared";
 import { createGeneratePortfolioSnapshotsHandler } from "../apps/jobs/src/handlers/generatePortfolioSnapshots";
-import { formatHoursMinutes } from "../apps/web/src/lib/timeFormat";
+import { formatHoursMinutes, formatAppBusinessDayCountdown } from "../apps/web/src/lib/timeFormat";
 import { buildProfitChartData, buildTrendChartData, calculateTrendCumulativeMovement, getLiveValuationDot } from "../apps/web/src/lib/trendChartData";
 
 void main();
@@ -52,8 +52,7 @@ async function main(): Promise<void> {
   assert.doesNotMatch(dashboard, /今日变动/u);
   assert.equal(formatHoursMinutes(201), "03小时 21分");
 
-  const timeFormat = readFileSync("apps/web/src/lib/timeFormat.ts", "utf8");
-  assert.match(timeFormat, /交易日/u);
+  assert.equal(formatAppBusinessDayCountdown(new Date("2026-05-27T21:59:59Z")), "交易日 2026-05-27 将于 00小时 01分 结束");
 
   const layout = readFileSync("apps/web/src/components/Layout.tsx", "utf8");
   assert.doesNotMatch(layout, /<time/u);

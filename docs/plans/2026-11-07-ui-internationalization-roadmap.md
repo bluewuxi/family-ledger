@@ -2,9 +2,9 @@
 
 **Status:** Approved
 
-All implementation phases: Not started.
+Phase 1: locally implemented and validated; scoped foundation acceptance recorded. Phases 2–5: Not started.
 
-This is an overall roadmap, not a detailed implementation plan. The [approved design](../specs/2026-11-07-ui-internationalization-design.md) owns architectural decisions and acceptance boundaries. The user accepted both documents and authorized committing and pushing related documentation on 2026-11-07. Detailed phase planning and implementation remain unauthorized.
+This is an overall roadmap, not a detailed implementation plan. The [approved design](../specs/2026-11-07-ui-internationalization-design.md) owns architectural decisions and acceptance boundaries. The user accepted both documents and authorized committing and pushing related documentation on 2026-11-07. The user subsequently approved the [Phase 1 detailed plan](2026-11-07-ui-internationalization-phase-1.md) and authorized inline implementation, validation and review only. See [local evidence](../releases/2026-11-07-ui-internationalization-phase-1.md); Phase 1 commit/push and automatic TEST delivery were subsequently authorized under [#136](https://github.com/bluewuxi/family-ledger/issues/136); later phases remain unauthorized.
 
 ## Dependencies and phase gates
 
@@ -18,7 +18,7 @@ Default order is Phase 1 -> Phase 2 -> Phase 3 -> Phase 4 -> Phase 5. Phases 3 a
 | 4. Remaining workflows | Spending/import, education reserves, settings, access management, maintenance and remaining system states; whole-app coverage reconciliation; update affected maintained language conventions | Phase 2 foundation; Phase 3 completed in default sequence; domain contracts reviewed | All in-scope application UI translated; source data intentionally unchanged; no untracked hardcoded UI or untranslated actionable states; documentation matches implemented behavior; focused and visual coverage recorded |
 | 5. Integrated acceptance and release readiness | Whole-app regression; terminology and resource audit; bilingual/theme/viewport acceptance; bundle/performance review; final coverage and handoff record | Phases 1-4 complete with evidence | Required automated checks pass; no unresolved blocking correctness/layout defects; acceptance matrix complete or explicitly qualified; enable ordinary switch only after readiness gates; implementation/deployment/visual statuses independently recorded |
 
-No phase completion is asserted by this document. UI acceptance is incremental in Phases 2-4; Phase 5 reconciles coverage and verifies integration. Readiness is not deployment authorization. If acceptance is deferred, record the outstanding coverage and retain the release gate unless the user explicitly changes it.
+Phase 1 foundation progress is supported by the linked local evidence; no whole-app bilingual completion is asserted. UI acceptance is incremental in Phases 2-4; Phase 5 reconciles coverage and verifies integration. Readiness is not deployment authorization. If acceptance is deferred, record the outstanding coverage and retain the release gate unless the user explicitly changes it.
 
 ## Cross-phase acceptance
 

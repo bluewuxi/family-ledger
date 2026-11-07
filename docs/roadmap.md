@@ -1,8 +1,8 @@
 # Roadmap
 
-## UI internationalization (2026-11-07, design approved)
+## UI internationalization (2026-11-07, Phase 1 locally validated)
 
-The [approved design](specs/2026-11-07-ui-internationalization-design.md) and [five-phase roadmap](plans/2026-11-07-ui-internationalization-roadmap.md) cover bundled Chinese/English resources, browser-local language selection, complete workflow migration and bilingual acceptance. All implementation phases are Not started. Detailed implementation plans, application changes and deployment are outside the current documentation-only authorization. Cross-device preference synchronization is deferred.
+The [approved design](specs/2026-11-07-ui-internationalization-design.md) and [five-phase roadmap](plans/2026-11-07-ui-internationalization-roadmap.md) cover bundled Chinese/English resources, browser-local language selection, complete workflow migration and bilingual acceptance. The [Phase 1 implementation plan](plans/2026-11-07-ui-internationalization-phase-1.md) was approved for inline implementation, validation and review. Typed bundled resources, defensive browser-local language lifecycle, explicit formatters and local-only preview are implemented; see the [foundation contract](specs/ui-internationalization.md) and [local validation/acceptance evidence](releases/2026-11-07-ui-internationalization-phase-1.md). Production remains Chinese. Phases 2–5 are Not started; later-phase planning and implementation remain outside scope. Phase 1 commit/push and automatic TEST delivery are authorized and tracked in [#136](https://github.com/bluewuxi/family-ledger/issues/136). Cross-device synchronization is deferred.
 
 ## Kernel NTA same-date correction (2026-11-06, deployed to TEST)
 

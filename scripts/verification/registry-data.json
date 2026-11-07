@@ -1760,7 +1760,18 @@
       ],
       "effect": "local-fixture",
       "auditFiles": [
-        "scripts/verify-time-policy.ts"
+        "scripts/verify-time-policy.ts",
+        "apps/web/src/lib/numberFormat.ts",
+        "apps/web/src/lib/timeFormat.ts",
+        "apps/web/src/i18n/instance.ts",
+        "apps/web/src/i18n/language.ts",
+        "apps/web/src/i18n/resources.ts",
+        "apps/web/src/i18n/resources/en/common.ts",
+        "apps/web/src/i18n/resources/zh-CN/common.ts",
+        "apps/web/src/i18n/resources/en/format.ts",
+        "apps/web/src/i18n/resources/zh-CN/format.ts",
+        "apps/web/src/i18n/resources/en/preview.ts",
+        "apps/web/src/i18n/resources/zh-CN/preview.ts"
       ],
       "requirements": [
         "workspace dependencies"
@@ -1777,18 +1788,37 @@
       "entryPoints": [
         "scripts/verify-verification-tooling.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsc",
+          "args": [
+            "-p",
+            "tsconfig.verification.json"
+          ]
+        },
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-verification-tooling.ts"
+          ]
+        }
+      ],
       "domains": [
         "general"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
-      "requirements": [
-        "effect review; use the owning procedure"
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-verification-tooling.ts",
+        "scripts/verification/registry.ts",
+        "scripts/verification/selection.ts",
+        "scripts/verification/runner.ts",
+        "scripts/verification/cli-git.ts",
+        "tsconfig.verification.json"
       ],
+      "requirements": [],
       "timeoutMs": 180000,
       "profiles": []
     },
@@ -2276,6 +2306,129 @@
       "requirements": [],
       "timeoutMs": 180000,
       "profiles": []
+    },
+    {
+      "id": "verify:i18n",
+      "packageScript": "verify:i18n",
+      "command": "tsx apps/web/verify-i18n.ts",
+      "entryPoints": [
+        "apps/web/verify-i18n.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-i18n.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "web",
+        "i18n"
+      ],
+      "contracts": [
+        "docs/specs/ui-internationalization.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-i18n.ts",
+        "apps/web/src/i18n/language.ts",
+        "apps/web/src/lib/numberFormat.ts",
+        "apps/web/src/lib/spendingFormat.ts",
+        "apps/web/src/lib/timeFormat.ts",
+        "scripts/verify-time-policy.ts",
+        "apps/web/src/i18n/instance.ts",
+        "apps/web/src/i18n/resources.ts",
+        "apps/web/src/i18n/resources/en/common.ts",
+        "apps/web/src/i18n/resources/zh-CN/common.ts",
+        "apps/web/src/i18n/resources/en/format.ts",
+        "apps/web/src/i18n/resources/zh-CN/format.ts",
+        "apps/web/src/i18n/resources/en/preview.ts",
+        "apps/web/src/i18n/resources/zh-CN/preview.ts"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
+    },
+    {
+      "id": "verify:i18n-resources",
+      "packageScript": "verify:i18n-resources",
+      "command": "tsx apps/web/verify-i18n-resources.ts",
+      "entryPoints": [
+        "apps/web/verify-i18n-resources.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-i18n-resources.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "web",
+        "i18n"
+      ],
+      "contracts": [
+        "docs/specs/ui-internationalization.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-i18n-resources.ts",
+        "apps/web/src/i18n/resourceValidation.ts",
+        "apps/web/src/i18n/resources.ts",
+        "apps/web/src/i18n/resources/en/common.ts",
+        "apps/web/src/i18n/resources/zh-CN/common.ts",
+        "apps/web/src/i18n/resources/en/format.ts",
+        "apps/web/src/i18n/resources/zh-CN/format.ts",
+        "apps/web/src/i18n/resources/en/preview.ts",
+        "apps/web/src/i18n/resources/zh-CN/preview.ts"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
+    },
+    {
+      "id": "verify:i18n-client",
+      "packageScript": "verify:i18n-client",
+      "command": "tsx apps/web/verify-i18n-client.ts",
+      "entryPoints": [
+        "apps/web/verify-i18n-client.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-i18n-client.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "web",
+        "i18n"
+      ],
+      "contracts": [
+        "docs/specs/ui-internationalization.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-i18n-client.ts",
+        "apps/web/src/i18n/LanguageProvider.tsx",
+        "apps/web/src/i18n/instance.ts",
+        "apps/web/src/i18n/language.ts",
+        "apps/web/src/i18n/resources.ts",
+        "apps/web/src/i18n/resources/en/common.ts",
+        "apps/web/src/i18n/resources/zh-CN/common.ts",
+        "apps/web/src/i18n/resources/en/format.ts",
+        "apps/web/src/i18n/resources/zh-CN/format.ts",
+        "apps/web/src/i18n/resources/en/preview.ts",
+        "apps/web/src/i18n/resources/zh-CN/preview.ts",
+        "apps/web/src/main.tsx",
+        "apps/web/src/i18n/DevelopmentLanguagePreview.tsx"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
     }
   ],
   "auditFiles": {
@@ -2418,14 +2571,14 @@
     "apps/web/src/lib/holdingDisplay.tsx": "b28d0318b1689e110fa7c3171e70027cc3cfae3c731c5aa6aa8371828da0781d",
     "apps/web/src/lib/localAuthBypass.ts": "a92bd9814b9d1cd12fe37328f4bd8af5073ba8522e769e69c150a290596c1a67",
     "apps/web/src/lib/navigation.ts": "20e19fab34f6c508c99e52c252caee3703862de136fe3b9ff7d45e8136b8676a",
-    "apps/web/src/lib/numberFormat.ts": "5891ce27a6b1032d390384a5784a4a52eb009cbe9408fdc7037ac9dae9d6e939",
+    "apps/web/src/lib/numberFormat.ts": "9983fdd7d28bfcde4989966239aa9a89908ab675910df15de3e996def53b0640",
     "apps/web/src/lib/preferencesContext.tsx": "824abea58e7735c32e068ea9087c58cf80cc302efb77a6602704ca40d5a1941c",
     "apps/web/src/lib/readCache.ts": "1742fadfb89c30bbf08e835143e11e6fcc033d113f96e8e6a98b04f9d5d56718",
     "apps/web/src/lib/runtimeConfig.ts": "79e8bdc209e1c84e647f881345c36ed1edce3edd8ecfd9da99f9a59cd2503dd7",
     "apps/web/src/lib/spendingClient.ts": "2071eb47d03cfdfac81d7c17dc5b41247c01e79525486ed8d144aa579dbed9ff",
     "apps/web/src/lib/spendingFormat.ts": "117894b30c5c7ea3d4c75f38b71418a19dfba4a4a82ad48392747416132af604",
     "apps/web/src/lib/tableInteraction.ts": "21d36ccfe902dc96818499d0d00b1fbd76c111f47a7a7767db1fa2340efd6ca7",
-    "apps/web/src/lib/timeFormat.ts": "02d4b22cb4d90ab4772eab49e85e4c60628aceb3fccbc6d389bbf4ee13a8118b",
+    "apps/web/src/lib/timeFormat.ts": "97cb4068c5cda906e16f5aaa3656815bc7da1faf0f1be077d0bab0bc6ff505a5",
     "apps/web/src/lib/transactionBalances.ts": "71e4ac59a526fd7e3a8beda7944a019225829d23ddedb4e70f68534b69e23959",
     "apps/web/src/lib/transactionDecimal.ts": "b02c411c85a5dc4aee69dc004f21f6f85feb39c102bea451de9ba1768b879845",
     "apps/web/src/lib/trendChartData.ts": "ece345430098ecd83a58306a06b35825ac381370ca7701763aa2131fdda7cb6e",
@@ -2445,7 +2598,7 @@
     "packages/shared/src/spending.ts": "6469dde8ded60a97974da7f8a9889742b2dc1c0d91933d9fdc5f2c53798dc944",
     "packages/shared/src/transactionTimeline.ts": "d0bfb650f87949008f6e924495982ec4f69f28a17bb70cfaff27ca52251321ff",
     "packages/shared/src/yahooFinanceDailyBars.ts": "13275f4bf6c2362fa440029789b5268368047d7f60d63b48096c6c08c9f9d835",
-    "pnpm-lock.yaml": "a6b28c029768071c2421a33f36bc191c7cd215b2ea02eb3bc253d64b29fc5b54",
+    "pnpm-lock.yaml": "586ea2bff8f413dbe9acdf79f2a60cb734a98acadc8d75f05baa33c8ac55f7d1",
     "scripts/deploy-test-ci.ts": "320470c7a0d7b758365e349559aab461f9787629fd071f31dc48dd9459d90af3",
     "scripts/deployment-build.ts": "5aa51dd1b583449a20281cd5788b19968eee9c0a9118f4177530a5fcce5db226",
     "scripts/deployment-manifests.ts": "622ea1f2bf4de92fa62665e10dc044d743077ef0e78bb461b8d02ba16a7b1b21",
@@ -2457,7 +2610,7 @@
     "scripts/verification/cli-git.ts": "a784e880ced598d1f7eb285ad13a30b4e22e581d95ca6d23bcc7fb6d68651572",
     "scripts/verification/cli.ts": "465c601991ec1cf2fb3f6b5c2985be7cf0a51f51f98263b0276574bc21e45a38",
     "scripts/verification/docs-cli.ts": "f72cb9feb84a59671a470525cb185a2ee7d50141dd087eff3469497ae79acb28",
-    "scripts/verification/docs-policy.json": "dbfedaa5616a541e5ee6423b181be1564d37603a4373d37a336952abd77627ba",
+    "scripts/verification/docs-policy.json": "323c15cf1ecdd79b67f1d06d3ae4df90cdca4c688b2be3c127ba6caeeb07a40c",
     "scripts/verification/docs.ts": "b139af453605145cab6c6c970e78de9ff6d2c0a826f3e36a2687f57763f34f05",
     "scripts/verification/registry.ts": "d942bf6d2bd5851f607c13fe635b615de3f541311345aa62593dbb33ba588fb3",
     "scripts/verification/runner.ts": "f63c686da6f21f8e8ff4c3a088b32f0d6bae39158d1d6aec9384a55314ed50a4",
@@ -2478,17 +2631,17 @@
     "scripts/verify-holdings-calculation.ts": "e41b891f3658198809efc2548cbd3d16f8f9a7e80d04216d498294bbc0302cf4",
     "scripts/verify-portfolio-snapshot-calculation.ts": "46fa4ef76d0ed945893c9466092254ebf337f2510052a868dd9fb0bddd14c7e6",
     "scripts/verify-portfolio-trend.ts": "420b599a0d53ab6dfb8b1df41d75138665b507b0a230bd436d1a691400fb3310",
-    "scripts/verify-time-policy.ts": "1045a6a6ee907349b409d2b942a34326cce94d0116f7b8c5c963ed397422a44f",
+    "scripts/verify-time-policy.ts": "6db7674aa6d1240625fb8a013b012e54c1a49744e98dd55d7f4d285677773b2d",
     "scripts/verify-transaction-idempotency.ts": "b4a5decd588ffe979069f07a45ab81c56de857a79c22b913f83122f8b3b041ad",
     "scripts/verify-transaction-timeline.ts": "d882de8cd570f1c320616832a3337ca4f9f44026535e99660109ba33645df41f",
     "scripts/verify-user-access.ts": "4059805ef3b54e1b3dfe2b0744121141173dcb100a3c444d23cd2157866fb045",
     "scripts/verify-verification-tooling.ts": "ba4f06d414304cd157947a3dce819999c7b383f306fc10310d934f1b92d16dab",
     "tsconfig.deployment.json": "ffe1db6d12a02433a99dde76af8ad1d2baec26782c5dc57cc3dce5c8f18a21da",
-    "tsconfig.verification.json": "6a4eb3a035c2af7ea7f7e3f2c1658b418dbd1c96afb8a6e25774e1cbf776d384",
-    "package.json": "a43e051731737bb48f157f453daf6ae7c3a048e3ae4f11cb3059da7474b1d820",
+    "tsconfig.verification.json": "1f0c16e80496b86b51fb5b2f00873d31fedf3ee6e7ec39f3c70aedd9177f7a2d",
+    "package.json": "9fe6d1293cb77e72e20658fedca90bffda811f47ef63b6c363900de9cdc6d3c0",
     "apps/api/package.json": "0282f75bd8944ce8948b76a38c292e62bfada6e179a39a900754ad82d1006e05",
     "apps/jobs/package.json": "4834d1a6ef1e567eb244607e97356d7031c046e16068588fe926b3effaa89ba1",
-    "apps/web/package.json": "c3382474cc4cb43244db765f93d59f15ffddc6c57c7df87de0b17beece6091ec",
+    "apps/web/package.json": "d9c61d3c459554ef42627a44fe4cc544aef379fd84ff59e56ea977344053f571",
     "packages/shared/package.json": "6d63fe167b68ec72cb9e2ffac34365a9588a0df03d79fd97a9e81e53b007436f",
     "tsconfig.json": "81b6fd017a548850dd2ea784a3c683640d1f1ad1267acbde2861431439a54b7b",
     "apps/api/tsconfig.json": "b8baad834ad3ded3d40a01e5a091bab4b15856a14647b789f42dd667608635cb",
@@ -2548,7 +2701,23 @@
     "apps/web/verify-investment-groups-client.ts": "9bb81bf83a3e595a5c8421dca7478b5d2d6859346a3216154c73e61c2bece4cd",
     "apps/web/src/lib/investmentGroupsClient.ts": "b97b2230d3ae311a45c666b88e21c9e6844b13836e35076abafd8adbd2391ff7",
     "scripts/verify-instrument-active.ts": "a989141c5855395de7df3ccba7dca1e694aeb441db82e3f9016125bdbc0b3d2c",
-    "apps/web/src/components/investments/InvestmentGroupEditor.tsx": "c59e78a290b0c92772279af12060664133699876e42596e2fa2ea4bbe96160e7"
+    "apps/web/src/components/investments/InvestmentGroupEditor.tsx": "c59e78a290b0c92772279af12060664133699876e42596e2fa2ea4bbe96160e7",
+    "apps/web/verify-i18n.ts": "8b13cbe4b8d745116e05a2715d6dcd2c6a4d462cb347257354157aa3c82377e6",
+    "apps/web/src/i18n/language.ts": "4d358c989191d833d11a4ee31321ad5603ff126f8d45d9b45e846eae931d3fba",
+    "apps/web/verify-i18n-resources.ts": "44f2aa8ca546c6308044cc777a2088b13b8dd8dc1e3b92d7b29c30c1969dc3e2",
+    "apps/web/src/i18n/resourceValidation.ts": "c37eb84161c8e7f1f1015219337996531d4e2f5e67799f6b6c8bc2a784e6f062",
+    "apps/web/src/i18n/resources.ts": "e63b6c3cf93301da5dc82f80ab718482683f8e138577ee530a05320cb93dc03e",
+    "apps/web/src/i18n/resources/en/common.ts": "42dfd70d303a21902145a1ba787f112440139d73e3466260aa266f45b7b9c1c9",
+    "apps/web/src/i18n/resources/zh-CN/common.ts": "577b24cbda22d0627460bffffd452a20b51fcecc14ffe436d4152c50083419c6",
+    "apps/web/src/i18n/resources/en/format.ts": "f00e569869d9966872c823ea129dfe49733cb5942d1bc82ad7c66dd05f9d98d0",
+    "apps/web/src/i18n/resources/zh-CN/format.ts": "93796c71a9d972d636d9debf365a787df152541a65a4b9d7bc8ef4ba48142813",
+    "apps/web/src/i18n/resources/en/preview.ts": "0234ef1e4ee6790440085f8fa66938cb5279c866686d2859d2b6096deda43daa",
+    "apps/web/src/i18n/resources/zh-CN/preview.ts": "61d473512db88f42c91acf3b18707e8ab0cc7f44a25a7b96faf75660369d8d56",
+    "apps/web/src/i18n/instance.ts": "08221c8d6578a1609056c83e525ffc129e45addb22648eaeee665a68c2700c66",
+    "apps/web/verify-i18n-client.ts": "adca354cf0154d88ee890ab3dd838d0d32acd0d558fc0ffc10a2ada42a5477cd",
+    "apps/web/src/i18n/LanguageProvider.tsx": "e5a8fe7d50afb4535cb4068cc92eb3935bca5c3827673bf5ba89e82dec122da0",
+    "apps/web/src/main.tsx": "c3b2420e2e44101e29d5d22ca1085648381c0eb744180b33db601b0660e16939",
+    "apps/web/src/i18n/DevelopmentLanguagePreview.tsx": "93857547e3a2d462c8746e3a6935bdb8c4a64226a977fd2872a48168436b2321"
   },
   "auditScopes": [
     "apps/api/src",

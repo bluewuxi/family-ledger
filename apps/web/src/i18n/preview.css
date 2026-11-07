@@ -1,0 +1,13 @@
+.language-preview { margin: 12px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); overflow-wrap: anywhere; }
+.language-preview summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.language-preview-body { display: grid; gap: 12px; max-width: 720px; }
+.language-preview label { display: grid; gap: 6px; }
+.language-preview input, .language-preview select { width: 100%; min-width: 0; min-height: 44px; }
+.language-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.language-preview button { min-height: 44px; padding: 8px 16px; }
+.language-preview button[aria-pressed="true"] { outline: 2px solid currentColor; outline-offset: -3px; }
+.language-preview dd { margin: 0 0 8px; }
+.language-preview dialog { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 20px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text); }
+.language-preview dialog::backdrop { background: #0008; }
+.language-preview[data-preview-theme="light"] { --color-surface: #ffffff; --color-border: #dedbd3; --color-text: #292722; color-scheme: light; }
+.language-preview[data-preview-theme="dark"] { --color-surface: #272724; --color-border: #48483f; --color-text: #eee8dc; color-scheme: dark; }

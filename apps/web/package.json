@@ -12,9 +12,11 @@
   "dependencies": {
     "@family-ledger/shared": "workspace:*",
     "@vitejs/plugin-react": "^4.3.4",
+    "i18next": "26.7.2",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "17.1.13",
     "react-router-dom": "^7.1.1",
     "recharts": "^3.8.1",
     "vite": "^6.0.7"

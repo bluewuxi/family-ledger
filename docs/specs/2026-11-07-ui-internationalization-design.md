@@ -1,8 +1,8 @@
 # UI Internationalization Design
 
-Status: Approved (overall direction and phased scope approved in the conversation on 2026-11-07). Implementation has not started.
+Status: Approved (overall direction and phased scope approved in the conversation on 2026-11-07). Phase 1 is locally implemented; see [foundation contract](ui-internationalization.md) and [local evidence](../releases/2026-11-07-ui-internationalization-phase-1.md). Phases 2–5 have not started.
 
-The user accepted this design and roadmap and authorized committing and pushing the related documentation on 2026-11-07. Detailed phase plans, implementation and dependency installation remain outside scope. Documentation delivery follows the existing CI and documentation-only deployment-skip contract; application deployment is not requested. Implementation defaults below are design decisions, not claims that the user individually specified each detail.
+The user accepted this design and roadmap and authorized committing and pushing the related documentation on 2026-11-07. The user subsequently approved the [Phase 1 detailed plan](../plans/2026-11-07-ui-internationalization-phase-1.md) and authorized inline implementation, validation and review only. Phase 1 commit/push and automatic TEST delivery were subsequently authorized under [#136](https://github.com/bluewuxi/family-ledger/issues/136); later phases remain unauthorized. Implementation defaults below are design decisions, not claims that the user individually specified each detail.
 
 ## Intent and scope
 
@@ -16,7 +16,7 @@ Non-goals: parallel bilingual pages, additional languages, translation services,
 
 Baseline: `test`, HEAD `d85e78682e590c46275d387206f7ecf14999a1bf`, clean working tree before documentation work. The web package has no internationalization dependencies. `apps/web/src/lib/numberFormat.ts`, `timeFormat.ts` and several page/chart helpers use fixed Chinese formatting. The preferences API currently exposes currency, gain-color scheme and theme, not language.
 
-This document describes approved future behavior, not delivered functionality. Until implementation, the current Chinese-only contract remains in force. During implementation reconcile [frontend guidelines](../frontend-guidelines.md) and [root instructions](../../AGENTS.md) with the new language behavior. Preserve [architecture](../architecture.md), [auth](../auth.md), [API](../api.md), [financial data semantics](../data-model.md), [time policy](../time-policy.md), [investment](investment-overview.md), [spending](spending.md) and [education](education-reserve.md) contracts. Update their affected wording only when implementing the corresponding scope.
+This document describes approved future behavior, not delivered functionality. The public Chinese-only contract remains in force during the gated Phase 1 foundation. During implementation reconcile [frontend guidelines](../frontend-guidelines.md) and [root instructions](../../AGENTS.md) with the new language behavior. Preserve [architecture](../architecture.md), [auth](../auth.md), [API](../api.md), [financial data semantics](../data-model.md), [time policy](../time-policy.md), [investment](investment-overview.md), [spending](spending.md) and [education](education-reserve.md) contracts. Update their affected wording only when implementing the corresponding scope.
 
 ## Approaches and decision
 
