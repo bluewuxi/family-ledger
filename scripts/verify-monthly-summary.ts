@@ -135,6 +135,7 @@ const missingOpeningPriceBaseline = calculateSyntheticStartBaseline({
 assert.equal(missingOpeningPriceBaseline.amount, null);
 assert.equal(missingOpeningPriceBaseline.amountsByAccount.get("account-a"), null);
 assert.equal(missingOpeningPriceBaseline.warnings[0]?.code, "MISSING_OPENING_PRICE");
+assert.equal(missingOpeningPriceBaseline.warnings[0]?.instrumentShortName, "A");
 
 const windows = getMonthlySnapshotWindows("2026-06");
 

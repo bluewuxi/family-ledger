@@ -419,12 +419,12 @@ export async function commitTransactionWrite(input: {
   });
   if (error) {
     if (error.code === "P0001" && error.message === "Idempotency key content conflict") {
-      throw new ApiRequestError("CONFLICT", "此操作编号已用于其他交易内容，请先核对交易记录。", 409);
+      throw new ApiRequestError("CONFLICT", "此操作编号已用于其他交易内容，请先核对交易记录。", 409, { reason: "IDEMPOTENCY_CONFLICT" });
     }
     if (error.code === "23505" && (error.message.includes("transactions_one_opening_balance_per_account") ||
       (error.details === "transaction" && input.transaction?.transactionType === "opening_balance"))) {
       logDependencyError("transactionRepository.commitTransactionWrite", error, ["23505"]);
-      throw new ApiRequestError("VALIDATION_ERROR", "此账户已有期初余额，请编辑原记录；日常资金转入请选择入金。", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "此账户已有期初余额，请编辑原记录；日常资金转入请选择入金。", 400, { reason: "OPENING_BALANCE_EXISTS" });
     }
     logDependencyError("transactionRepository.commitTransactionWrite", error,
       ["price", "snapshot"].includes(error.details) ? [] : ["40001", "40P01", "P0002", "42501", "23503", "23514", "22P02"]);
@@ -434,26 +434,26 @@ export async function commitTransactionWrite(input: {
       throw new ApiRequestError("INTERNAL_ERROR", "未能确认交易保存结果，请先刷新交易记录，确认是否已保存后再操作，避免重复提交。", 500);
     }
     if (["40001", "40P01"].includes(error.code)) {
-      throw new ApiRequestError("CONFLICT", "账户或行情数据已发生变化，本次操作未保存，请刷新后重试。", 409);
+      throw new ApiRequestError("CONFLICT", "账户或行情数据已发生变化，本次操作未保存，请刷新后重试。", 409, { reason: "LEDGER_REVISION_CONFLICT" });
     }
     if (error.code === "P0002") throw new TransactionNotFoundError();
     if (error.code === "42501") {
       throw new ApiRequestError("FORBIDDEN", "需要有效的管理员权限，本次操作未保存。", 403);
     }
     if (error.details === "snapshot") {
-      throw new ApiRequestError("INTERNAL_ERROR", "历史资产快照保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试或联系管理员。", 500);
+      throw new ApiRequestError("INTERNAL_ERROR", "历史资产快照保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试或联系管理员。", 500, { reason: "SNAPSHOT_RECALCULATION_FAILED" });
     }
     if (error.details === "price") {
-      throw new ApiRequestError("INTERNAL_ERROR", "历史价格保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500);
+      throw new ApiRequestError("INTERNAL_ERROR", "历史价格保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500, { reason: "TRANSACTION_WRITE_ROLLED_BACK" });
     }
     if (error.code === "23503") throw new TransactionReferenceError();
     if (["23514", "22P02"].includes(error.code)) {
-      throw new ApiRequestError("VALIDATION_ERROR", "交易或关联现金流水不符合数据规则，本次操作已全部回滚，请检查输入。", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "交易或关联现金流水不符合数据规则，本次操作已全部回滚，请检查输入。", 400, { reason: "FIELD_INVALID", field: "request" });
     }
     if (stage === "cash") {
-      throw new ApiRequestError("INTERNAL_ERROR", "关联现金流水保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500);
+      throw new ApiRequestError("INTERNAL_ERROR", "关联现金流水保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500, { reason: "TRANSACTION_WRITE_ROLLED_BACK" });
     }
-    throw new ApiRequestError("INTERNAL_ERROR", "交易保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500);
+    throw new ApiRequestError("INTERNAL_ERROR", "交易保存失败，本次操作已全部回滚，交易和现金余额未改变。请稍后重试。", 500, { reason: "TRANSACTION_WRITE_ROLLED_BACK" });
   }
   return data ? mapTransactionRow(data as InvestmentTransactionRow) : null;
 }
@@ -461,7 +461,7 @@ export async function commitTransactionWrite(input: {
 export async function findTransactionCreateReplay(actorId: string, intent: import("../services/transactionIdempotency").TransactionCreateIntent): Promise<InvestmentTransaction | null> {
   const db = await getSupabaseAdmin();
   const { data, error } = await db.rpc("find_transaction_create_replay", { actor_id: actorId, request_key: intent.key, request_fingerprint: intent.fingerprint });
-  if (error?.code === "P0001") throw new ApiRequestError("CONFLICT", "此操作编号已用于其他交易内容，请先核对交易记录。", 409);
+  if (error?.code === "P0001") throw new ApiRequestError("CONFLICT", "此操作编号已用于其他交易内容，请先核对交易记录。", 409, { reason: "IDEMPOTENCY_CONFLICT" });
   if (error?.code === "42501") throw new ApiRequestError("FORBIDDEN", "需要有效的管理员权限。", 403);
   if (error) throw new ApiRequestError("INTERNAL_ERROR", "无法确认交易保存结果，请稍后使用相同内容重试。", 500);
   return data ? mapTransactionRow(data as InvestmentTransactionRow) : null;

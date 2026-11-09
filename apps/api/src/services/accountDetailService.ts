@@ -27,7 +27,7 @@ import { listInstruments } from "../repositories/instrumentRepository";
 import { listLatestPrices } from "../repositories/priceRepository";
 import { listAccountSnapshotTrendRows } from "../repositories/portfolioSnapshotRepository";
 import { listTransactions } from "../repositories/transactionRepository";
-import { ApiRequestError } from "../utils/apiError";
+import { ApiRequestError, investmentFieldDetails } from "../utils/apiError";
 import { calculateHoldings } from "./holdingService";
 import { buildSampledPortfolioPoints, getTrendRangeStart } from "./portfolioSnapshotService";
 import { calculateHoldingsValuation } from "./portfolioValuationService";
@@ -286,7 +286,7 @@ function optionalTrendRange(value: string | undefined): PortfolioTrendRange {
   }
 
   if (!PORTFOLIO_TREND_RANGES.includes(value as PortfolioTrendRange)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "trendRange is invalid.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "trendRange is invalid.", 400, { reason: "FIELD_INVALID", field: "trendRange" });
   }
 
   return value as PortfolioTrendRange;
@@ -300,7 +300,7 @@ function optionalRecentLimit(value: string | undefined): number {
   const limit = Number(value);
 
   if (!Number.isInteger(limit) || limit < 1 || limit > maxRecentLimit) {
-    throw new ApiRequestError("VALIDATION_ERROR", `recentLimit must be an integer between 1 and ${maxRecentLimit}.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `recentLimit must be an integer between 1 and ${maxRecentLimit}.`, 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return limit;
@@ -308,11 +308,11 @@ function optionalRecentLimit(value: string | undefined): number {
 
 function requiredUuid(value: string | undefined, field: string): string {
   if (!value) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   if (!uuidPattern.test(value)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} id is invalid.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} id is invalid.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value;
@@ -353,11 +353,11 @@ function uniqueSnapshotWarnings(warnings: SnapshotWarning[]): SnapshotWarning[] 
 
 function collectAccountWarnings(holdings: ValuedHoldingSummary[], valuation: DashboardWarning[], snapshots: Array<SnapshotWarning & { date?: string }>, principal: import("@family-ledger/shared").PortfolioTrendWarning[]): import("@family-ledger/shared").AccountDetailWarning[] {
   const warnings: import("@family-ledger/shared").AccountDetailWarning[] = [];
-  for (const holding of holdings) for (const code of holding.warnings) warnings.push({ code, instrumentId: holding.instrumentId, instrumentShortName: holding.instrumentShortName, currency: holding.currency,
+  for (const holding of holdings) for (const code of holding.warnings) warnings.push({ origin: "holding", code, instrumentId: holding.instrumentId, instrumentShortName: holding.instrumentShortName, currency: holding.currency,
     message: code === "NEGATIVE_POSITION" ? "负数余额/持仓，请核对交易记录" : "成本不可用" });
   const labels: Record<string, string> = { MISSING_LATEST_PRICE: "缺少最新价格", MISSING_PREVIOUS_PRICE: "缺少前一收盘价", MISSING_FX_RATE: "缺少估值汇率", COST_BASIS_UNAVAILABLE: "成本不可用", MISSING_PRICE: "缺少历史价格", MISSING_PRINCIPAL_FX_RATE: "缺少本金日期汇率" };
-  for (const warning of [...valuation, ...holdings.flatMap(holding => holding.valuationWarnings)]) warnings.push({ ...warning, message: labels[warning.code] ?? warning.code });
-  for (const warning of snapshots) warnings.push({ ...warning, message: `快照${labels[warning.code] ?? warning.code}` });
-  for (const warning of principal) warnings.push({ code: warning.code, currency: warning.currency, date: warning.transactionDate, message: "缺少本金日期汇率" });
+  for (const warning of [...valuation, ...holdings.flatMap(holding => holding.valuationWarnings)]) warnings.push({ ...warning, origin: "valuation", message: labels[warning.code] ?? warning.code });
+  for (const warning of snapshots) warnings.push({ ...warning, origin: "snapshot", message: `快照${labels[warning.code] ?? warning.code}` });
+  for (const warning of principal) warnings.push({ origin: "principal", code: warning.code, currency: warning.currency, date: warning.transactionDate, message: "缺少本金日期汇率" });
   return [...new Map(warnings.map(warning => [JSON.stringify(warning), warning])).values()];
 }

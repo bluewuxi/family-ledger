@@ -50,6 +50,8 @@ New plans use `YYYY-MM-DD-<topic>.md`, with the date the plan is created. Existi
 
 ## Plans and decisions
 
+- The [UI internationalization Phase 3 plan](plans/2026-11-07-ui-internationalization-phase-3.md) covers bilingual investment workflows and additive error and warning metadata. See [local evidence](releases/2026-11-10-ui-internationalization-phase-3.md).
+
 - The [UI internationalization Phase 2 plan](plans/2026-11-07-ui-internationalization-phase-2.md) is locally implemented and validated; [evidence](releases/2026-11-07-ui-internationalization-phase-2.md) records authentication/shared UI and the group-maintenance pilot, with Phase 2 local visual acceptance complete. Phases 3–5 remain Not started.
 
 - [UI internationalization design](specs/2026-11-07-ui-internationalization-design.md) and [phased roadmap](plans/2026-11-07-ui-internationalization-roadmap.md) are Approved for minimal bundled Chinese/English support. The [Phase 1 implementation plan](plans/2026-11-07-ui-internationalization-phase-1.md) is locally implemented and validated; [local evidence](releases/2026-11-07-ui-internationalization-phase-1.md) records scoped acceptance. Public builds remain Chinese; Phase 2 is locally validated and accepted; Phases 3–5 are Not started.

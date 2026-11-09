@@ -112,7 +112,12 @@
     "verify:i18n-resources": "tsx apps/web/verify-i18n-resources.ts",
     "verify:i18n-client": "tsx apps/web/verify-i18n-client.ts",
     "verify:i18n-phase2": "tsx apps/web/verify-i18n-phase2.ts",
-    "verify:i18n-phase2-client": "tsx apps/web/verify-i18n-phase2-client.ts"
+    "verify:i18n-phase2-client": "tsx apps/web/verify-i18n-phase2-client.ts",
+    "verify:i18n-investment-errors": "tsx scripts/verify-i18n-investment-errors.ts",
+    "verify:i18n-phase3-accounts": "tsx apps/web/verify-i18n-phase3-accounts.ts",
+    "verify:i18n-phase3": "tsx apps/web/verify-i18n-phase3.ts",
+    "verify:i18n-phase3-client": "tsx apps/web/verify-i18n-phase3-client.ts",
+    "verify:i18n-phase3-state": "tsx apps/web/verify-i18n-phase3-state.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.1052.0",

@@ -1,55 +1,54 @@
+import { holdingsCopy as copy } from "../i18n/investmentCopy";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
+import { formatCalendarDate } from "./timeFormat";
+import { translateDashboardWarning, translateHoldingWarning } from "../i18n/investmentWarnings";
 import type { ReactNode } from "react";
 import {
-  type DashboardWarning,
-  type HoldingWarning,
   type ValuedHoldingSummary
 } from "@family-ledger/shared";
 import { formatDisplayAmount, formatDisplayPrice } from "./numberFormat";
 import { formatLocalDateTime } from "./timeFormat";
 
-const HOLDING_WARNING_LABELS: Record<HoldingWarning, string> = {
-  NEGATIVE_POSITION: "负数余额/持仓，请核对交易记录",
-  COST_BASIS_UNAVAILABLE: "成本不可用"
-};
 
 export function formatHoldingInstrument(holding: ValuedHoldingSummary): string {
   return holding.instrumentSymbol ? `${holding.instrumentSymbol} - ${holding.instrumentShortName}` : holding.instrumentShortName;
 }
 
-export function formatHoldingQuantity(holding: ValuedHoldingSummary): string {
+export function formatHoldingQuantity(holding: ValuedHoldingSummary, language: UiLanguage = "zh-CN"): string {
   if (holding.assetType === "cash") {
-    return formatDisplayAmount(holding.quantity);
+    return formatDisplayAmount(holding.quantity, getDisplayLocale(language));
   }
 
-  return formatCompactDecimal(holding.quantity, 6);
+  return formatCompactDecimal(holding.quantity, 6, language);
 }
 
-export function formatHoldingLatestPrice(holding: ValuedHoldingSummary, presentation: "compact" | "detailed"): ReactNode {
+export function formatHoldingLatestPrice(holding: ValuedHoldingSummary, presentation: "compact" | "detailed", language: UiLanguage = "zh-CN"): ReactNode {
   if (!holding.latestPrice) {
     return "-";
   }
 
   return (
     <>
-      <span>{formatDisplayPrice(holding.latestPrice)}</span>
-      {presentation === "detailed" && holding.latestPriceIsEstimated ? <span className="estimate-badge">估算</span> : null}
+      <span>{formatDisplayPrice(holding.latestPrice, getDisplayLocale(language))}</span>
+      {presentation === "detailed" && holding.latestPriceIsEstimated ? <span className="estimate-badge">{copy("estimated", language)}</span> : null}
       {holding.latestPriceDate ? (
         <>
           <br />
-          <span className="price-date-label">{formatShortPriceDate(holding.latestPriceDate)}</span>
+          <span className="price-date-label">{formatShortPriceDate(holding.latestPriceDate, language)}</span>
         </>
       ) : null}
-      {presentation === "detailed" && holding.latestPriceKind ? <><br /><span className="price-date-label">{holding.latestPriceKind === "quote" ? "当前／延迟报价" : "已存储价格"}{holding.latestPriceSource ? ` · ${holding.latestPriceSource}` : ""}</span></> : null}
-      {presentation === "detailed" && holding.quoteFetchedAt ? <><br /><span className="price-date-label">获取于 {formatLocalDateTime(holding.quoteFetchedAt)}（本地时间）</span></> : null}
+      {presentation === "detailed" && holding.latestPriceKind ? <><br /><span className="price-date-label">{copy(holding.latestPriceKind === "quote" ? "quoteKind" : "storedKind", language)}{holding.latestPriceSource ? ` · ${holding.latestPriceSource}` : ""}</span></> : null}
+      {presentation === "detailed" && holding.quoteFetchedAt ? <><br /><span className="price-date-label">{copy("fetchedAt", language, {time: formatLocalDateTime(holding.quoteFetchedAt, "-", undefined, language)})}</span></> : null}
     </>
   );
 }
 
-export function formatHoldingWarnings(holding: ValuedHoldingSummary): ReactNode {
-  const labels = unique([
-    ...holding.warnings.map((warning) => HOLDING_WARNING_LABELS[warning]),
-    ...holding.valuationWarnings.map(formatValuationWarning)
-  ]);
+export function formatHoldingWarnings(holding: ValuedHoldingSummary, language: UiLanguage = "zh-CN"): ReactNode {
+  const notices = [
+    ...holding.warnings.map(warning => ({id:`holding:${warning}`,label:translateHoldingWarning(warning, language)})),
+    ...holding.valuationWarnings.map(warning => ({id:`valuation:${warning.instrumentId}:${warning.code}:${warning.currency}`,label:translateDashboardWarning(warning, language)}))
+  ];
+  const labels = [...new Map(notices.map(notice => [notice.id, notice])).values()];
 
   if (labels.length === 0) {
     return "-";
@@ -57,8 +56,8 @@ export function formatHoldingWarnings(holding: ValuedHoldingSummary): ReactNode 
 
   return (
     <div className="holding-warnings">
-      {labels.map((label) => (
-        <span className="warning-pill" key={label}>
+      {labels.map(({id,label}) => (
+        <span className="warning-pill" key={id}>
           {label}
         </span>
       ))}
@@ -66,7 +65,7 @@ export function formatHoldingWarnings(holding: ValuedHoldingSummary): ReactNode 
   );
 }
 
-function formatCompactDecimal(value: string | number | null | undefined, maximumFractionDigits: number): string {
+function formatCompactDecimal(value: string | number | null | undefined, maximumFractionDigits: number, language: UiLanguage = "zh-CN"): string {
   if (value === null || value === undefined) {
     return "--";
   }
@@ -81,31 +80,12 @@ function formatCompactDecimal(value: string | number | null | undefined, maximum
     return normalized;
   }
 
-  return numericValue.toLocaleString("zh-CN", {
+  return numericValue.toLocaleString(getDisplayLocale(language), {
     minimumFractionDigits: 0,
     maximumFractionDigits
   });
 }
 
-function formatValuationWarning(warning: DashboardWarning): string {
-  const instrument = `${warning.instrumentShortName} (${warning.currency})`;
-
-  switch (warning.code) {
-    case "MISSING_LATEST_PRICE":
-      return `${instrument} 缺少最新价格`;
-    case "MISSING_PREVIOUS_PRICE":
-      return `${instrument} 缺少前一收盘价`;
-    case "MISSING_FX_RATE":
-      return `${instrument} 缺少估值汇率`;
-    case "COST_BASIS_UNAVAILABLE":
-      return `${instrument} 成本不可用`;
-  }
-}
-
-function formatShortPriceDate(value: string): string {
-  return value.length >= 10 ? value.slice(5) : value;
-}
-
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
+function formatShortPriceDate(value: string, language: UiLanguage = "zh-CN"): string {
+  return language === "en" ? formatCalendarDate(value, "-", language) : value.length >= 10 ? value.slice(5) : value;
 }

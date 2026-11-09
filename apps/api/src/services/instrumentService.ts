@@ -24,7 +24,7 @@ import {
   listInstruments,
   updateInstrument
 } from "../repositories/instrumentRepository";
-import { ApiRequestError } from "../utils/apiError";
+import { ApiRequestError, investmentFieldDetails } from "../utils/apiError";
 
 export async function getInstruments(): Promise<Instrument[]> {
   return listInstruments();
@@ -41,7 +41,7 @@ export async function createInvestmentInstrument(body: unknown, user: Authentica
       throw new ApiRequestError(
         "VALIDATION_ERROR",
         "An instrument with the same market, exchange, and symbol already exists.",
-        400
+        400, { reason: "INSTRUMENT_DUPLICATE" }
       );
     }
 
@@ -80,7 +80,7 @@ export async function updateInvestmentInstrument(
       throw new ApiRequestError(
         "VALIDATION_ERROR",
         "An instrument with the same market, exchange, and symbol already exists.",
-        400
+        400, { reason: "INSTRUMENT_DUPLICATE" }
       );
     }
 
@@ -103,7 +103,7 @@ export async function deleteInvestmentInstrument(id: string): Promise<void> {
       throw new ApiRequestError(
         "VALIDATION_ERROR",
         "Instrument cannot be deleted because it has transaction or price history.",
-        400
+        400, { reason: "INSTRUMENT_IN_USE" }
       );
     }
 
@@ -217,7 +217,7 @@ export function parseUpdateInstrumentInput(body: unknown): UpdateInstrumentInput
   }
 
   if (Object.keys(input).length === 0) {
-    throw new ApiRequestError("VALIDATION_ERROR", "At least one instrument field is required.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "At least one instrument field is required.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return input;
@@ -228,17 +228,17 @@ function validateInstrumentIdentity(input: Pick<CreateInstrumentInput, "assetTyp
   const hasExchange = Boolean(input.exchange);
 
   if (hasSymbol !== hasExchange) {
-    throw new ApiRequestError("VALIDATION_ERROR", "symbol and exchange must be supplied together.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "symbol and exchange must be supplied together.", 400, { reason: "INSTRUMENT_IDENTITY_REQUIRED" });
   }
 
   if (input.assetType !== "other" && (!hasSymbol || !hasExchange)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "symbol and exchange are required for this asset type.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "symbol and exchange are required for this asset type.", 400, { reason: "INSTRUMENT_IDENTITY_REQUIRED" });
   }
 }
 
 function asRecord(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return body as Record<string, unknown>;
@@ -246,13 +246,13 @@ function asRecord(body: unknown): Record<string, unknown> {
 
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   const trimmed = value.trim();
 
   if (!trimmed) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} cannot be empty.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} cannot be empty.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   return trimmed;
@@ -265,7 +265,7 @@ function requiredShortName(value: unknown): string {
     throw new ApiRequestError(
       "VALIDATION_ERROR",
       `shortName must be ${INSTRUMENT_SHORT_NAME_MAX_LENGTH} characters or fewer.`,
-      400
+      400, { reason: "FIELD_TOO_LONG", field: "shortName", limit: INSTRUMENT_SHORT_NAME_MAX_LENGTH }
     );
   }
 
@@ -278,7 +278,7 @@ function optionalString(value: unknown, field: string): string | null {
   }
 
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   const trimmed = value.trim();
@@ -292,7 +292,7 @@ function optionalShortName(value: unknown): string | null {
     throw new ApiRequestError(
       "VALIDATION_ERROR",
       `shortName must be ${INSTRUMENT_SHORT_NAME_MAX_LENGTH} characters or fewer.`,
-      400
+      400, { reason: "FIELD_TOO_LONG", field: "shortName", limit: INSTRUMENT_SHORT_NAME_MAX_LENGTH }
     );
   }
 
@@ -309,7 +309,7 @@ function optionalTimestamp(value: unknown, field: string): string | null {
   const parsed = new Date(timestamp);
 
   if (Number.isNaN(parsed.getTime())) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a valid timestamp.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a valid timestamp.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return parsed.toISOString();
@@ -317,7 +317,7 @@ function optionalTimestamp(value: unknown, field: string): string | null {
 
 function requiredBoolean(value: unknown, field: string): boolean {
   if (typeof value !== "boolean") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a boolean.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a boolean.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value;
@@ -325,7 +325,7 @@ function requiredBoolean(value: unknown, field: string): boolean {
 
 function requiredNonNegativeInteger(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a non-negative integer.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a non-negative integer.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value;
@@ -337,7 +337,7 @@ function requiredEnum<T extends AssetType | CurrencyCode | MarketRegion | PriceS
   field: string
 ): T {
   if (typeof value !== "string" || !allowedValues.includes(value as T)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value as T;
@@ -347,6 +347,6 @@ function assertUuid(id: string): void {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   if (!uuidPattern.test(id)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Instrument id is invalid.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Instrument id is invalid.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 }

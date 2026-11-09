@@ -40,7 +40,7 @@ import {
   hasInstrumentPriceOnDate,
   insertInstrumentPriceIfNotExists
 } from "../repositories/priceRepository";
-import { ApiRequestError } from "../utils/apiError";
+import { ApiRequestError, investmentFieldDetails } from "../utils/apiError";
 import { writeTransactionAtomically } from "./atomicTransactionWriteService";
 import { optionalAccountPurpose } from "./accountPurpose";
 
@@ -73,7 +73,7 @@ export async function getTransactionBalances(): Promise<import("@family-ledger/s
 export function assertSingleOpeningBalance(input: CreateInvestmentTransactionInput, transactions: InvestmentTransaction[], existingId?: string): void {
   if (input.transactionType === "opening_balance" && transactions.some(transaction =>
     transaction.accountId === input.accountId && transaction.transactionType === "opening_balance" && transaction.id !== existingId)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "此账户已有期初余额，请编辑原记录；日常资金转入请选择入金。", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "此账户已有期初余额，请编辑原记录；日常资金转入请选择入金。", 400, { reason: "OPENING_BALANCE_EXISTS" });
   }
 }
 
@@ -110,7 +110,7 @@ export async function getTransactions(
   const sortDirection = query.sortDirection ?? "desc";
   if (!["tradeDate", "settlementDate", "instrument", "transactionType"].includes(sortBy)
     || !["asc", "desc"].includes(sortDirection)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Invalid transaction sorting.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Invalid transaction sorting.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
   const includeLinkedCashLegs = optionalBoolean("includeLinkedCashLegs", query.includeLinkedCashLegs);
   const rows = await listTransactionPage({
@@ -169,11 +169,11 @@ export async function createInvestmentTransaction(
     if (committed) return committed;
     logCaughtError("transactionService.createInvestmentTransaction", error);
     if (error instanceof TransactionReferenceError) {
-      throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400, { reason: "REFERENCE_UNAVAILABLE" });
     }
 
     if (error instanceof TransactionConstraintError) {
-      throw new ApiRequestError("VALIDATION_ERROR", toTransactionConstraintMessage(error), 400);
+      throw new ApiRequestError("VALIDATION_ERROR", toTransactionConstraintMessage(error), 400, { reason: "FIELD_INVALID", field: "request" });
     }
 
     throw error;
@@ -209,7 +209,7 @@ export async function reconcileTransactionPrice(
   const instrument = await dependencies.findInstrument(transaction.instrumentId);
 
   if (!instrument) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Transaction instrument was not found.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction instrument was not found.", 400, { reason: "REFERENCE_UNAVAILABLE" });
   }
 
   const priceInput = buildTransactionPriceRecordInput(transaction, instrument, appBusinessDate);
@@ -313,11 +313,11 @@ export async function updateInvestmentTransaction(
     }
 
     if (error instanceof TransactionReferenceError) {
-      throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "账户或投资标的不存在，本次操作未保存，请刷新后重试。", 400, { reason: "REFERENCE_UNAVAILABLE" });
     }
 
     if (error instanceof TransactionConstraintError) {
-      throw new ApiRequestError("VALIDATION_ERROR", toTransactionConstraintMessage(error), 400);
+      throw new ApiRequestError("VALIDATION_ERROR", toTransactionConstraintMessage(error), 400, { reason: "FIELD_INVALID", field: "request" });
     }
 
     throw error;
@@ -351,7 +351,7 @@ export async function deleteInvestmentTransaction(id: string, user: Authenticate
 
 async function rejectLegacyEducationTransaction(accountId: string): Promise<void> {
   if ((await findAccountById(accountId))?.purpose === "education") {
-    throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理，旧流水仅供历史核查。", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理，旧流水仅供历史核查。", 400, { reason: "LEGACY_EDUCATION_READ_ONLY" });
   }
 }
 
@@ -369,10 +369,10 @@ async function withAutomaticSettlement(
   const account = await findAccountById(input.accountId);
 
   if (!account) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Transaction account was not found.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction account was not found.", 400, { reason: "REFERENCE_UNAVAILABLE" });
   }
 
-  if (account.purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理。", 400);
+  if (account.purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理。", 400, { reason: "LEGACY_EDUCATION_READ_ONLY" });
 
   const settlementCurrency = account.baseCurrency;
   const tradeAmount = calculateSettlementCashAmount(input);
@@ -439,10 +439,10 @@ async function findCashInstrument(currency: CurrencyCode): Promise<Instrument> {
   const cashInstrument = instruments.find((instrument) => instrument.assetType === "cash" && instrument.currency === currency);
 
   if (!cashInstrument) {
-    throw new ApiRequestError("VALIDATION_ERROR", `No ${currency} cash instrument is configured.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `No ${currency} cash instrument is configured.`, 400, { reason: "MISSING_CASH_INSTRUMENT", currency });
   }
 
-  if (cashInstrument.active === false) throw new ApiRequestError("VALIDATION_ERROR", "结算现金标的已停用。", 400);
+  if (cashInstrument.active === false) throw new ApiRequestError("VALIDATION_ERROR", "结算现金标的已停用。", 400, { reason: "INACTIVE_CASH_INSTRUMENT", currency });
   return cashInstrument;
 }
 
@@ -453,11 +453,11 @@ export function calculateSettlementCashAmount(input: CreateInvestmentTransaction
   const amount = settlementCashAmount(input.transactionType, grossAmount, fee, tax);
 
   if (input.transactionType === "dividend" && amount.isNegative()) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Dividend tax cannot exceed grossAmount.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Dividend tax cannot exceed grossAmount.", 400, { reason: "DIVIDEND_TAX_EXCEEDS_GROSS" });
   }
 
   if (input.transactionType !== "dividend" && !amount.gt(0)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Settlement amount must be greater than zero.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Settlement amount must be greater than zero.", 400, { reason: "SETTLEMENT_AMOUNT_INVALID" });
   }
 
   return amount;
@@ -498,7 +498,7 @@ function generatedCashLegNotes(transactionType: TransactionType): string {
 
 function requiredAmount(value: string | null | undefined, field: string): Decimal {
   if (!value) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   return new Decimal(value);
@@ -527,7 +527,7 @@ async function convertSettlementAmount(input: {
     throw new ApiRequestError(
       "VALIDATION_ERROR",
       `Missing valuation FX rate for ${input.fromCurrency}/${input.toCurrency} on or before ${input.tradeDate}.`,
-      400
+      400, { reason: "MISSING_SETTLEMENT_FX", date: input.tradeDate, fromCurrency: input.fromCurrency, toCurrency: input.toCurrency }
     );
   }
 
@@ -540,7 +540,7 @@ async function convertSettlementAmount(input: {
 
 function rejectGeneratedCashLegMutation(transaction: InvestmentTransaction): void {
   if (transaction.transactionSource === "generated_cash_leg") {
-    throw new ApiRequestError("VALIDATION_ERROR", "Generated cash transactions must be changed through the parent trade.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Generated cash transactions must be changed through the parent trade.", 400, { reason: "GENERATED_CASH_READ_ONLY" });
   }
 }
 
@@ -549,7 +549,7 @@ function rejectTransactionTypeChange(
   existing: InvestmentTransaction
 ): void {
   if (patch.transactionType !== undefined && patch.transactionType !== existing.transactionType) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Transaction type cannot be changed. Delete and recreate the transaction instead.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction type cannot be changed. Delete and recreate the transaction instead.", 400, { reason: "TRANSACTION_TYPE_IMMUTABLE" });
   }
 }
 
@@ -605,7 +605,7 @@ function optionalQueryDate(name: string, value: string | undefined): string | un
   }
 
   if (!datePattern.test(value) || !isIsoDate(value)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${name} must use YYYY-MM-DD format.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${name} must use YYYY-MM-DD format.`, 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return value;
@@ -613,7 +613,7 @@ function optionalQueryDate(name: string, value: string | undefined): string | un
 
 function validateDateRange(from: string | undefined, to: string | undefined): void {
   if (from && to && from > to) {
-    throw new ApiRequestError("VALIDATION_ERROR", "from cannot be after to.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "from cannot be after to.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 }
 
@@ -632,7 +632,7 @@ function optionalTransactionType(value: string | undefined): TransactionType | u
   }
 
   if (!TRANSACTION_TYPES.includes(value as TransactionType)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "transactionType is invalid.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "transactionType is invalid.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return value as TransactionType;
@@ -654,7 +654,7 @@ function optionalTransactionTypes(value: string | undefined): TransactionType[] 
 
   for (const transactionType of transactionTypes) {
     if (!TRANSACTION_TYPES.includes(transactionType as TransactionType)) {
-      throw new ApiRequestError("VALIDATION_ERROR", "transactionTypes contains an invalid transaction type.", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "transactionTypes contains an invalid transaction type.", 400, { reason: "FIELD_INVALID", field: "request" });
     }
   }
 
@@ -669,7 +669,7 @@ function validateTransactionTypeFilters(
     throw new ApiRequestError(
       "VALIDATION_ERROR",
       "transactionType must be included in transactionTypes when both filters are supplied.",
-      400
+      400, { reason: "FIELD_INVALID", field: "request" }
     );
   }
 }
@@ -680,7 +680,7 @@ function optionalBoolean(name: string, value: string | undefined): boolean | und
   }
 
   if (value !== "true" && value !== "false") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${name} must be true or false.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${name} must be true or false.`, 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return value === "true";
@@ -701,7 +701,7 @@ function parseLimit(value: string | undefined): number {
   const limit = Number(value);
 
   if (!Number.isInteger(limit) || limit < 1 || limit > maxLimit) {
-    throw new ApiRequestError("VALIDATION_ERROR", `limit must be an integer between 1 and ${maxLimit}.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `limit must be an integer between 1 and ${maxLimit}.`, 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return limit;
@@ -715,7 +715,7 @@ function parseOffset(value: string | undefined): number {
   const offset = Number(value);
 
   if (!Number.isInteger(offset) || offset < 0) {
-    throw new ApiRequestError("VALIDATION_ERROR", "offset must be a non-negative integer.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "offset must be a non-negative integer.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return offset;
@@ -783,7 +783,7 @@ function parseUpdateTransactionInput(record: Record<string, unknown>): UpdateInv
   }
 
   if (Object.keys(input).length === 0) {
-    throw new ApiRequestError("VALIDATION_ERROR", "At least one transaction field is required.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "At least one transaction field is required.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return input;
@@ -795,7 +795,7 @@ async function validateTransaction(
   retainedInstrumentId?: string
 ): Promise<CreateInvestmentTransactionInput> {
   if (input.settlementDate && input.settlementDate < input.tradeDate) {
-    throw new ApiRequestError("VALIDATION_ERROR", "settlementDate cannot be before tradeDate.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "settlementDate cannot be before tradeDate.", 400, { reason: "SETTLEMENT_BEFORE_TRADE" });
   }
 
   const [account, instrument] = await Promise.all([
@@ -804,19 +804,19 @@ async function validateTransaction(
   ]);
 
   if (!account) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Transaction account was not found.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction account was not found.", 400, { reason: "REFERENCE_UNAVAILABLE" });
   }
 
   if (!instrument) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Transaction instrument was not found.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction instrument was not found.", 400, { reason: "REFERENCE_UNAVAILABLE" });
   }
 
-  if (account.purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理。", 400);
+  if (account.purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理。", 400, { reason: "LEGACY_EDUCATION_READ_ONLY" });
 
   assertInstrumentActivity(instrument, retainedInstrumentId);
 
   if (input.currency !== instrument.currency) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Transaction currency must match instrument currency.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Transaction currency must match instrument currency.", 400, { reason: "CURRENCY_MISMATCH", currency: instrument.currency });
   }
 
   const fee = parseDecimal(input.fee ?? "0", "fee", 6, false);
@@ -862,7 +862,7 @@ async function validateTransaction(
       requireNonCashInstrument(instrument, input.transactionType);
 
       if (clientSuppliedGrossAmount) {
-        throw new ApiRequestError("VALIDATION_ERROR", "grossAmount is derived for buy and sell transactions.", 400);
+        throw new ApiRequestError("VALIDATION_ERROR", "grossAmount is derived for buy and sell transactions.", 400, { reason: "FIELD_INVALID", field: "grossAmount" });
       }
 
       const quantity = requiredDecimal(input.quantity, "quantity", 10, true);
@@ -891,7 +891,7 @@ async function validateTransaction(
       const grossAmount = requiredDecimal(input.grossAmount, "grossAmount", 6, true);
 
       if (new Decimal(tax).greaterThan(grossAmount)) {
-        throw new ApiRequestError("VALIDATION_ERROR", "Dividend tax cannot exceed grossAmount.", 400);
+        throw new ApiRequestError("VALIDATION_ERROR", "Dividend tax cannot exceed grossAmount.", 400, { reason: "DIVIDEND_TAX_EXCEEDS_GROSS" });
       }
 
       return {
@@ -965,7 +965,7 @@ async function validateTransaction(
       requireZero(tax, "tax", input.transactionType);
 
       if (!input.adjustmentDirection) {
-        throw new ApiRequestError("VALIDATION_ERROR", "adjustmentDirection is required for adjustment.", 400);
+        throw new ApiRequestError("VALIDATION_ERROR", "adjustmentDirection is required for adjustment.", 400, { reason: "FIELD_INVALID", field: "adjustmentDirection" });
       }
 
       return {
@@ -984,7 +984,7 @@ function requireCashInstrument(instrument: Instrument, transactionType: Transact
     throw new ApiRequestError(
       "VALIDATION_ERROR",
       `${transactionType} transactions require a cash instrument.`,
-      400
+      400, { reason: "CASH_INSTRUMENT_REQUIRED" }
     );
   }
 }
@@ -994,26 +994,26 @@ function requireNonCashInstrument(instrument: Instrument, transactionType: Trans
     throw new ApiRequestError(
       "VALIDATION_ERROR",
       `${transactionType} transactions require a non-cash instrument.`,
-      400
+      400, { reason: "NONCASH_INSTRUMENT_REQUIRED" }
     );
   }
 }
 
 function rejectValue(value: string | null | undefined, field: string, transactionType: TransactionType): void {
   if (value !== undefined && value !== null) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is not allowed for ${transactionType}.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is not allowed for ${transactionType}.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 }
 
 function requireZero(value: string, field: string, transactionType: TransactionType): void {
   if (!new Decimal(value).isZero()) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is not allowed for ${transactionType}.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is not allowed for ${transactionType}.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 }
 
 function rejectAdjustmentDirection(input: CreateInvestmentTransactionInput): void {
   if (input.adjustmentDirection !== undefined && input.adjustmentDirection !== null) {
-    throw new ApiRequestError("VALIDATION_ERROR", "adjustmentDirection is allowed only for adjustment.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "adjustmentDirection is allowed only for adjustment.", 400, { reason: "FIELD_INVALID", field: "adjustmentDirection" });
   }
 }
 
@@ -1033,7 +1033,7 @@ function toTransactionConstraintMessage(error: TransactionConstraintError): stri
 
 function asRecord(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return body as Record<string, unknown>;
@@ -1041,7 +1041,7 @@ function asRecord(body: unknown): Record<string, unknown> {
 
 function requiredUuid(value: unknown, field: string): string {
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   assertUuid(value, field);
@@ -1052,13 +1052,13 @@ function assertUuid(value: string, field: string): void {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   if (!uuidPattern.test(value)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} id is invalid.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} id is invalid.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 }
 
 function requiredDate(value: unknown, field: string): string {
   if (typeof value !== "string" || !isIsoDate(value)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a valid ISO date.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a valid ISO date.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value;
@@ -1087,7 +1087,7 @@ function optionalString(value: unknown, field: string): string | null {
   }
 
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   const trimmed = value.trim();
@@ -1096,7 +1096,7 @@ function optionalString(value: unknown, field: string): string | null {
 
 function requiredDecimal(value: string | null | undefined, field: string, scale: number, positive: boolean): string {
   if (!value) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   return parseDecimal(value, field, scale, positive);
@@ -1104,19 +1104,19 @@ function requiredDecimal(value: string | null | undefined, field: string, scale:
 
 function parseDecimal(value: string, field: string, scale: number, positive: boolean): string {
   if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a non-negative decimal string.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a non-negative decimal string.`, 400, investmentFieldDetails("DECIMAL_INVALID", field));
   }
 
   const [integerPart, decimalPart = ""] = value.split(".");
 
   if (decimalPart.length > scale || integerPart.length > 28 - scale) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} exceeds supported precision.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} exceeds supported precision.`, 400, { reason: "DECIMAL_PRECISION", field: investmentFieldDetails("FIELD_INVALID", field).field, scale });
   }
 
   const parsed = new Decimal(value);
 
   if (positive && !parsed.gt(0)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be greater than zero.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be greater than zero.`, 400, investmentFieldDetails("POSITIVE_AMOUNT_REQUIRED", field));
   }
 
   return parsed.toString();
@@ -1128,7 +1128,7 @@ function requiredEnum<T extends TransactionType | CurrencyCode>(
   field: string
 ): T {
   if (typeof value !== "string" || !allowedValues.includes(value as T)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value as T;
@@ -1144,12 +1144,12 @@ function optionalEnum<T extends AdjustmentDirection>(
   }
 
   if (typeof value !== "string" || !allowedValues.includes(value as T)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value as T;
 }
 
 export function assertInstrumentActivity(instrument: Pick<Instrument, "id" | "active">, retainedInstrumentId?: string): void {
-  if (instrument.active === false && instrument.id !== retainedInstrumentId) throw new ApiRequestError("VALIDATION_ERROR", "投资标的已停用，请选择启用的标的。", 400);
+  if (instrument.active === false && instrument.id !== retainedInstrumentId) throw new ApiRequestError("VALIDATION_ERROR", "投资标的已停用，请选择启用的标的。", 400, { reason: "INACTIVE_INSTRUMENT" });
 }

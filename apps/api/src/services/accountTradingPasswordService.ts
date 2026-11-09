@@ -7,7 +7,7 @@ import {
   putSecureParameter
 } from "../config/ssm";
 import { findAccountById } from "../repositories/accountRepository";
-import { ApiRequestError } from "../utils/apiError";
+import { ApiRequestError, investmentFieldDetails } from "../utils/apiError";
 
 export const TRADING_PASSWORD_PLACEHOLDER = "\u5c1a\u672a\u8bbe\u7f6e\u4ea4\u6613\u5bc6\u7801";
 export const TRADING_PASSWORD_GATE_EMPTY_VALUE = "empty";
@@ -83,7 +83,7 @@ export async function updateTradingPasswordGate(body: unknown): Promise<{ isInit
 
   if (gateValue !== TRADING_PASSWORD_GATE_EMPTY_VALUE) {
     if (!currentExtraPassword) {
-      throw new ApiRequestError("VALIDATION_ERROR", "currentExtraPassword is required.", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "currentExtraPassword is required.", 400, { reason: "FIELD_INVALID", field: "currentExtraPassword" });
     }
 
     await assertPasswordMatches(currentExtraPassword, gateValue);
@@ -107,7 +107,7 @@ export async function assertExtraPasswordMatches(extraPassword: string): Promise
   const expectedSignature = await getOrCreateTradingPasswordGateValue();
 
   if (expectedSignature === TRADING_PASSWORD_GATE_EMPTY_VALUE) {
-    throw new ApiRequestError("FORBIDDEN", "Extra password gate is not initialized.", 403);
+    throw new ApiRequestError("FORBIDDEN", "Extra password gate is not initialized.", 403, { reason: "EXTRA_PASSWORD_NOT_INITIALIZED" });
   }
 
   await assertPasswordMatches(extraPassword, expectedSignature);
@@ -145,7 +145,7 @@ async function assertPasswordMatches(extraPassword: string, expectedSignature: s
   const isMatch = await verifyGateSignature(extraPassword, normalizedExpectedSignature);
 
   if (!isMatch) {
-    throw new ApiRequestError("FORBIDDEN", "Extra password is incorrect.", 403);
+    throw new ApiRequestError("FORBIDDEN", "Extra password is incorrect.", 403, { reason: "EXTRA_PASSWORD_REJECTED" });
   }
 
   if (isLegacyMd5Signature(normalizedExpectedSignature)) {
@@ -231,7 +231,7 @@ function parseUpdateTradingPasswordGateBody(body: unknown): { currentExtraPasswo
 
 function asRecord(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return body as Record<string, unknown>;
@@ -239,11 +239,11 @@ function asRecord(body: unknown): Record<string, unknown> {
 
 function requiredNonEmptyString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.length === 0) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   if (!value.trim()) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} cannot be empty.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} cannot be empty.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   return value;
@@ -255,7 +255,7 @@ function optionalString(value: unknown, field: string): string | null {
   }
 
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value.trim() ? value : null;
@@ -315,6 +315,6 @@ function assertUuid(id: string): void {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
   if (!uuidPattern.test(id)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Account id is invalid.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Account id is invalid.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 }

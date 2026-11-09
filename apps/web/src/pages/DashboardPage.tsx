@@ -1,3 +1,8 @@
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { dashboardCopy as copy } from "../i18n/investmentCopy";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
+import { formatCalendarDate } from "../lib/timeFormat";
 import { InvestmentDistributionPanel } from "../components/InvestmentDistributionPanel";
 import { useAuth } from "../lib/authContext";
 import { useEventCallback } from "../lib/useEventCallback";
@@ -22,7 +27,7 @@ import {
   type PortfolioTrendRange,
   type SnapshotDisplayCurrency
 } from "@family-ledger/shared";
-import { ApiClientError, apiGet } from "../lib/apiClient";
+import { apiGet } from "../lib/apiClient";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingBlock, LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
@@ -55,16 +60,12 @@ interface TransactionsResponse {
   transactions: InvestmentTransaction[];
 }
 
-const trendRanges: Array<{ value: PortfolioTrendRange; label: string }> = [
-  { value: "1m", label: "近1月" },
-  { value: "3m", label: "近3月" },
-  { value: "1y", label: "近1年" },
-  { value: "3y", label: "近3年" },
-  { value: "5y", label: "近5年" },
-  { value: "inception", label: "投资以来" }
-];
+const trendRanges = [
+ {value:"1m",label:"rangeMonth"},{value:"3m",label:"rangeQuarter"},{value:"1y",label:"rangeYear"},{value:"3y",label:"rangeThreeYears"},{value:"5y",label:"rangeFiveYears"},{value:"inception",label:"rangeInception"}
+] as const;
 const dashboardCurrencyStorageKey = "family-ledger.dashboard.reportingCurrency";
 export function DashboardPage() {
+  const { language } = useUiLanguage();
   const { session } = useAuth();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
@@ -81,8 +82,8 @@ export function DashboardPage() {
   const [recentTransactions, setRecentTransactions] = useState<InvestmentTransaction[]>([]);
   const [snapshotsLoading, setSnapshotsLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
-  const [snapshotsError, setSnapshotsError] = useState<string | null>(null);
-  const [activityError, setActivityError] = useState<string | null>(null);
+  const [snapshotsError, setSnapshotsError] = useState<UiErrorDescriptor | null>(null);
+  const [activityError, setActivityError] = useState<UiErrorDescriptor | null>(null);
   const [businessDayNow, setBusinessDayNow] = useState(() => new Date());
   const trendPanelRef = useRef<HTMLElement>(null);
   const [trendPanelHeight, setTrendPanelHeight] = useState(480);
@@ -102,7 +103,7 @@ const loadSnapshots = useEventCallback(async function(currency: SnapshotDisplayC
       setTrend(data.trend ?? null);
     } catch (requestError) {
       if (id !== snapshotSequence.current) return;
-      setSnapshotsError(toErrorMessage(requestError, "资产趋势请求失败，请稍后重试。"));
+      setSnapshotsError(describeUiError(requestError, "investmentRead"));
 
     } finally {
       if (id === snapshotSequence.current) setSnapshotsLoading(false);
@@ -181,7 +182,7 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
       if (id === activitySequence.current) setRecentTransactions(transactionData.transactions);
     } catch (requestError) {
       if (id !== activitySequence.current) return;
-      setActivityError(toErrorMessage(requestError, "最新动态请求失败，请稍后重试。"));
+      setActivityError(describeUiError(requestError, "investmentRead"));
     } finally {
       if (showLoading && id === activitySequence.current) {
         setActivityLoading(false);
@@ -197,14 +198,14 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
 
   const activeCurrency = dashboard?.reportingCurrency ?? reportingCurrency;
   const cashValue = dashboard?.allocations.find((allocation) => allocation.allocationType === "cash")?.marketValue;
-  const businessDayNote = useMemo(() => buildBusinessDayCountdownParts(businessDayNow), [businessDayNow]);
+  const businessDayNote = useMemo(() => buildBusinessDayCountdownParts(businessDayNow, language), [businessDayNow, language]);
   const accountNames = useMemo(
     () => new Map((dashboard?.accounts ?? []).map((account) => [account.accountId, account.accountName])),
     [dashboard?.accounts]
   );
   const metrics = [
-    { label: "本日变动", value: formatPlainTodayChange(dashboard, dashboardLoading), currency: activeCurrency, toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3) },
-    { label: "现金", value: formatPlainMoneyMetric(cashValue, dashboardLoading), currency: activeCurrency, toneClass: undefined }
+    { id: "daily", label: copy("businessDayChange", language), value: formatPlainTodayChange(dashboard, dashboardLoading, language), currency: activeCurrency, toneClass: signedToneClass(dashboard?.todayChange, preferences.gainColorScheme, 3) },
+    { id: "cash", label: copy("cash", language), value: formatPlainMoneyMetric(cashValue, dashboardLoading, language), currency: activeCurrency, toneClass: undefined }
   ];
 
   const trendData = useMemo<TrendPoint[]>(
@@ -244,16 +245,16 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
     [dashboard?.quoteDate, dashboard?.valuationMetadata, dashboard?.investmentPerformance?.netInvestment, dashboard?.totalAssets, trendData, trendRange]
   );
   const trendSummary = useMemo(
-    () => buildTrendSummary(trendChartData),
-    [trendChartData]
+    () => buildTrendSummary(trendChartData, language),
+    [trendChartData, language]
   );
   const profitChartData = useMemo(
     () => buildProfitChartData(trendChartData),
     [trendChartData]
   );
   const profitSummary = useMemo(
-    () => buildProfitSummary(profitChartData),
-    [profitChartData]
+    () => buildProfitSummary(profitChartData, language),
+    [profitChartData, language]
   );
   const chartToneStyle = useMemo(
     () => getChartToneStyle(preferences.gainColorScheme),
@@ -268,17 +269,16 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
       <header className="page-header account-header dashboard-header">
         <div>
           <PageTitle route="/dashboard">
-            财富足迹
-            <span className="dashboard-title-tagline">资金永无眠</span>
+            {copy("title", language)}<span className="dashboard-title-tagline">{copy("tagline", language)}</span>
           </PageTitle>
-          <p>基于当前或延迟行情、汇率，展示投资组合概览。</p>
+          <p>{copy("intro", language)}</p>
         </div>
         <p className="business-day-note dashboard-business-day-note-mobile">
-          交易日 <span>{businessDayNote.businessDate}</span> 将于 <span>{businessDayNote.remainingTime}</span> 结束
+          {copy("countdown", language, {date: formatCalendarDate(businessDayNote.businessDate, "-", language), duration: businessDayNote.remainingTime})}
         </p>
         <div className="dashboard-controls dashboard-header-controls">
           <CurrencySelect
-            label="报告币种"
+            label={copy("reportingCurrency", language)}
             options={SNAPSHOT_DISPLAY_CURRENCIES}
             value={reportingCurrency}
             onChange={(nextCurrency) => {
@@ -295,23 +295,23 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
             disabled={dashboardLoading || snapshotsLoading || !currencyInitialized}
           >
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{copy("refresh", language)}</span>
           </button>
         </div>
       </header>
 
-      {refreshing && !dashboardLoading ? <p role="status">正在更新行情，当前显示已有估值。</p> : null}
+      {refreshing && !dashboardLoading ? <p role="status">{copy("refreshing", language)}</p> : null}
       {dashboardError ? <p className="form-error">{dashboardError}</p> : null}
 
       <p className="business-day-note dashboard-business-day-note-desktop">
-        交易日 <span>{businessDayNote.businessDate}</span> 将于 <span>{businessDayNote.remainingTime}</span> 结束
+        {copy("countdown", language, {date: formatCalendarDate(businessDayNote.businessDate, "-", language), duration: businessDayNote.remainingTime})}
       </p>
 
       <div className="metric-grid dashboard-metric-grid">
-        <article className="metric-card"><span>当前估值</span><small className="metric-currency"><CurrencyFlagIcon currency={activeCurrency} />{activeCurrency}</small><strong>{formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading)}</strong></article>
+        <article className="metric-card"><span>{copy("currentValuation", language)}</span><small className="metric-currency"><CurrencyFlagIcon currency={activeCurrency} />{activeCurrency}</small><strong>{formatPlainMoneyMetric(dashboard?.totalAssets, dashboardLoading, language)}</strong></article>
         <InvestmentPerformanceCard performance={dashboard?.investmentPerformance} currency={activeCurrency} loading={dashboardLoading} wholeAmounts />
         {metrics.map((metric) => (
-          <article className="metric-card" key={metric.label}>
+          <article className="metric-card" key={metric.id}>
             <span>{metric.label}</span>
             {metric.currency ? (
               <small className="metric-currency">
@@ -320,77 +320,74 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
               </small>
             ) : null}
             <strong className={metric.toneClass}>{metric.value}</strong>
-            {metric.label === "本日变动" ? <small>仅计入本交易日有实时或预估数据的标的</small> : null}
+            {metric.id === "daily" ? <small>{copy("dailyEligibility", language)}</small> : null}
           </article>
         ))}
       </div>
 
-      <p className="dashboard-secondary-stats">当日交易 {dashboardLoading ? "--" : dashboard?.dailyTradeCount ?? 0} · 账户数量 {dashboardLoading ? "--" : dashboard?.accountCount ?? 0}</p>
+      <p className="dashboard-secondary-stats">{copy("secondaryStats", language, {trades: dashboardLoading ? "--" : dashboard?.dailyTradeCount ?? 0, accounts: dashboardLoading ? "--" : dashboard?.accountCount ?? 0})}</p>
       {!dashboardLoading && dashboard ? <ValuationStatus metadata={dashboard.valuationMetadata} performance={dashboard.investmentPerformance} warnings={dashboard.warnings} /> : null}
 
-      <section className="dashboard-card-flow dashboard-chart-flow" aria-label="投资趋势、持仓分布、证券账户与现金和最新成交">
+      <section className="dashboard-card-flow dashboard-chart-flow" aria-label={copy("chartsLabel", language)}>
         <article ref={trendPanelRef} className="flow-card chart-panel trend-chart-panel" style={chartToneStyle} id="trend-panel" role="tabpanel" aria-labelledby={`trend-tab-${trendView}`}>
           <div className="chart-section-header">
-            <div className="trend-tabs" role="tablist" aria-label="趋势视图">
+            <div className="trend-tabs" role="tablist" aria-label={copy("trendView", language)}>
               {(["profit", "assets"] as const).map(view => <button key={view} id={`trend-tab-${view}`} type="button" role="tab" aria-selected={trendView === view} aria-controls="trend-panel" tabIndex={trendView === view ? 0 : -1} onClick={() => setTrendView(view)} onKeyDown={event => {
                 if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
                 event.preventDefault();
                 const next = event.key === "Home" ? "profit" : event.key === "End" ? "assets" : view === "profit" ? "assets" : "profit";
                 setTrendView(next);
                 document.getElementById(`trend-tab-${next}`)?.focus();
-              }}>{view === "profit" ? "期间盈利" : "资产趋势"}</button>)}
+              }}>{view === "profit" ? copy("periodProfit", language) : copy("assetTrend", language)}</button>)}
             </div>
             <div className="chart-header-controls">
-              <span className="chart-currency-indicator" aria-label={`当前图表币种 ${activeCurrency}`}>
+              <span className="chart-currency-indicator" aria-label={copy("chartCurrency", language, {currency:activeCurrency})}>
                 <CurrencyFlagIcon currency={activeCurrency} />
                 {activeCurrency}
               </span>
               <div className="chart-range-select">
                 <select
-                  aria-label="趋势范围"
+                  aria-label={copy("trendRange", language)}
                   value={trendRange}
                   onChange={(event) => setTrendRange(event.target.value as PortfolioTrendRange)}
                   disabled={trendLoading}
                 >
                   {trendRanges.map((range) => (
                     <option key={range.value} value={range.value}>
-                      {range.label}
+                      {copy(range.label, language)}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
           </div>
+        {snapshotsError ? <p className="form-error">{translateUiError(snapshotsError, language)}</p> : null}
         {trendView === "assets" ? <>
-          {snapshotsError ? <p className="form-error">{snapshotsError}</p> : null}
           {hasPrincipalWarning ? (
-            <p className="form-error">累计净投入缺少交易日汇率，请补齐汇率数据后查看累计收益。</p>
+            <p className="form-error">{copy("principalMissing", language)}</p>
           ) : null}
           {trendLoading ? (
-            <LoadingBlock label="正在加载资产趋势" />
+            <LoadingBlock label={copy("loadingAssets", language)} />
           ) : trendChartData.length === 0 ? (
-            <div className="empty-chart-state">暂无快照数据</div>
+            <div className="empty-chart-state">{copy("noSnapshots", language)}</div>
           ) : (
             <>
               <div className="trend-panel-metrics">
-                <div className="trend-legend" aria-label="图例">
+                <div className="trend-legend" aria-label={copy("legend", language)}>
                   <span>
                     <i className="trend-legend-portfolio" />
-                    资产净值
-                  </span>
+                    {copy("netAssets", language)}</span>
                   <span>
                     <i className="trend-legend-principal" />
-                    累计净投入
-                  </span>
+                    {copy("netInvestment", language)}</span>
                 </div>
               </div>
               <InvestmentTrendChart points={trendChartData} view="assets" gainColorScheme={preferences.gainColorScheme} />
               {trendSummary ? (
                 <p className="trend-summary">
-                  {trendSummary.rangeLabel}，初始值 {trendSummary.initialValue}，
+                  {copy("initialValue", language, {range:trendSummary.rangeLabel, value:trendSummary.initialValue})}
                   <span className="trend-summary-change">
-                    总资产变动
-                    <span className={signedToneClass(trendSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
+                    {copy("assetChange", language)}<span className={signedToneClass(trendSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
                       {trendSummary.changeAmount}
                     </span>
                     （
@@ -406,30 +403,28 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
         </> : null}
         {trendView === "profit" ? <>
           {hasPrincipalWarning ? (
-            <p className="form-error">累计净投入缺少交易日汇率，请补齐汇率数据后查看期间盈利。</p>
+            <p className="form-error">{copy("periodPrincipalMissing", language)}</p>
           ) : null}
           {trendLoading ? (
-            <LoadingBlock label="正在加载期间盈利" />
+            <LoadingBlock label={copy("loadingProfit", language)} />
           ) : profitChartData.length === 0 ? (
-            <div className="empty-chart-state">暂无期间盈利数据</div>
+            <div className="empty-chart-state">{copy("noProfit", language)}</div>
           ) : (
             <>
               <div className="trend-panel-metrics profit-panel-metrics">
-                <div className="trend-legend" aria-label="图例">
+                <div className="trend-legend" aria-label={copy("legend", language)}>
                   <span>
                     <i className="trend-legend-profit" />
-                    期间盈利
-                  </span>
+                    {copy("periodProfit", language)}</span>
                 </div>
               </div>
               <InvestmentTrendChart points={trendChartData} view="profit" gainColorScheme={preferences.gainColorScheme} />
-              <p className="panel-description">所选期间内的盈利变化，已扣除净投入变化。起点为期间首个有效估值；悬停或轻触曲线可查看数值；最新节点为当前估值。</p>
+              <p className="panel-description">{copy("profitHelp", language)}</p>
               {profitSummary ? (
                 <p className="trend-summary">
                   {profitSummary.rangeLabel}，
                   <span className="trend-summary-change">
-                    期间盈利
-                    <span className={signedToneClass(profitSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
+                    {copy("periodProfit", language)}<span className={signedToneClass(profitSummary.changeAmountRaw, preferences.gainColorScheme, 3)}>
                       {profitSummary.changeAmount}
                     </span>
                   </span>
@@ -442,31 +437,31 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
 
         <article className="flow-card activity-panel trade-activity-panel" style={{ height: trendPanelHeight }}>
           <div className="activity-panel-header">
-            <h2>最新成交</h2>
-            <span>10 条</span>
+            <h2>{copy("recentTrades", language)}</h2>
+            <span>{copy("tenTrades", language)}</span>
           </div>
-          {activityError ? <p className="form-error">{activityError}</p> : null}
+          {activityError ? <p className="form-error">{translateUiError(activityError, language)}</p> : null}
           {activityLoading ? (
-            <LoadingBlock label="正在加载最新成交" />
+            <LoadingBlock label={copy("loadingTrades", language)} />
           ) : recentTransactions.length === 0 ? (
-            <div className="empty-chart-state">暂无买卖交易</div>
+            <div className="empty-chart-state">{copy("noTrades", language)}</div>
           ) : (
             <div className="activity-table-wrap">
               <div className="activity-list compact-activity-list trade-activity-list">
                 {recentTransactions.map((transaction) => (
                   <div className="compact-activity-row trade-activity-row" key={transaction.id}>
-                    <span className="activity-date">{transaction.tradeDate}</span>
+                    <span className="activity-date">{formatCalendarDate(transaction.tradeDate, "-", language)}</span>
                     <span className="activity-account">{accountNames.get(transaction.accountId) ?? "-"}</span>
                     <span className="activity-trade-instrument">
                       <span
                         className={`trade-type ${transaction.transactionType === "buy" ? "trade-type-buy" : "trade-type-sell"}`}
                       >
-                        {formatTransactionType(transaction)}
+                        {formatTransactionType(transaction, language)}
                       </span>
-                      <strong>{formatTransactionInstrument(transaction)}</strong>
+                      <strong>{formatTransactionInstrument(transaction, language)}</strong>
                     </span>
                     <span className="activity-quantity-currency">
-                      <span>{formatTransactionQuantityPrice(transaction)}</span>
+                      <span>{formatTransactionQuantityPrice(transaction, language)}</span>
                       <span className="currency-inline">
                         <CurrencyFlagIcon currency={transaction.currency} />
                         {transaction.currency}
@@ -477,10 +472,10 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
               </div>
             </div>
           )}
-          <Link className="activity-more-link" to="/transactions">更多...</Link>
+          <Link className="activity-more-link" to="/transactions">{copy("more", language)}</Link>
         </article>
         <InvestmentDistributionPanel dashboard={dashboard} loading={allocationLoading} isAdmin={session?.user.role === "admin"} onRetry={() => observeAsync(reloadDashboard())} />
-        <DistributionPanel title="证券账户与现金" description="各账户仅统计证券市值，现金统一汇总。占比以全部投资资产为分母。" rows={dashboard?.allocations ?? []} total={dashboard?.totalAssets} loading={allocationLoading} />
+        <DistributionPanel title={copy("accountDistribution", language)} description={copy("accountDistributionHelp", language)} rows={dashboard?.allocations ?? []} total={dashboard?.totalAssets} loading={allocationLoading} />
 
 
       </section>
@@ -489,17 +484,17 @@ async function loadActivity(options: { showLoading?: boolean } = {}) {
   );
 }
 
-function formatPlainMoneyMetric(value: string | null | undefined, loading: boolean): ReactNode {
+function formatPlainMoneyMetric(value: string | null | undefined, loading: boolean, language: UiLanguage = "zh-CN"): ReactNode {
   if (loading) {
-    return <LoadingState label="加载中" />;
+    return <LoadingState label={copy("loading", language)} />;
   }
 
-  return value === null || value === undefined ? "--" : formatMetricWholeNumber(value);
+  return value === null || value === undefined ? "--" : formatMetricWholeNumber(value, {}, language);
 }
 
-function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boolean): ReactNode {
+function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boolean, language: UiLanguage = "zh-CN"): ReactNode {
   if (loading) {
-    return <LoadingState label="加载中" />;
+    return <LoadingState label={copy("loading", language)} />;
   }
 
   if (!dashboard || dashboard.todayChange === null) {
@@ -508,15 +503,15 @@ function formatPlainTodayChange(dashboard: DashboardSummary | null, loading: boo
 
   return (
     <span className="metric-inline-pair">
-      <span>{formatMetricWholeNumber(dashboard.todayChange, { signed: true })}</span>
+      <span>{formatMetricWholeNumber(dashboard.todayChange, { signed: true }, language)}</span>
       {dashboard.todayChangePct === null ? null : (
-        <span className="metric-inline-secondary">{formatSignedDisplayPercent(dashboard.todayChangePct)}%</span>
+        <span className="metric-inline-secondary">{formatSignedDisplayPercent(dashboard.todayChangePct, getDisplayLocale(language))}%</span>
       )}
     </span>
   );
 }
 
-function formatMetricWholeNumber(value: string | number, options: { signed?: boolean } = {}): string {
+function formatMetricWholeNumber(value: string | number, options: { signed?: boolean } = {}, language: UiLanguage = "zh-CN"): string {
   const numericValue = Number(String(value).trim());
 
   if (!Number.isFinite(numericValue)) {
@@ -524,7 +519,7 @@ function formatMetricWholeNumber(value: string | number, options: { signed?: boo
   }
 
   const roundedValue = Math.round(numericValue);
-  const formatted = Math.abs(roundedValue).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+  const formatted = Math.abs(roundedValue).toLocaleString(getDisplayLocale(language), { maximumFractionDigits: 0 });
 
   if (options.signed && roundedValue > 0) {
     return `+${formatted}`;
@@ -537,18 +532,18 @@ function formatMetricWholeNumber(value: string | number, options: { signed?: boo
   return formatted;
 }
 
-function buildBusinessDayCountdownParts(now: Date): { businessDate: string; remainingTime: string } {
+function buildBusinessDayCountdownParts(now: Date, language: UiLanguage = "zh-CN"): { businessDate: string; remainingTime: string } {
   const businessDate = getAppBusinessDate(now);
   const endInstant = new Date(getAppBusinessDayEndInstant(now));
   const remainingMinutes = Math.max(0, Math.ceil((endInstant.getTime() - now.getTime()) / 60_000));
 
   return {
     businessDate,
-    remainingTime: formatHoursMinutes(remainingMinutes)
+    remainingTime: formatHoursMinutes(remainingMinutes, language)
   };
 }
 
-function buildTrendSummary(chartPoints: TrendChartPoint[]): {
+function buildTrendSummary(chartPoints: TrendChartPoint[], language: UiLanguage = "zh-CN"): {
   rangeLabel: string;
   initialValue: string;
   changeAmount: string;
@@ -574,39 +569,39 @@ function buildTrendSummary(chartPoints: TrendChartPoint[]): {
   const endDate = isSyntheticTrendDate(lastPoint.date) ? getAppBusinessDate() : lastPoint.date;
 
   return {
-    rangeLabel: `${firstPoint.date} 至 ${endDate}`,
+    rangeLabel: copy("range", language, {from:formatCalendarDate(firstPoint.date, "-", language),to:formatCalendarDate(endDate, "-", language)}),
     initialValue: formatChartMoney(firstPoint.value),
-    changeAmount: formatMetricWholeNumber(changeAmount, { signed: true }),
+    changeAmount: formatMetricWholeNumber(changeAmount, { signed: true }, language),
     changeAmountRaw: String(changeAmount),
-    changePct: changePct === null ? "--" : `${formatSignedDisplayPercent(changePct)}%`,
+    changePct: changePct === null ? "--" : `${formatSignedDisplayPercent(changePct, getDisplayLocale(language))}%`,
     changePctRaw: changePct === null ? "0" : String(changePct)
   };
 }
 
-function buildProfitSummary(chartPoints: ProfitChartPoint[]): { rangeLabel: string; changeAmount: string; changeAmountRaw: string } | null {
+function buildProfitSummary(chartPoints: ProfitChartPoint[], language: UiLanguage = "zh-CN"): { rangeLabel: string; changeAmount: string; changeAmountRaw: string } | null {
   const points = chartPoints.filter(point => point.profitValue !== null && Number.isFinite(point.profitValue));
   const first = points[0];
   const last = points.at(-1);
   if (!first || !last) return null;
   const amount = last.profitValue! - first.profitValue!;
   const endDate = isSyntheticTrendDate(last.date) ? getAppBusinessDate() : last.date;
-  return { rangeLabel: `实际统计起点 ${first.date} 至 ${endDate}`, changeAmount: formatMetricWholeNumber(amount, { signed: true }), changeAmountRaw: String(amount) };
+  return { rangeLabel: copy("profitRange", language, {from:formatCalendarDate(first.date, "-", language),to:formatCalendarDate(endDate, "-", language)}), changeAmount: formatMetricWholeNumber(amount, { signed: true }, language), changeAmountRaw: String(amount) };
 }
 
-function formatTransactionInstrument(transaction: InvestmentTransaction): string {
-  return transaction.instrumentShortName ?? transaction.instrumentName ?? transaction.instrumentSymbol ?? "未知标的";
+function formatTransactionInstrument(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
+  return transaction.instrumentShortName ?? transaction.instrumentName ?? transaction.instrumentSymbol ?? copy("unknownInstrument", language);
 }
 
-function formatTransactionType(transaction: InvestmentTransaction): string {
-  return transaction.transactionType === "buy" ? "买入" : "卖出";
+function formatTransactionType(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
+  return transaction.transactionType === "buy" ? copy("buy", language) : copy("sell", language);
 }
 
-function formatTransactionQuantityPrice(transaction: InvestmentTransaction): string {
+function formatTransactionQuantityPrice(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
   if (transaction.quantity === null || transaction.price === null) {
     return "--";
   }
 
-  return `${formatDisplayAmount(transaction.quantity)}@${formatDisplayAmount(transaction.price)}`;
+  return `${formatDisplayAmount(transaction.quantity, getDisplayLocale(language))}@${formatDisplayAmount(transaction.price, getDisplayLocale(language))}`;
 }
 
 function parseNullableNumber(value: string | null | undefined): number | null {
@@ -633,12 +628,4 @@ function readStoredDisplayCurrency(key: string): SnapshotDisplayCurrency | null 
 
 function writeStoredDisplayCurrency(key: string, value: SnapshotDisplayCurrency): void {
   window.localStorage.setItem(key, value);
-}
-
-function toErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return fallback;
 }

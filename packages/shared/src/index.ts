@@ -1,4 +1,6 @@
 import Decimal from "decimal.js";
+import type { InvestmentErrorDetails } from "./investmentErrorDetails";
+export * from "./investmentErrorDetails";
 export * from "./investmentGroups";
 import { compareTransactionOrder } from "./transactionTimeline";
 export * from "./accountAccess";
@@ -1484,6 +1486,8 @@ export const MONTHLY_SUMMARY_WARNING_CODES = [
 export type MonthlySummaryWarningCode = (typeof MONTHLY_SUMMARY_WARNING_CODES)[number];
 
 export interface MonthlySummaryWarning {
+  actualDate?: string;
+  instrumentShortName?: string;
   code: MonthlySummaryWarningCode;
   date: string | null;
   currency: CurrencyCode | SnapshotDisplayCurrency | null;
@@ -2024,6 +2028,7 @@ function formatFlexibleDecimal(amount: Decimal, decimalPlaces: number): string {
 }
 
 export interface ApiError {
+  details?: InvestmentErrorDetails;
   code:
     | "UNAUTHORIZED"
     | "PASSWORD_CHANGE_REQUIRED"
@@ -2112,7 +2117,7 @@ export interface ApiErrorEventDetail {
 export interface ApiErrorEventsPage { items: ApiErrorEventDetail[]; pagination: Pagination; }
 
 export interface AccountTotal { accountId: string; marketValue: string | null; currency: SnapshotDisplayCurrency; snapshotDate: string; }
-export interface AccountDetailWarning { code: string; instrumentId?: string; instrumentShortName?: string; currency?: CurrencyCode; date?: string; message: string; }
+export interface AccountDetailWarning { origin?: "holding" | "valuation" | "snapshot" | "principal"; code: string; instrumentId?: string; instrumentShortName?: string; currency?: CurrencyCode; date?: string; message: string; }
 export interface TransactionBalancesResponse {
   holdings: HoldingSummary[];
   cashBalances: Array<Pick<HoldingSummary, "accountId" | "instrumentId" | "quantity" | "warnings">>;

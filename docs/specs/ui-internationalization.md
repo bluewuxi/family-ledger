@@ -1,6 +1,6 @@
 # UI Internationalization Foundation
 
-Status: Phase 2 locally implemented; Phase 2 local visual acceptance complete (authenticated shell/groups plus isolated auth/startup). See [Phase 2 evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phase 1 foundation evidence: [validation and scoped acceptance evidence](../releases/2026-11-07-ui-internationalization-phase-1.md). This is a foundation contract, not whole-app bilingual support. The [approved design](2026-11-07-ui-internationalization-design.md) and [phased roadmap](../plans/2026-11-07-ui-internationalization-roadmap.md) own subsequent migration scope.
+Status: Phase 3 locally implemented. See [validation and acceptance evidence](../releases/2026-11-10-ui-internationalization-phase-3.md). Phase 2 locally implemented; Phase 2 local visual acceptance complete (authenticated shell/groups plus isolated auth/startup). See [Phase 2 evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phase 1 foundation evidence: [validation and scoped acceptance evidence](../releases/2026-11-07-ui-internationalization-phase-1.md). This is a foundation contract, not whole-app bilingual support. The [approved design](2026-11-07-ui-internationalization-design.md) and [phased roadmap](../plans/2026-11-07-ui-internationalization-roadmap.md) own subsequent migration scope.
 
 ## Language and resources
 
@@ -8,7 +8,7 @@ Support `zh-CN` (default) and `en`, mapping display locales to `zh-CN` and `en-N
 
 Phase 1 forces Chinese except when Vite DEV is true and hostname is exactly `localhost`, `127.0.0.1`, or `[::1]`. Other builds ignore stored English without deleting it and reject English switches. This release gate is not authentication. Public switching remains withheld until Phase 5 readiness.
 
-Bundle nested string resources in namespaces `common`, `format`, `preview`, `auth`, `navigation`, `errors`, `investmentGroups`; use typed semantic camelCase keys, complete sentences, safe text interpolation and Chinese fallback. Raw-resource verification, independent of fallback, checks shape, symmetric semantic keys, non-empty strings, parameter sets and cardinal plural categories from `Intl.PluralRules`. Plural families require locale-specific suffixes; optional `_zero` has matching parameters. Context/ordinal variants are unsupported. Only plain `{{identifier}}` interpolation is supported in Phase 1 resources; formatted, unescaped, dotted-path and malformed tokens fail validation instead of being ignored.
+Bundle nested string resources in namespaces `common`, `format`, `preview`, `auth`, `navigation`, `errors`, `investmentGroups`, `investment`, `dashboard`, `holdings`, `monthlyReview`, `accounts`, `instruments`, `transactions`; use typed semantic camelCase keys, complete sentences, safe text interpolation and Chinese fallback. Raw-resource verification, independent of fallback, checks shape, symmetric semantic keys, non-empty strings, parameter sets and cardinal plural categories from `Intl.PluralRules`. Plural families require locale-specific suffixes; optional `_zero` has matching parameters. Context/ordinal variants are unsupported. Only plain `{{identifier}}` interpolation is supported in Phase 1 resources; formatted, unescaped, dotted-path and malformed tokens fail validation instead of being ignored.
 
 `common.productName` is `金财屋` / `Family Ledger`. Self-language controls always read `中文` / `English`, without flags. Format sentences:
 
@@ -20,9 +20,9 @@ Bundle nested string resources in namespaces `common`, `format`, `preview`, `aut
 
 ## Financial glossary
 
-Keys below are proposals for future workflow namespaces; they do not rename current UI or merge distinct metrics. Scope and formulas follow [investment](investment-overview.md), [API](../api.md#dashboard-read-api), and [data model](../data-model.md#financial-values).
+The glossary identifies the metrics independently of individual resource namespaces. Scope and formulas follow [investment](investment-overview.md), [API](../api.md#dashboard-read-api), and [data model](../data-model.md#financial-values).
 
-| Chinese label | English term | Proposed semantic key | Definition and owner |
+| Chinese label | English term | Metric identity | Definition and owner |
 | --- | --- | --- | --- |
 | 总资产 | Total assets | portfolio.totalAssets | Current scoped investment valuation including pooled cash; [API](../api.md#dashboard-read-api) |
 | 资产净值 | Net assets | trend.netAssets | Valued investment assets on the trend date; [investment](investment-overview.md#dashboard-composition-and-trends) |
@@ -44,15 +44,15 @@ All public number helpers accept trailing `locale: DisplayLocale = "zh-CN"`. Pre
 
 `formatLocalDateTime(value, fallback = "-", timeZone?, language = "zh-CN")`, `formatLocalDateTimeNote(value, fallback, language = "zh-CN")`, `formatAppBusinessDayCountdown(now = new Date(), language = "zh-CN")`, and `formatHoursMinutes(totalMinutes, language = "zh-CN")` use explicit language. `formatCalendarDate(value, fallback = "-", language = "zh-CN")` retains valid ISO Chinese dates; English uses `DD Mon YYYY`; invalid text is preserved and null uses fallback. Never interpret a date-only value as a viewer-zone instant.
 
-Pure helpers never read mutable global language. Migrated React callers subscribe with `useUiLanguage`, pass explicit locale/language and include it in memo dependencies. Keep currency codes explicit, parsing/sorting independent, and ratio versus percentage-point semantics intact. Chart units, scaled values and tooltips migrate together in Phase 3. Language does not change [Shanghai 06:00 or viewer timezone](../time-policy.md), calculations, permissions or server preferences.
+Pure helpers never read mutable global language. Migrated React callers subscribe with `useUiLanguage`, pass explicit locale/language and include it in memo dependencies. Keep currency codes explicit, parsing/sorting independent, and ratio versus percentage-point semantics intact. Chart axes retain the existing K/M thresholds, and whole-money chart tooltips retain Math.round semantics. Language does not change [Shanghai 06:00 or viewer timezone](../time-policy.md), calculations, permissions or server preferences.
 
 ## Coverage ledger
 
 | Scope | Coverage |
 | --- | --- |
 | New `src/i18n` resources/provider/preview; moved time sentences; explicit formatting | Phase 1 only; raw resources and fixtures cover foundation, not untranslated pages |
-| Login/recovery, shell, shared errors and complete business pilot | Phase 2, not started |
-| Investment workflows and charts | Phase 3, not started |
+| Login/recovery, shell, shared errors and complete business pilot | Phase 2, migrated as described below |
+| Investment workflows and charts | Phase 3, migrated as described below |
 | Other workflows | Phase 4, not started |
 | Integrated acceptance and public switch | Phase 5, not started |
 | Original artwork in `apps/web/public` | Preserve original brand lettering; not translated artwork |
@@ -62,7 +62,7 @@ Review changed preview/provider JSX, accessible labels and moved time sentences 
 
 ## Phase 2 migrated coverage
 
-Local preview includes login, administrator-contact recovery and its reset-route alias, self-service/forced password change, session/startup failure, shell navigation/branding/footer, route document titles, shared loading/empty/pagination/back-link/currency/drawer copy, and the investment-group maintenance pilot. Other page bodies, Settings administration/reset/extra-password controls, dashboard distributions, securities CRUD and financial workflows remain deferred. Production remains Chinese with no language switch.
+Local preview includes login, administrator-contact recovery and its reset-route alias, self-service/forced password change, session/startup failure, shell navigation/branding/footer, route document titles, shared loading/empty/pagination/back-link/currency/drawer copy, and the investment-group maintenance pilot. Other page bodies, Settings administration/reset/extra-password controls, dashboard distributions, securities CRUD and financial workflows were subsequently migrated in Phase 3. Production remains Chinese with no language switch.
 
 Error state stores typed semantic descriptors. Mapping uses client codes/statuses and additive shared parser reasons, never arbitrary error messages. Unknown group mutation outcomes instruct users to reload and check before retrying; no write is replayed. Shared parser messages, accepted inputs, HTTP contracts and original-revision writes are unchanged. Group 400 responses retain combined name/member guidance. Existing errors retranslate during render without requests.
 
@@ -79,3 +79,17 @@ Language changes preserve stable routes/queries, component keys, original revisi
 | 成员证券 | Member securities | investmentGroups.members |
 | 未分组 | Ungrouped | investmentGroups.ungrouped |
 | 重新加载并检查 | Reload and review | investmentGroups.reload |
+
+## Phase 3 investment coverage
+
+| Surface | Presentation and exceptions |
+| --- | --- |
+| Dashboard and account charts | Valuation status, ranges, carried dates, tooltips, gain and principal curves, recent trades, pooled cash and group distribution. Row codes identify pooled and ungrouped rows. |
+| Holdings overview and detail | Filters, totals, price provenance, negative positions, missing cost, missing current or prior price and missing valuation FX. Provider and instrument names retain their source text. |
+| Monthly review | Asset bridge, account contribution, transactions, cash adjustments and notes. Warnings cover carried boundaries, missing opening or closing snapshots, unavailable opening or closing values, missing opening prices and missing principal, adjustment or dividend FX. |
+| Accounts and instruments | Directory, opening steps, account detail, trading password actions, security configuration and group entry. Account warnings retain instrument, currency, date and snapshot origin where supplied. Original opening-entry notes are ledger data. |
+| Transactions | Filters, balances, exact input fields, generated cash legs, drawers and uncertain write guidance. Switching language preserves the original create payload and operation key. |
+
+Market value uses available valuation inputs. Carrying cost comes from position history, and unrealized gain or loss compares current market value with carrying cost. Closed-position outcomes contribute to lifetime investment profit. Principal flows and valuation movement are separate parts of the monthly bridge. Cash settlement legs and estimated prices retain their existing financial meanings. See the [investment formulas](investment-overview.md) and [financial values contract](../data-model.md#financial-values).
+
+Investment errors use optional allowlisted facts from the [API response contract](../api.md#response-contract). Unknown outcomes ask the user to check the ledger. Native confirmations use the language at invocation. Date and month inputs retain browser formatting and ISO values. Artwork, provider names, user notes and other stored labels retain their source text.

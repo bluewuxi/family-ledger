@@ -6,13 +6,14 @@ import { build } from "esbuild";
 import { createRequire } from "node:module";
 
 async function main() {
-  const bundle = await build({entryPoints:["apps/web/src/components/InvestmentDistributionPanel.tsx"],bundle:true,write:false,platform:"node",format:"cjs",jsx:"automatic",external:["react","react/jsx-runtime","react-router-dom","./DistributionPanel"]});
+  const bundle = await build({entryPoints:["apps/web/src/components/InvestmentDistributionPanel.tsx"],bundle:true,write:false,platform:"node",format:"cjs",jsx:"automatic",define:{"import.meta.env":JSON.stringify({DEV:false})},external:["react","react/jsx-runtime","react-router-dom","./DistributionPanel","../i18n/LanguageProvider"]});
   let params = new URLSearchParams("keep=yes");
   let calls = 0;
   const require = createRequire(import.meta.url);
   const module = {exports:{} as {InvestmentDistributionPanel: (props: Record<string,unknown>) => Element}};
   interface Element { type: unknown; props: Record<string,unknown> }
   new Function("module","exports","require",bundle.outputFiles[0].text)(module,module.exports,(name:string)=>{
+    if(name==="../i18n/LanguageProvider")return {useUiLanguage:()=>({language:"zh-CN",displayLocale:"zh-CN"})};
     if(name==="react")return {...require("react"),useId:()=>"fixture-id"};
     if(name==="react-router-dom")return {Link:"a",useSearchParams:()=>[params,(next:URLSearchParams)=>{params=next;}]};
     if(name==="./DistributionPanel")return {DistributionPanel:"distribution"};

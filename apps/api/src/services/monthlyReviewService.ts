@@ -39,7 +39,7 @@ export async function updateMonthlyReview(
 
 function parseUpdateMonthlyReviewInput(body: unknown): UpdateMonthlyReviewInput {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be an object.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be an object.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   const input: UpdateMonthlyReviewInput = {};
@@ -62,11 +62,11 @@ function optionalFamilyNotes(value: unknown): string {
   }
 
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", "familyNotes must be a string.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "familyNotes must be a string.", 400, { reason: "FIELD_INVALID", field: "familyNotes" });
   }
 
   if (value.length > maxFamilyNotesLength) {
-    throw new ApiRequestError("VALIDATION_ERROR", "familyNotes is too long.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "familyNotes is too long.", 400, { reason: "FIELD_TOO_LONG", field: "familyNotes", limit: maxFamilyNotesLength });
   }
 
   return value;
@@ -74,7 +74,7 @@ function optionalFamilyNotes(value: unknown): string {
 
 function requiredReviewStatus(value: unknown): MonthlyReviewStatus {
   if (!MONTHLY_REVIEW_STATUSES.includes(value as MonthlyReviewStatus)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "reviewStatus must be in_progress or complete.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "reviewStatus must be in_progress or complete.", 400, { reason: "FIELD_INVALID", field: "reviewStatus" });
   }
 
   return value as MonthlyReviewStatus;

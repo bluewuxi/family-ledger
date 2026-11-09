@@ -1,0 +1,11 @@
+.phase3-fixture-controls { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px; padding: 12px; border: 1px solid var(--color-border); background: var(--color-surface); }
+.phase3-fixture-controls nav { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; }
+.phase3-fixture-controls a, .phase3-fixture-controls button, .phase3-fixture-controls select { min-height: 44px; }
+.phase3-fixture-controls pre { max-width: calc(100vw - 56px); max-height: 320px; overflow: auto; }
+.phase3-fixture-controls p { width: 100%; }
+.phase3-fixture-controls > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.phase3-fixture-controls details { width: 100%; }
+.phase3-overlay-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; border-top: 1px dashed var(--color-border); }
+.phase3-overlay-controls button, .phase3-overlay-controls select { min-height: 44px; }
+@media (min-width: 821px) { .phase3-fixture-controls { margin-left: 260px; } }
+@media (max-width: 820px) { .phase3-fixture-controls { margin-top: 84px; } }

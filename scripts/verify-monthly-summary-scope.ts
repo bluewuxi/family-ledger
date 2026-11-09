@@ -56,6 +56,10 @@ async function main() {
           assert.equal(summary.requestedStartSnapshotDate, "2026-05-31");
           assert.equal(summary.requestedEndSnapshotDate, "2026-06-30");
           assert.equal(summary.fullPeriodAvailable, false);
+          assert.deepEqual(summary.warnings.filter(warning => warning.code === "SNAPSHOT_DATE_MISMATCH").map(warning => ({ date: warning.date, actualDate: warning.actualDate })), [
+            { date: "2026-05-31", actualDate: "2026-05-29" },
+            { date: "2026-06-30", actualDate: "2026-06-28" }
+          ]);
           assert.equal(summary.assetChange, null);
           assert.equal(summary.valuationMovement, null);
           assert.equal(summary.netPrincipalFlow, "10.000000");

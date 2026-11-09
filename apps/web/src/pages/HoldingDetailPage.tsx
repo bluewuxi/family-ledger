@@ -1,3 +1,9 @@
+import { getInvestmentLabel } from "../i18n/investmentLabels";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { holdingsCopy as copy } from "../i18n/investmentCopy";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
+import { formatCalendarDate } from "../lib/timeFormat";
 import { useEventCallback } from "../lib/useEventCallback";
 import { observeAsync } from "../lib/observeAsync";
 import { PageBackLink } from "../components/PageBackLink";
@@ -5,10 +11,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import {
-  ASSET_TYPE_LABELS,
-  MARKET_REGION_LABELS,
   SNAPSHOT_DISPLAY_CURRENCIES,
-  TRANSACTION_TYPE_LABELS,
   type HoldingDetailLinkedCashLeg,
   type HoldingDetailSummary,
   type InvestmentTransaction,
@@ -17,7 +20,7 @@ import {
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingBlock } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
-import { ApiClientError, apiGet } from "../lib/apiClient";
+import { apiGet } from "../lib/apiClient";
 import {
   formatHoldingInstrument,
   formatHoldingLatestPrice,
@@ -39,6 +42,7 @@ interface HoldingDetailResponse {
 const holdingDetailCurrencyStorageKey = "family-ledger.holding-detail.reportingCurrency";
 
 export function HoldingDetailPage() {
+  const { language } = useUiLanguage();
   const { accountId, instrumentId } = useParams();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
@@ -46,11 +50,11 @@ export function HoldingDetailPage() {
   const [currencyManuallySelected, setCurrencyManuallySelected] = useState(false);
   const [detail, setDetail] = useState<HoldingDetailSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiErrorDescriptor | "invalidAddress" | null>(null);
 
 const loadDetail = useEventCallback(async function(currency: SnapshotDisplayCurrency) {
     if (!accountId || !instrumentId) {
-      setError("持仓地址缺少账户或标的信息。");
+      setError("invalidAddress");
       setLoading(false);
       return;
     }
@@ -64,7 +68,7 @@ const loadDetail = useEventCallback(async function(currency: SnapshotDisplayCurr
       );
       setDetail(data.holdingDetail);
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(describeUiError(requestError, "investmentRead"));
     } finally {
       setLoading(false);
     }
@@ -93,17 +97,17 @@ const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
     <section>
       <header className="page-header account-header holding-detail-header">
         <div>
-          <PageBackLink to="/holdings" label="持仓总览" />
-          <PageTitle route="/holdings">持仓详情</PageTitle>
+          <PageBackLink to="/holdings" label={copy("title", language)} />
+          <PageTitle route="/holdings">{copy("detailTitle", language)}</PageTitle>
           <p>
             {detail
-              ? `${detail.account.name} · ${formatHoldingInstrument(detail.holding)} · ${MARKET_REGION_LABELS[detail.instrument.marketRegion]}`
-              : "查看单个账户下的持仓、估值、交易和股息记录。"}
+              ? `${detail.account.name} · ${formatHoldingInstrument(detail.holding)} · ${getInvestmentLabel("marketRegion", detail.instrument.marketRegion, language)}`
+              : copy("detailIntro", language)}
           </p>
         </div>
         <div className="dashboard-controls">
           <CurrencySelect
-            label="报告币种"
+            label={copy("reportingCurrency", language)}
             options={SNAPSHOT_DISPLAY_CURRENCIES}
             value={reportingCurrency}
             onChange={(nextCurrency) => {
@@ -120,95 +124,95 @@ const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{copy("refresh", language)}</span>
           </button>
         </div>
       </header>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="form-error">{error === "invalidAddress" ? copy("invalidAddress", language) : translateUiError(error, language)}</p> : null}
 
       {pageLoading ? (
-        <LoadingBlock label="正在加载持仓详情" />
+        <LoadingBlock label={copy("loadingDetail", language)} />
       ) : detail ? (
         <>
           <div className="metric-grid holdings-metrics holding-detail-metrics">
-            <MetricCard label="当前数量" value={formatHoldingQuantity(detail.holding)} />
+            <MetricCard label={copy("currentQuantity", language)} value={formatHoldingQuantity(detail.holding, language)} />
             <MetricCard
-              label="当前估值"
+              label={copy("currentValuation", language)}
               currency={activeCurrency}
-              value={formatNullableAmount(detail.holding.marketValue)}
+              value={formatNullableAmount(detail.holding.marketValue, language)}
             />
-            <MetricCard label="持仓成本" value={formatNullableAmount(detail.holding.costAmount)} />
+            <MetricCard label={copy("cost", language)} value={formatNullableAmount(detail.holding.costAmount, language)} />
             <MetricCard
-              label="未实现盈亏"
+              label={copy("unrealizedGainLoss", language)}
               currency={activeCurrency}
-              value={formatNullableSignedAmount(detail.holding.unrealizedGain)}
+              value={formatNullableSignedAmount(detail.holding.unrealizedGain, language)}
               toneClass={signedToneClass(detail.holding.unrealizedGain, preferences.gainColorScheme, 3)}
             />
-            <MetricCard label="最新价格" value={formatHoldingLatestPrice(detail.holding, "detailed")} />
+            <MetricCard label={copy("latestPrice", language)} value={formatHoldingLatestPrice(detail.holding, "detailed", language)} />
             <MetricCard
-              label="累计股息"
-              value={`${detail.dividendSummary.currency} ${formatDisplayAmount(detail.dividendSummary.totalGrossAmount)}`}
+              label={copy("totalDividends", language)}
+              value={`${detail.dividendSummary.currency} ${formatDisplayAmount(detail.dividendSummary.totalGrossAmount, getDisplayLocale(language))}`}
             />
           </div>
 
           <section className="holding-detail-grid">
             <article className="flow-card holding-detail-panel">
-              <h2>估值概览</h2>
+              <h2>{copy("valuationOverview", language)}</h2>
               <dl className="detail-list">
-                <DetailRow label="账户" value={detail.account.name} />
-                <DetailRow label="标的" value={formatHoldingInstrument(detail.holding)} />
-                <DetailRow label="状态" value={detail.hasCurrentPosition ? "当前持仓" : "已清仓"} />
-                <DetailRow label="类型" value={ASSET_TYPE_LABELS[detail.holding.assetType]} />
-                <DetailRow label="币种" value={detail.holding.currency} />
-                <DetailRow label="最新价格日期" value={detail.holding.latestPriceDate ?? "--"} />
-                <DetailRow label="数据提示" value={formatHoldingWarnings(detail.holding)} />
+                <DetailRow label={copy("account", language)} value={detail.account.name} />
+                <DetailRow label={copy("instrument", language)} value={formatHoldingInstrument(detail.holding)} />
+                <DetailRow label={copy("status", language)} value={detail.hasCurrentPosition ? copy("openPosition", language) : copy("closedPosition", language)} />
+                <DetailRow label={copy("type", language)} value={getInvestmentLabel("assetType", detail.holding.assetType, language)} />
+                <DetailRow label={copy("currency", language)} value={detail.holding.currency} />
+                <DetailRow label={copy("latestPriceDate", language)} value={formatCalendarDate(detail.holding.latestPriceDate, "--", language)} />
+                <DetailRow label={copy("dataNotices", language)} value={formatHoldingWarnings(detail.holding, language)} />
               </dl>
-              <p className="holding-detail-note">股息不会改变持仓数量；记录股息会生成入账现金。如果股息再投资，请另行记录买入交易。</p>
+              <p className="holding-detail-note">{copy("dividendHelp", language)}</p>
             </article>
 
             <article className="flow-card holding-detail-panel">
-              <h2>价格参考</h2>
+              <h2>{copy("priceReference", language)}</h2>
               <dl className="detail-list">
-                <DetailRow label="数据来源" value={detail.priceContext.provider ?? "--"} />
-                <DetailRow label="最新价格" value={formatPriceRecord(detail.priceContext.latestPrice)} />
-                <DetailRow label="前一价格" value={formatPriceRecord(detail.priceContext.previousPrice)} />
-                <DetailRow label="价格变动" value={formatPriceMovement(detail, preferences.gainColorScheme)} />
+                <DetailRow label={copy("source", language)} value={detail.priceContext.provider ?? "--"} />
+                <DetailRow label={copy("latestPrice", language)} value={formatPriceRecord(detail.priceContext.latestPrice, language)} />
+                <DetailRow label={copy("previousPrice", language)} value={formatPriceRecord(detail.priceContext.previousPrice, language)} />
+                <DetailRow label={copy("priceMovement", language)} value={formatPriceMovement(detail, preferences.gainColorScheme, language)} />
               </dl>
             </article>
           </section>
 
           <section className="flow-card holding-detail-panel">
-            <h2>交易记录</h2>
+            <h2>{copy("transactions", language)}</h2>
             <div className="table-wrap">
               <table className="holding-detail-table">
                 <thead>
                   <tr>
-                    <th>日期</th>
-                    <th>类型</th>
-                    <th className="numeric-cell">数量</th>
-                    <th className="numeric-cell">价格</th>
-                    <th className="numeric-cell">金额</th>
-                    <th className="numeric-cell">税务记录</th>
-                    <th>结算现金</th>
-                    <th>备注</th>
+                    <th>{copy("date", language)}</th>
+                    <th>{copy("type", language)}</th>
+                    <th className="numeric-cell">{copy("quantity", language)}</th>
+                    <th className="numeric-cell">{copy("price", language)}</th>
+                    <th className="numeric-cell">{copy("amount", language)}</th>
+                    <th className="numeric-cell">{copy("taxRecords", language)}</th>
+                    <th>{copy("settlementCash", language)}</th>
+                    <th>{copy("notes", language)}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={8}>暂无相关交易记录。</td>
+                      <td colSpan={8}>{copy("noTransactions", language)}</td>
                     </tr>
                   ) : (
                     detail.transactions.map((transaction) => (
                       <tr key={transaction.id}>
-                        <td>{transaction.tradeDate}</td>
-                        <td>{TRANSACTION_TYPE_LABELS[transaction.transactionType]}</td>
-                        <td className="numeric-cell">{transaction.quantity ? formatDisplayAmount(transaction.quantity) : "-"}</td>
-                        <td className="numeric-cell">{transaction.price ? formatDisplayPrice(transaction.price) : "-"}</td>
-                        <td className="numeric-cell">{formatTransactionAmount(transaction)}</td>
-                        <td className="numeric-cell">{formatDisplayAmount(transaction.tax)}</td>
-                        <td>{formatLinkedCashLeg(linkedCashLegsByParentId.get(transaction.id))}</td>
+                        <td>{formatCalendarDate(transaction.tradeDate, "-", language)}</td>
+                        <td>{getInvestmentLabel("transactionType", transaction.transactionType, language)}</td>
+                        <td className="numeric-cell">{transaction.quantity ? formatDisplayAmount(transaction.quantity, getDisplayLocale(language)) : "-"}</td>
+                        <td className="numeric-cell">{transaction.price ? formatDisplayPrice(transaction.price, getDisplayLocale(language)) : "-"}</td>
+                        <td className="numeric-cell">{formatTransactionAmount(transaction, language)}</td>
+                        <td className="numeric-cell">{formatDisplayAmount(transaction.tax, getDisplayLocale(language))}</td>
+                        <td>{formatLinkedCashLeg(linkedCashLegsByParentId.get(transaction.id), language)}</td>
                         <td>{transaction.notes ?? "-"}</td>
                       </tr>
                     ))
@@ -220,35 +224,35 @@ const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
 
           <section className="flow-card holding-detail-panel">
             <div className="holding-detail-section-header">
-              <h2>股息记录</h2>
+              <h2>{copy("dividends", language)}</h2>
               <span>
-                合计 {detail.dividendSummary.currency} {formatDisplayAmount(detail.dividendSummary.totalGrossAmount)}
-                {detail.dividendSummary.latestDividendDate ? ` · 最近 ${detail.dividendSummary.latestDividendDate}` : ""}
+                {copy("total", language)}{detail.dividendSummary.currency} {formatDisplayAmount(detail.dividendSummary.totalGrossAmount, getDisplayLocale(language))}
+                {detail.dividendSummary.latestDividendDate ? copy("latestDividend", language, {date:formatCalendarDate(detail.dividendSummary.latestDividendDate, "-", language)}) : ""}
               </span>
             </div>
             <div className="table-wrap">
               <table className="holding-detail-table">
                 <thead>
                   <tr>
-                    <th>日期</th>
-                    <th className="numeric-cell">股息金额</th>
-                    <th className="numeric-cell">记录税额</th>
-                    <th>入账现金</th>
-                    <th>备注</th>
+                    <th>{copy("date", language)}</th>
+                    <th className="numeric-cell">{copy("dividendAmount", language)}</th>
+                    <th className="numeric-cell">{copy("recordedTax", language)}</th>
+                    <th>{copy("creditedCash", language)}</th>
+                    <th>{copy("notes", language)}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedDividendTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan={5}>暂无股息记录。</td>
+                      <td colSpan={5}>{copy("noDividends", language)}</td>
                     </tr>
                   ) : (
                     sortedDividendTransactions.map((transaction) => (
                       <tr key={transaction.id}>
-                        <td>{transaction.tradeDate}</td>
-                        <td className="numeric-cell">{formatDisplayAmount(transaction.grossAmount)}</td>
-                        <td className="numeric-cell">{formatDisplayAmount(transaction.tax)}</td>
-                        <td>{formatLinkedCashLeg(linkedCashLegsByParentId.get(transaction.id))}</td>
+                        <td>{formatCalendarDate(transaction.tradeDate, "-", language)}</td>
+                        <td className="numeric-cell">{formatDisplayAmount(transaction.grossAmount, getDisplayLocale(language))}</td>
+                        <td className="numeric-cell">{formatDisplayAmount(transaction.tax, getDisplayLocale(language))}</td>
+                        <td>{formatLinkedCashLeg(linkedCashLegsByParentId.get(transaction.id), language)}</td>
                         <td>{transaction.notes ?? "-"}</td>
                       </tr>
                     ))
@@ -301,30 +305,30 @@ function groupLinkedCashLegs(linkedCashLegs: HoldingDetailLinkedCashLeg[]): Map<
   return new Map(linkedCashLegs.map((linkedCashLeg) => [linkedCashLeg.parentTransactionId, linkedCashLeg.transaction]));
 }
 
-function formatNullableAmount(value: string | null): string {
-  return value === null ? "--" : formatDisplayAmount(value);
+function formatNullableAmount(value: string | null, language: UiLanguage = "zh-CN"): string {
+  return value === null ? "--" : formatDisplayAmount(value, getDisplayLocale(language));
 }
 
-function formatNullableSignedAmount(value: string | null): string {
-  return value === null ? "--" : formatSignedDisplayAmount(value);
+function formatNullableSignedAmount(value: string | null, language: UiLanguage = "zh-CN"): string {
+  return value === null ? "--" : formatSignedDisplayAmount(value, getDisplayLocale(language));
 }
 
-function formatPriceRecord(price: HoldingDetailSummary["priceContext"]["latestPrice"]): ReactNode {
+function formatPriceRecord(price: HoldingDetailSummary["priceContext"]["latestPrice"], language: UiLanguage = "zh-CN"): ReactNode {
   if (!price) {
     return "--";
   }
 
   return (
     <>
-      {price.currency} {formatDisplayPrice(price.closePrice)} ({price.priceDate})
-      {price.isEstimated ? <span className="estimate-badge">估算</span> : null}
+      {price.currency} {formatDisplayPrice(price.closePrice, getDisplayLocale(language))} ({formatCalendarDate(price.priceDate, "-", language)})
+      {price.isEstimated ? <span className="estimate-badge">{copy("estimated", language)}</span> : null}
     </>
   );
 }
 
 function formatPriceMovement(
   detail: HoldingDetailSummary,
-  gainColorScheme: Parameters<typeof signedToneClass>[1]
+  gainColorScheme: Parameters<typeof signedToneClass>[1], language: UiLanguage = "zh-CN"
 ): ReactNode {
   const { movementAmount, movementPct } = detail.priceContext;
 
@@ -334,34 +338,34 @@ function formatPriceMovement(
 
   return (
     <span className={signedToneClass(movementAmount, gainColorScheme, 3)}>
-      {formatSignedDisplayAmount(movementAmount)}
-      {movementPct ? ` / ${formatSignedDisplayPercent(movementPct)}%` : ""}
+      {formatSignedDisplayAmount(movementAmount, getDisplayLocale(language))}
+      {movementPct ? ` / ${formatSignedDisplayPercent(movementPct, getDisplayLocale(language))}%` : ""}
     </span>
   );
 }
 
-function formatTransactionAmount(transaction: InvestmentTransaction): string {
+function formatTransactionAmount(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
   if (transaction.grossAmount) {
-    return `${transaction.currency} ${formatDisplayAmount(transaction.grossAmount)}`;
+    return `${transaction.currency} ${formatDisplayAmount(transaction.grossAmount, getDisplayLocale(language))}`;
   }
 
   if (transaction.fee !== "0") {
-    return `${transaction.currency} ${formatDisplayAmount(transaction.fee)}`;
+    return `${transaction.currency} ${formatDisplayAmount(transaction.fee, getDisplayLocale(language))}`;
   }
 
   if (transaction.tax !== "0") {
-    return `${transaction.currency} ${formatDisplayAmount(transaction.tax)}`;
+    return `${transaction.currency} ${formatDisplayAmount(transaction.tax, getDisplayLocale(language))}`;
   }
 
   return "-";
 }
 
-function formatLinkedCashLeg(transaction: InvestmentTransaction | undefined): string {
+function formatLinkedCashLeg(transaction: InvestmentTransaction | undefined, language: UiLanguage = "zh-CN"): string {
   if (!transaction?.grossAmount) {
     return "-";
   }
 
-  return `${TRANSACTION_TYPE_LABELS[transaction.transactionType]} ${transaction.currency} ${formatDisplayAmount(transaction.grossAmount)}`;
+  return `${getInvestmentLabel("transactionType", transaction.transactionType, language)} ${transaction.currency} ${formatDisplayAmount(transaction.grossAmount, getDisplayLocale(language))}`;
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
@@ -379,12 +383,4 @@ function readStoredDisplayCurrency(key: string): SnapshotDisplayCurrency | null 
 
 function writeStoredDisplayCurrency(key: string, value: SnapshotDisplayCurrency): void {
   window.localStorage.setItem(key, value);
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return "持仓详情请求失败，请稍后重试。";
 }

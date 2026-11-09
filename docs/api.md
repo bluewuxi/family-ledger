@@ -22,6 +22,10 @@ Default account/transaction listings hide legacy education accounts. Old educati
 
 ## Response contract
 
+Investment failures can include optional `error.details` with a stable reason and allowlisted facts such as a field identifier, limit, scale, currency or calendar date. Clients can ignore absent or unrecognized details. Existing codes, statuses and messages remain compatible. Metadata excludes submitted values, secrets and dependency error text. Confirmed atomic rollback reasons are distinct from unknown transport outcomes.
+
+Monthly warning DTOs may include `actualDate` for carried boundaries and `instrumentShortName` for unavailable opening prices. Account warning DTOs may include `origin` to distinguish holdings, valuation, snapshots and principal.
+
 The Lambda API returns a consistent JSON shape. Identity and authorization follow [Auth](auth.md#enforcement) and the endpoint-specific permissions below, including documented viewer exceptions. Never expose infrastructure/service secrets or internal stack traces. The only application-secret response exception is [gated account trading-password reveal](#account-trading-password-api).
 
 Success:

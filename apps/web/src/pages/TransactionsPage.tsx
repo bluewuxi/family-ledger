@@ -1,3 +1,11 @@
+import { LanguageSwitch } from "../components/LanguageSwitch";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { i18n } from "../i18n/instance";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
+import { getInvestmentLabel } from "../i18n/investmentLabels";
+import { describeUiError, translateUiError, type UiErrorContext, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { InvestmentMessageError, translateInvestmentMessage, type InvestmentMessage } from "../i18n/investmentMessages";
+import { formatCalendarDate } from "../lib/timeFormat";
 import { useEditDismissal } from "../lib/useEditDismissal";
 import { useEventCallback } from "../lib/useEventCallback";
 import { observeAsync } from "../lib/observeAsync";
@@ -7,9 +15,7 @@ import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffec
 import { ChevronDown, ChevronRight, Eraser, Eye, Filter, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
   ADJUSTMENT_DIRECTIONS,
-  ADJUSTMENT_DIRECTION_LABELS,
   TRANSACTION_TYPES,
-  TRANSACTION_TYPE_LABELS,
   getLocalDateString,
   type AdjustmentDirection,
   type AuthenticatedUser,
@@ -29,7 +35,7 @@ import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiCl
 import { addDecimalStrings, compareDecimalStrings, multiplyDecimalStrings, normalizeDecimalString, toScaledBigInt, fromScaledBigInt } from "../lib/transactionDecimal";
 import { formatDisplayAmount } from "../lib/numberFormat";
 import { isInteractiveRowTarget, isRowActivationKey } from "../lib/tableInteraction";
-import { validateTransactionBalances } from "../lib/transactionBalances";
+import { validateTransactionBalances, TransactionBalanceError } from "../lib/transactionBalances";
 
 interface AccountsResponse {
   user: AuthenticatedUser;
@@ -82,6 +88,8 @@ const editableTransactionTypes = [...TRANSACTION_TYPES.filter((transactionType) 
 const bankCashTransactionTypes: TransactionType[] = ["deposit", "withdrawal", "interest", "adjustment", "opening_balance"];
 
 export function TransactionsPage() {
+  const { language } = useUiLanguage();
+  const t = i18n.getFixedT(language, "transactions");
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.toString();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
@@ -94,7 +102,7 @@ export function TransactionsPage() {
   const createIntent = useRef<{ key: string; payload: string } | null>(null);
   const referenceData = useRef<{ accounts: InvestmentAccount[]; instruments: Instrument[] } | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
-  const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [balanceError, setBalanceError] = useState<TransactionError | null>(null);
 const fetchPageData = useEventCallback(async function(nextFilters: TransactionFilters, nextOffset: number, nextLimit: number, nextSortBy: TransactionSortBy, nextDirection: TransactionSortDirection) {
     const requestId = ++requestSequence.current;
     setLoading(true);
@@ -133,7 +141,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
       setInstruments(references.instruments);
       setExpandedTransactionIds(new Set());
     } catch (requestError) {
-      if (requestId === requestSequence.current) setError(toErrorMessage(requestError));
+      if (requestId === requestSequence.current) setError(toTransactionError(requestError, "investmentRead"));
     } finally {
       if (requestId === requestSequence.current) setLoading(false);
     }
@@ -146,7 +154,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
       const data = await apiGet<HoldingsResponse>("/transactions/balances");
       validateTransactionBalances(data);
       if (id === balanceSequence.current) setHoldingsSummary(data);
-    } catch (failure) { if (id === balanceSequence.current) setBalanceError(toErrorMessage(failure)); }
+    } catch (failure) { if (id === balanceSequence.current) setBalanceError(toTransactionError(failure, "investmentRead")); }
     finally { if (id === balanceSequence.current) setBalanceLoading(false); }
   }
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -166,7 +174,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
   const [expandedTransactionIds, setExpandedTransactionIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<TransactionError | null>(null);
 
   const isAdmin = user?.role === "admin";
   const eligibleInstruments = useMemo(
@@ -202,14 +210,14 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
     selectedInstrument,
     accountCashInstrument,
     editingTransaction
-  });
+  }, language);
   const bankCashBalance =
     isBankCashAccount && bankCashInstrument
       ? findCashBalance(holdingsSummary, selectedAccount.id, bankCashInstrument.id)
       : null;
   const transactionTypeOptions = getTransactionTypeOptions(isBankCashAccount, form.transactionType);
 
-  const drawerTitle = `${drawerMode === "create" ? "新增交易记录" : drawerMode === "modify" ? "编辑交易记录" : "交易记录详情"}${
+  const drawerTitle = `${drawerMode === "create" ? t("createTitle") : drawerMode === "modify" ? t("editTitle") : t("detailTitle")}${
     selectedAccount ? ` - ${selectedAccount.name}` : ""
   }`;
   const isDrawerReadOnly = drawerMode === "view";
@@ -289,30 +297,31 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) { setError({ kind:"transaction", key:"invalidForm" }); return; }
     if (isDrawerReadOnly) {
       return;
     }
 
-    if (balanceLoading || !holdingsSummary) { setError("余额尚未加载完成，请重试加载后再保存。"); return; }
+    if (balanceLoading || !holdingsSummary) { setError({kind:"transaction", key:"balanceNotReady"}); return; }
     setSaving(true);
     setError(null);
 
     try {
       if (bankCashInstrumentError) {
-        throw new ApiClientError(bankCashInstrumentError, "BANK_CASH_INSTRUMENT_ERROR");
+        throw new InvestmentMessageError(bankCashInstrumentError);
       }
 
       const selectedInstrument = instruments.find((instrument) => instrument.id === form.instrumentId);
 
       if (!selectedInstrument) {
-        throw new ApiClientError("请选择投资标的。", "MISSING_INSTRUMENT");
+        throw new InvestmentMessageError({kind:"transaction", key:"selectInstrument"});
       }
 
       const payload = toTransactionInput(form, selectedInstrument);
       if (!editingTransactionId) {
         const serialized = JSON.stringify(payload);
         if (createIntent.current && createIntent.current.payload !== serialized) {
-          throw new ApiClientError("上次提交结果尚未确认，请保留原内容重试，或关闭表单并先核对交易记录。", "UNRESOLVED_TRANSACTION");
+          throw new InvestmentMessageError({kind:"transaction", key:"unresolved"});
         }
       }
       const existingTransaction = transactions.find((transaction) => transaction.id === editingTransactionId);
@@ -323,14 +332,14 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
         selectedInstrument,
         accountCashInstrument,
         editingTransaction
-      }).error;
+      }, language).error;
 
       if (tradeAvailabilityError && !createIntent.current) {
-        throw new ApiClientError(tradeAvailabilityError, "INSUFFICIENT_TRADE_BALANCE");
+        throw new InvestmentMessageError(tradeAvailabilityError);
       }
 
       if (existingTransaction && isValuationImpactingFormChange(existingTransaction, payload)) {
-        const confirmed = window.confirm("本次修改会自动更新关联现金流水，并重新计算受影响日期之后的资产快照。确定继续？");
+        const confirmed = window.confirm(t("confirmUpdate"));
 
         if (!confirmed) {
           return;
@@ -349,20 +358,20 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
       closeDrawer();
     } catch (requestError) {
       if (requestError instanceof ApiClientError && requestError.status === 400 && requestError.code === "VALIDATION_ERROR") createIntent.current = null;
-      setError(toErrorMessage(requestError));
+      setError(toTransactionError(requestError, "transactionSave"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(transaction: InvestmentTransaction) {
-    const label = `${transaction.tradeDate} ${TRANSACTION_TYPE_LABELS[transaction.transactionType]} ${instrumentNames.get(transaction.instrumentId) ?? ""}`;
+    const label = `${transaction.tradeDate} ${getInvestmentLabel("transactionType", transaction.transactionType, language)} ${instrumentNames.get(transaction.instrumentId) ?? ""}`;
     if (transaction.transactionSource === "generated_cash_leg") {
-      setError("自动生成的现金流水不能直接删除，请删除或修改对应的买卖交易。");
+      setError({kind:"transaction", key:"generatedReadOnly"});
       return;
     }
 
-    if (!window.confirm(`确定删除交易记录“${label}”？关联现金流水会同步删除，受影响日期之后的资产快照会重新计算。`)) {
+    if (!window.confirm(t("confirmDelete", {label}))) {
       return;
     }
 
@@ -378,7 +387,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
         closeDrawer();
       }
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(toTransactionError(requestError, "transactionDelete"));
     } finally {
       setSaving(false);
     }
@@ -440,7 +449,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
   }
 
   function closeDrawer() {
-    if (createIntent.current && !window.confirm("上次提交结果尚未确认。关闭后请先核对交易记录，再新建交易，避免重复提交。确定关闭？")) return;
+    if (createIntent.current && !window.confirm(t("confirmClose"))) return;
     createIntent.current = null;
     setDrawerOpen(false);
     setEditingTransactionId(null);
@@ -511,15 +520,15 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
     <section>
       <header className="page-header account-header">
         <div>
-          <PageTitle route="/transactions">交易记录</PageTitle>
-          <p>记录买卖、股息和账户现金变动。</p>
+          <PageTitle route="/transactions">{t("title")}</PageTitle>
+          <p>{t("subtitle")}</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (
             <div className="transaction-create-menu" ref={createMenuRef}>
               <button className="primary-button" type="button" aria-expanded={createMenuOpen}
                 onClick={() => appliedFilters.accountId ? startCreate(appliedFilters.accountId) : setCreateMenuOpen(!createMenuOpen)} disabled={loading || saving || accounts.length === 0}>
-                <Plus size={17} aria-hidden="true" /><span>新增交易</span><ChevronDown size={17} aria-hidden="true" />
+                <Plus size={17} aria-hidden="true" /><span>{t("create")}</span><ChevronDown size={17} aria-hidden="true" />
               </button>
               {createMenuOpen ? <div className="transaction-account-menu">
                 {accounts.map((account) => <button type="button" key={account.id} onClick={() => startCreate(account.id)}>{account.name}</button>)}
@@ -528,36 +537,36 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
           ) : null}
           <button className="secondary-button" type="button" onClick={() => observeAsync(loadPageData())} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{t("refresh")}</span>
           </button>
         </div>
       </header>
 
-      {error && !drawerOpen ? <p className="form-error" role="alert">{error}</p> : null}
+      {error && !drawerOpen ? <p className="form-error" role="alert">{renderTransactionError(error, language)}</p> : null}
 
       {!isAdmin && !loading && user ? (
-        <p className="readonly-note">当前为只读权限。</p>
+        <p className="readonly-note">{t("readOnly")}</p>
       ) : null}
 
-      <DatePresets onChange={range => setFilters(old => ({...old,...range}))} /><form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
-        <label>账户
+      <DatePresets labels={{ aria:t("datePresets"), month:t("thisMonth"), previous:t("previousMonth"), year:t("thisYear") }} onChange={range => setFilters(old => ({...old,...range}))} /><form className="filter-bar transaction-filter-bar" onSubmit={submitFilters}>
+        <label>{t("account")}
           <select value={filters.accountId} onChange={(event) => setFilters({ ...filters, accountId: event.target.value })}>
-            <option value="">全部账户</option>
+            <option value="">{t("allAccounts")}</option>
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
         </label>
         <label>
-          开始日期
+          {t("startDate")}
           <input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} />
         </label>
         <label>
-          结束日期
+          {t("endDate")}
           <input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} />
         </label>
         <label className="transaction-instrument-filter">
-          标的
+          {t("instrument")}
           <select value={filters.instrumentId} onChange={(event) => setFilters({ ...filters, instrumentId: event.target.value })}>
-            <option value="">全部</option>
+            <option value="">{t("all")}</option>
             {instruments.map((instrument) => (
               <option key={instrument.id} value={instrument.id}>
                 {formatInstrument(instrument)}
@@ -566,15 +575,15 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
           </select>
         </label>
         <label>
-          类型
+          {t("type")}
           <select
             value={filters.transactionType}
             onChange={(event) => setFilters({ ...filters, transactionType: event.target.value as "" | TransactionType })}
           >
-            <option value="">全部</option>
+            <option value="">{t("all")}</option>
             {TRANSACTION_TYPES.map((transactionType) => (
               <option key={transactionType} value={transactionType}>
-                {TRANSACTION_TYPE_LABELS[transactionType]}
+                {getInvestmentLabel("transactionType", transactionType, language)}
               </option>
             ))}
           </select>
@@ -582,11 +591,11 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
         <div className="filter-actions">
           <button className="secondary-button" type="submit" disabled={loading}>
             <Filter size={17} aria-hidden="true" />
-            <span>查询</span>
+            <span>{t("search")}</span>
           </button>
           <button className="secondary-button" type="button" onClick={clearFilters} disabled={loading}>
             <Eraser size={17} aria-hidden="true" />
-            <span>重置</span>
+            <span>{t("reset")}</span>
           </button>
         </div>
       </form>
@@ -596,27 +605,27 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
           <thead>
             <tr>
               <th className="transaction-expand-column"></th>
-              {sortHeader("tradeDate", "交易日期")}
-              <th>账户</th>
-              {sortHeader("transactionType", "类型")}
-              <th className="numeric-cell">金额及币种</th>
-              {sortHeader("instrument", "标的")}
-              <th className="numeric-cell">数量</th>
-              <th className="numeric-cell">成交价</th>
-              {sortHeader("settlementDate", "结算日期")}
-              <th>结算</th>
-              <th>备注</th>
-              <th>操作</th>
+              {sortHeader("tradeDate", t("tradeDate"))}
+              <th>{t("account")}</th>
+              {sortHeader("transactionType", t("type"))}
+              <th className="numeric-cell">{t("amountCurrency")}</th>
+              {sortHeader("instrument", t("instrument"))}
+              <th className="numeric-cell">{t("quantity")}</th>
+              <th className="numeric-cell">{t("executionPrice")}</th>
+              {sortHeader("settlementDate", t("settlementDate"))}
+              <th>{t("settlement")}</th>
+              <th>{t("notes")}</th>
+              <th>{t("actions")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={12}>正在加载交易记录...</td>
+                <td colSpan={12}>{t("loadingTransactions")}</td>
               </tr>
             ) : visibleTransactions.length === 0 ? (
               <tr>
-                <td colSpan={12}>暂无符合筛选条件的交易记录。</td>
+                <td colSpan={12}>{t("empty")}</td>
               </tr>
             ) : (
               visibleTransactions.map((transaction) => {
@@ -637,7 +646,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
                       onToggleLinkedCashLeg: toggleLinkedCashLeg,
                       onDetail: startDetail,
                       onDelete: handleDelete
-                    })}
+                    }, language)}
                     {linkedCashLeg && isExpanded
                       ? renderTransactionRow({
                           transaction: linkedCashLeg,
@@ -652,7 +661,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
                           onDetail: startDetail,
                           onDelete: handleDelete,
                           isChildRow: true
-                        })
+                        }, language)
                       : null}
                   </Fragment>
                 );
@@ -663,31 +672,31 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
       </div>
 
       <div className="transaction-pagination">
-        <span>共 {total} 条 · 第 {Math.floor(offset / pageSize) + 1} / {Math.max(1, Math.ceil(total / pageSize))} 页</span>
-        <label>每页 <select value={pageSize} disabled={loading || saving}
+        <span>{t("pagination", {total, page:Math.floor(offset / pageSize)+1, pages:Math.max(1,Math.ceil(total/pageSize))})}</span>
+        <label>{t("perPage")} <select value={pageSize} disabled={loading || saving}
           onChange={(event) => observeAsync(loadPageData(appliedFilters, 0, Number(event.target.value)))}>
-          {[20, 50, 100].map((size) => <option key={size} value={size}>{size} 条</option>)}
+          {[20, 50, 100].map((size) => <option key={size} value={size}>{size} {t("records")}</option>)}
         </select></label>
         <button type="button" className="secondary-button" disabled={loading || saving || offset === 0}
-          onClick={() => observeAsync(loadPageData(appliedFilters, Math.max(0, offset - pageSize)))}>上一页</button>
+          onClick={() => observeAsync(loadPageData(appliedFilters, Math.max(0, offset - pageSize)))}>{t("previous")}</button>
         <button type="button" className="secondary-button" disabled={loading || saving || offset + pageSize >= total}
-          onClick={() => observeAsync(loadPageData(appliedFilters, offset + pageSize))}>下一页</button>
+          onClick={() => observeAsync(loadPageData(appliedFilters, offset + pageSize))}>{t("next")}</button>
       </div>
 
       <Drawer
         open={drawerOpen}
         title={drawerTitle}
-        subtitle="现金类交易请选择对应币种的现金标的"
+        subtitle={t("cashHelp")}
         busy={saving}
         onClose={requestDismiss}
         footer={
           <>
-          {balanceError ? <p className="form-error">余额加载失败：{balanceError} <button type="button" className="text-button" onClick={() => observeAsync(loadBalances())}>重试</button></p> : null}
-      {error ? <p className="form-error transaction-save-error" role="alert">{error}</p> : null}
+          {balanceError ? <p className="form-error">{t("balanceFailure")}{renderTransactionError(balanceError, language)} <button type="button" className="text-button" onClick={() => observeAsync(loadBalances())}>{t("retry")}</button></p> : null}
+      {error ? <p className="form-error transaction-save-error" role="alert">{renderTransactionError(error, language)}</p> : null}
           {drawerMode === "view" ? (
             <button className="secondary-button" type="button" onClick={requestDismiss}>
               <X size={17} aria-hidden="true" />
-              <span>关闭</span>
+              <span>{t("close")}</span>
             </button>
           ) : (
             <>
@@ -698,27 +707,28 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
                 disabled={saveDisabled}
               >
                 <Save size={17} aria-hidden="true" />
-                <span>{saving ? "保存中..." : editingTransactionId ? "保存修改" : "新增交易"}</span>
+                <span>{saving ? t("saving") : editingTransactionId ? t("saveChanges") : t("create")}</span>
               </button>
               <button className="secondary-button" type="button" onClick={requestDismiss} disabled={saving}>
                 <X size={17} aria-hidden="true" />
-                <span>取消</span>
+                <span>{t("cancel")}</span>
               </button>
             </>
           )}
           </>
         }
       >
-        <form className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
-          {isTrade && <p className="spending-hint">买入和卖出的成交总额按数量和价格计算。</p>}
+        <LanguageSwitch />
+        <form noValidate className="transaction-form drawer-form" id="transaction-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
+          {isTrade && <p className="spending-hint">{t("amountHelp")}</p>}
           {editingTransactionId && drawerMode === "modify" ? (
             <p className="form-warning transaction-edit-warning">
-              修改交易记录可能会自动更新关联现金流水，并重新计算受影响日期之后的资产快照。交易类型不可在编辑时修改，如需更换类型请删除后重新新增。
+              {t("editHelp")}
             </p>
           ) : null}
 
           <label>
-            交易类型
+            {t("transactionType")}
             <select
               value={form.transactionType}
               onChange={(event) => changeTransactionType(event.target.value as TransactionType)}
@@ -726,19 +736,19 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
             >
               {form.transactionType === "tax" ? (
                 <option value="tax" disabled>
-                  {TRANSACTION_TYPE_LABELS.tax}
+                  {getInvestmentLabel("transactionType", "tax", language)}
                 </option>
               ) : null}
               {transactionTypeOptions.map((transactionType) => (
                 <option key={transactionType} value={transactionType}>
-                  {TRANSACTION_TYPE_LABELS[transactionType]}
+                  {getInvestmentLabel("transactionType", transactionType, language)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="transaction-instrument-field">
-            投资标的
+            {t("investmentInstrument")}
             {isBankCashAccount ? (
               <input className="readonly-display-input" value={bankCashInstrument ? formatInstrument(bankCashInstrument) : "-"} disabled />
             ) : (
@@ -748,8 +758,8 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
                 disabled={isDrawerReadOnly}
                 required
               >
-                <option value="">请选择标的</option>
-                {selectedInstrument?.active === false && editingTransactionId ? <option value={selectedInstrument.id} disabled>{formatInstrument(selectedInstrument)}（已停用，保留原标的）</option> : null}
+                <option value="">{t("chooseInstrument")}</option>
+                {selectedInstrument?.active === false && editingTransactionId ? <option value={selectedInstrument.id} disabled>{formatInstrument(selectedInstrument)}{t("inactive")}</option> : null}
                 {eligibleInstruments.map((instrument) => (
                   <option key={instrument.id} value={instrument.id}>
                     {formatInstrument(instrument)}
@@ -760,24 +770,24 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
             {!balanceLoading && holdingsSummary && tradeAvailability.label ? (
               <span className={tradeAvailability.error ? "transaction-availability-label has-error" : "transaction-availability-label"}>
                 {tradeAvailability.label}
-                {tradeAvailability.error ? ` ${tradeAvailability.error}` : ""}
+                {tradeAvailability.error ? ` ${translateInvestmentMessage(tradeAvailability.error, language)}` : ""}
               </span>
             ) : null}
           </label>
 
           {isBankCashAccount ? (
             <div className="bank-cash-balance-panel wide-field">
-              <span>当前余额：{balanceLoading ? "加载中..." : !holdingsSummary ? "--" : `${selectedAccount?.baseCurrency ?? "-"} ${bankCashBalance ? formatDisplayAmount(bankCashBalance.quantity) : "--"}`}</span>
-              {bankCashInstrumentError ? <span className="bank-cash-balance-warning">{bankCashInstrumentError}</span> : null}
+              <span>{t("balance")}{balanceLoading ? t("loading") : !holdingsSummary ? "--" : `${selectedAccount?.baseCurrency ?? "-"} ${bankCashBalance ? formatDisplayAmount(bankCashBalance.quantity, getDisplayLocale(language)) : "--"}`}</span>
+              {bankCashInstrumentError ? <span className="bank-cash-balance-warning">{translateInvestmentMessage(bankCashInstrumentError, language)}</span> : null}
               {bankCashBalance?.warnings.includes("NEGATIVE_POSITION") ? (
-                <span className="bank-cash-balance-warning">现金余额为负，请检查交易记录。</span>
+                <span className="bank-cash-balance-warning">{t("negativeCash")}</span>
               ) : null}
             </div>
           ) : null}
-          {tradeAvailability.error && !tradeAvailability.label ? <p className="form-error wide-field" role="alert">{tradeAvailability.error}</p> : null}
+          {tradeAvailability.error && !tradeAvailability.label ? <p className="form-error wide-field" role="alert">{translateInvestmentMessage(tradeAvailability.error, language)}</p> : null}
 
           <label>
-            {isOpeningTransaction ? "期初日期" : "交易日期"}
+            {isOpeningTransaction ? t("openingDate") : t("tradeDate")}
             <input
               type="date"
               value={form.tradeDate}
@@ -789,7 +799,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
 
           {!isOpeningTransaction ? (
             <label>
-              结算日期
+              {t("settlementDate")}
               <input
                 type="date"
                 value={form.settlementDate}
@@ -800,21 +810,21 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
           ) : null}
 
           <label>
-            交易币种
+            {t("currency")}
             <input className="readonly-display-input" value={selectedInstrument?.currency ?? "-"} disabled />
           </label>
 
-          {balanceLoading ? <p role="status">正在加载可用余额与持仓...</p> : null}
+          {balanceLoading ? <p role="status">{t("loadingBalances")}</p> : null}
           {isTrade ? (
             <label>
-              结算币种
+              {t("settlementCurrency")}
               <input className="readonly-display-input" value={selectedAccount?.baseCurrency ?? "-"} disabled />
             </label>
           ) : null}
 
           {isTrade || isOpeningPosition ? (
             <label>
-              数量
+              {t("quantity")}
               <input
                 value={form.quantity}
                 onChange={(event) => setForm({ ...form, quantity: event.target.value })}
@@ -828,7 +838,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
           {isTrade ? (
             <>
               <label>
-                单价
+                {t("unitPrice")}
                 <input
                   value={form.price}
                   onChange={(event) => setForm({ ...form, price: event.target.value })}
@@ -838,15 +848,15 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
                 />
               </label>
               <label>
-                成交总额
-                <input className="readonly-display-input" value="由系统计算" disabled />
+                {t("grossAmount")}
+                <input className="readonly-display-input" value={t("calculated")} disabled />
               </label>
             </>
           ) : null}
 
           {hasGrossAmount ? (
             <label>
-              金额
+              {t("amount")}
               <input
                 value={form.grossAmount}
                 onChange={(event) => setForm({ ...form, grossAmount: event.target.value })}
@@ -859,11 +869,11 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
 
           {hasFee ? (
             <label>
-              费用
+              {t("fee")}
               <input
                 value={form.fee}
                 onChange={(event) => setForm({ ...form, fee: event.target.value })}
-                placeholder={form.transactionType === "fee" ? "必填" : "可选"}
+                placeholder={form.transactionType === "fee" ? t("required") : t("optional")}
                 disabled={isDrawerReadOnly}
                 required={form.transactionType === "fee"}
               />
@@ -872,11 +882,11 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
 
           {hasTax ? (
             <label>
-              税务记录
+              {t("tax")}
               <input
                 value={form.tax}
                 onChange={(event) => setForm({ ...form, tax: event.target.value })}
-                placeholder={form.transactionType === "tax" ? "必填" : "可选"}
+                placeholder={form.transactionType === "tax" ? t("required") : t("optional")}
                 disabled={isDrawerReadOnly}
                 required={form.transactionType === "tax"}
               />
@@ -885,7 +895,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
 
           {form.transactionType === "adjustment" ? (
             <label>
-              调整方向
+              {t("direction")}
               <select
                 value={form.adjustmentDirection}
                 onChange={(event) => setForm({ ...form, adjustmentDirection: event.target.value as AdjustmentDirection })}
@@ -893,7 +903,7 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
               >
                 {ADJUSTMENT_DIRECTIONS.map((direction) => (
                   <option key={direction} value={direction}>
-                    {ADJUSTMENT_DIRECTION_LABELS[direction]}
+                    {getInvestmentLabel("adjustmentDirection", direction, language)}
                   </option>
                 ))}
               </select>
@@ -901,11 +911,11 @@ const fetchPageData = useEventCallback(async function(nextFilters: TransactionFi
           ) : null}
 
           <label className="wide-field">
-            备注
+            {t("notes")}
             <textarea
               value={form.notes}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              placeholder="可选"
+              placeholder={t("optional")}
               rows={2}
               disabled={isDrawerReadOnly}
             />
@@ -948,17 +958,17 @@ function getBankCashInstruments(account: InvestmentAccount, instruments: Instrum
 function getBankCashInstrumentError(
   account: InvestmentAccount | undefined,
   matchingCashInstruments: Instrument[]
-): string | null {
+): InvestmentMessage | null {
   if (!account) {
-    return "请先选择银行账户。";
+    return {kind:"transaction", key:"chooseBank"};
   }
 
   if (matchingCashInstruments.length === 0) {
-    return `未找到 ${account.baseCurrency} 现金标的，请先维护对应现金标的。`;
+    return {kind:"transaction", key:"missingCash", currency:account.baseCurrency};
   }
 
   if (matchingCashInstruments.length > 1) {
-    return `${account.baseCurrency} 现金标的不唯一，请先保留一个有效现金标的。`;
+    return {kind:"transaction", key:"duplicateCash", currency:account.baseCurrency};
   }
 
   return null;
@@ -983,7 +993,8 @@ interface TradeAvailabilityInput {
   editingTransaction: InvestmentTransaction | undefined;
 }
 
-function getTradeAvailability(input: TradeAvailabilityInput): { label: string | null; error: string | null } {
+function getTradeAvailability(input: TradeAvailabilityInput, language: UiLanguage = "zh-CN"): { label: string | null; error: InvestmentMessage | null } {
+  const t = i18n.getFixedT(language, "transactions");
   const { form, holdingsSummary, selectedAccount, selectedInstrument, accountCashInstrument, editingTransaction } = input;
 
   if (!selectedAccount) {
@@ -993,18 +1004,18 @@ function getTradeAvailability(input: TradeAvailabilityInput): { label: string | 
   if (!holdingsSummary) return { label: null, error: null };
   const cashBalance = accountCashInstrument ? findCashBalance(holdingsSummary, selectedAccount.id, accountCashInstrument.id) : null;
   if (!cashBalance) {
-    return { label: null, error: "账户余额数据缺失或现金标的异常，无法保存，请刷新或联系管理员。" };
+    return { label: null, error: {kind:"transaction", key:"invalidCash"} as const };
   }
 
   if (form.transactionType === "buy") {
     const currentCashQuantity = cashBalance.quantity;
     const cashQuantity = addBackEditedBuyCash(currentCashQuantity, selectedAccount, editingTransaction);
-    const label = `可用资金：${selectedAccount.baseCurrency} ${formatDisplayAmount(cashQuantity)}`;
+    const label = t("availableCash", {currency:selectedAccount.baseCurrency, amount:formatDisplayAmount(cashQuantity, getDisplayLocale(language))});
     const requiredAmount =
       selectedInstrument?.currency === selectedAccount.baseCurrency ? calculateComparableBuyAmount(form) : null;
     const error =
       requiredAmount && compareDecimalStrings(requiredAmount, cashQuantity, 6) > 0
-        ? "可用资金不足，不能提交超过现金余额的买入交易。"
+        ? {kind:"transaction", key:"insufficientCash"} as const
         : null;
 
     return { label, error };
@@ -1016,10 +1027,10 @@ function getTradeAvailability(input: TradeAvailabilityInput): { label: string | 
         (holding) => holding.accountId === selectedAccount.id && holding.instrumentId === selectedInstrument.id
       )?.quantity ?? "0";
     const availableQuantity = addBackEditedSellQuantity(currentQuantity, selectedAccount, selectedInstrument, editingTransaction);
-    const label = `可用持仓：${formatDisplayQuantity(availableQuantity)}`;
+    const label = t("availablePosition", {quantity:formatDisplayQuantity(availableQuantity, language)});
     const error =
       form.quantity.trim() && compareDecimalStrings(form.quantity, availableQuantity, 10) > 0
-        ? "可用持仓不足，不能提交超过当前持仓的卖出交易。"
+        ? {kind:"transaction", key:"insufficientPosition"} as const
         : null;
 
     return { label, error };
@@ -1081,7 +1092,7 @@ function calculateComparableBuyAmount(form: TransactionFormState): string | null
   return fromScaledBigInt(total, 6);
 }
 
-function formatDisplayQuantity(value: string | number | null | undefined): string {
+function formatDisplayQuantity(value: string | number | null | undefined, language: UiLanguage = "zh-CN"): string {
   const normalized = String(value ?? "").trim();
   const numericValue = Number(normalized);
 
@@ -1089,7 +1100,7 @@ function formatDisplayQuantity(value: string | number | null | undefined): strin
     return normalized || "--";
   }
 
-  return numericValue.toLocaleString("zh-CN", { maximumFractionDigits: 6 });
+  return numericValue.toLocaleString(getDisplayLocale(language), { maximumFractionDigits: 6 });
 }
 
 interface RenderTransactionRowInput {
@@ -1107,7 +1118,8 @@ interface RenderTransactionRowInput {
   isChildRow?: boolean;
 }
 
-function renderTransactionRow(input: RenderTransactionRowInput) {
+function renderTransactionRow(input: RenderTransactionRowInput, language: UiLanguage = "zh-CN") {
+  const t = i18n.getFixedT(language, "transactions");
   const {
     transaction,
     accountNames,
@@ -1136,16 +1148,16 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
       key={isChildRow ? `cash-${transaction.id}` : transaction.id}
       role={isChildRow ? undefined : "button"}
       tabIndex={isChildRow ? undefined : 0}
-      aria-label={isChildRow ? undefined : `查看交易记录 ${transaction.tradeDate}`}
+      aria-label={isChildRow ? undefined : t("viewRecord", {date:formatCalendarDate(transaction.tradeDate,"-",language)})}
       onClick={isChildRow ? undefined : (event) => handleTransactionRowClick(event, transaction, onDetail)}
       onKeyDown={isChildRow ? undefined : (event) => handleTransactionRowKeyDown(event, transaction, onDetail)}
     >
       <td className="transaction-expand-column">
         {canExpand ? (
           <button
-            aria-label={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
+            aria-label={isExpanded ? t("collapseCash") : t("expandCash")}
             className="transaction-expand-button"
-            title={isExpanded ? "收起关联现金流水" : "展开关联现金流水"}
+            title={isExpanded ? t("collapseCash") : t("expandCash")}
             type="button"
             onClick={() => onToggleLinkedCashLeg(transaction.id)}
           >
@@ -1153,14 +1165,14 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
           </button>
         ) : null}
       </td>
-      <td>{transaction.tradeDate}</td>
+      <td>{formatCalendarDate(transaction.tradeDate,"-",language)}</td>
       <td>{accountNames.get(transaction.accountId) ?? "-"}</td>
       <td>
         <span className="transaction-type-cell">
-          <span className={transactionTypeClassName(transaction)}>{formatTransactionType(transaction)}</span>
+          <span className={transactionTypeClassName(transaction)}>{formatTransactionType(transaction, language)}</span>
         </span>
       </td>
-      <td className="numeric-cell">{displayAmount(transaction)} {transaction.currency}</td>
+      <td className="numeric-cell">{displayAmount(transaction, language)} {transaction.currency}</td>
       <td>
         <span title={instrumentNames.get(transaction.instrumentId) ?? ""} className={`transaction-truncated ${isChildRow ? "transaction-child-indent" : ""}`}>
           {instrumentNames.get(transaction.instrumentId) ?? "-"}
@@ -1169,14 +1181,14 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
       <td className="numeric-cell">{transaction.quantity ?? "-"}</td>
       <td className="numeric-cell">{transaction.transactionType === "buy" || transaction.transactionType === "sell" ? transaction.price ?? "—" : "—"}</td>
       <td>{transaction.settlementDate ?? "—"}</td>
-      <td>{formatSettlement(transaction)}</td>
+      <td>{formatSettlement(transaction, language)}</td>
       <td><span className="transaction-truncated" title={transaction.notes ?? ""}>{transaction.notes ?? "-"}</span></td>
       <td>
         <div className="table-actions">
           <button
-            aria-label={`${isAdmin && transaction.transactionSource !== "generated_cash_leg" ? "编辑" : "查看"}交易记录 ${transaction.tradeDate}`}
+            aria-label={t(isAdmin && transaction.transactionSource !== "generated_cash_leg" ? "editRecord" : "viewRecord", {date:formatCalendarDate(transaction.tradeDate,"-",language)})}
             className="icon-button"
-            title={isAdmin && transaction.transactionSource !== "generated_cash_leg" ? "查看/编辑" : "查看"}
+            title={isAdmin && transaction.transactionSource !== "generated_cash_leg" ? t("viewEdit") : t("view")}
             type="button"
             onClick={() => onDetail(transaction)}
             disabled={saving}
@@ -1185,9 +1197,9 @@ function renderTransactionRow(input: RenderTransactionRowInput) {
           </button>
           {isAdmin && transaction.transactionSource !== "generated_cash_leg" ? (
             <button
-              aria-label={`删除交易记录 ${transaction.tradeDate}`}
+              aria-label={t("deleteRecord", {date:formatCalendarDate(transaction.tradeDate,"-",language)})}
               className="icon-button danger-icon-button"
-              title="删除"
+              title={t("delete")}
               type="button"
               onClick={() => observeAsync(onDelete(transaction))}
               disabled={saving}
@@ -1343,14 +1355,15 @@ function decimalString(value: string | number | null | undefined, fallback = "")
   return normalized || fallback;
 }
 
-function formatTransactionType(transaction: InvestmentTransaction): string {
+function formatTransactionType(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
+  const t = i18n.getFixedT(language, "transactions");
   if (transaction.transactionSource === "generated_cash_leg") {
-    return "现金结算";
+    return t("cashSettlement");
   }
 
-  const label = TRANSACTION_TYPE_LABELS[transaction.transactionType];
+  const label = getInvestmentLabel("transactionType", transaction.transactionType, language);
   const directionSuffix = transaction.adjustmentDirection
-    ? `（${ADJUSTMENT_DIRECTION_LABELS[transaction.adjustmentDirection]}）`
+    ? `（${getInvestmentLabel("adjustmentDirection", transaction.adjustmentDirection, language)}）`
     : "";
   return `${label}${directionSuffix}`;
 }
@@ -1371,39 +1384,39 @@ function transactionTypeClassName(transaction: InvestmentTransaction): string {
   return "transaction-type";
 }
 
-function displayAmount(transaction: InvestmentTransaction): string {
+function displayAmount(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
   if (transaction.transactionSource === "generated_cash_leg") {
-    return formatSignedCashSettlement(transaction);
+    return formatSignedCashSettlement(transaction, language);
   }
 
   if (transaction.transactionType === "fee") {
-    return formatDisplayAmount(transaction.fee);
+    return formatDisplayAmount(transaction.fee, getDisplayLocale(language));
   }
   if (transaction.transactionType === "tax") {
-    return formatDisplayAmount(transaction.tax);
+    return formatDisplayAmount(transaction.tax, getDisplayLocale(language));
   }
-  return transaction.grossAmount === null ? "-" : formatDisplayAmount(transaction.grossAmount);
+  return transaction.grossAmount === null ? "-" : formatDisplayAmount(transaction.grossAmount, getDisplayLocale(language));
 }
 
-function formatSettlement(transaction: InvestmentTransaction): string {
+function formatSettlement(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
   if (transaction.transactionSource === "generated_cash_leg") {
-    return formatSignedCashSettlement(transaction);
+    return formatSignedCashSettlement(transaction, language);
   }
 
   if ((transaction.transactionType === "buy" || transaction.transactionType === "sell") && transaction.settlementAmount) {
-    return `${transaction.settlementCurrency ?? transaction.currency} ${formatDisplayAmount(transaction.settlementAmount)}`;
+    return `${transaction.settlementCurrency ?? transaction.currency} ${formatDisplayAmount(transaction.settlementAmount, getDisplayLocale(language))}`;
   }
 
   return "-";
 }
 
-function formatSignedCashSettlement(transaction: InvestmentTransaction): string {
+function formatSignedCashSettlement(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
   if (!transaction.grossAmount) {
     return "-";
   }
 
   const prefix = transaction.transactionType === "deposit" ? "+" : transaction.transactionType === "withdrawal" ? "-" : "";
-  return `${prefix}${formatDisplayAmount(transaction.grossAmount)}`;
+  return `${prefix}${formatDisplayAmount(transaction.grossAmount, getDisplayLocale(language))}`;
 }
 
 function isValuationImpactingFormChange(
@@ -1435,10 +1448,11 @@ function toQuery(input: Record<string, string | number | undefined>): string {
   return params.toString();
 }
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return "交易记录请求失败，请稍后重试。";
+type TransactionError = UiErrorDescriptor | InvestmentMessage;
+function toTransactionError(error: unknown, context: UiErrorContext): TransactionError {
+ if (error instanceof TransactionBalanceError) return {kind:"transaction", key:"invalidCash"};
+ return error instanceof InvestmentMessageError ? error.notice : describeUiError(error, context);
+}
+function renderTransactionError(error: TransactionError, language: UiLanguage): string {
+ return "kind" in error ? translateInvestmentMessage(error, language) : translateUiError(error, language);
 }

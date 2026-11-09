@@ -1,3 +1,10 @@
+import { translateAccountDetailWarning } from "../i18n/investmentWarnings";
+import { formatCalendarDate } from "../lib/timeFormat";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { i18n } from "../i18n/instance";
+import { getInvestmentLabel } from "../i18n/investmentLabels";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
+import { useUiLanguage } from "../i18n/LanguageProvider";
 import { observeAsync } from "../lib/observeAsync";
 import { PageBackLink } from "../components/PageBackLink";
 import { AccountTrendChart } from "../components/AccountTrendChart";
@@ -7,12 +14,8 @@ import { useNavigate, useParams, type NavigateFunction } from "react-router-dom"
 
 import { Edit3, RefreshCw } from "lucide-react";
 import {
-  ACCOUNT_TYPE_LABELS,
-  ASSET_TYPE_LABELS,
-  MARKET_REGION_LABELS,
   PORTFOLIO_TREND_RANGES,
   SNAPSHOT_DISPLAY_CURRENCIES,
-  TRANSACTION_TYPE_LABELS,
   type AccountDetailSummary,
   type PortfolioTrendRange,
   type SnapshotDisplayCurrency,
@@ -41,16 +44,19 @@ interface AccountDetailResponse {
 
 const accountDetailCurrencyStorageKey = "family-ledger.account-detail.reportingCurrency";
 const trendRangeStorageKey = "family-ledger.account-detail.trendRange";
-const trendRangeLabels: Record<PortfolioTrendRange, string> = {
-  "1m": "1个月",
-  "3m": "3个月",
-  "1y": "1年",
-  "3y": "3年",
-  "5y": "5年",
-  inception: "成立以来"
-};
+
 
 export function AccountDetailPage() {
+  const { language, displayLocale } = useUiLanguage();
+  const a = i18n.getFixedT(language, "accounts");
+  const trendRangeLabels: Record<PortfolioTrendRange, string> = {
+  "1m": a("oneMonth"),
+  "3m": a("threeMonths"),
+  "1y": a("oneYear"),
+  "3y": a("threeYears"),
+  "5y": a("fiveYears"),
+  inception: a("inception")
+};
   const { accountId } = useParams();
   const navigate = useNavigate();
   const { preferences, loading: preferencesLoading } = usePreferences();
@@ -63,7 +69,7 @@ export function AccountDetailPage() {
   const detail = response?.accountDetail ?? null;
   const [selectedTrend, setSelectedTrend] = useState<AccountDetailSummary["trend"] | null>(null);
   const [trendLoading, setTrendLoading] = useState(false);
-  const [trendError, setTrendError] = useState<string | null>(null);
+  const [trendError, setTrendError] = useState<UiErrorDescriptor | null>(null);
   useEffect(() => {
     if (!detail || !accountId) return;
     let active = true;
@@ -73,7 +79,7 @@ export function AccountDetailPage() {
     setTrendLoading(true);
     void apiGet<AccountDetailResponse>(`/accounts/${encodeURIComponent(accountId)}/detail?currency=${reportingCurrency}&trendRange=${trendRange}&recentLimit=10&quoteMode=cached`)
       .then(result => { if (active) setSelectedTrend(result.accountDetail.trend); })
-      .catch(failure => { if (active) setTrendError(failure instanceof Error ? failure.message : "账户趋势加载失败，请重试。"); })
+      .catch(failure => { if (active) setTrendError(describeUiError(failure, "investmentRead")); })
       .finally(() => { if (active) setTrendLoading(false); });
     return () => { active = false; };
   }, [accountId, detail, reportingCurrency, trendRange]);
@@ -96,17 +102,17 @@ return (
     <section>
       <header className="page-header account-header holding-detail-header account-detail-header">
         <div>
-          <PageBackLink to="/accounts" label="投资账户" />
-          <PageTitle route="/accounts">账户表现</PageTitle>
+          <PageBackLink to="/accounts" label={a("investmentAccounts")} />
+          <PageTitle route="/accounts">{a("performance")}</PageTitle>
           <p>
             {detail
-              ? `${detail.account.name} · ${detail.account.broker ?? "未填写平台"} · ${MARKET_REGION_LABELS[detail.account.marketRegion]}`
-              : "查看单个账户的当前估值、趋势、持仓、现金余额和最近交易。"}
+              ? `${detail.account.name} · ${detail.account.broker ?? a("noBroker")} · ${getInvestmentLabel("marketRegion", detail.account.marketRegion, language)}`
+              : a("detailHelp")}
           </p>
         </div>
         <div className="dashboard-controls account-detail-controls">
           <CurrencySelect
-            label="报告币种"
+            label={a("reportingCurrency")}
             options={SNAPSHOT_DISPLAY_CURRENCIES}
             value={reportingCurrency}
             onChange={(nextCurrency) => {
@@ -124,47 +130,48 @@ return (
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{a("refresh")}</span>
           </button>
           <button className="secondary-button" type="button" onClick={() => observeAsync((() => navigate("/accounts"))())}>
             <Edit3 size={17} aria-hidden="true" />
-            <span>管理账户信息</span>
+            <span>{a("manageInfo")}</span>
           </button>
         </div>
       </header>
 
-      {refreshing && !loading ? <p role="status">正在更新行情，当前显示已有估值。</p> : null}
+      {refreshing && !loading ? <p role="status">{a("refreshing")}</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
 
       {pageLoading ? (
-        <LoadingBlock label="正在加载账户详情" />
+        <LoadingBlock label={a("loadingDetail")} />
       ) : detail ? (
         <>
           <div className="metric-grid holdings-metrics account-detail-metrics">
-            <MetricCard label="当前总额" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.marketValue)} />
-            <MetricCard label="现金" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.cashMarketValue)} />
-            <MetricCard label="非现金资产" currency={activeCurrency} value={formatNullableAmount(detail.currentValue.nonCashMarketValue)} />
+            <MetricCard label={a("currentTotal")} currency={activeCurrency} value={formatNullableAmount(detail.currentValue.marketValue, language)} />
+            <MetricCard label={a("cash")} currency={activeCurrency} value={formatNullableAmount(detail.currentValue.cashMarketValue, language)} />
+            <MetricCard label={a("noncash")} currency={activeCurrency} value={formatNullableAmount(detail.currentValue.nonCashMarketValue, language)} />
             <MetricCard
-              label="投资收益"
+              label={a("investmentProfit")}
               currency={activeCurrency}
-              value={formatNullableSignedAmount(detail.investmentPerformance?.investmentProfit ?? null)}
+              value={formatNullableSignedAmount(detail.investmentPerformance?.investmentProfit ?? null, language)}
               toneClass={signedToneClass(detail.investmentPerformance?.investmentProfit ?? null, preferences.gainColorScheme, 3)}
             />
-            <MetricCard label="当前持仓数" value={String(detail.currentValue.holdingCount)} />
-            <MetricCard label="最新快照日期" value={detail.latestSnapshot?.snapshotDate ?? "--"} />
+            <MetricCard label={a("holdingCount")} value={String(detail.currentValue.holdingCount)} />
+            <MetricCard label={a("latestSnapshotDate")} value={formatCalendarDate(detail.latestSnapshot?.snapshotDate ?? null, "--", language)} />
           </div>
 
           <section className="account-detail-grid">
             <article className="flow-card chart-panel account-detail-trend-panel">
               <div className="chart-section-header">
                 <div>
-                  <h2>账户趋势</h2>
+                  <h2>{a("trend")}</h2>
                   <p>
-                    {trendRangeLabels[chartDetail?.trend.range ?? detail.trend.range]} · 估值参考日 {detail.currentValue.valuationBusinessDate}
+                    {trendRangeLabels[chartDetail?.trend.range ?? detail.trend.range]}  {a("valuationDatePrefix")} {formatCalendarDate(detail.currentValue.valuationBusinessDate, "--", language)}
                   </p>
                 </div>
           <label className="chart-range-select account-detail-range-select">
-            趋势范围
+
+            {a("trendRange")}
             <select
               value={trendRange}
               onChange={(event) => {
@@ -183,49 +190,49 @@ return (
             </select>
           </label>
               </div>
-              <div className="trend-tabs" role="tablist" aria-label="账户趋势">
-                {(["profit", "assets"] as const).map(view => <button type="button" role="tab" aria-selected={trendView === view} key={view} onClick={() => setTrendView(view)} onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); const next = event.key === "Home" ? "profit" : event.key === "End" ? "assets" : view === "profit" ? "assets" : "profit"; setTrendView(next); event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next === "profit" ? 0 : 1]?.focus(); } }} tabIndex={trendView === view ? 0 : -1}>{view === "profit" ? "期间盈利" : "资产趋势"}</button>)}
+              <div className="trend-tabs" role="tablist" aria-label={a("trend")}>
+                {(["profit", "assets"] as const).map(view => <button type="button" role="tab" aria-selected={trendView === view} key={view} onClick={() => setTrendView(view)} onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); const next = event.key === "Home" ? "profit" : event.key === "End" ? "assets" : view === "profit" ? "assets" : "profit"; setTrendView(next); event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next === "profit" ? 0 : 1]?.focus(); } }} tabIndex={trendView === view ? 0 : -1}>{view === "profit" ? a("periodProfit") : a("assetTrend")}</button>)}
               </div>
-              {trendError ? <p className="form-error">{trendError}</p> : null}
-              {trendLoading ? <LoadingBlock label="正在加载账户趋势" /> : chartDetail ? <AccountTrendChart detail={chartDetail} view={trendView} gainColorScheme={preferences.gainColorScheme} /> : null}
+              {trendError ? <p className="form-error">{translateUiError(trendError, language)}</p> : null}
+              {trendLoading ? <LoadingBlock label={a("loadingTrend")} /> : chartDetail ? <AccountTrendChart detail={chartDetail} view={trendView} gainColorScheme={preferences.gainColorScheme} /> : null}
             </article>
 
             <article className="flow-card holding-detail-panel">
-              <h2>账户信息</h2>
+              <h2>{a("accountInfo")}</h2>
               <dl className="detail-list">
-                <DetailRow label="账户名称" value={detail.account.name} />
-                <DetailRow label="券商/平台" value={detail.account.broker ?? "-"} />
-                <DetailRow label="账户类型" value={ACCOUNT_TYPE_LABELS[detail.account.accountType]} />
-                <DetailRow label="基准货币" value={detail.account.baseCurrency} />
-                <DetailRow label="主要市场" value={MARKET_REGION_LABELS[detail.account.marketRegion]} />
-                <DetailRow label="备注" value={detail.account.notes ?? "-"} />
+                <DetailRow label={a("name")} value={detail.account.name} />
+                <DetailRow label={a("broker")} value={detail.account.broker ?? "-"} />
+                <DetailRow label={a("accountType")} value={getInvestmentLabel("accountType", detail.account.accountType, language)} />
+                <DetailRow label={a("baseCurrency")} value={detail.account.baseCurrency} />
+                <DetailRow label={a("market")} value={getInvestmentLabel("marketRegion", detail.account.marketRegion, language)} />
+                <DetailRow label={a("notes")} value={detail.account.notes ?? "-"} />
               </dl>
             </article>
           </section>
 
           <section className="flow-card holding-detail-panel">
             <div className="holding-detail-section-header">
-              <h2>当前持仓</h2>
-              <span>{detail.holdings.length} 项</span>
+              <h2>{a("currentHoldings")}</h2>
+              <span>{detail.holdings.length}  {a("items")}</span>
             </div>
             <div className="table-wrap">
               <table className="holding-detail-table">
                 <thead>
                   <tr>
-                    <th>标的</th>
-                    <th>类型</th>
-                    <th>币种</th>
-                    <th className="numeric-cell">数量/现金余额</th>
-                    <th className="numeric-cell">平均成本</th>
-                    <th className="numeric-cell">最新价格</th>
-                    <th className="numeric-cell">市值 ({activeCurrency})</th>
-                    <th className="numeric-cell">未实现收益</th>
+                    <th>{a("instrument")}</th>
+                    <th>{a("assetType")}</th>
+                    <th>{a("currency")}</th>
+                    <th className="numeric-cell">{a("quantityBalance")}</th>
+                    <th className="numeric-cell">{a("averageCost")}</th>
+                    <th className="numeric-cell">{a("latestPrice")}</th>
+                    <th className="numeric-cell">{a("marketValue", { currency: activeCurrency })}</th>
+                    <th className="numeric-cell">{a("unrealizedGain")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.holdings.length === 0 ? (
                     <tr>
-                      <td colSpan={8}>暂无当前持仓或现金余额。</td>
+                      <td colSpan={8}>{a("emptyHoldings")}</td>
                     </tr>
                   ) : (
                     detail.holdings.map((holding) => (
@@ -234,19 +241,19 @@ return (
                         key={`${holding.accountId}:${holding.instrumentId}`}
                         role="button"
                         tabIndex={0}
-                        aria-label={`查看持仓详情 ${formatHoldingInstrument(holding)}`}
+                        aria-label={a("viewHolding", { name: formatHoldingInstrument(holding) })}
                         onClick={(event) => handleHoldingRowClick(event, holding, navigate)}
                         onKeyDown={(event) => handleHoldingRowKeyDown(event, holding, navigate)}
                       >
                         <td>{formatHoldingInstrument(holding)}</td>
-                        <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
+                        <td>{getInvestmentLabel("assetType", holding.assetType, language)}</td>
                         <td>{holding.currency}</td>
-                        <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
-                        <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
-                        <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact")}</td>
-                        <td className="numeric-cell">{formatNullableAmount(holding.marketValue)}</td>
+                        <td className="numeric-cell">{formatHoldingQuantity(holding, language)}</td>
+                        <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost, displayLocale) : "-"}</td>
+                        <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact", language)}</td>
+                        <td className="numeric-cell">{formatNullableAmount(holding.marketValue, language)}</td>
                         <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme, 3)}`}>
-                          {formatNullableSignedAmount(holding.unrealizedGain)}
+                          {formatNullableSignedAmount(holding.unrealizedGain, language)}
                         </td>
                       </tr>
                     ))
@@ -259,33 +266,33 @@ return (
           <section>
             <article className="flow-card holding-detail-panel">
               <div className="holding-detail-section-header">
-                <h2>最近交易</h2>
-                <span>10 条</span>
+                <h2>{a("recentTransactions")}</h2>
+                <span>{a("tenRows")}</span>
               </div>
               <div className="table-wrap">
                 <table className="holding-detail-table account-recent-table">
                   <thead>
                     <tr>
-                      <th>日期</th>
-                      <th>类型</th>
-                      <th>标的</th>
-                      <th className="numeric-cell">金额</th>
-                      <th>结算现金</th>
+                      <th>{a("date")}</th>
+                      <th>{a("assetType")}</th>
+                      <th>{a("instrument")}</th>
+                      <th className="numeric-cell">{a("amount")}</th>
+                      <th>{a("settlementCash")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {detail.recentTransactions.length === 0 ? (
                       <tr>
-                        <td colSpan={5}>暂无交易记录。</td>
+                        <td colSpan={5}>{a("emptyTransactions")}</td>
                       </tr>
                     ) : (
                       detail.recentTransactions.map((row) => (
                         <tr key={row.transaction.id}>
-                          <td>{row.transaction.tradeDate}</td>
-                          <td>{TRANSACTION_TYPE_LABELS[row.transaction.transactionType]}</td>
+                          <td>{formatCalendarDate(row.transaction.tradeDate, "-", language)}</td>
+                          <td>{getInvestmentLabel("transactionType", row.transaction.transactionType, language)}</td>
                           <td>{formatTransactionInstrument(row.transaction)}</td>
-                          <td className="numeric-cell">{formatTransactionAmount(row.transaction)}</td>
-                          <td>{row.linkedCashLeg ? formatTransactionAmount(row.linkedCashLeg) : "-"}</td>
+                          <td className="numeric-cell">{formatTransactionAmount(row.transaction, language)}</td>
+                          <td>{row.linkedCashLeg ? formatTransactionAmount(row.linkedCashLeg, language) : "-"}</td>
                         </tr>
                       ))
                     )}
@@ -296,9 +303,9 @@ return (
           </section>
 
           {detail.warnings?.length ? (
-            <section className="dashboard-warning-panel" aria-label="数据提示">
-              <h2>数据提示</h2><p>缺少必要数据的指标显示为 --。请补齐对应价格、汇率或成本基础。</p>
-              <div className="holding-warnings">{detail.warnings.map((warning, index) => <span className="warning-pill" key={index}>{[warning.instrumentShortName, warning.currency, warning.date, warning.message].filter(Boolean).join(" · ")}</span>)}</div>
+            <section className="dashboard-warning-panel" aria-label={a("dataWarnings")}>
+              <h2>{a("dataWarnings")}</h2><p>{a("unavailableHelp")}</p>
+              <div className="holding-warnings">{detail.warnings.map((warning, index) => <span className="warning-pill" key={index}>{translateAccountDetailWarning(warning, language)}</span>)}</div>
             </section>
           ) : null}
         </>
@@ -364,12 +371,14 @@ function handleHoldingRowKeyDown(
   observeAsync(navigate(`/holdings/${holding.accountId}/${holding.instrumentId}`));
 }
 
-function formatNullableAmount(value: string | null): string {
-  return value === null ? "--" : formatDisplayAmount(value);
+function formatNullableAmount(value: string | null, language: UiLanguage = "zh-CN"): string {
+  const displayLocale = getDisplayLocale(language);
+  return value === null ? "--" : formatDisplayAmount(value, displayLocale);
 }
 
-function formatNullableSignedAmount(value: string | null): string {
-  return value === null ? "--" : formatSignedDisplayAmount(value);
+function formatNullableSignedAmount(value: string | null, language: UiLanguage = "zh-CN"): string {
+  const displayLocale = getDisplayLocale(language);
+  return value === null ? "--" : formatSignedDisplayAmount(value, displayLocale);
 }
 
 function formatTransactionInstrument(transaction: AccountDetailSummary["recentTransactions"][number]["transaction"]): string {
@@ -378,17 +387,18 @@ function formatTransactionInstrument(transaction: AccountDetailSummary["recentTr
     : transaction.instrumentShortName ?? transaction.instrumentName ?? "-";
 }
 
-function formatTransactionAmount(transaction: AccountDetailSummary["recentTransactions"][number]["transaction"]): string {
+function formatTransactionAmount(transaction: AccountDetailSummary["recentTransactions"][number]["transaction"], language: UiLanguage = "zh-CN"): string {
+  const displayLocale = getDisplayLocale(language);
   if (transaction.grossAmount) {
-    return `${transaction.currency} ${formatDisplayAmount(transaction.grossAmount)}`;
+    return `${transaction.currency} ${formatDisplayAmount(transaction.grossAmount, displayLocale)}`;
   }
 
   if (transaction.fee !== "0") {
-    return `${transaction.currency} ${formatDisplayAmount(transaction.fee)}`;
+    return `${transaction.currency} ${formatDisplayAmount(transaction.fee, displayLocale)}`;
   }
 
   if (transaction.tax !== "0") {
-    return `${transaction.currency} ${formatDisplayAmount(transaction.tax)}`;
+    return `${transaction.currency} ${formatDisplayAmount(transaction.tax, displayLocale)}`;
   }
 
   return "-";

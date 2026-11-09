@@ -39,11 +39,11 @@ export async function writeTransactionAtomically(input: {
       listSnapshotDatesFrom([input.existing?.tradeDate, parent?.tradeDate].filter((date): date is string => Boolean(date)).sort()[0])
     ]);
     const instrument = parent ? instruments.find(item => item.id === parent.instrumentId) : null;
-    if (parent && !instrument) throw new ApiRequestError("VALIDATION_ERROR", "投资标的不存在，本次操作未保存。", 400);
+    if (parent && !instrument) throw new ApiRequestError("VALIDATION_ERROR", "投资标的不存在，本次操作未保存。", 400, { reason: "REFERENCE_UNAVAILABLE" });
     if (parent?.settlementCurrency && parent.settlementAmount) {
       const cashInstrument = instruments.find(item => item.assetType === "cash" && item.currency === parent.settlementCurrency);
       if (!cashInstrument && !/^0(?:\.0+)?$/.test(parent.settlementAmount)) {
-        throw new ApiRequestError("VALIDATION_ERROR", "未配置结算币种的现金标的，本次操作未保存。", 400);
+        throw new ApiRequestError("VALIDATION_ERROR", "未配置结算币种的现金标的，本次操作未保存。", 400, { reason: "MISSING_CASH_INSTRUMENT", currency: parent.settlementCurrency });
       }
       if (cashInstrument) cashLeg = buildGeneratedCashLegInput(parent, cashInstrument);
     }
@@ -54,7 +54,7 @@ export async function writeTransactionAtomically(input: {
     if (violation) {
       throw new ApiRequestError("VALIDATION_ERROR", violation.reason === "INSUFFICIENT_CASH"
         ? `${violation.tradeDate} 的买入资金不足，本次修改会新增或扩大资金缺口。`
-        : `${violation.tradeDate} 的卖出持仓不足，本次修改会新增或扩大持仓缺口。`, 400);
+        : `${violation.tradeDate} 的卖出持仓不足，本次修改会新增或扩大持仓缺口。`, 400, { reason: violation.reason, date: violation.tradeDate });
     }
     const toDate = [...dates, parent?.tradeDate ?? input.existing!.tradeDate].sort().at(-1)!;
     const storedPrices = await listPricesForTransactionWrite(transactions.map(item => item.instrumentId), toDate);
@@ -80,7 +80,7 @@ export async function writeTransactionAtomically(input: {
     logCaughtError("atomicTransactionWriteService.writeTransactionAtomically", error);
     if (error instanceof ApiRequestError) throw error;
 
-    throw new ApiRequestError("INTERNAL_ERROR", "无法计算历史资产快照，本次操作未保存，交易和现金余额未改变。请稍后重试。", 500);
+    throw new ApiRequestError("INTERNAL_ERROR", "无法计算历史资产快照，本次操作未保存，交易和现金余额未改变。请稍后重试。", 500, { reason: "SNAPSHOT_RECALCULATION_FAILED" });
   }
   return commitTransactionWrite({ ...input, cashLeg, price, snapshots, createdAt: parent?.createdAt });
 }

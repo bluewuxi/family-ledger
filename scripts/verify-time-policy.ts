@@ -1,3 +1,4 @@
+import { dashboardCopy } from "../apps/web/src/i18n/investmentCopy";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { normalizeQuery } from "../apps/api/src/services/spendingValidation";
@@ -42,14 +43,14 @@ async function main(): Promise<void> {
   assert.match(template, /<aws\.scheduler\.execution-id>/u);
   assert.doesNotMatch(template, /Type: AWS::Events::Rule/u);
 
-  const dashboard = readFileSync("apps/web/src/pages/DashboardPage.tsx", "utf8");
-  assert.match(dashboard, /本日变动/u);
-  assert.match(dashboard, /本交易日/u);
+  assert.equal(dashboardCopy("businessDayChange", "zh-CN"), "本日变动");
+  assert.equal(dashboardCopy("businessDayChange", "en"), "Current business-day change");
+  assert.match(dashboardCopy("dailyEligibility", "zh-CN"), /本交易日/u);
   assert.equal(getMarketDateForAppBusinessDate("2026-10-08", "US"), "2026-10-07");
   assert.equal(getMarketDateForAppBusinessDate("2026-10-08", "UK"), "2026-10-07");
   assert.equal(getMarketDateForAppBusinessDate("2026-10-08", "CN"), "2026-10-08");
   assert.equal(getMarketDateForAppBusinessDate("2026-01-01", "US"), "2025-12-31");
-  assert.doesNotMatch(dashboard, /今日变动/u);
+  assert.doesNotMatch(dashboardCopy("businessDayChange", "zh-CN"), /今日变动/u);
   assert.equal(formatHoursMinutes(201), "03小时 21分");
 
   assert.equal(formatAppBusinessDayCountdown(new Date("2026-05-27T21:59:59Z")), "交易日 2026-05-27 将于 00小时 01分 结束");

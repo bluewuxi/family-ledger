@@ -5,7 +5,7 @@ import { ApiRequestError } from "../utils/apiError";
 export interface TransactionCreateIntent { key: string; fingerprint: string }
 export function transactionCreateIntent(key: string | undefined, input: Record<string, unknown>): TransactionCreateIntent {
   if (!key || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "请刷新页面后重试，交易请求缺少有效的操作编号。", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "请刷新页面后重试，交易请求缺少有效的操作编号。", 400, { reason: "INVALID_OPERATION_ID" });
   }
   const numeric = new Set(["quantity", "price", "grossAmount", "fee", "tax"]);
   const fields = ["accountId", "instrumentId", "transactionType", "tradeDate", "settlementDate", "quantity", "price", "grossAmount", "fee", "tax", "currency", "adjustmentDirection", "notes"];

@@ -1,4 +1,7 @@
 export default {
+"investmentNotFound": "记录不可用。",
+"investmentInvalid": "请检查表单及所选账户和标的。",
+"investmentConflict": "账本已变更，请重新加载核对后再重试。",
   "invalidCredentials": "邮箱或密码不正确，或登录状态已失效。",
   "currentPasswordRejected": "当前密码不正确，或登录状态已失效。若上次操作已成功，请使用新密码重新登录。",
   "sessionExpired": "登录状态已失效，请重新登录。",

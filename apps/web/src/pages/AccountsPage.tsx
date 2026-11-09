@@ -1,3 +1,9 @@
+import { LanguageSwitch } from "../components/LanguageSwitch";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { i18n } from "../i18n/instance";
+import { getInvestmentLabel } from "../i18n/investmentLabels";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
+import { useUiLanguage } from "../i18n/LanguageProvider";
 import { AccountCreateWorkspace } from "../components/AccountCreateWorkspace";
 import { useWorkflowDeparture } from "../lib/useWorkflowDeparture";
 import { useEditDismissal } from "../lib/useEditDismissal";
@@ -6,13 +12,9 @@ import { Fragment, type FormEvent, type KeyboardEvent, type MouseEvent, useEffec
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, Eye, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
-  ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPES,
-  ACCOUNT_PURPOSE_LABELS,
   ACCOUNT_PURPOSES,
-  ASSET_TYPE_LABELS,
   CURRENCY_CODES,
-  MARKET_REGION_LABELS,
   MARKET_REGIONS,
   SNAPSHOT_DISPLAY_CURRENCIES,
   getLocalDateString,
@@ -114,9 +116,12 @@ interface AccountTotalDisplay {
 }
 
 export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
+  const { language } = useUiLanguage();
+  const a = i18n.getFixedT(language, "accounts");
   const FormSurface = createOnly ? AccountCreateWorkspace : Drawer;
   const completed = useRef(false);
   const createdAccount = useRef<string | null>(null);
+  const openingProgress = useRef({ succeeded: 0, total: 0 });
   const navigate = useNavigate();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
@@ -129,12 +134,12 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const accountSequence = useRef(0);
   const holdingsSequence = useRef(0);
-  const [auxError, setAuxError] = useState<string | null>(null);
+  const [auxError, setAuxError] = useState<UiErrorDescriptor | null>(null);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [totalsLoading, setTotalsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiErrorDescriptor | "partialCreated" | "chooseInstrument" | "openingRequired" | "requiredField" | "invalidField" | null>(null);
   const [form, setForm] = useState<AccountFormState>(emptyForm);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
@@ -146,12 +151,13 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
   const [revealedTradingPassword, setRevealedTradingPassword] = useState<string | null>(null);
   const [newTradingPassword, setNewTradingPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<UiErrorDescriptor | null>(null);
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
 
+  const renderedError = error === null ? null : typeof error === "string" ? error === "partialCreated" ? a("partialCreated", { succeeded: openingProgress.current.succeeded, remaining: openingProgress.current.total - openingProgress.current.succeeded }) : a(error) : translateUiError(error, language);
   const isAdmin = user?.role === "admin";
   const fallbackSnapshotCurrency = toSnapshotDisplayCurrency(preferences.preferredCurrency);
-  const formTitle = drawerMode === "create" ? "新增账户" : drawerMode === "modify" ? "编辑账户" : "账户详情";
+  const formTitle = drawerMode === "create" ? a("create") : drawerMode === "modify" ? a("editAccount") : a("details");
   const editingAccount = useMemo(
     () => accounts.find((account) => account.id === editingAccountId) ?? null,
     [accounts, editingAccountId]
@@ -169,7 +175,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
     const id = ++totalsSequence.current;
     setTotalsLoading(true);
     void loadAccountTotals(accounts, fallbackSnapshotCurrency).then(totals => { if (id === totalsSequence.current) setAccountTotals(totals); })
-      .catch(failure => { if (id === totalsSequence.current) setAuxError(toErrorMessage(failure)); })
+      .catch(failure => { if (id === totalsSequence.current) setAuxError(describeUiError(failure, "investmentRead")); })
       .finally(() => { if (id === totalsSequence.current) setTotalsLoading(false); });
     const requests = totalsSequence;
 
@@ -185,13 +191,13 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
       if (id !== accountSequence.current) return;
       setUser(accountData.user); setAccounts(accountData.accounts);
       setLoading(false);
-    } catch (failure) { if (id === accountSequence.current) setError(toErrorMessage(failure)); }
+    } catch (failure) { if (id === accountSequence.current) setError(describeUiError(failure, "investmentRead")); }
     finally { if (id === accountSequence.current) setLoading(false); }
   }
 
   async function loadOpeningInstruments() {
     try { const data = await apiGet<InstrumentsResponse>("/instruments"); setInstruments(data.instruments); }
-    catch (failure) { setAuxError(toErrorMessage(failure)); }
+    catch (failure) { setAuxError(describeUiError(failure, "investmentRead")); }
   }
 
   useEffect(() => { if (includeOpeningAssets && drawerOpen) observeAsync(loadOpeningInstruments()); }, [includeOpeningAssets, drawerOpen]);
@@ -199,7 +205,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (createOnly && !event.currentTarget.reportValidity()) return;
+    if (!event.currentTarget.checkValidity()) { setError("requiredField"); return; }
     if (isDrawerReadOnly || saving || (createOnly && createdAccount.current)) {
       return;
     }
@@ -208,6 +214,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
     setError(null);
     setPasswordError(null);
 
+    let writeContext: "accountSave" | "tradingPasswordUpdate" = "accountSave";
     try {
       const payload = toAccountInput(form);
       const data = editingAccountId
@@ -219,6 +226,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
         revealedTradingPassword !== null &&
         newTradingPassword !== revealedTradingPassword
       ) {
+        writeContext = "tradingPasswordUpdate";
         await apiPut<AccountPasswordUpdateResponse>(`/accounts/${editingAccountId}/trading-password`, {
           extraPassword,
           tradingPassword: newTradingPassword
@@ -235,7 +243,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
       if (createOnly) { completed.current = true; observeAsync(navigate("/accounts")); }
       else { await loadAccounts(); closeDrawer(); }
     } catch (requestError) {
-      setError(createOnly && createdAccount.current ? "账户已创建，期初资产可能部分保存。请返回账户管理检查交易记录，不要再次创建账户。" : toErrorMessage(requestError));
+      setError(createOnly && createdAccount.current ? "partialCreated" : requestError instanceof ApiClientError && requestError.code === "MISSING_INSTRUMENT" ? "chooseInstrument" : requestError instanceof ApiClientError && requestError.code === "EMPTY_OPENING_ROWS" ? "openingRequired" : describeUiError(requestError, writeContext));
     } finally {
       setSaving(false);
     }
@@ -248,28 +256,30 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
         const instrument = instruments.find((item) => item.id === row.instrumentId);
 
         if (!instrument) {
-          throw new ApiClientError("请选择投资标的。", "MISSING_INSTRUMENT");
+          throw new ApiClientError(a("chooseInstrument"), "MISSING_INSTRUMENT");
         }
 
         return toOpeningTransactionInput(accountId, openingTradeDate, row, instrument);
       });
 
     if (payloads.length === 0) {
-      throw new ApiClientError("请至少填写一条期初资产。", "EMPTY_OPENING_ROWS");
+      throw new ApiClientError(a("openingRequired"), "EMPTY_OPENING_ROWS");
     }
 
+    openingProgress.current = { succeeded: 0, total: payloads.length };
     const created: InvestmentTransaction[] = [];
 
     for (const payload of payloads) {
       const data = await apiPost<TransactionResponse>("/transactions", payload);
       created.push(data.transaction);
+      openingProgress.current.succeeded++;
     }
 
     return created;
   }
 
   async function handleDelete(account: InvestmentAccount) {
-    const confirmed = window.confirm(`确定删除账户“${account.name}”？`);
+    const confirmed = window.confirm(a("deleteConfirm", { name: account.name }));
 
     if (!confirmed) {
       return;
@@ -286,7 +296,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
         closeDrawer();
       }
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(describeUiError(requestError, "accountDelete"));
     } finally {
       setSaving(false);
     }
@@ -336,7 +346,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
     void apiGet<HoldingsResponse>(`/holdings?currency=${fallbackSnapshotCurrency}&quoteMode=cached`).then(data => {
       if (id !== holdingsSequence.current) return;
       setAccountHoldings(data.holdings); setHoldingsReportingCurrency(data.reportingCurrency);
-    }).catch(failure => { if (id === holdingsSequence.current) setAuxError(toErrorMessage(failure)); })
+    }).catch(failure => { if (id === holdingsSequence.current) setAuxError(describeUiError(failure, "investmentRead")); })
       .finally(() => { if (id === holdingsSequence.current) setHoldingsLoading(false); });
   }
 
@@ -397,7 +407,7 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
       setNewTradingPassword(data.tradingPassword);
     } catch (requestError) {
       setRevealedTradingPassword(null);
-      setPasswordError(toErrorMessage(requestError));
+      setPasswordError(describeUiError(requestError, "tradingPasswordReveal"));
     } finally {
       setPasswordLoading(false);
     }
@@ -412,35 +422,35 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
       {!createOnly && <>
       <header className="page-header account-header">
         <div>
-          <PageTitle route="/accounts">账户管理</PageTitle>
-          <p>维护投资与日常收支账户，可一并录入期初资产。教育资金池在家庭收支的教育收支页签独立管理。</p>
+          <PageTitle route="/accounts">{a("directory")}</PageTitle>
+          <p>{a("directoryHelp")}</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (
             <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving}>
               <Plus size={17} aria-hidden="true" />
-              <span>新账户</span>
+              <span>{a("newAccount")}</span>
             </button>
           ) : null}
           <button className="secondary-button" type="button" onClick={() => observeAsync((loadAccounts)())} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{a("refresh")}</span>
           </button>
         </div>
       </header>
 
-      {auxError ? <p className="form-error">辅助数据加载失败：{auxError} <button type="button" className="text-button" onClick={() => observeAsync(loadAccounts())}>重试</button></p> : null}
-      {error ? <p className="form-error">{error}</p> : null}
+      {auxError ? <p className="form-error">{a("auxiliaryFailure")}{translateUiError(auxError, language)} <button type="button" className="text-button" onClick={() => observeAsync(loadAccounts())}>{a("retry")}</button></p> : null}
+      {error ? <p className="form-error">{renderedError}</p> : null}
 
       {!isAdmin && !loading && user ? (
-        <p className="readonly-note">当前角色为 viewer，可查看账户信息；持有额外密码时也可查看交易密码。新增、编辑、删除和更新交易密码仅限 admin。</p>
+        <p className="readonly-note">{a("viewerHelp")}</p>
       ) : null}
 
       <div className="filter-bar">
-        <label>账户用途
+        <label>{a("purpose")}
           <select value={purposeFilter} onChange={(event) => setPurposeFilter(event.target.value as AccountPurpose | "")}>
-            <option value="">全部用途</option>
-            {ACCOUNT_PURPOSES.map((purpose) => <option key={purpose} value={purpose}>{ACCOUNT_PURPOSE_LABELS[purpose]}</option>)}
+            <option value="">{a("allPurposes")}</option>
+            {ACCOUNT_PURPOSES.map((purpose) => <option key={purpose} value={purpose}>{getInvestmentLabel("accountPurpose", purpose, language)}</option>)}
           </select>
         </label>
       </div>
@@ -449,24 +459,24 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
           <thead>
             <tr>
               <th className="account-expand-column"></th>
-              <th>账户名称</th>
-              <th>券商/平台</th>
-              <th>账户类型</th>
-              <th>用途</th>
-              <th>基准货币</th>
-              <th className="numeric-cell">账户总额</th>
-              <th>主要市场</th>
-              <th>操作</th>
+              <th>{a("name")}</th>
+              <th>{a("broker")}</th>
+              <th>{a("accountType")}</th>
+              <th>{a("purposeColumn")}</th>
+              <th>{a("baseCurrency")}</th>
+              <th className="numeric-cell">{a("total")}</th>
+              <th>{a("market")}</th>
+              <th>{a("actions")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9}>正在加载账户...</td>
+                <td colSpan={9}>{a("loading")}</td>
               </tr>
             ) : visibleAccounts.length === 0 ? (
               <tr>
-                <td colSpan={9}>暂无账户。</td>
+                <td colSpan={9}>{a("empty")}</td>
               </tr>
             ) : (
               visibleAccounts.map((account) => {
@@ -484,15 +494,15 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
                         .join(" ")}
                       role="button"
                       tabIndex={0}
-                      aria-label={`查看账户 ${account.name}`}
+                      aria-label={a("viewAccount", { name: account.name })}
                       onClick={(event) => handleAccountRowClick(event, account)}
                       onKeyDown={(event) => handleAccountRowKeyDown(event, account)}
                     >
                       <td className="account-expand-column">
                         <button
-                          aria-label={isExpanded ? `收起账户 ${account.name} 的当前持仓` : `展开账户 ${account.name} 的当前持仓`}
+                          aria-label={isExpanded ? a("collapseAccount", { name: account.name }) : a("expandAccount", { name: account.name })}
                           className="transaction-expand-button"
-                          title={isExpanded ? "收起当前持仓" : "展开当前持仓"}
+                          title={isExpanded ? a("collapseHoldings") : a("expandHoldings")}
                           type="button"
                           onClick={() => toggleAccountHoldings(account.id)}
                           disabled={saving}
@@ -502,17 +512,17 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
                       </td>
                       <td>{account.name}</td>
                       <td>{account.broker ?? "-"}</td>
-                      <td>{ACCOUNT_TYPE_LABELS[account.accountType]}</td>
-                      <td>{ACCOUNT_PURPOSE_LABELS[account.purpose]}</td>
+                      <td>{getInvestmentLabel("accountType", account.accountType, language)}</td>
+                      <td>{getInvestmentLabel("accountPurpose", account.purpose, language)}</td>
                       <td>{account.baseCurrency}</td>
-                      <td className="numeric-cell">{totalsLoading ? "加载中..." : formatAccountTotal(accountTotals.get(account.id))}</td>
-                      <td>{MARKET_REGION_LABELS[account.marketRegion]}</td>
+                      <td className="numeric-cell">{totalsLoading ? a("loadingValue") : formatAccountTotal(accountTotals.get(account.id), language)}</td>
+                      <td>{getInvestmentLabel("marketRegion", account.marketRegion, language)}</td>
                       <td>
                         <div className="table-actions">
                           <button
-                            aria-label={`${isAdmin ? "编辑" : "查看"}账户 ${account.name}`}
+                            aria-label={a("accountAction", { action: isAdmin ? a("edit") : a("view"), name: account.name })}
                             className="icon-button"
-                            title={isAdmin ? "查看/编辑" : "查看"}
+                            title={isAdmin ? a("viewEdit") : a("view")}
                             type="button"
                             onClick={() => startDetail(account)}
                             disabled={saving}
@@ -521,9 +531,9 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
                           </button>
                           {isAdmin ? (
                             <button
-                              aria-label={`删除账户 ${account.name}`}
+                              aria-label={a("accountAction", { action: a("delete"), name: account.name })}
                               className="icon-button danger-icon-button"
-                              title="删除"
+                              title={a("delete")}
                               type="button"
                               onClick={() => observeAsync(handleDelete(account))}
                               disabled={saving}
@@ -537,11 +547,11 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
                     {isExpanded ? (
                       <tr className="account-holdings-row">
                         <td colSpan={9}>
-                          {holdingsLoading ? <p role="status">正在加载持仓...</p> : renderAccountHoldings(
+                          {holdingsLoading ? <p role="status">{a("loadingHoldings")}</p> : renderAccountHoldings(
                             accountHoldingsForRow,
                             holdingsReportingCurrency,
                             preferences.gainColorScheme,
-                            openHoldingDetail
+                            openHoldingDetail, language
                           )}
                         </td>
                       </tr>
@@ -555,14 +565,14 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
       </div>
 
       </>}
-      {createOnly && error ? <p role="alert" className="form-error">{error}</p> : null}
-      {createOnly && !isAdmin ? <p role="status">{loading ? "正在加载账户…" : "仅管理员可创建账户。"}</p> : <FormSurface
+      {createOnly && error ? <p role="alert" className="form-error">{renderedError}</p> : null}
+      {createOnly && !isAdmin ? <p role="status">{loading ? a("loadingAccounts") : a("adminCreate")}</p> : <FormSurface
         open={drawerOpen}
         title={formTitle}
         subtitle={
           editingAccount
-            ? `${drawerMode === "modify" ? "正在编辑" : "正在查看"}：${editingAccount.name}`
-            : "新增后会立即显示在列表中"
+            ? a(drawerMode === "modify" ? "editingName" : "viewingName", { name: editingAccount.name })
+            : a("createHelp")
         }
         busy={saving}
         {...(createOnly ? { submitBlocked: !!createdAccount.current } : {})}
@@ -570,45 +580,52 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
         footer={
           drawerMode === "view" ? (
             <button className="secondary-button" type="button" onClick={requestDismiss}>
-              关闭
+
+              {a("close")}
             </button>
           ) : (
             <>
               <button className="primary-button" type="submit" form="account-drawer-form" disabled={saving}>
-                {saving ? "保存中..." : editingAccountId ? "保存修改" : "新增账户"}
+                {saving ? a("saving") : editingAccountId ? a("saveChanges") : a("create")}
               </button>
               <button className="secondary-button" type="button" onClick={requestDismiss} disabled={saving}>
-                取消
+
+                {a("cancel")}
               </button>
             </>
           )
         }
       >
-        <form noValidate={createOnly} className="account-form drawer-form" id="account-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
+        <LanguageSwitch />
+        <form noValidate={createOnly} className="account-form drawer-form" id="account-drawer-form" onInvalidCapture={event => { event.preventDefault(); setError((event.target as HTMLInputElement).validity.valueMissing ? "requiredField" : "invalidField"); }} onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
+          {!createOnly && error ? <p role="alert" className="form-error">{renderedError}</p> : null}
           <div className="account-basic-fields">
           <label>
-            账户名称
+
+            {a("name")}
             <input
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
-              placeholder="例如 Hatch 美股账户"
+              placeholder={a("nameExample")}
               disabled={isDrawerReadOnly}
               required
             />
           </label>
 
           <label>
-            券商/平台
+
+            {a("broker")}
             <input
               value={form.broker}
               onChange={(event) => setForm({ ...form, broker: event.target.value })}
-              placeholder="例如 Hatch、IBKR、InvestNow"
+              placeholder={a("brokerExample")}
               disabled={isDrawerReadOnly}
             />
           </label>
 
           <label>
-            账户类型
+
+            {a("accountType")}
             <select
               value={form.accountType}
               onChange={(event) => setForm({ ...form, accountType: event.target.value as AccountType })}
@@ -616,27 +633,29 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
             >
               {ACCOUNT_TYPES.map((accountType) => (
                 <option key={accountType} value={accountType}>
-                  {ACCOUNT_TYPE_LABELS[accountType]}
+                  {getInvestmentLabel("accountType", accountType, language)}
                 </option>
               ))}
             </select>
           </label>
 
           <label>
-            账户用途
+
+            {a("purpose")}
             <select
               value={form.purpose}
               onChange={(event) => setForm({ ...form, purpose: event.target.value as AccountPurpose })}
               disabled={isDrawerReadOnly}
             >
               {ACCOUNT_PURPOSES.filter(purpose => purpose !== "education").map((purpose) => (
-                <option key={purpose} value={purpose}>{ACCOUNT_PURPOSE_LABELS[purpose]}</option>
+                <option key={purpose} value={purpose}>{getInvestmentLabel("accountPurpose", purpose, language)}</option>
               ))}
             </select>
           </label>
 
           <label>
-            基准货币
+
+            {a("baseCurrency")}
             <select
               value={form.baseCurrency}
               onChange={(event) => setForm({ ...form, baseCurrency: event.target.value as CurrencyCode })}
@@ -651,7 +670,8 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
           </label>
 
           <label>
-            主要市场
+
+            {a("market")}
             <select
               value={form.marketRegion}
               onChange={(event) => setForm({ ...form, marketRegion: event.target.value as MarketRegion })}
@@ -659,30 +679,32 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
             >
               {MARKET_REGIONS.map((marketRegion) => (
                 <option key={marketRegion} value={marketRegion}>
-                  {MARKET_REGION_LABELS[marketRegion]}
+                  {getInvestmentLabel("marketRegion", marketRegion, language)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="wide-field">
-            备注
+
+            {a("notes")}
             <textarea
               value={form.notes}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              placeholder="可选"
+              placeholder={a("optional")}
               rows={3}
               disabled={isDrawerReadOnly}
             />
           </label>
 
           <label className="wide-field">
-            交易信息
+
+            {a("tradingInfo")}
             <textarea
               className="large-textarea"
               value={form.tradingInfo}
               onChange={(event) => setForm({ ...form, tradingInfo: event.target.value })}
-              placeholder="例如 App 安装方式、登录入口、账号提示和操作注意事项"
+              placeholder={a("tradingInfoExample")}
               rows={6}
               disabled={isDrawerReadOnly}
             />
@@ -692,23 +714,24 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
             <section className="drawer-secret-section wide-field">
               <div className="settings-section-header drawer-inner-panel">
                 <div>
-                  <h2>交易密码</h2>
-                  <p>输入额外密码后才会显示。未显示时，保存账户不会更新交易密码。</p>
+                  <h2>{a("tradingPassword")}</h2>
+                  <p>{a("passwordHelp")}</p>
                 </div>
               </div>
 
-              {passwordError ? <p className="form-error">{passwordError}</p> : null}
+              {passwordError ? <p className="form-error">{translateUiError(passwordError, language)}</p> : null}
 
               <div className="secret-dialog-form">
                 <label>
-                  额外密码
+
+                  {a("extraPassword")}
                   <input
                     type="password"
                     autoComplete="current-password"
                     value={extraPassword}
                     onChange={(event) => setExtraPassword(event.target.value)}
                     disabled={revealedTradingPassword !== null || passwordLoading || saving}
-                    placeholder="仅查看交易密码时填写"
+                    placeholder={a("extraPasswordHint")}
                   />
                 </label>
                 <button
@@ -718,13 +741,14 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
                   disabled={revealedTradingPassword !== null || passwordLoading || saving || !extraPassword.trim()}
                 >
                   <KeyRound size={17} aria-hidden="true" />
-                  <span>{revealedTradingPassword !== null ? "已验证" : passwordLoading ? "验证中..." : "查看密码"}</span>
+                  <span>{revealedTradingPassword !== null ? a("verified") : passwordLoading ? a("verifying") : a("revealPassword")}</span>
                 </button>
               </div>
 
               {revealedTradingPassword !== null ? (
                 <label className="secret-value-field">
-                  当前交易密码
+
+                  {a("currentTradingPassword")}
                   <textarea
                     readOnly={!isAdmin}
                     value={isAdmin ? newTradingPassword : revealedTradingPassword}
@@ -745,14 +769,16 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
                 checked={includeOpeningAssets}
                 onChange={(event) => setIncludeOpeningAssets(event.target.checked)}
               />
-              同时录入期初资产
+
+              {a("includeOpenings")}
             </label>
           ) : null}
 
           {drawerMode !== "view" && includeOpeningAssets ? (
             <>
               <label>
-                期初日期
+
+                {a("openingDate")}
                 <input
                   type="date"
                   value={openingTradeDate}
@@ -763,7 +789,8 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
 
               {editingAccountHasHistory ? (
                 <p className="form-warning wide-field">
-                  该账户已有交易记录。仍可录入期初资产，但请确认日期和备注，避免重复计算。
+
+                  {a("historyHelp")}
                 </p>
               ) : null}
 
@@ -774,44 +801,44 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
 
                   return (
                     <div className="opening-entry-row" key={row.id}>
-                      <label>标的<select
-                        aria-label={`第 ${index + 1} 行标的`}
+                      <label>{a("instrument")}<select
+                        aria-label={a("rowInstrument", { row: index + 1 })}
                         value={row.instrumentId}
                         onChange={(event) => updateOpeningRow(row.id, { instrumentId: event.target.value, quantity: "" })}
                         required
                       >
-                        <option value="">请选择标的</option>
+                        <option value="">{a("selectInstrument")}</option>
                         {instruments.filter(item => item.active !== false).map((item) => (
                           <option key={item.id} value={item.id}>
                             {formatInstrument(item)}
                           </option>
                         ))}
                       </select></label>
-                      <label>数量<input
-                        aria-label={`第 ${index + 1} 行数量`}
-                        value={isCash ? "现金余额" : row.quantity}
+                      <label>{a("quantity")}<input
+                        aria-label={a("rowQuantity", { row: index + 1 })}
+                        value={isCash ? a("cashBalance") : row.quantity}
                         onChange={(event) => updateOpeningRow(row.id, { quantity: event.target.value })}
                         disabled={isCash}
                         placeholder="0.0000000000"
                         required={!isCash}
                       /></label>
-                      <label>总成本/余额<input
-                        aria-label={`第 ${index + 1} 行总成本或余额`}
+                      <label>{a("costBalance")}<input
+                        aria-label={a("rowCost", { row: index + 1 })}
                         value={row.grossAmount}
                         onChange={(event) => updateOpeningRow(row.id, { grossAmount: event.target.value })}
-                        placeholder={isCash ? "期初余额" : "总成本"}
+                        placeholder={isCash ? a("openingBalance") : a("totalCost")}
                         required
                       /></label>
-                      <label className="opening-entry-notes">备注<input
-                        aria-label={`第 ${index + 1} 行备注`}
+                      <label className="opening-entry-notes">{a("notes")}<input
+                        aria-label={a("rowNotes", { row: index + 1 })}
                         value={row.notes}
                         onChange={(event) => updateOpeningRow(row.id, { notes: event.target.value })}
-                        placeholder="可选"
+                        placeholder={a("optional")}
                       /></label>
                       <button
-                        aria-label="删除期初资产行"
+                        aria-label={a("removeOpening")}
                         className="icon-button danger-icon-button opening-entry-delete"
-                        title="删除"
+                        title={a("delete")}
                         type="button"
                         onClick={() => removeOpeningRow(row.id)}
                         disabled={saving || openingRows.length === 1}
@@ -825,7 +852,8 @@ export function AccountsPage({ createOnly = false }: { createOnly?: boolean }) {
 
               <div className="form-actions">
                 <button className="secondary-button" type="button" onClick={addOpeningRow} disabled={saving}>
-                  添加一行
+
+                  {a("addRow")}
                 </button>
               </div>
             </>
@@ -899,22 +927,25 @@ async function loadAccountTotals(_accounts: InvestmentAccount[], fallbackCurrenc
   return new Map(data.totals.map(total => [total.accountId, { currency: total.currency, marketValue: total.marketValue }]));
 }
 
-function formatAccountTotal(total: AccountTotalDisplay | undefined): string {
+function formatAccountTotal(total: AccountTotalDisplay | undefined, language: UiLanguage = "zh-CN"): string {
   if (!total || total.marketValue === null) {
     return "--";
   }
 
-  return `${total.currency} ${formatDisplayAmount(total.marketValue)}`;
+  return `${total.currency} ${formatDisplayAmount(total.marketValue, getDisplayLocale(language))}`;
 }
 
 function renderAccountHoldings(
   holdings: ValuedHoldingSummary[],
   reportingCurrency: SnapshotDisplayCurrency,
   gainColorScheme: Parameters<typeof signedToneClass>[1],
-  onOpenHoldingDetail: (holding: ValuedHoldingSummary) => void
+  onOpenHoldingDetail: (holding: ValuedHoldingSummary) => void,
+  language: UiLanguage = "zh-CN"
 ) {
+  const a = i18n.getFixedT(language, "accounts");
+  const displayLocale = getDisplayLocale(language);
   if (holdings.length === 0) {
-    return <div className="account-holdings-empty">暂无当前持仓或现金余额。</div>;
+    return <div className="account-holdings-empty">{a("emptyHoldings")}</div>;
   }
 
   return (
@@ -922,16 +953,16 @@ function renderAccountHoldings(
       <table className="account-holdings-table">
         <thead>
           <tr>
-            <th>标的</th>
-            <th>类型</th>
-            <th>币种</th>
-            <th className="numeric-cell">数量/现金余额</th>
-            <th className="numeric-cell">平均成本</th>
-            <th className="numeric-cell">剩余成本</th>
-            <th className="numeric-cell">最新价格</th>
-            <th className="numeric-cell">市值 ({reportingCurrency})</th>
-            <th className="numeric-cell">未实现盈亏 ({reportingCurrency})</th>
-            <th>数据提示</th>
+            <th>{a("instrument")}</th>
+            <th>{a("assetType")}</th>
+            <th>{a("currency")}</th>
+            <th className="numeric-cell">{a("quantityBalance")}</th>
+            <th className="numeric-cell">{a("averageCost")}</th>
+            <th className="numeric-cell">{a("carryingCost")}</th>
+            <th className="numeric-cell">{a("latestPrice")}</th>
+            <th className="numeric-cell">{a("marketValue", { currency: reportingCurrency })}</th>
+            <th className="numeric-cell">{a("unrealizedValue", { currency: reportingCurrency })}</th>
+            <th>{a("dataWarnings")}</th>
           </tr>
         </thead>
         <tbody>
@@ -941,7 +972,7 @@ function renderAccountHoldings(
               key={`${holding.accountId}:${holding.instrumentId}`}
               role="button"
               tabIndex={0}
-              aria-label={`查看持仓详情 ${formatHoldingInstrument(holding)}`}
+              aria-label={a("viewHolding", { name: formatHoldingInstrument(holding) })}
               onClick={(event) => {
                 if (!isInteractiveRowTarget(event.target, event.currentTarget)) {
                   onOpenHoldingDetail(holding);
@@ -957,17 +988,17 @@ function renderAccountHoldings(
               }}
             >
               <td>{formatHoldingInstrument(holding)}</td>
-              <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
+              <td>{getInvestmentLabel("assetType", holding.assetType, language)}</td>
               <td>{holding.currency}</td>
-              <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
-              <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
-              <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
-              <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact")}</td>
-              <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue) : "--"}</td>
+              <td className="numeric-cell">{formatHoldingQuantity(holding, language)}</td>
+              <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost, displayLocale) : "-"}</td>
+              <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount, displayLocale) : "-"}</td>
+              <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact", language)}</td>
+              <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue, displayLocale) : "--"}</td>
               <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, gainColorScheme, 3)}`}>
-                {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain) : "--"}
+                {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain, displayLocale) : "--"}
               </td>
-              <td>{formatHoldingWarnings(holding)}</td>
+              <td>{formatHoldingWarnings(holding, language)}</td>
             </tr>
           ))}
         </tbody>
@@ -992,12 +1023,4 @@ function toSnapshotDisplayCurrency(currency: string): SnapshotDisplayCurrency {
   return SNAPSHOT_DISPLAY_CURRENCIES.includes(currency as SnapshotDisplayCurrency)
     ? (currency as SnapshotDisplayCurrency)
     : "CNY";
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return "账户请求失败，请稍后重试。";
 }

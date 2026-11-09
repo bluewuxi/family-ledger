@@ -123,7 +123,7 @@ export async function getMonthlySummary(input: {
   for (const [snapshot, expectedDate] of [[startSnapshot, previousDay], [endSnapshot, valuationEnd]] as const) {
     if (snapshot && snapshot.snapshotDate !== expectedDate) {
       addWarning(warnings, {
-        code: "SNAPSHOT_DATE_MISMATCH", date: expectedDate, currency,
+        code: "SNAPSHOT_DATE_MISMATCH", date: expectedDate, actualDate: snapshot.snapshotDate, currency,
         message: `需要 ${expectedDate} 的资产快照，现有快照为 ${snapshot.snapshotDate}，相关收益暂不可用。`
       });
     }
@@ -955,6 +955,7 @@ function toOpeningPriceWarning(transaction: InvestmentTransaction): MonthlySumma
 
   return {
     code: "MISSING_OPENING_PRICE",
+    instrumentShortName: label,
     date: transaction.tradeDate,
     currency: transaction.currency,
     message: `${transaction.tradeDate} 缺少 ${label} (${transaction.currency}) 的期初估值价格，初始化月月初资产无法可靠计算。`

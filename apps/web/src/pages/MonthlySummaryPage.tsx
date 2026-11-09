@@ -1,3 +1,11 @@
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { i18n } from "../i18n/instance";
+import type { UiLanguage } from "../i18n/language";
+import { getDisplayLocale } from "../i18n/language";
+import { getInvestmentLabel } from "../i18n/investmentLabels";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { translateMonthlySummaryWarning, translateSnapshotWarning } from "../i18n/investmentWarnings";
+import { formatCalendarDate } from "../lib/timeFormat";
 import { useEventCallback } from "../lib/useEventCallback";
 import { observeAsync } from "../lib/observeAsync";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -6,22 +14,19 @@ import {
   formatDateTimeInTimeZone,
   getAppBusinessDate,
   SNAPSHOT_DISPLAY_CURRENCIES,
-  TRANSACTION_TYPE_LABELS,
   type AuthenticatedUser,
   type InvestmentTransaction,
   type MonthlyCashAdjustmentSummary,
   type MonthlyReview,
   type MonthlyReviewStatus,
   type MonthlySummary,
-  type MonthlySummaryWarning,
   type MonthlyTradeActivitySummary,
   type SnapshotDisplayCurrency,
-  type SnapshotWarning
 } from "@family-ledger/shared";
 import { CurrencyFlagIcon, CurrencySelect } from "../components/CurrencySelect";
 import { LoadingState } from "../components/LoadingState";
 import { PageTitle } from "../components/PageTitle";
-import { ApiClientError, apiGet, apiPatch } from "../lib/apiClient";
+import { apiGet, apiPatch } from "../lib/apiClient";
 import { formatDisplayAmount, formatSignedDisplayAmount, formatSignedDisplayPercent } from "../lib/numberFormat";
 import { signedToneClass, usePreferences } from "../lib/preferencesContext";
 
@@ -36,9 +41,12 @@ interface MonthlyReviewResponse {
 }
 
 const monthlySummaryCurrencyStorageKey = "family-ledger.monthly-summary.reportingCurrency";
+const bridgeLabelKeys = { start_value: "startAssets", asset_change: "assetChange", net_principal_flow: "principal", cash_adjustment: "adjustment", valuation_movement: "movement", end_value: "endAssets" } as const;
 type GainColorScheme = Parameters<typeof signedToneClass>[1];
 
 export function MonthlySummaryPage() {
+  const { language } = useUiLanguage();
+  const t = i18n.getFixedT(language, "monthlyReview");
   const { preferences, loading: preferencesLoading } = usePreferences();
   const maxSelectableMonth = getAppBusinessDate().slice(0, 7);
   const [month, setMonth] = useState(() => maxSelectableMonth);
@@ -51,8 +59,8 @@ export function MonthlySummaryPage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingReview, setSavingReview] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [error, setError] = useState<UiErrorDescriptor | { key: "futureMonth" } | null>(null);
+  const [reviewMessage, setReviewMessage] = useState<"completed" | "reopened" | "saved" | null>(null);
 
 const loadMonthlySummary = useEventCallback(async function(selectedMonth: string, currency: SnapshotDisplayCurrency) {
     setLoading(true);
@@ -60,7 +68,7 @@ const loadMonthlySummary = useEventCallback(async function(selectedMonth: string
     setReviewMessage(null);
 
     if (selectedMonth > maxSelectableMonth) {
-      setError("不能查看未来月份的月度回顾。");
+      setError({ key: "futureMonth" });
       setLoading(false);
       return;
     }
@@ -77,7 +85,7 @@ const loadMonthlySummary = useEventCallback(async function(selectedMonth: string
       setReview(reviewData.monthlyReview);
       setReviewNotesDraft(reviewData.monthlyReview.familyNotes);
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(describeUiError(requestError, "investmentRead"));
     } finally {
       setLoading(false);
     }
@@ -99,7 +107,7 @@ const loadMonthlySummary = useEventCallback(async function(selectedMonth: string
 
 async function saveReview(nextStatus?: MonthlyReviewStatus) {
     if (nextStatus === "complete" && dataNeedsAttention) {
-      const confirmed = window.confirm("当前月度数据仍有提醒。确认标记为已完成吗？");
+      const confirmed = window.confirm(t("confirmComplete"));
       if (!confirmed) {
         return;
       }
@@ -118,9 +126,9 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
       setUser(data.user);
       setReview(data.monthlyReview);
       setReviewNotesDraft(data.monthlyReview.familyNotes);
-      setReviewMessage(nextStatus === "complete" ? "月度复盘已标记完成。" : nextStatus === "in_progress" ? "月度复盘已重新打开。" : "家庭备注已保存。");
+      setReviewMessage(nextStatus === "complete" ? "completed" : nextStatus === "in_progress" ? "reopened" : "saved");
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(describeUiError(requestError, "monthlyReviewSave"));
     } finally {
       setSavingReview(false);
     }
@@ -129,10 +137,10 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
   const pageLoading = loading || !currencyInitialized;
   const activeCurrency = summary?.currency ?? reportingCurrency;
   const bridgeLines = summary?.bridgeLines ?? [];
-  const warningMessages = useMemo(() => unique((summary?.warnings ?? []).map(formatWarning)), [summary?.warnings]);
+  const warningMessages = useMemo(() => unique((summary?.warnings ?? []).map(warning => translateMonthlySummaryWarning(warning, language))), [summary?.warnings, language]);
   const snapshotWarningMessages = useMemo(
-    () => unique((summary?.snapshotWarnings ?? []).map(formatSnapshotWarning)),
-    [summary?.snapshotWarnings]
+    () => unique((summary?.snapshotWarnings ?? []).map(warning => translateSnapshotWarning(warning, language))),
+    [summary?.snapshotWarnings, language]
   );
   const dataNeedsAttention = warningMessages.length > 0 || snapshotWarningMessages.length > 0;
   const isAdmin = user?.role === "admin";
@@ -140,12 +148,13 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
 
   return (
     <section className="monthly-report-page">
+      <p className="monthly-print-title">{i18n.getFixedT(language, "common")("productName")} {t("title")}</p>
       <header className="page-header account-header">
         <div className="monthly-title-area">
           <div className="monthly-title-row">
-            <PageTitle route="/reports/monthly-summary">月度回顾</PageTitle>
+            <PageTitle route="/reports/monthly-summary">{t("title")}</PageTitle>
             <label className="monthly-title-month">
-              回顾月份
+              {t("month")}
               <input
                 type="month"
                 value={month}
@@ -155,11 +164,11 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
               />
             </label>
           </div>
-          <p>用快照、净投入和现金校准解释一个月的资产变化。</p>
+          <p>{t("subtitle")}</p>
         </div>
         <div className="dashboard-controls">
           <CurrencySelect
-            label="报告币种"
+            label={t("currency")}
             options={SNAPSHOT_DISPLAY_CURRENCIES}
             value={reportingCurrency}
             onChange={(nextCurrency) => {
@@ -176,35 +185,35 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{t("refresh")}</span>
           </button>
           <button className="secondary-button print-hidden" type="button" onClick={() => window.print()} disabled={pageLoading}>
             <Printer size={17} aria-hidden="true" />
-            <span>打印 / 导出</span>
+            <span>{t("print")}</span>
           </button>
         </div>
       </header>
 
-      {error ? <p className="form-error">{error}</p> : null}
-      {reviewMessage ? <p className="form-success print-hidden">{reviewMessage}</p> : null}
+      {error ? <p className="form-error">{error.key === "futureMonth" ? t("futureMonth") : translateUiError(error, language)}</p> : null}
+      {reviewMessage ? <p className="form-success print-hidden">{t(reviewMessage)}</p> : null}
 
       <div className="metric-grid monthly-summary-metrics">
         {[
-          { label: "月初资产", value: summary?.startValue, signed: false },
-          { label: "月末资产", value: summary?.endValue, signed: false },
-          { label: "资产变化", value: summary?.assetChange, signed: true },
-          { label: "净投入", value: summary?.netPrincipalFlow, signed: true },
-          { label: "现金校准", value: summary?.cashAdjustmentImpact, signed: true },
-          { label: "估值变动", value: summary?.valuationMovement, signed: true }
-        ].map((metric) => (
-          <article className="metric-card" key={metric.label}>
+          { label: t("startAssets"), value: summary?.startValue, signed: false },
+          { label: t("endAssets"), value: summary?.endValue, signed: false },
+          { label: t("assetChange"), value: summary?.assetChange, signed: true },
+          { label: t("principal"), value: summary?.netPrincipalFlow, signed: true },
+          { label: t("adjustment"), value: summary?.cashAdjustmentImpact, signed: true },
+          { label: t("movement"), value: summary?.valuationMovement, signed: true }
+         ].map((metric, index) => (
+          <article className="metric-card" key={index}>
             <span>{metric.label}</span>
             <small className="metric-currency">
               <CurrencyFlagIcon currency={activeCurrency} />
               {activeCurrency}
             </small>
             <strong className={metric.signed ? signedToneClass(metric.value, preferences.gainColorScheme, 3) : undefined}>
-              {formatWholeMetric(metric.value, pageLoading, metric.signed)}
+              {formatWholeMetric(metric.value, pageLoading, metric.signed, language)}
             </strong>
           </article>
         ))}
@@ -212,46 +221,46 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
 
       {summary ? (
         <p className="quote-update-note">
-          快照范围：{summary.startSnapshotDate ?? "缺少月初快照"} 至 {summary.endSnapshotDate ?? "缺少月末快照"}
-          {summary.requestedStartSnapshotDate && summary.requestedEndSnapshotDate ? `（请求边界：${summary.requestedStartSnapshotDate} 至 ${summary.requestedEndSnapshotDate}）` : ""}
-          {summary.fullPeriodAvailable === false ? "。边界快照不完整，显示已有资产；完整期间的资产变化、估值变动及贡献比例暂不可用。" : ""}
+          {t("snapshotRange")}{formatCalendarDate(summary.startSnapshotDate, t("missingStart"), language)} {t("to")} {formatCalendarDate(summary.endSnapshotDate, t("missingEnd"), language)}
+          {summary.requestedStartSnapshotDate && summary.requestedEndSnapshotDate ? t("requestedBoundaries", { start: formatCalendarDate(summary.requestedStartSnapshotDate,"-",language), end: formatCalendarDate(summary.requestedEndSnapshotDate,"-",language) }) : ""}
+          {summary.fullPeriodAvailable === false ? t("incomplete") : ""}
         </p>
       ) : null}
 
       <section className="flow-card monthly-review-workflow">
         <div className="monthly-review-header">
           <div>
-            <h2>本月复盘</h2>
-            <p>记录家庭讨论结论，并标记本月是否已经复盘完成。</p>
+            <h2>{t("review")}</h2>
+            <p>{t("reviewHelp")}</p>
           </div>
           <div className="monthly-review-statuses">
             <span className={`status-pill ${dataNeedsAttention ? "status-pill-paused" : "status-pill-active"}`}>
-              数据状态：{pageLoading ? "加载中" : dataNeedsAttention ? "数据需关注" : "数据正常"}
+              {t("dataStatus")}{pageLoading ? t("loading") : dataNeedsAttention ? t("attention") : t("healthy")}
             </span>
             <span className={`status-pill ${reviewStatus === "complete" ? "status-pill-active" : ""}`}>
-              复盘状态：{reviewStatus === "complete" ? "已完成" : "复盘中"}
+              {t("reviewStatus")}{reviewStatus === "complete" ? t("complete") : t("inProgress")}
             </span>
           </div>
         </div>
         <label className="monthly-review-notes">
-          家庭备注
+          {t("notes")}
           <textarea
             value={reviewNotesDraft}
             onChange={(event) => setReviewNotesDraft(event.target.value)}
             readOnly={!isAdmin || pageLoading}
-            placeholder="记录本月主要变化、家庭讨论结论或需要下月跟进的事项。"
+            placeholder={t("notesHint")}
           />
         </label>
         <div className="monthly-review-footer">
           <p className="readonly-note">
-            {isAdmin ? "admin 可保存备注并更新复盘状态；viewer 只能查看。" : "当前角色为 viewer，可查看家庭备注和复盘状态。"}
-            {review?.updatedAt ? ` 最后保存：${formatReviewTimestamp(review.updatedAt)}` : ""}
+            {isAdmin ? t("adminHelp") : t("viewerHelp")}
+            {review?.updatedAt ? t("lastSaved", { time: formatReviewTimestamp(review.updatedAt, language) }) : ""}
           </p>
           {isAdmin ? (
             <div className="monthly-review-actions print-hidden">
               <button className="secondary-button" type="button" onClick={() => observeAsync(saveReview())} disabled={pageLoading || savingReview}>
                 <Save size={17} aria-hidden="true" />
-                <span>保存备注</span>
+                <span>{t("saveNotes")}</span>
               </button>
               {reviewStatus === "complete" ? (
                 <button
@@ -261,7 +270,7 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
                   disabled={pageLoading || savingReview}
                 >
                   <RotateCcw size={17} aria-hidden="true" />
-                  <span>重新打开</span>
+                  <span>{t("reopen")}</span>
                 </button>
               ) : (
                 <button
@@ -271,7 +280,7 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
                   disabled={pageLoading || savingReview}
                 >
                   <CheckCircle2 size={17} aria-hidden="true" />
-                  <span>标记为已完成</span>
+                  <span>{t("markComplete")}</span>
                 </button>
               )}
             </div>
@@ -283,31 +292,31 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>资产变化拆解</h2>
-              <p>资产变化 = 净投入 + 现金校准 + 估值变动。</p>
+              <h2>{t("bridge")}</h2>
+              <p>{t("bridgeHelp")}</p>
             </div>
           </div>
           <div className="table-wrap compact-table-wrap monthly-bridge-wrap">
             <table className="monthly-bridge-table">
               <thead>
                 <tr>
-                  <th>项目</th>
-                  <th className="numeric-cell">金额 ({activeCurrency})</th>
+                  <th>{t("item")}</th>
+                  <th className="numeric-cell">{t("amountPrefix")}{activeCurrency})</th>
                 </tr>
               </thead>
               <tbody>
                 {pageLoading ? (
-                  <LoadingRow colSpan={2} label="正在加载月度回顾" />
+                  <LoadingRow colSpan={2} label={t("loadingReview")} />
                 ) : bridgeLines.length === 0 ? (
-                  <EmptyRow colSpan={2} label="暂无月度回顾数据。" />
+                  <EmptyRow colSpan={2} label={t("emptyReview")} />
                 ) : (
                   bridgeLines.map((line) => {
                     const signed = line.key !== "start_value" && line.key !== "end_value";
                     return (
                       <tr key={line.key}>
-                        <td>{line.label}</td>
+                        <td>{t(bridgeLabelKeys[line.key])}</td>
                         <td className={`numeric-cell ${signed ? signedToneClass(line.amount, preferences.gainColorScheme, 3) : ""}`}>
-                          {formatBridgeLineAmount(line, false, signed)}
+                          {formatBridgeLineAmount(line, false, signed, language)}
                         </td>
                       </tr>
                     );
@@ -321,8 +330,8 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>净投入明细</h2>
-              <p>列出本月手动期初、入金和出金记录，用于解释资产变化拆解中的净投入。</p>
+              <h2>{t("principalDetails")}</h2>
+              <p>{t("principalHelp")}</p>
             </div>
           </div>
           <PrincipalFlowTable
@@ -337,45 +346,45 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>账户贡献</h2>
-              <p>按账户拆解本月估值变动，已剔除净投入和现金校准；贡献/拖累以各账户估值变动绝对值合计为分母。</p>
+              <h2>{t("contributions")}</h2>
+              <p>{t("contributionHelp")}</p>
             </div>
           </div>
           <div className="table-wrap compact-table-wrap monthly-account-contribution-wrap">
             <table className="monthly-account-contribution-table">
               <thead>
                 <tr>
-                  <th>账户</th>
-                  <th className="numeric-cell">月初</th>
-                  <th className="numeric-cell">月末</th>
-                  <th className="numeric-cell">净投入</th>
-                  <th className="numeric-cell">现金校准</th>
-                  <th className="numeric-cell">估值变动</th>
-                  <th className="numeric-cell">贡献/拖累</th>
+                  <th>{t("account")}</th>
+                  <th className="numeric-cell">{t("start")}</th>
+                  <th className="numeric-cell">{t("end")}</th>
+                  <th className="numeric-cell">{t("principal")}</th>
+                  <th className="numeric-cell">{t("adjustment")}</th>
+                  <th className="numeric-cell">{t("movement")}</th>
+                  <th className="numeric-cell">{t("contribution")}</th>
                 </tr>
               </thead>
               <tbody>
                 {pageLoading ? (
-                  <LoadingRow colSpan={7} label="正在加载账户贡献" />
+                  <LoadingRow colSpan={7} label={t("loadingContributions")} />
                 ) : (summary?.accountChanges.length ?? 0) === 0 ? (
-                  <EmptyRow colSpan={7} label="暂无账户贡献数据。" />
+                  <EmptyRow colSpan={7} label={t("emptyContributions")} />
                 ) : (
                   summary?.accountChanges.map((account) => (
                     <tr key={account.accountId}>
                       <td>{account.accountName}</td>
-                      <td className="numeric-cell">{formatMetric(account.startValue, false, false)}</td>
-                      <td className="numeric-cell">{formatMetric(account.endValue, false, false)}</td>
+                      <td className="numeric-cell">{formatMetric(account.startValue, false, false, language)}</td>
+                      <td className="numeric-cell">{formatMetric(account.endValue, false, false, language)}</td>
                       <td className={`numeric-cell ${signedToneClass(account.netPrincipalFlow, preferences.gainColorScheme, 3)}`}>
-                        {formatMetric(account.netPrincipalFlow, false, true)}
+                        {formatMetric(account.netPrincipalFlow, false, true, language)}
                       </td>
                       <td className={`numeric-cell ${signedToneClass(account.cashAdjustmentImpact, preferences.gainColorScheme, 3)}`}>
-                        {formatMetric(account.cashAdjustmentImpact, false, true)}
+                        {formatMetric(account.cashAdjustmentImpact, false, true, language)}
                       </td>
                       <td className={`numeric-cell ${signedToneClass(account.valuationMovement, preferences.gainColorScheme, 3)}`}>
-                        {formatMetric(account.valuationMovement, false, true)}
+                        {formatMetric(account.valuationMovement, false, true, language)}
                       </td>
                       <td className={`numeric-cell ${signedToneClass(account.valuationContributionPct, preferences.gainColorScheme, 3)}`}>
-                        {account.valuationContributionPct === null ? "--" : `${formatSignedDisplayPercent(account.valuationContributionPct)}%`}
+                        {account.valuationContributionPct === null ? "--" : `${formatSignedDisplayPercent(account.valuationContributionPct, getDisplayLocale(language))}%`}
                       </td>
                     </tr>
                   ))
@@ -390,8 +399,8 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>本月交易</h2>
-              <p>只列出手动买入和卖出；自动现金流水作为结算信息展示。</p>
+              <h2>{t("trades")}</h2>
+              <p>{t("tradesHelp")}</p>
             </div>
           </div>
           <TradeActivityTable
@@ -404,8 +413,8 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>现金校准说明</h2>
-              <p>月末手动校准现金时，可在备注中记录主要差异来源。</p>
+              <h2>{t("adjustmentDetails")}</h2>
+              <p>{t("adjustmentHelp")}</p>
             </div>
           </div>
           <CashAdjustmentTable
@@ -421,18 +430,18 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
         <article className="flow-card monthly-panel">
           <div className="chart-section-header">
             <div>
-              <h2>数据质量提醒</h2>
-              <p>展示月度计算和快照估值中的数据缺口。</p>
+              <h2>{t("warnings")}</h2>
+              <p>{t("warningsHelp")}</p>
             </div>
           </div>
           {pageLoading ? (
-            <LoadingState label="正在加载数据提醒" />
+            <LoadingState label={t("loadingWarnings")} />
           ) : warningMessages.length === 0 && snapshotWarningMessages.length === 0 ? (
-            <p className="readonly-note">暂无数据质量提醒。</p>
+            <p className="readonly-note">{t("noWarnings")}</p>
           ) : (
             <div className="monthly-warning-list">
-              {[...warningMessages, ...snapshotWarningMessages].map((message) => (
-                <p className="form-warning" key={message}>{message}</p>
+              {[...warningMessages, ...snapshotWarningMessages].map((message, index) => (
+                <p className="form-warning" key={index}>{message}</p>
               ))}
             </div>
           )}
@@ -442,8 +451,8 @@ async function saveReview(nextStatus?: MonthlyReviewStatus) {
   );
 }
 
-function formatReviewTimestamp(value: string): string {
-  return formatDateTimeInTimeZone(value, Intl.DateTimeFormat().resolvedOptions().timeZone, "zh-CN", value);
+function formatReviewTimestamp(value: string, language: UiLanguage = "zh-CN"): string {
+  return formatDateTimeInTimeZone(value, Intl.DateTimeFormat().resolvedOptions().timeZone, getDisplayLocale(language), value);
 }
 
 function TradeActivityTable({
@@ -455,33 +464,35 @@ function TradeActivityTable({
   trades: MonthlyTradeActivitySummary[];
   gainColorScheme: GainColorScheme;
 }) {
+  const { language } = useUiLanguage();
+  const t = i18n.getFixedT(language, "monthlyReview");
   return (
     <div className="table-wrap compact-table-wrap">
       <table className="monthly-activity-table">
         <thead>
           <tr>
-            <th className="date-column">日期</th>
-            <th className="type-column">类型</th>
-            <th>标的</th>
-            <th className="numeric-cell">价格</th>
-            <th className="numeric-cell">结算现金</th>
-            <th>备注</th>
+            <th className="date-column">{t("date")}</th>
+            <th className="type-column">{t("type")}</th>
+            <th>{t("instrument")}</th>
+            <th className="numeric-cell">{t("price")}</th>
+            <th className="numeric-cell">{t("settlement")}</th>
+            <th>{t("transactionNotes")}</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
-            <LoadingRow colSpan={6} label="正在加载交易" />
+            <LoadingRow colSpan={6} label={t("loadingTrades")} />
           ) : trades.length === 0 ? (
-            <EmptyRow colSpan={6} label="本月暂无买入或卖出交易。" />
+            <EmptyRow colSpan={6} label={t("noTrades")} />
           ) : (
             trades.map((item) => (
               <tr key={item.transaction.id}>
-                <td className="date-column">{formatMonthDay(item.transaction.tradeDate)}</td>
-                <td className="type-column">{TRANSACTION_TYPE_LABELS[item.transaction.transactionType]}</td>
-                <td>{formatInstrument(item.transaction)}</td>
-                <td className="numeric-cell">{formatTransactionPrice(item.transaction)}</td>
+                <td className="date-column">{formatMonthDay(item.transaction.tradeDate, language)}</td>
+                <td className="type-column">{getInvestmentLabel("transactionType", item.transaction.transactionType, language)}</td>
+                <td>{formatInstrument(item.transaction, language)}</td>
+                <td className="numeric-cell">{formatTransactionPrice(item.transaction, language)}</td>
                 <td className={`numeric-cell ${signedToneClass(getLinkedCashLegSignedAmount(item.linkedCashLeg), gainColorScheme, 3)}`}>
-                  {formatLinkedCashLeg(item.linkedCashLeg)}
+                  {formatLinkedCashLeg(item.linkedCashLeg, language)}
                 </td>
                 <td>{item.transaction.notes || "-"}</td>
               </tr>
@@ -504,29 +515,31 @@ function CashAdjustmentTable({
   currency: SnapshotDisplayCurrency;
   gainColorScheme: GainColorScheme;
 }) {
+  const { language } = useUiLanguage();
+  const t = i18n.getFixedT(language, "monthlyReview");
   return (
     <div className="table-wrap compact-table-wrap">
       <table className="monthly-activity-table">
         <thead>
           <tr>
-            <th className="date-column">日期</th>
-            <th>标的</th>
-            <th className="numeric-cell">校准金额 ({currency})</th>
-            <th>备注</th>
+            <th className="date-column">{t("date")}</th>
+            <th>{t("instrument")}</th>
+            <th className="numeric-cell">{t("adjustmentPrefix")}{currency})</th>
+            <th>{t("transactionNotes")}</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
-            <LoadingRow colSpan={4} label="正在加载现金校准" />
+            <LoadingRow colSpan={4} label={t("loadingAdjustments")} />
           ) : adjustments.length === 0 ? (
-            <EmptyRow colSpan={4} label="本月暂无现金校准记录。" />
+            <EmptyRow colSpan={4} label={t("noAdjustments")} />
           ) : (
             adjustments.map((item) => (
               <tr key={item.transaction.id}>
-                <td className="date-column">{formatMonthDay(item.transaction.tradeDate)}</td>
-                <td>{formatInstrument(item.transaction)}</td>
+                <td className="date-column">{formatMonthDay(item.transaction.tradeDate, language)}</td>
+                <td>{formatInstrument(item.transaction, language)}</td>
                 <td className={`numeric-cell ${signedToneClass(item.signedAmount, gainColorScheme, 3)}`}>
-                  {formatMetric(item.signedAmount, false, true)}
+                  {formatMetric(item.signedAmount, false, true, language)}
                 </td>
                 <td>{item.transaction.notes || "-"}</td>
               </tr>
@@ -547,31 +560,33 @@ function PrincipalFlowTable({
   transactions: InvestmentTransaction[];
   gainColorScheme: GainColorScheme;
 }) {
+  const { language } = useUiLanguage();
+  const t = i18n.getFixedT(language, "monthlyReview");
   return (
     <div className="table-wrap compact-table-wrap">
       <table className="monthly-activity-table">
         <thead>
           <tr>
-            <th className="date-column">日期</th>
-            <th className="type-column">类型</th>
-            <th>标的</th>
-            <th className="numeric-cell">金额</th>
-            <th>备注</th>
+            <th className="date-column">{t("date")}</th>
+            <th className="type-column">{t("type")}</th>
+            <th>{t("instrument")}</th>
+            <th className="numeric-cell">{t("amount")}</th>
+            <th>{t("transactionNotes")}</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
-            <LoadingRow colSpan={5} label="正在加载净投入" />
+            <LoadingRow colSpan={5} label={t("loadingPrincipal")} />
           ) : transactions.length === 0 ? (
-            <EmptyRow colSpan={5} label="本月暂无入金、出金或期初记录。" />
+            <EmptyRow colSpan={5} label={t("noPrincipal")} />
           ) : (
             transactions.map((transaction) => (
               <tr key={transaction.id}>
-                <td className="date-column">{formatMonthDay(transaction.tradeDate)}</td>
-                <td className="type-column">{TRANSACTION_TYPE_LABELS[transaction.transactionType]}</td>
-                <td>{formatInstrument(transaction)}</td>
+                <td className="date-column">{formatMonthDay(transaction.tradeDate, language)}</td>
+                <td className="type-column">{getInvestmentLabel("transactionType", transaction.transactionType, language)}</td>
+                <td>{formatInstrument(transaction, language)}</td>
                 <td className={`numeric-cell ${signedToneClass(getPrincipalSignedDisplayAmount(transaction), gainColorScheme, 3)}`}>
-                  {formatPrincipalAmount(transaction)}
+                  {formatPrincipalAmount(transaction, language)}
                 </td>
                 <td>{transaction.notes || "-"}</td>
               </tr>
@@ -601,31 +616,33 @@ function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
   );
 }
 
-function formatMetric(value: string | null | undefined, loading: boolean, signed: boolean): ReactNode {
+function formatMetric(value: string | null | undefined, loading: boolean, signed: boolean, language: UiLanguage = "zh-CN"): ReactNode {
+  const t = i18n.getFixedT(language, "monthlyReview");
   if (loading) {
-    return <LoadingState label="加载中" />;
+    return <LoadingState label={t("loading")} />;
   }
 
   if (value === null || value === undefined) {
     return "--";
   }
 
-  return signed ? formatSignedDisplayAmount(value) : formatDisplayAmount(value);
+  return signed ? formatSignedDisplayAmount(value, getDisplayLocale(language)) : formatDisplayAmount(value, getDisplayLocale(language));
 }
 
 function formatBridgeLineAmount(
   line: MonthlySummary["bridgeLines"][number],
   loading: boolean,
-  signed: boolean
+  signed: boolean, language: UiLanguage = "zh-CN"
 ): ReactNode {
   return line.key === "cash_adjustment"
-    ? formatMetric(line.amount, loading, signed)
-    : formatWholeMetric(line.amount, loading, signed);
+    ? formatMetric(line.amount, loading, signed, language)
+    : formatWholeMetric(line.amount, loading, signed, language);
 }
 
-function formatWholeMetric(value: string | null | undefined, loading: boolean, signed: boolean): ReactNode {
+function formatWholeMetric(value: string | null | undefined, loading: boolean, signed: boolean, language: UiLanguage = "zh-CN"): ReactNode {
+  const t = i18n.getFixedT(language, "monthlyReview");
   if (loading) {
-    return <LoadingState label="加载中" />;
+    return <LoadingState label={t("loading")} />;
   }
 
   if (value === null || value === undefined) {
@@ -639,7 +656,7 @@ function formatWholeMetric(value: string | null | undefined, loading: boolean, s
 
   const roundedValue = Math.round(numericValue);
   const normalizedValue = Object.is(roundedValue, -0) ? 0 : roundedValue;
-  const formatted = Math.abs(normalizedValue).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+  const formatted = Math.abs(normalizedValue).toLocaleString(getDisplayLocale(language), { maximumFractionDigits: 0 });
 
   if (!signed) {
     return normalizedValue < 0 ? `-${formatted}` : formatted;
@@ -652,8 +669,8 @@ function formatWholeMetric(value: string | null | undefined, loading: boolean, s
   return normalizedValue < 0 ? `-${formatted}` : formatted;
 }
 
-function formatTransactionPrice(transaction: InvestmentTransaction): string {
-  return transaction.price ? `${transaction.currency} ${formatDisplayAmount(transaction.price)}` : "--";
+function formatTransactionPrice(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
+  return transaction.price ? `${transaction.currency} ${formatDisplayAmount(transaction.price, getDisplayLocale(language))}` : "--";
 }
 
 function getLinkedCashLegSignedAmount(transaction: InvestmentTransaction | null): string | null {
@@ -664,13 +681,13 @@ function getLinkedCashLegSignedAmount(transaction: InvestmentTransaction | null)
   return transaction.transactionType === "withdrawal" ? `-${transaction.grossAmount}` : transaction.grossAmount;
 }
 
-function formatLinkedCashLeg(transaction: InvestmentTransaction | null): string {
+function formatLinkedCashLeg(transaction: InvestmentTransaction | null, language: UiLanguage = "zh-CN"): string {
   if (!transaction || !transaction.grossAmount) {
     return "--";
   }
 
   const sign = transaction.transactionType === "withdrawal" ? "-" : "+";
-  return `${sign}${transaction.currency} ${formatDisplayAmount(transaction.grossAmount)}`;
+  return `${sign}${transaction.currency} ${formatDisplayAmount(transaction.grossAmount, getDisplayLocale(language))}`;
 }
 
 function getPrincipalSignedDisplayAmount(transaction: InvestmentTransaction): string | null {
@@ -681,7 +698,7 @@ function getPrincipalSignedDisplayAmount(transaction: InvestmentTransaction): st
   return transaction.transactionType === "withdrawal" ? `-${transaction.grossAmount}` : transaction.grossAmount;
 }
 
-function formatPrincipalAmount(transaction: InvestmentTransaction): string {
+function formatPrincipalAmount(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
   const amount = transaction.grossAmount;
 
   if (!amount) {
@@ -689,39 +706,21 @@ function formatPrincipalAmount(transaction: InvestmentTransaction): string {
   }
 
   const sign = transaction.transactionType === "withdrawal" ? "-" : "+";
-  return `${sign}${transaction.currency} ${formatDisplayAmount(amount)}`;
+  return `${sign}${transaction.currency} ${formatDisplayAmount(amount, getDisplayLocale(language))}`;
 }
 
-function formatMonthDay(value: string): string {
-  return value.length >= 10 ? value.slice(5, 10) : value;
+function formatMonthDay(value: string, language: UiLanguage = "zh-CN"): string {
+  return language === "en" ? formatCalendarDate(value, "-", language) : value.length >= 10 ? value.slice(5, 10) : value;
 }
 
-function formatInstrument(transaction: InvestmentTransaction): string {
-  return formatInstrumentName(transaction.instrumentSymbol, transaction.instrumentShortName, transaction.instrumentName);
+function formatInstrument(transaction: InvestmentTransaction, language: UiLanguage = "zh-CN"): string {
+  return formatInstrumentName(transaction.instrumentSymbol, transaction.instrumentShortName, transaction.instrumentName, language);
 }
 
-function formatInstrumentName(symbol: string | null | undefined, shortName: string | null | undefined, name: string | null | undefined): string {
-  const displayName = shortName ?? name ?? "未知标的";
+function formatInstrumentName(symbol: string | null | undefined, shortName: string | null | undefined, name: string | null | undefined, language: UiLanguage = "zh-CN"): string {
+  const t = i18n.getFixedT(language, "monthlyReview");
+  const displayName = shortName ?? name ?? t("unknownInstrument");
   return symbol ? `${symbol} - ${displayName}` : displayName;
-}
-
-function formatWarning(warning: MonthlySummaryWarning): string {
-  return warning.message;
-}
-
-function formatSnapshotWarning(warning: SnapshotWarning): string {
-  const instrument = `${warning.accountName} / ${warning.instrumentShortName} (${warning.currency})`;
-
-  switch (warning.code) {
-    case "MISSING_LATEST_PRICE":
-      return `${instrument} 缺少最新价格`;
-    case "MISSING_PREVIOUS_PRICE":
-      return `${instrument} 缺少前一收盘价`;
-    case "MISSING_FX_RATE":
-      return `${instrument} 缺少估值汇率`;
-    case "COST_BASIS_UNAVAILABLE":
-      return `${instrument} 成本不可用`;
-  }
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {
@@ -743,12 +742,4 @@ function writeStoredDisplayCurrency(key: string, value: SnapshotDisplayCurrency)
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return "月度回顾请求失败，请稍后重试。";
 }

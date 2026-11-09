@@ -1,3 +1,7 @@
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { dashboardCopy as copy } from "../i18n/investmentCopy";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
+import { formatCalendarDate } from "../lib/timeFormat";
 import { useId, useMemo, type CSSProperties, type ReactNode } from "react";
 import { Area, AreaChart, CartesianGrid, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { GainColorScheme } from "@family-ledger/shared";
@@ -27,6 +31,7 @@ type ChartToneStyle = CSSProperties & {
 };
 
 export function InvestmentTrendChart({ points, view, gainColorScheme }: { points: TrendChartPoint[]; view: "profit" | "assets"; gainColorScheme: GainColorScheme }) {
+  const { language } = useUiLanguage();
   const gradientPrefix = useId().replaceAll(":", "");
   const profitChartData = useMemo(() => buildProfitChartData(points), [points]);
   const colorSplitTrendChartData = useMemo(() => markCarriedSegments(buildColorSplitTrendChartData(points)), [points]);
@@ -54,7 +59,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         </linearGradient>
       </defs>
       <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-      <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
+      <XAxis dataKey="date" tickFormatter={value => formatTrendTickDate(value, language)} tickLine={false} />
       <YAxis
         domain={trendValueDomain}
         tickFormatter={(value: number) => formatCompactMoney(value)}
@@ -66,7 +71,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         isAnimationActive={false}
         type="stepAfter"
         dataKey="totalInvestment"
-        name="累计净投入"
+        name={copy("netInvestment", language)}
         stroke="none"
         fill={`url(#${gradientPrefix}-portfolioTrendPrincipalFill)`}
         dot={false}
@@ -78,7 +83,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         isAnimationActive={false}
         type="monotone"
         dataKey="snapshotPositiveRange"
-        name="资产净值"
+        name={copy("netAssets", language)}
         stroke="none"
         fill={`url(#${gradientPrefix}-portfolioTrendPositiveFill)`}
         dot={false}
@@ -89,7 +94,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         isAnimationActive={false}
         type="monotone"
         dataKey="snapshotNegativeRange"
-        name="资产净值"
+        name={copy("netAssets", language)}
         stroke="none"
         fill={`url(#${gradientPrefix}-portfolioTrendNegativeFill)`}
         dot={false}
@@ -100,7 +105,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         isAnimationActive={false}
         type="monotone"
         dataKey="snapshotPositiveValue"
-        name="资产净值"
+        name={copy("netAssets", language)}
         stroke={chartPositiveColor}
         strokeWidth={2.8}
         dot={false}
@@ -111,7 +116,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         isAnimationActive={false}
         type="monotone"
         dataKey="snapshotNegativeValue"
-        name="资产净值"
+        name={copy("netAssets", language)}
         stroke={chartNegativeColor}
         strokeWidth={2.8}
         dot={false}
@@ -148,7 +153,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         </linearGradient>
       </defs>
       <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
-      <XAxis dataKey="date" tickFormatter={formatTrendTickDate} tickLine={false} />
+      <XAxis dataKey="date" tickFormatter={value => formatTrendTickDate(value, language)} tickLine={false} />
       <YAxis
         domain={profitAxisDomain}
         ticks={profitValueTicks}
@@ -162,7 +167,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         isAnimationActive={false}
         type="monotone"
         dataKey="profitPositiveValue"
-        name="期间盈利"
+        name={copy("periodProfit", language)}
         stroke={chartPositiveColor}
         fill={`url(#${gradientPrefix}-portfolioProfitPositiveFill)`}
         strokeWidth={2.8}
@@ -174,7 +179,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
         isAnimationActive={false}
         type="monotone"
         dataKey="profitNegativeValue"
-        name="期间盈利"
+        name={copy("periodProfit", language)}
         stroke={chartNegativeColor}
         fill={`url(#${gradientPrefix}-portfolioProfitNegativeFill)`}
         strokeWidth={2.8}
@@ -188,7 +193,7 @@ export function InvestmentTrendChart({ points, view, gainColorScheme }: { points
     </AreaChart>
       </ResponsiveContainer>
     )}
-    {points.some(point => point.snapshotDate && point.snapshotDate !== point.date) ? <p className="quote-update-note">虚线沿用此前快照；查看提示可见请求日期和实际快照日期。</p> : null}
+    {points.some(point => point.snapshotDate && point.snapshotDate !== point.date) ? <p className="quote-update-note">{copy("carriedHelp", language)}</p> : null}
   </div>;
 }
 
@@ -200,8 +205,8 @@ function markCarriedSegments<T extends { date: string; value: number; snapshotDa
     return { ...point, carriedValue: carried || leadsToCarried ? point.value : null };
   });
 }
-function formatTrendTickDate(value: string): string {
-  return value.startsWith("__chart_crossing__") ? "" : isSyntheticTrendDate(value) ? "当前" : value.slice(5);
+function formatTrendTickDate(value: string, language: UiLanguage = "zh-CN"): string {
+  return value.startsWith("__chart_crossing__") ? "" : isSyntheticTrendDate(value) ? copy("current", language) : language === "en" ? formatCalendarDate(value, "-", language) : value.slice(5);
 }
 function getTrendValueDomain(points: TrendChartPoint[]): [number, number] {
   const values = points
@@ -303,21 +308,21 @@ function getNiceTickStep(rawStep: number): number {
   return magnitude * 10;
 }
 
-export function formatChartMoney(value: number): string {
-  return Math.round(value).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+export function formatChartMoney(value: number, language: UiLanguage = "zh-CN"): string {
+  return Math.round(value).toLocaleString(getDisplayLocale(language), { maximumFractionDigits: 0 });
 }
 
-function formatTooltipMoney(value: unknown): string {
+function formatTooltipMoney(value: unknown, language: UiLanguage = "zh-CN"): string {
   const numericValue = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numericValue) ? formatChartMoney(numericValue) : "--";
+  return Number.isFinite(numericValue) ? formatChartMoney(numericValue, language) : "--";
 }
 
-function formatSignedTooltipMoney(value: unknown): string {
+function formatSignedTooltipMoney(value: unknown, language: UiLanguage = "zh-CN"): string {
   const numericValue = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numericValue) ? formatMetricWholeNumber(numericValue, { signed: true }) : "--";
+  return Number.isFinite(numericValue) ? formatMetricWholeNumber(numericValue, { signed: true }, language) : "--";
 }
 
-function formatCompactMoney(value: number): string {
+export function formatCompactMoney(value: number): string {
   if (Math.abs(value) >= 1_000_000) {
     const scaledValue = value / 1_000_000;
     const decimals = Math.abs(scaledValue) < 10 ? 2 : Math.abs(scaledValue) < 100 ? 1 : 0;
@@ -329,7 +334,7 @@ function formatCompactMoney(value: number): string {
   return value.toFixed(0);
 }
 
-function formatMetricWholeNumber(value: string | number, options: { signed?: boolean } = {}): string {
+function formatMetricWholeNumber(value: string | number, options: { signed?: boolean } = {}, language: UiLanguage = "zh-CN"): string {
   const numericValue = Number(String(value).trim());
 
   if (!Number.isFinite(numericValue)) {
@@ -337,7 +342,7 @@ function formatMetricWholeNumber(value: string | number, options: { signed?: boo
   }
 
   const roundedValue = Math.round(numericValue);
-  const formatted = Math.abs(roundedValue).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+  const formatted = Math.abs(roundedValue).toLocaleString(getDisplayLocale(language), { maximumFractionDigits: 0 });
 
   if (options.signed && roundedValue > 0) {
     return `+${formatted}`;
@@ -357,13 +362,14 @@ function renderTrendHoverDot(props: unknown, dates: Set<string>): ReactNode {
 }
 
 function TrendHoverTooltip({ active, payload, label, dates, profit }: { active?: boolean; payload?: readonly { payload?: unknown }[]; label?: unknown; dates: Set<string>; profit: boolean }) {
+  const { language } = useUiLanguage();
   if (!active || typeof label !== "string" || !dates.has(label)) return null;
   const point = payload?.[0]?.payload as { value?: number | null; totalInvestment?: number | null; snapshotDate?: string } | undefined;
   if (!point || point.value == null) return null;
   return <div style={{ ...chartTooltipContentStyle, padding: "10px 12px" }}>
-    <div style={chartTooltipLabelStyle}>{label.replace("__live_endpoint__", "")}{label.startsWith("__live_endpoint__") ? " · 当前估值" : ""}</div>
-    {point.snapshotDate && point.snapshotDate !== label ? <div>暂无当日快照，显示 {point.snapshotDate} 数据</div> : null}
-    <div style={chartTooltipItemStyle}>{profit ? "期间盈利" : "资产净值"}：{profit ? formatSignedTooltipMoney(point.value) : formatTooltipMoney(point.value)}</div>
-    {!profit && point.totalInvestment != null ? <div>累计净投入：{formatTooltipMoney(point.totalInvestment)}</div> : null}
+    <div style={chartTooltipLabelStyle}>{formatCalendarDate(label.replace("__live_endpoint__", ""), "-", language)}{label.startsWith("__live_endpoint__") ? copy("liveSuffix", language) : ""}</div>
+    {point.snapshotDate && point.snapshotDate !== label ? <div>{copy("carried", language, {date:formatCalendarDate(point.snapshotDate, "-", language)})}</div> : null}
+    <div style={chartTooltipItemStyle}>{profit ? copy("periodProfit", language) : copy("netAssets", language)}：{profit ? formatSignedTooltipMoney(point.value, language) : formatTooltipMoney(point.value, language)}</div>
+    {!profit && point.totalInvestment != null ? <div>{copy("netInvestment", language)}: {formatTooltipMoney(point.totalInvestment, language)}</div> : null}
   </div>;
 }

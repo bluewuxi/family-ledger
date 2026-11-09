@@ -1,10 +1,13 @@
+import { getInvestmentLabel } from "../i18n/investmentLabels";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { holdingsCopy as copy } from "../i18n/investmentCopy";
+import { getDisplayLocale, type UiLanguage } from "../i18n/language";
 import { observeAsync } from "../lib/observeAsync";
 import { useValuation } from "../lib/useValuation";
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import {
-  ASSET_TYPE_LABELS,
   ASSET_TYPES,
   CURRENCY_CODES,
   SNAPSHOT_DISPLAY_CURRENCIES,
@@ -36,6 +39,7 @@ type AssetTypeFilter = "all" | AssetType;
 const holdingsCurrencyStorageKey = "family-ledger.holdings.reportingCurrency";
 
 export function HoldingsPage() {
+  const { language } = useUiLanguage();
   const navigate = useNavigate();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [reportingCurrency, setReportingCurrency] = useState<SnapshotDisplayCurrency>("CNY");
@@ -103,12 +107,12 @@ export function HoldingsPage() {
     <section>
       <header className="page-header account-header">
         <div>
-          <PageTitle route="/holdings">持仓总览</PageTitle>
-          <p>按账户、类型和币种查看当前持仓，使用当前或延迟行情、已存储价格及估值汇率显示市值与未实现盈亏。</p>
+          <PageTitle route="/holdings">{copy("title", language)}</PageTitle>
+          <p>{copy("intro", language)}</p>
         </div>
         <div className="dashboard-controls">
           <CurrencySelect
-            label="报告币种"
+            label={copy("reportingCurrency", language)}
             options={SNAPSHOT_DISPLAY_CURRENCIES}
             value={reportingCurrency}
             onChange={(nextCurrency) => {
@@ -125,25 +129,24 @@ export function HoldingsPage() {
             disabled={pageLoading}
           >
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{copy("refresh", language)}</span>
           </button>
         </div>
       </header>
 
-      {refreshing && !loading ? <p role="status">正在更新行情，当前显示已有估值。</p> : null}
+      {refreshing && !loading ? <p role="status">{copy("refreshing", language)}</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
 
       <div className="metric-grid portfolio-overview-metrics">
-        <article className="metric-card"><span>当前估值</span><small className="metric-currency">{activeCurrency}</small><strong>{formatMetric(summary?.totalMarketValue ?? null, pageLoading)}</strong></article>
+        <article className="metric-card"><span>{copy("currentValuation", language)}</span><small className="metric-currency">{activeCurrency}</small><strong>{formatMetric(summary?.totalMarketValue ?? null, pageLoading, language)}</strong></article>
         <InvestmentPerformanceCard performance={summary?.investmentPerformance} currency={activeCurrency} loading={pageLoading} fullScope />
       </div>
       {!pageLoading && summary ? <ValuationStatus metadata={summary.valuationMetadata} performance={summary.investmentPerformance} warnings={summary.warnings} /> : null}
-      <h2 className="filter-results-title">筛选结果</h2>
+      <h2 className="filter-results-title">{copy("filteredResults", language)}</h2>
       <div className="holding-filters">
         <label>
-          账户
-          <select value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
-            <option value="all">全部账户</option>
+          {copy("account", language)}<select value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
+            <option value="all">{copy("allAccounts", language)}</option>
             {accounts.map(([accountId, accountName]) => (
               <option key={accountId} value={accountId}>
                 {accountName}
@@ -152,20 +155,18 @@ export function HoldingsPage() {
           </select>
         </label>
         <label>
-          类型
-          <select value={assetTypeFilter} onChange={(event) => setAssetTypeFilter(event.target.value as AssetTypeFilter)}>
-            <option value="all">全部类型</option>
+          {copy("type", language)}<select value={assetTypeFilter} onChange={(event) => setAssetTypeFilter(event.target.value as AssetTypeFilter)}>
+            <option value="all">{copy("allTypes", language)}</option>
             {ASSET_TYPES.map((assetType) => (
               <option key={assetType} value={assetType}>
-                {ASSET_TYPE_LABELS[assetType]}
+                {getInvestmentLabel("assetType", assetType, language)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          币种
-          <select value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value as "all" | CurrencyCode)}>
-            <option value="all">全部币种</option>
+          {copy("currency", language)}<select value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value as "all" | CurrencyCode)}>
+            <option value="all">{copy("allCurrencies", language)}</option>
             {CURRENCY_CODES.map((currency) => (
               <option key={currency} value={currency}>
                 {currency}
@@ -177,55 +178,55 @@ export function HoldingsPage() {
 
       <div className="metric-grid holdings-metrics">
         <article className="metric-card">
-          <span>筛选结果市值</span>
+          <span>{copy("filteredValue", language)}</span>
           <small className="metric-currency">
             <CurrencyFlagIcon currency={activeCurrency} />
             {activeCurrency}
           </small>
-          <strong>{formatMetric(visibleTotals.totalMarketValue, pageLoading)}</strong>
+          <strong>{formatMetric(visibleTotals.totalMarketValue, pageLoading, language)}</strong>
         </article>
         <article className="metric-card">
-          <span>筛选结果现金</span>
+          <span>{copy("filteredCash", language)}</span>
           <small className="metric-currency">
             <CurrencyFlagIcon currency={activeCurrency} />
             {activeCurrency}
           </small>
-          <strong>{formatMetric(visibleCashTotal, pageLoading)}</strong>
+          <strong>{formatMetric(visibleCashTotal, pageLoading, language)}</strong>
         </article>
         <article className="metric-card metric-card-compact">
-          <span>筛选结果持仓数量</span>
-          <strong>{pageLoading ? <LoadingState label="加载中" /> : String(visibleHoldings.length)}</strong>
+          <span>{copy("filteredCount", language)}</span>
+          <strong>{pageLoading ? <LoadingState label={copy("loading", language)} /> : String(visibleHoldings.length)}</strong>
         </article>
       </div>
 
-      <p className="table-scroll-hint">左右滑动查看完整持仓明细</p>
+      <p className="table-scroll-hint">{copy("scrollHint", language)}</p>
       <div className="table-wrap">
         <table className="holding-table">
           <thead>
             <tr>
-              <th>账户</th>
-              <th>标的</th>
-              <th>类型</th>
-              <th>币种</th>
-              <th className="numeric-cell">数量/现金余额</th>
-              <th className="numeric-cell">平均成本</th>
-              <th className="numeric-cell">剩余成本</th>
-              <th className="numeric-cell">最新价格</th>
-              <th className="numeric-cell">市值 ({activeCurrency})</th>
-              <th className="numeric-cell">未实现盈亏 ({activeCurrency})</th>
-              <th>数据提示</th>
+              <th>{copy("account", language)}</th>
+              <th>{copy("instrument", language)}</th>
+              <th>{copy("type", language)}</th>
+              <th>{copy("currency", language)}</th>
+              <th className="numeric-cell">{copy("quantityBalance", language)}</th>
+              <th className="numeric-cell">{copy("averageCost", language)}</th>
+              <th className="numeric-cell">{copy("carryingCost", language)}</th>
+              <th className="numeric-cell">{copy("latestPrice", language)}</th>
+              <th className="numeric-cell">{copy("marketValue", language)}{activeCurrency})</th>
+              <th className="numeric-cell">{copy("unrealizedValue", language)}{activeCurrency})</th>
+              <th>{copy("dataNotices", language)}</th>
             </tr>
           </thead>
           <tbody>
             {pageLoading ? (
               <tr>
                 <td className="table-loading-cell" colSpan={11}>
-                  <LoadingState label="正在加载持仓" />
+                  <LoadingState label={copy("loadingHoldings", language)} />
                 </td>
               </tr>
             ) : visibleHoldings.length === 0 ? (
               <tr>
-                <td colSpan={11}>暂无符合筛选条件的持仓或现金余额。</td>
+                <td colSpan={11}>{copy("empty", language)}</td>
               </tr>
             ) : (
               visibleHoldings.map((holding) => (
@@ -234,23 +235,23 @@ export function HoldingsPage() {
                   key={`${holding.accountId}:${holding.instrumentId}`}
                   role="button"
                   tabIndex={0}
-                  aria-label={`查看持仓详情 ${holding.accountName} ${formatHoldingInstrument(holding)}`}
+                  aria-label={copy("viewDetail", language, {account:holding.accountName,instrument:formatHoldingInstrument(holding)})}
                   onClick={(event) => handleHoldingRowClick(event, holding)}
                   onKeyDown={(event) => handleHoldingRowKeyDown(event, holding)}
                 >
                   <td>{holding.accountName}</td>
                   <td>{formatHoldingInstrument(holding)}</td>
-                  <td>{ASSET_TYPE_LABELS[holding.assetType]}</td>
+                  <td>{getInvestmentLabel("assetType", holding.assetType, language)}</td>
                   <td>{holding.currency}</td>
-                  <td className="numeric-cell">{formatHoldingQuantity(holding)}</td>
-                  <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost) : "-"}</td>
-                  <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount) : "-"}</td>
-                  <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact")}</td>
-                  <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue) : "--"}</td>
+                  <td className="numeric-cell">{formatHoldingQuantity(holding, language)}</td>
+                  <td className="numeric-cell">{holding.averageUnitCost ? formatDisplayPrice(holding.averageUnitCost, getDisplayLocale(language)) : "-"}</td>
+                  <td className="numeric-cell">{holding.costAmount ? formatDisplayAmount(holding.costAmount, getDisplayLocale(language)) : "-"}</td>
+                  <td className="numeric-cell">{formatHoldingLatestPrice(holding, "compact", language)}</td>
+                  <td className="numeric-cell">{holding.marketValue ? formatDisplayAmount(holding.marketValue, getDisplayLocale(language)) : "--"}</td>
                   <td className={`numeric-cell ${signedToneClass(holding.unrealizedGain, preferences.gainColorScheme, 3)}`}>
-                    {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain) : "--"}
+                    {holding.unrealizedGain ? formatSignedDisplayAmount(holding.unrealizedGain, getDisplayLocale(language)) : "--"}
                   </td>
-                  <td>{formatHoldingWarnings(holding)}</td>
+                  <td>{formatHoldingWarnings(holding, language)}</td>
                 </tr>
               ))
             )}
@@ -290,12 +291,12 @@ function sumMoney(values: string[]): string {
   return Number.isFinite(total) ? String(total) : "0";
 }
 
-function formatMetric(value: string | null, loading: boolean): ReactNode {
+function formatMetric(value: string | null, loading: boolean, language: UiLanguage = "zh-CN"): ReactNode {
   if (loading) {
-    return <LoadingState label="加载中" />;
+    return <LoadingState label={copy("loading", language)} />;
   }
 
-  return value === null ? "--" : formatDisplayAmount(value);
+  return value === null ? "--" : formatDisplayAmount(value, getDisplayLocale(language));
 }
 
 function toDisplayCurrency(value: string): SnapshotDisplayCurrency {

@@ -1,4 +1,7 @@
 export default {
+"investmentNotFound": "This record is unavailable.",
+"investmentInvalid": "Check the form and your selected references.",
+"investmentConflict": "The ledger changed. Reload and review before retrying.",
   "invalidCredentials": "The email or password is incorrect, or the login session has expired.",
   "currentPasswordRejected": "The current password is incorrect or the session has expired. If the previous change succeeded, log in with your new password.",
   "sessionExpired": "Your session has expired. Log in again.",

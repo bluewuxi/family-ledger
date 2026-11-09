@@ -1,3 +1,6 @@
+import { LanguageSwitch } from "../components/LanguageSwitch";
+import { i18n } from "../i18n/instance";
+import { getInvestmentLabel } from "../i18n/investmentLabels";
 import { useTranslation } from "react-i18next";
 import { useUiLanguage } from "../i18n/LanguageProvider";
 import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
@@ -13,13 +16,10 @@ import { observeAsync } from "../lib/observeAsync";
 import { type FormEvent, type MouseEvent, useEffect, useId, useMemo, useState } from "react";
 import { Eye, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import {
-  ASSET_TYPE_LABELS,
   ASSET_TYPES,
   CURRENCY_CODES,
   INSTRUMENT_SHORT_NAME_MAX_LENGTH,
-  MARKET_REGION_LABELS,
   MARKET_REGIONS,
-  PRICE_SOURCE_LABELS,
   PRICE_SOURCES,
   type AssetType,
   type AuthenticatedUser,
@@ -31,7 +31,7 @@ import {
 } from "@family-ledger/shared";
 import { Drawer } from "../components/Drawer";
 import { PageTitle } from "../components/PageTitle";
-import { ApiClientError, apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
+import { apiDelete, apiGet, apiPost, apiPut } from "../lib/apiClient";
 import { isInteractiveRowTarget } from "../lib/tableInteraction";
 
 interface InstrumentsResponse {
@@ -101,8 +101,9 @@ export function InstrumentsPage() {
 }
 
 function InstrumentsWorkspace() {
-  const {t} = useTranslation(["investmentGroups", "navigation", "common"]);
+    const {t} = useTranslation(["investmentGroups", "navigation", "common"]);
   const {language} = useUiLanguage();
+  const a = i18n.getFixedT(language, "instruments");
   const {session} = useAuth();
   const [groupReadError,setGroupReadError] = useState<UiErrorDescriptor|null>(null);
   const [params,setParams]=useSearchParams();
@@ -113,7 +114,7 @@ function InstrumentsWorkspace() {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiErrorDescriptor | "requiredField" | "invalidField" | null>(null);
   const [form, setForm] = useState<InstrumentFormState>(emptyForm);
   const [editingInstrumentId, setEditingInstrumentId] = useState<string | null>(null);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
@@ -122,7 +123,7 @@ function InstrumentsWorkspace() {
   const isAdmin = session?.user.role === "admin" && !session.mustChangePassword;
   useEffect(()=>{if(!isAdmin||groupTab)return;let active=true;void loadInvestmentGroups().then(value=>{if(active)setGroupConfiguration(value);}).catch(()=>{if(active)setGroupConfiguration(null);});return()=>{active=false;};},[isAdmin,groupTab]);
   const tabs=<InvestmentInstrumentTabs id={tabsId} groups={groupTab&&isAdmin} isAdmin={isAdmin} onSelect={groups=>{const next=new URLSearchParams(params);if(groups)next.set('tab','groups');else next.delete('tab');setParams(next);}}/>;
-  const formTitle = drawerMode === "create" ? "新增投资标的" : drawerMode === "modify" ? "编辑投资标的" : "投资标的详情";
+  const formTitle = drawerMode === "create" ? a("create") : drawerMode === "modify" ? a("editInstrument") : a("details");
   const editingInstrument = useMemo(
     () => instruments.find((instrument) => instrument.id === editingInstrumentId) ?? null,
     [instruments, editingInstrumentId]
@@ -144,7 +145,7 @@ function InstrumentsWorkspace() {
       setInstruments(data.instruments);
     } catch (requestError) {
       setGroupReadError(describeUiError(requestError,"groupLoad"));
-      setError(toErrorMessage(requestError));
+      setError(describeUiError(requestError, "investmentRead"));
     } finally {
       setLoading(false);
     }
@@ -174,7 +175,7 @@ function InstrumentsWorkspace() {
       );
       closeDrawer();
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(describeUiError(requestError, "instrumentSave"));
     } finally {
       setSaving(false);
     }
@@ -182,7 +183,7 @@ function InstrumentsWorkspace() {
 
   async function handleDelete(instrument: Instrument) {
     const label = instrument.symbol ? `${instrument.symbol} ${instrument.name}` : instrument.name;
-    const confirmed = window.confirm(`确定删除投资标的“${label}”？已有交易或价格记录的标的不能删除。`);
+    const confirmed = window.confirm(a("deleteConfirm", { name: label }));
 
     if (!confirmed) {
       return;
@@ -199,7 +200,7 @@ function InstrumentsWorkspace() {
         closeDrawer();
       }
     } catch (requestError) {
-      setError(toErrorMessage(requestError));
+      setError(describeUiError(requestError, "instrumentDelete"));
     } finally {
       setSaving(false);
     }
@@ -260,54 +261,54 @@ function InstrumentsWorkspace() {
     <section>
       <header className="page-header account-header">
         <div>
-          <PageTitle route="/instruments">投资标的</PageTitle>
-          <p>维护股票、ETF、基金和现金标的，以及后续行情任务使用的价格来源配置。</p>
+          <PageTitle route="/instruments">{a("heading")}</PageTitle>
+          <p>{a("help")}</p>
         </div>
         <div className="header-actions">
           {isAdmin ? (
             <button className="primary-button" type="button" onClick={startCreate} disabled={loading || saving}>
               <Plus size={17} aria-hidden="true" />
-              <span>新增标的</span>
+              <span>{a("add")}</span>
             </button>
           ) : null}
           <button className="secondary-button" type="button" onClick={() => observeAsync(loadInstruments(true))} disabled={loading || saving}>
             <RefreshCw size={17} aria-hidden="true" />
-            <span>刷新</span>
+            <span>{a("refresh")}</span>
           </button>
         </div>
       </header>
 
       {tabs}
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="form-error">{typeof error === "string" ? a(error) : translateUiError(error, language)}</p> : null}
 
       {!isAdmin && !loading && user ? (
-        <p className="readonly-note">当前角色为 viewer，可查看投资标的信息。新增、编辑和删除仅限 admin。</p>
+        <p className="readonly-note">{a("viewerHelp")}</p>
       ) : null}
 
       <div className="table-wrap" id={tabsId+"-panel"} role="tabpanel" aria-labelledby={tabsId+"-tab-0"}>
         <table className="instrument-table">
           <thead>
             <tr>
-              <th>代码</th>
-              <th>简称</th>
-              <th>名称</th>{isAdmin?<th>分组</th>:null}
-              <th>市场</th>
-              <th>交易所/平台</th>
-              <th>币种</th>
-              <th>类型</th>
-              <th>价格来源</th>
-              <th>状态</th><th>自动更新</th>
-              <th>操作</th>
+              <th>{a("symbol")}</th>
+              <th>{a("shortName")}</th>
+              <th>{a("name")}</th>{isAdmin?<th>{a("group")}</th>:null}
+              <th>{a("market")}</th>
+              <th>{a("exchange")}</th>
+              <th>{a("currency")}</th>
+              <th>{a("assetType")}</th>
+              <th>{a("priceSource")}</th>
+              <th>{a("status")}</th><th>{a("automaticUpdate")}</th>
+              <th>{a("actions")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10}>正在加载投资标的...</td>
+                <td colSpan={10}>{a("loading")}</td>
               </tr>
             ) : instruments.length === 0 ? (
               <tr>
-                <td colSpan={10}>暂无投资标的。</td>
+                <td colSpan={10}>{a("empty")}</td>
               </tr>
             ) : (
               instruments.map((instrument) => (
@@ -320,19 +321,19 @@ function InstrumentsWorkspace() {
                 >
                   <td>{instrument.symbol ?? "-"}</td>
                   <td>{instrument.shortName}</td>
-                  <td>{instrument.name}</td>{isAdmin?<td>{instrument.assetType==="cash"?"—":<button type="button" className="text-button" onClick={()=>{const next=new URLSearchParams(params);next.set("tab","groups");setParams(next);}}>{groupConfiguration?groupConfiguration.groups.find(group=>group.instrumentIds.includes(instrument.id))?.name??"未分组":"分组管理"}</button>}</td>:null}
-                  <td>{MARKET_REGION_LABELS[instrument.marketRegion]}</td>
+                  <td>{instrument.name}</td>{isAdmin?<td>{instrument.assetType==="cash"?"—":<button type="button" className="text-button" onClick={()=>{const next=new URLSearchParams(params);next.set("tab","groups");setParams(next);}}>{groupConfiguration?groupConfiguration.groups.find(group=>group.instrumentIds.includes(instrument.id))?.name??a("ungrouped"):a("groupManagement")}</button>}</td>:null}
+                  <td>{getInvestmentLabel("marketRegion", instrument.marketRegion, language)}</td>
                   <td>{instrument.exchange ?? "-"}</td>
                   <td>{instrument.currency}</td>
-                  <td>{ASSET_TYPE_LABELS[instrument.assetType]}</td>
-                  <td>{instrument.assetType === "cash" ? "-" : PRICE_SOURCE_LABELS[instrument.priceSource]}</td>
-                  <td>{instrument.active === false ? "已停用" : "已启用"}</td><td>{instrument.assetType === "cash" ? "-" : instrument.priceUpdateEnabled ? "是" : "否"}</td>
+                  <td>{getInvestmentLabel("assetType", instrument.assetType, language)}</td>
+                  <td>{instrument.assetType === "cash" ? "-" : getInvestmentLabel("priceSource", instrument.priceSource, language)}</td>
+                  <td>{instrument.active === false ? a("inactive") : a("active")}</td><td>{instrument.assetType === "cash" ? "-" : instrument.priceUpdateEnabled ? a("yes") : a("no")}</td>
                   <td>
                     <div className="table-actions">
                       <button
-                        aria-label={`${isAdmin ? "编辑" : "查看"}标的 ${instrument.name}`}
+                        aria-label={a("instrumentAction", { action: isAdmin ? a("edit") : a("view"), name: instrument.name })}
                         className="icon-button"
-                        title={isAdmin ? "查看/编辑" : "查看"}
+                        title={isAdmin ? a("viewEdit") : a("view")}
                         type="button"
                         onClick={() => startDetail(instrument)}
                         disabled={saving}
@@ -341,9 +342,9 @@ function InstrumentsWorkspace() {
                       </button>
                       {isAdmin ? (
                         <button
-                          aria-label={`删除标的 ${instrument.name}`}
+                          aria-label={a("instrumentAction", { action: a("delete"), name: instrument.name })}
                           className="icon-button danger-icon-button"
-                          title="删除"
+                          title={a("delete")}
                           type="button"
                           onClick={() => observeAsync(handleDelete(instrument))}
                           disabled={saving}
@@ -365,8 +366,8 @@ function InstrumentsWorkspace() {
         title={formTitle}
         subtitle={
           editingInstrument
-            ? `${drawerMode === "modify" ? "正在编辑" : "正在查看"}：${editingInstrument.name}`
-            : "价格来源仅保存配置，不会自动抓取行情"
+            ? a(drawerMode === "modify" ? "editingName" : "viewingName", { name: editingInstrument.name })
+            : a("configurationOnly")
         }
         busy={saving}
         onClose={requestDismiss}
@@ -374,51 +375,56 @@ function InstrumentsWorkspace() {
           drawerMode === "view" ? (
             <button className="secondary-button" type="button" onClick={requestDismiss}>
               <X size={17} aria-hidden="true" />
-              <span>关闭</span>
+              <span>{a("close")}</span>
             </button>
           ) : (
             <>
               <button className="primary-button" type="submit" form="instrument-drawer-form" disabled={saving}>
                 {saving ? <RefreshCw size={17} aria-hidden="true" /> : editingInstrumentId ? <Save size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
-                <span>{saving ? "保存中..." : editingInstrumentId ? "保存修改" : "新增标的"}</span>
+                <span>{saving ? a("saving") : editingInstrumentId ? a("saveChanges") : a("add")}</span>
               </button>
               <button className="secondary-button" type="button" onClick={requestDismiss} disabled={saving}>
                 <X size={17} aria-hidden="true" />
-                <span>取消</span>
+                <span>{a("cancel")}</span>
               </button>
             </>
           )
         }
       >
-        <form className="instrument-form drawer-form" id="instrument-drawer-form" onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
+        {error ? <p role="alert" className="form-error">{typeof error === "string" ? a(error) : translateUiError(error, language)}</p> : null}
+        <LanguageSwitch />
+        <form className="instrument-form drawer-form" id="instrument-drawer-form" onInvalidCapture={event => { event.preventDefault(); setError((event.target as HTMLInputElement).validity.valueMissing ? "requiredField" : "invalidField"); }} onSubmit={(...args) => observeAsync((handleSubmit)(...args))}>
           <label>
-            代码
+
+            {a("symbol")}
             <input
               value={form.symbol}
               onChange={(event) => setForm({ ...form, symbol: event.target.value })}
-              placeholder="例如 AMD、0700"
+              placeholder={a("symbolExample")}
               disabled={isDrawerReadOnly}
               required={form.assetType !== "other"}
             />
           </label>
 
           <label>
-            名称
+
+            {a("name")}
             <input
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
-              placeholder="例如 Advanced Micro Devices"
+              placeholder={a("nameExample")}
               disabled={isDrawerReadOnly}
               required
             />
           </label>
 
           <label>
-            简称
+
+            {a("shortName")}
             <input
               value={form.shortName}
               onChange={(event) => setForm({ ...form, shortName: event.target.value })}
-              placeholder="例如 AMD、腾讯或 FS 纳指100"
+              placeholder={a("shortNameExample")}
               disabled={isDrawerReadOnly}
               maxLength={INSTRUMENT_SHORT_NAME_MAX_LENGTH}
               required
@@ -426,7 +432,8 @@ function InstrumentsWorkspace() {
           </label>
 
           <label>
-            类型
+
+            {a("assetType")}
             <select
               value={form.assetType}
               onChange={(event) => setForm({ ...form, assetType: event.target.value as AssetType })}
@@ -434,14 +441,15 @@ function InstrumentsWorkspace() {
             >
               {ASSET_TYPES.map((assetType) => (
                 <option key={assetType} value={assetType}>
-                  {ASSET_TYPE_LABELS[assetType]}
+                  {getInvestmentLabel("assetType", assetType, language)}
                 </option>
               ))}
             </select>
           </label>
 
           <label>
-            市场
+
+            {a("market")}
             <select
               value={form.marketRegion}
               onChange={(event) => setForm({ ...form, marketRegion: event.target.value as MarketRegion })}
@@ -449,25 +457,27 @@ function InstrumentsWorkspace() {
             >
               {MARKET_REGIONS.map((marketRegion) => (
                 <option key={marketRegion} value={marketRegion}>
-                  {MARKET_REGION_LABELS[marketRegion]}
+                  {getInvestmentLabel("marketRegion", marketRegion, language)}
                 </option>
               ))}
             </select>
           </label>
 
           <label>
-            交易所/平台
+
+            {a("exchange")}
             <input
               value={form.exchange}
               onChange={(event) => setForm({ ...form, exchange: event.target.value })}
-              placeholder="例如 NASDAQ、HKEX、CASH"
+              placeholder={a("exchangeExample")}
               disabled={isDrawerReadOnly}
               required={form.assetType !== "other"}
             />
           </label>
 
           <label>
-            币种
+
+            {a("currency")}
             <select
               value={form.currency}
               onChange={(event) => setForm({ ...form, currency: event.target.value as CurrencyCode })}
@@ -482,22 +492,24 @@ function InstrumentsWorkspace() {
           </label>
 
           <label>
-            产品管理方
+
+            {a("provider")}
             <input
               value={form.provider}
               onChange={(event) => setForm({ ...form, provider: event.target.value })}
-              placeholder="例如 Vanguard、InvestNow"
+              placeholder={a("providerExample")}
               disabled={isDrawerReadOnly}
             />
           </label>
 
           <label>
             ISIN
-            <input value={form.isin} onChange={(event) => setForm({ ...form, isin: event.target.value })} placeholder="可选" disabled={isDrawerReadOnly} />
+            <input value={form.isin} onChange={(event) => setForm({ ...form, isin: event.target.value })} placeholder={a("optional")} disabled={isDrawerReadOnly} />
           </label>
 
           <label>
-            价格来源
+
+            {a("priceSource")}
             <select
               value={form.priceSource}
               onChange={(event) => setForm({ ...form, priceSource: event.target.value as PriceSource })}
@@ -505,34 +517,37 @@ function InstrumentsWorkspace() {
             >
               {PRICE_SOURCES.map((priceSource) => (
                 <option key={priceSource} value={priceSource} disabled={!supportedPriceSources.has(priceSource)}>
-                  {PRICE_SOURCE_LABELS[priceSource]}
+                  {getInvestmentLabel("priceSource", priceSource, language)}
                 </option>
               ))}
             </select>
           </label>
 
           <label>
-            来源代码
+
+            {a("sourceSymbol")}
             <input
               value={form.priceSourceSymbol}
               onChange={(event) => setForm({ ...form, priceSourceSymbol: event.target.value })}
-              placeholder="例如 1810.HK"
+              placeholder={a("sourceSymbolExample")}
               disabled={isDrawerReadOnly}
             />
           </label>
 
           <label>
-            来源交易所
+
+            {a("sourceExchange")}
             <input
               value={form.priceSourceExchange}
               onChange={(event) => setForm({ ...form, priceSourceExchange: event.target.value })}
-              placeholder="例如 HKEX"
+              placeholder={a("sourceExchangeExample")}
               disabled={isDrawerReadOnly}
             />
           </label>
 
           <label>
-            更新优先级
+
+            {a("priority")}
             <input
               type="number"
               min={0}
@@ -543,10 +558,11 @@ function InstrumentsWorkspace() {
               required
             />
           </label>
-          <label className="checkbox-field">启用标的<input type="checkbox" checked={form.active} onChange={event => setForm({ ...form, active: event.target.checked })} disabled={isDrawerReadOnly} /></label>
+          <label className="checkbox-field">{a("enable")}<input type="checkbox" checked={form.active} onChange={event => setForm({ ...form, active: event.target.checked })} disabled={isDrawerReadOnly} /></label>
 
           <label className="checkbox-field">
-            自动更新行情
+
+            {a("enableUpdates")}
             <input
               type="checkbox"
               checked={form.priceUpdateEnabled}
@@ -556,7 +572,8 @@ function InstrumentsWorkspace() {
           </label>
 
           <label>
-            来源核对时间
+
+            {a("sourceCheckedAt")}
             <input
               type="datetime-local"
               value={form.sourceCheckedAt}
@@ -566,32 +583,35 @@ function InstrumentsWorkspace() {
           </label>
 
           <label className="wide-field">
-            来源网址
+
+            {a("sourceUrl")}
             <input
               value={form.sourceUrl}
               onChange={(event) => setForm({ ...form, sourceUrl: event.target.value })}
-              placeholder="可选，用于记录信息来源"
+              placeholder={a("sourceUrlHint")}
               disabled={isDrawerReadOnly}
             />
           </label>
 
           <label className="wide-field">
-            说明
+
+            {a("description")}
             <textarea
               value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
-              placeholder="可选，记录标的简介"
+              placeholder={a("descriptionHint")}
               rows={3}
               disabled={isDrawerReadOnly}
             />
           </label>
 
           <label className="wide-field">
-            备注
+
+            {a("notes")}
             <textarea
               value={form.notes}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              placeholder="可选"
+              placeholder={a("optional")}
               rows={2}
               disabled={isDrawerReadOnly}
             />
@@ -642,12 +662,4 @@ function sortInstruments(instruments: Instrument[]): Instrument[] {
     const rightLabel = [right.marketRegion, right.exchange ?? "", right.symbol ?? "", right.shortName].join("|");
     return leftLabel.localeCompare(rightLabel, "zh-CN");
   });
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return error.message;
-  }
-
-  return "投资标的请求失败，请稍后重试。";
 }

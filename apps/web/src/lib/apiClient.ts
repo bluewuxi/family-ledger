@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@family-ledger/shared";
+import { parseInvestmentErrorDetails, type InvestmentErrorDetails, type ApiResponse } from "@family-ledger/shared";
 import { observeAccountScope, reloadAccountScope } from "./accountScopeState";
 import { isLocalAuthBypassEnabled, LOCAL_AUTH_BYPASS_TOKEN } from "./localAuthBypass";
 import { getRuntimeConfig } from "./runtimeConfig";
@@ -6,12 +6,15 @@ import { getCurrentSession, loadSession, notifyAuthSessionExpired } from "./auth
 import { cachedRead, clearReadCache, setReadCacheIdentity } from "./readCache";
 
 export class ApiClientError extends Error {
+  readonly details?: InvestmentErrorDetails;
   constructor(
     message: string,
     public readonly code: string,
-    public readonly status?: number
+    public readonly status?: number,
+    details?: InvestmentErrorDetails
   ) {
     super(message);
+    this.details = parseInvestmentErrorDetails(details);
   }
 }
 
@@ -76,7 +79,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     }
 
     if (error?.code === "PASSWORD_CHANGE_REQUIRED" && getCurrentSession()?.access_token === token) await loadSession();
-    throw new ApiClientError(error?.message ?? "API 请求失败。", error?.code ?? "HTTP_ERROR", response.status);
+    throw new ApiClientError(error?.message ?? "API 请求失败。", error?.code ?? "HTTP_ERROR", response.status, parseInvestmentErrorDetails(error?.details));
   }
 
   if (options.method && options.method !== "GET") clearReadCache();

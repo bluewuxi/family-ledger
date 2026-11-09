@@ -128,8 +128,8 @@ export async function updateInstrument(
 
   if (error) {
     logDependencyError("instrumentRepository.updateInstrument", error, ["23505", "23514", "40001"]);
-    if(error.code === "23514") throw new ApiRequestError("VALIDATION_ERROR", "请先移除证券的分组，再修改为现金类型。", 400);
-    if(error.code === "40001") throw new ApiRequestError("CONFLICT", "证券或分组已变化，请刷新后重试。", 409);
+    if(error.code === "23514") throw new ApiRequestError("VALIDATION_ERROR", "请先移除证券的分组，再修改为现金类型。", 400, { reason: "CLASSIFIED_INSTRUMENT_CASH" });
+    if(error.code === "40001") throw new ApiRequestError("CONFLICT", "证券或分组已变化，请刷新后重试。", 409, { reason: "LEDGER_REVISION_CONFLICT" });
     if (error.code === "23505") {
       throw new InstrumentDuplicateError();
     }

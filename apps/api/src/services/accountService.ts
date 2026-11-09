@@ -27,7 +27,7 @@ import {
   updateAccount
 } from "../repositories/accountRepository";
 import { createTradingPasswordPlaceholder, deleteTradingPasswordParameter } from "./accountTradingPasswordService";
-import { ApiRequestError } from "../utils/apiError";
+import { ApiRequestError, investmentFieldDetails } from "../utils/apiError";
 
 export async function getAccounts(): Promise<InvestmentAccount[]> {
   return (await listAccountsWithHistory()).filter(account => account.purpose !== "education");
@@ -104,7 +104,7 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
     }
 
     if (error instanceof AccountInUseError) {
-      throw new ApiRequestError("VALIDATION_ERROR", "Account cannot be deleted because it is used by transactions.", 400);
+      throw new ApiRequestError("VALIDATION_ERROR", "Account cannot be deleted because it is used by transactions.", 400, { reason: "ACCOUNT_IN_USE" });
     }
 
     throw error;
@@ -112,7 +112,7 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
 }
 
 function rejectEducationAccount(purpose: AccountPurpose | undefined): void {
-  if (purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理，旧账户仅供历史核查。", 400);
+  if (purpose === "education") throw new ApiRequestError("VALIDATION_ERROR", "教育储备请在家庭收支的教育收支页签管理，旧账户仅供历史核查。", 400, { reason: "LEGACY_EDUCATION_READ_ONLY" });
 }
 
 export function parseCreateAccountInput(body: unknown): CreateInvestmentAccountInput {
@@ -168,7 +168,7 @@ export function parseUpdateAccountInput(body: unknown): UpdateInvestmentAccountI
   }
 
   if (Object.keys(input).length === 0) {
-    throw new ApiRequestError("VALIDATION_ERROR", "At least one account field is required.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "At least one account field is required.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return input;
@@ -176,7 +176,7 @@ export function parseUpdateAccountInput(body: unknown): UpdateInvestmentAccountI
 
 function asRecord(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Request body must be a JSON object.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 
   return body as Record<string, unknown>;
@@ -184,13 +184,13 @@ function asRecord(body: unknown): Record<string, unknown> {
 
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is required.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   const trimmed = value.trim();
 
   if (!trimmed) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} cannot be empty.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} cannot be empty.`, 400, investmentFieldDetails("FIELD_REQUIRED", field));
   }
 
   return trimmed;
@@ -202,7 +202,7 @@ function optionalString(value: unknown, field: string): string | null {
   }
 
   if (typeof value !== "string") {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} must be a string.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   const trimmed = value.trim();
@@ -215,7 +215,7 @@ function requiredEnum<T extends AccountType | AccountPurpose | CurrencyCode | Ma
   field: string
 ): T {
   if (typeof value !== "string" || !allowedValues.includes(value as T)) {
-    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400);
+    throw new ApiRequestError("VALIDATION_ERROR", `${field} is invalid.`, 400, investmentFieldDetails("FIELD_INVALID", field));
   }
 
   return value as T;
@@ -225,7 +225,7 @@ function assertUuid(id: string): void {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   if (!uuidPattern.test(id)) {
-    throw new ApiRequestError("VALIDATION_ERROR", "Account id is invalid.", 400);
+    throw new ApiRequestError("VALIDATION_ERROR", "Account id is invalid.", 400, { reason: "FIELD_INVALID", field: "request" });
   }
 }
 

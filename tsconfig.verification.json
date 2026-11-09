@@ -45,6 +45,11 @@
     "apps/web/verify-i18n-client.ts",
     "apps/web/src/vite-env.d.ts",
     "apps/web/verify-i18n-phase2.ts",
-    "apps/web/verify-i18n-phase2-client.ts"
+    "apps/web/verify-i18n-phase2-client.ts",
+    "scripts/verify-i18n-investment-errors.ts",
+    "apps/web/verify-i18n-phase3-accounts.ts",
+    "apps/web/verify-i18n-phase3.ts",
+    "apps/web/verify-i18n-phase3-client.ts",
+    "apps/web/verify-i18n-phase3-state.ts"
   ]
 }
