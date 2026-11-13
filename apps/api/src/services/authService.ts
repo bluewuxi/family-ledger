@@ -62,18 +62,22 @@ export class AuthService {
   if(user.id===targetId) throw new ApiRequestError("VALIDATION_ERROR","请使用修改密码功能修改自己的密码。",400);
   await enforceRate(this.deps.store,"password",user.id,5,this.deps.now());
   const actor=await this.deps.store.getCredential(user.id);
-  if(!actor || actor.credentialVersion!==session.credentialVersion || !await verifyPassword(adminPassword,actor.verifier)) throw invalidCredentials();
+  if(!actor || actor.credentialVersion!==session.credentialVersion) throw invalidCredentials();
+  if(!await verifyPassword(adminPassword,actor.verifier)) {
+    const rejection = invalidCredentials();
+    throw new ApiRequestError(rejection.code,rejection.message,rejection.statusCode,{kind:"workflow",reason:"ADMIN_PASSWORD_REJECTED"});
+  }
   if(!await this.deps.findById(targetId)) throw new ApiRequestError("NOT_FOUND","用户不存在。",404);
   const previous=await this.deps.store.getCredential(targetId);
-  this.validateNewPassword(temporaryPassword);
-  if(previous && await verifyPassword(temporaryPassword,previous.verifier)) throw new ApiRequestError("VALIDATION_ERROR","临时密码不能与当前密码相同。",400);
+  this.validateNewPassword(temporaryPassword,true);
+  if(previous && await verifyPassword(temporaryPassword,previous.verifier)) throw new ApiRequestError("VALIDATION_ERROR","临时密码不能与当前密码相同。",400,{kind:"workflow",reason:"TEMPORARY_PASSWORD_REUSED"});
   const now=this.deps.now();
   const replacement: StoredCredential={verifier:await hashPassword(temporaryPassword),credentialVersion:(previous?.credentialVersion??0)+1,mustChangePassword:true,temporaryPasswordExpiresAt:now+86400,lastSignInAt:previous?.lastSignInAt??null,updatedAt:new Date(now*1000).toISOString()};
   // Recheck SQL permissions immediately before the credential transaction.
   if(await this.deps.role(user.id)!=="admin") throw new AuthFailure("FORBIDDEN",403,"需要管理员权限。");
   await this.deps.store.replaceCredential(targetId,replacement,previous?.credentialVersion??null,{userId:user.id,credentialVersion:session.credentialVersion});
  }
- private validateNewPassword(value:string) { try { validatePassword(value); } catch { logCaughtError("auth.validation", {name:"ApiAuthError",message:"Authentication input rejected.",statusCode:400}); throw new ApiRequestError("VALIDATION_ERROR","密码需要 8 至 128 个字符。",400); } }
+ private validateNewPassword(value:string, temporary = false) { try { validatePassword(value); } catch { logCaughtError("auth.validation", {name:"ApiAuthError",message:"Authentication input rejected.",statusCode:400}); throw new ApiRequestError("VALIDATION_ERROR","密码需要 8 至 128 个字符。",400,temporary ? {kind:"workflow",reason:"TEMPORARY_PASSWORD_LENGTH"} : undefined); } }
 }
 export function getAuthService(): AuthService {
  try { return new AuthService({store:getAuthStateRepository(),findByEmail:findAppUserByEmail,findById:getAppUserById,role:getUserRole,now:()=>Math.floor(Date.now()/1000)}); }

@@ -5,7 +5,7 @@ import { createLanguageStore, isLocalLanguagePreview, type UiLanguage } from "./
 export const i18n = createInstance();
 // Bundled resources initialize synchronously for pure, fixed-language format lookups.
 const resourcesReady = i18n.init({ resources, lng: "zh-CN", fallbackLng: "zh-CN", supportedLngs: ["zh-CN", "en"],
-  load: "currentOnly", defaultNS: "common", ns: ["common","format","preview","auth","navigation","errors","investmentGroups","investment","dashboard","holdings","monthlyReview","accounts","instruments","transactions"], interpolation: { escapeValue: false }, initAsync: false });
+  load: "currentOnly", defaultNS: "common", ns: Object.keys(resources["zh-CN"]), interpolation: { escapeValue: false }, initAsync: false });
 const preview = isLocalLanguagePreview(import.meta.env?.DEV === true, typeof window === "undefined" ? "" : window.location.hostname);
 const store = createLanguageStore({ preview, getStorage: () => window.localStorage });
 let routedTitleOwned = false;

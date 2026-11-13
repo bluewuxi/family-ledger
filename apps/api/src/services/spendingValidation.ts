@@ -5,10 +5,11 @@ import {
   SPENDING_FORMATS,
   type SpendingClass,
   type SpendingFormat,
+  type WorkflowErrorDetails,
 } from "@family-ledger/shared";
 import { ApiRequestError } from "../utils/apiError";
-export function invalid(message: string): never {
-  throw new ApiRequestError("VALIDATION_ERROR", message, 400);
+export function invalid(message: string, reason?: WorkflowErrorDetails["reason"]): never {
+  throw new ApiRequestError("VALIDATION_ERROR", message, 400, reason ? { kind: "workflow", reason } : undefined);
 }
 export function record(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== "object" || Array.isArray(input))

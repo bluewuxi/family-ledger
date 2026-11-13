@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
-import type { InvestmentErrorDetails } from "./investmentErrorDetails";
+import type { ApiErrorDetails } from "./workflowErrorDetails";
 export * from "./investmentErrorDetails";
+export * from "./workflowErrorDetails";
 export * from "./investmentGroups";
 import { compareTransactionOrder } from "./transactionTimeline";
 export * from "./accountAccess";
@@ -1395,6 +1396,12 @@ export interface CreateKernelPriceAnchorInput {
   actualPricePrecision?: number;
 }
 
+export type BackupFailureReasonCode = "blocked_by_running_job" | "failed";
+
+export interface DataMaintenanceJobRun extends JobRun {
+  failureReasonCode?: BackupFailureReasonCode;
+}
+
 export interface DataMaintenanceBackupRun {
   id: string;
   status: JobRunStatus;
@@ -1404,6 +1411,7 @@ export interface DataMaintenanceBackupRun {
   durationSeconds: number | null;
   recordsInserted: number | null;
   friendlyFailureReason: string | null;
+  failureReasonCode?: BackupFailureReasonCode;
 }
 
 export interface DataMaintenanceBackupSummary {
@@ -2028,7 +2036,7 @@ function formatFlexibleDecimal(amount: Decimal, decimalPlaces: number): string {
 }
 
 export interface ApiError {
-  details?: InvestmentErrorDetails;
+  details?: ApiErrorDetails;
   code:
     | "UNAUTHORIZED"
     | "PASSWORD_CHANGE_REQUIRED"

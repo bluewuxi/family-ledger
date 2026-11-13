@@ -1,4 +1,4 @@
-import type { AccountAccessPolicy, AuthenticatedUser } from "@family-ledger/shared";
+import { parseWorkflowErrorDetails, type AccountAccessPolicy, type AuthenticatedUser, type WorkflowErrorDetails } from "@family-ledger/shared";
 import { resetAccountScope } from "./accountScopeState";
 import { getRuntimeConfig } from "./runtimeConfig";
 import { clearReadCache, setReadCacheIdentity } from "./readCache";
@@ -9,8 +9,10 @@ const eventName = "family-ledger:auth-state";
 let session: AuthSession | null = null;
 let generation = 0;
 export class AuthClientError extends Error {
-  constructor(public readonly status: number, public readonly code: string) {
+  readonly details?: WorkflowErrorDetails;
+  constructor(public readonly status: number, public readonly code: string, details?: unknown) {
     super(status === 429 ? "操作过于频繁，请稍后再试。" : status === 503 ? "登录服务暂时不可用，请稍后重试。" : status === 401 ? "邮箱或密码不正确，或登录状态已失效。" : "操作未完成，请检查输入或稍后重试。");
+    this.details = parseWorkflowErrorDetails(details);
   }
 }
 export function clearLegacyAuthStorage(): void {
@@ -35,10 +37,10 @@ async function request<T>(path: string, method = "GET", body?: unknown, token = 
       body: body === undefined ? undefined : JSON.stringify(body)
     });
   } catch { throw new AuthClientError(503, "DEPENDENCY_UNAVAILABLE"); }
-  const result = await response.json().catch(() => null) as { success?: boolean; data?: T; error?: { code?: string } } | null;
+  const result = await response.json().catch(() => null) as { success?: boolean; data?: T; error?: { code?: string; details?: unknown } } | null;
   if (!response.ok || !result?.success) {
     if (response.status === 401 && path === "/auth/session" && token === storedToken()) clearAuthSession();
-    throw new AuthClientError(response.status, result?.error?.code ?? "HTTP_ERROR");
+    throw new AuthClientError(response.status, result?.error?.code ?? "HTTP_ERROR", result?.error?.details);
   }
   return result.data as T;
 }

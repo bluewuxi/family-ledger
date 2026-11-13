@@ -1,10 +1,13 @@
+import { useTranslation } from "react-i18next";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { formatCalendarDate } from "../lib/timeFormat";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
 import { observeAsync } from "../lib/observeAsync";
 import { SPENDING_CURRENCIES } from "@family-ledger/shared";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   SPENDING_CLASSES,
-  SPENDING_CLASS_LABELS,
   type SpendingAccount,
   type SpendingFilterOptions,
   type SpendingQueryResult,
@@ -20,6 +23,9 @@ import { familyCashflowFilters } from "../lib/familyCashflowNavigation";
 import { useCashflowQuery } from "../lib/useCashflowQuery";
 import { DatePresets } from "../components/cashflow/DatePresets";
 export function SpendingPage() {
+  const { t: translate } = useTranslation("spending");
+  const { t: cashflow } = useTranslation("cashflow");
+  const { language } = useUiLanguage();
   const navigate = useNavigate();
   const filters = useCashflowQuery("spending");
   const [params, setParams] = useSearchParams(),
@@ -30,7 +36,7 @@ export function SpendingPage() {
   const [result, setResult] = useState<SpendingQueryResult>(),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
+    [error, setError] = useState<UiErrorDescriptor | null>(null),
     [revision, setRevision] = useState(0);
   const [drawer, setDrawer] = useState<"accounts" | "imports" | "row" | null>(
       null,
@@ -67,7 +73,7 @@ export function SpendingPage() {
         }
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active) setError(describeUiError(e, "spendingRead"));
       });
     return () => {
       active = false;
@@ -81,7 +87,7 @@ export function SpendingPage() {
         if (active) { setTags(r.tags); setOptions(r); }
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active) setError(describeUiError(e, "spendingRead"));
       });
     return () => {
       active = false;
@@ -90,7 +96,7 @@ export function SpendingPage() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setError("");
+    setError(null);
     setSelected([]);
     void spendingClient
       .rows(query)
@@ -99,7 +105,7 @@ export function SpendingPage() {
       })
       .catch((e) => {
         if (active) {
-          setError(e.message);
+          setError(describeUiError(e, "spendingRead"));
           setResult(undefined);
         }
       })
@@ -112,7 +118,7 @@ export function SpendingPage() {
   }, [query, revision]);
   async function bulk(tagOnly: boolean) {
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       await spendingClient.bulkRows({
         ids: selected,
@@ -120,7 +126,7 @@ export function SpendingPage() {
       });
       refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "批量修改失败。");
+      setError(describeUiError(e, "spendingSave"));
     } finally {
       setBusy(false);
     }
@@ -128,13 +134,13 @@ export function SpendingPage() {
   return (
     <section className="spending-workspace">
       <div className="spending-toolbar">
-        <p>银行交易、收入与消费。不同币种分别统计。</p>
+        <p>{translate("intro")}</p>
         <div className="spending-actions">
           <button
             className="primary-button"
             onClick={() => observeAsync(navigate("/daily-expense/import?" + params.toString()))}
           >
-            {admin ? "导入 CSV / PDF" : "导入记录"}
+            {admin ? translate("importFiles") : translate("importHistory")}
           </button>
           {admin && (
             <button
@@ -144,26 +150,26 @@ export function SpendingPage() {
                 setDrawer("row");
               }}
             >
-              手动新增
+              {translate("addManual")}
             </button>
           )}
           <button
             className="secondary-button"
             onClick={() => setDrawer("accounts")}
           >
-            收支账户
+            {translate("accounts")}
           </button>
         </div>
       </div>
-<form onSubmit={event => { event.preventDefault(); filters.apply(); }}><DatePresets onChange={filters.change} /><div className="filter-bar"><label>开始日期<input type="date" value={filters.draft.get("from") ?? ""} onChange={e => filters.change({from:e.target.value,month:""})} /></label><label>结束日期<input type="date" value={filters.draft.get("to") ?? ""} onChange={e => filters.change({to:e.target.value,month:""})} /></label></div>      <div className="filter-bar spending-filters">
+<form onSubmit={event => { event.preventDefault(); filters.apply(); }}><DatePresets onChange={filters.change} /><div className="filter-bar"><label>{cashflow("fromDate")}<input type="date" value={filters.draft.get("from") ?? ""} onChange={e => filters.change({from:e.target.value,month:""})} /></label><label>{cashflow("toDate")}<input type="date" value={filters.draft.get("to") ?? ""} onChange={e => filters.change({to:e.target.value,month:""})} /></label></div>      <div className="filter-bar spending-filters">
 
         <label>
-          账户
+          {translate("account")}
           <select
             value={filters.draft.get("accountId") ?? ""}
             onChange={(e) => filters.change({ accountId: e.target.value, accountNumberLast4: "", counterpartyAccountLast4: "" })}
           >
-            <option value="">全部账户</option>
+            <option value="">{translate("allAccounts")}</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
@@ -172,21 +178,21 @@ export function SpendingPage() {
           </select>
         </label>
         <label>
-          统计归类
+          {translate("classification")}
           <select
             value={filters.draft.get("classification") ?? ""}
             onChange={(e) => filters.change({ classification: e.target.value })}
           >
-            <option value="">全部</option>
+            <option value="">{translate("all")}</option>
             {SPENDING_CLASSES.map((c) => (
               <option key={c} value={c}>
-                {SPENDING_CLASS_LABELS[c]}
+                {translate(`classifications.${c}`)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          标签
+          {translate("tag")}
           <select
             value={
               filters.draft.get("untagged") === "true"
@@ -204,8 +210,8 @@ export function SpendingPage() {
               })
             }
           >
-            <option value="">全部标签</option>
-            <option value="__untagged">未分类</option>
+            <option value="">{translate("allTags")}</option>
+            <option value="__untagged">{translate("untagged")}</option>
             {tags.map((t) => (
               <option key={t} value={`tag:${t}`}>
                 {t}
@@ -214,33 +220,33 @@ export function SpendingPage() {
           </select>
         </label>
           <label>
-            描述关键词
+            {translate("descriptionSearch")}
             <input
               value={filters.draft.get("q") ?? ""}
               onChange={(e) => filters.change({ q: e.target.value })}
             />
           </label>
       </div>
-      <details className="spending-more-filters"><summary>更多筛选（{["currency", "accountNumberLast4", "counterpartyAccountLast4", "statementId"].filter(key => q.has(key)).length}）</summary><div className="filter-bar">
-        {([ ["accountNumberLast4", "本方账号后四位"], ["counterpartyAccountLast4", "对方账号后四位"] ] as const).map(([key, label]) => (
+      <details className="spending-more-filters"><summary>{translate("moreFilters", { count: ["currency", "accountNumberLast4", "counterpartyAccountLast4", "statementId"].filter(key => q.has(key)).length })}</summary><div className="filter-bar">
+        {([ ["accountNumberLast4", translate("ownSuffix")], ["counterpartyAccountLast4", translate("counterpartySuffix")] ] as const).map(([key, label]) => (
           <label key={key}>{label}
             <select value={filters.draft.get(key) ?? ""} onChange={e => filters.change({ [key]: e.target.value })}>
-              <option value="">全部</option>
+              <option value="">{translate("all")}</option>
               {options[key].map(suffix => <option key={suffix} value={suffix}>{suffix}</option>)}
             </select>
           </label>
         ))}
 
-<label>币种<select value={filters.draft.get("currency") ?? ""} onChange={e => filters.change({currency:e.target.value})}><option value="">全部币种</option>{SPENDING_CURRENCIES.map(c => <option key={c}>{c}</option>)}</select></label>
-{filters.draft.get("statementId") && <button type="button" onClick={() => filters.change({statementId:""})}>取消指定导入筛选</button>}
-</div></details><div className="spending-actions"><button type="submit" className="primary-button">查询</button><button type="button" onClick={() => filters.apply(true)}>重置</button></div></form>
+<label>{cashflow("currency")}<select value={filters.draft.get("currency") ?? ""} onChange={e => filters.change({currency:e.target.value})}><option value="">{cashflow("allCurrencies")}</option>{SPENDING_CURRENCIES.map(c => <option key={c}>{c}</option>)}</select></label>
+{filters.draft.get("statementId") && <button type="button" onClick={() => filters.change({statementId:""})}>{translate("clearStatementFilter")}</button>}
+</div></details><div className="spending-actions"><button type="submit" className="primary-button">{cashflow("search")}</button><button type="button" onClick={() => filters.apply(true)}>{cashflow("reset")}</button></div></form>
       {error && (
         <p className="form-error" role="alert">
-          {error}
+          {translateUiError(error, language)}
         </p>
       )}
       {loading ? (
-        <p role="status">正在查询交易…</p>
+        <p role="status">{translate("querying")}</p>
       ) : (
         result && (
           <>
@@ -249,16 +255,16 @@ export function SpendingPage() {
                 <div className="spending-total-line" key={t.currency}>
                   <strong>{t.currency}</strong>
                   <span>
-                    收入 <b>{money(t.income)}</b>
+                    {translate("income")} <b>{money(t.income)}</b>
                   </span>
                   <span>
-                    消费 <b>{money(t.gross_spending)}</b>
+                    {translate("grossSpending")} <b>{money(t.gross_spending)}</b>
                   </span>
                   <span>
-                    退款/返现 <b>{money(t.refunds)}</b>
+                    {translate("refunds")} <b>{money(t.refunds)}</b>
                   </span>
                   <span>
-                    净消费 <b>{money(t.net_spending)}</b>
+                    {translate("netSpending")} <b>{money(t.net_spending)}</b>
                   </span>
                   <button
                     className="spending-text-button"
@@ -266,13 +272,13 @@ export function SpendingPage() {
                       filter({ classification: "review", currency: t.currency })
                     }
                   >
-                    待确认 {t.pending_count} 条
+                    {translate("pendingRows", { count: t.pending_count })}
                   </button>
                 </div>
               ))}
             </div>
             <p className="spending-hint">
-              仅统计已录入并归类的交易。转账和待确认记录不计入收入或消费；退款/返现按发生月份抵扣。导出日期范围不代表数据完整。
+              {translate("coverageHint")}
             </p>
             {!!result.rows.length && (
               <SpendingCharts result={result} onFilter={filter} />
@@ -282,16 +288,16 @@ export function SpendingPage() {
                 disabled={busy}
                 className="spending-actions spending-bulk"
               >
-                <span>已选 {selected.length} 条</span>
+                <span>{translate("selectedRows", { count: selected.length })}</span>
                 <select
-                  aria-label="批量统计归类"
+                  aria-label={translate("bulkClassification")}
                   value={bulkClass}
                   onChange={(e) => setBulkClass(e.target.value)}
                 >
-                  <option value="">选择归类</option>
+                  <option value="">{translate("chooseClassification")}</option>
                   {SPENDING_CLASSES.map((c) => (
                     <option key={c} value={c}>
-                      {SPENDING_CLASS_LABELS[c]}
+                      {translate(`classifications.${c}`)}
                     </option>
                   ))}
                 </select>
@@ -300,11 +306,11 @@ export function SpendingPage() {
                   disabled={!selected.length || !bulkClass}
                   onClick={() => observeAsync(bulk(false))}
                 >
-                  应用归类
+                  {translate("applyClassification")}
                 </button>
                 <input
-                  aria-label="批量标签"
-                  placeholder="标签（留空清除）"
+                  aria-label={translate("bulkTag")}
+                  placeholder={translate("tagPlaceholder")}
                   maxLength={80}
                   value={bulkTag}
                   onChange={(e) => setBulkTag(e.target.value)}
@@ -314,7 +320,7 @@ export function SpendingPage() {
                   disabled={!selected.length}
                   onClick={() => observeAsync(bulk(true))}
                 >
-                  应用标签
+                  {translate("applyTag")}
                 </button>
               </fieldset>
             )}
@@ -326,7 +332,7 @@ export function SpendingPage() {
                       <th>
                         <input
                           type="checkbox"
-                          aria-label="选择本页全部交易"
+                          aria-label={translate("selectAllRows")}
                           checked={
                             !!result.rows.length &&
                             selected.length === result.rows.length
@@ -341,14 +347,14 @@ export function SpendingPage() {
                         />
                       </th>
                     )}
-                    <th>日期</th>
-                    <th>金额</th>
-                    <th>账户</th>
-                    <th>本方账号后四位</th>
-                    <th>对方户名</th>
-                    <th>描述</th>
-                    <th>统计归类</th>
-                    <th>标签</th>
+                    <th>{cashflow("date")}</th>
+                    <th>{cashflow("amount")}</th>
+                    <th>{translate("account")}</th>
+                    <th>{translate("ownSuffix")}</th>
+                    <th>{translate("counterparty")}</th>
+                    <th>{translate("description")}</th>
+                    <th>{translate("classification")}</th>
+                    <th>{translate("tag")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -358,7 +364,7 @@ export function SpendingPage() {
                         <td>
                           <input
                             type="checkbox"
-                            aria-label={`选择 ${r.description}`}
+                            aria-label={translate("selectRow", { description: r.description })}
                             checked={selected.includes(r.id)}
                             onChange={(e) =>
                               setSelected((old) =>
@@ -370,7 +376,7 @@ export function SpendingPage() {
                           />
                         </td>
                       )}
-                      <td>{r.transaction_date}</td>
+                      <td>{formatCalendarDate(r.transaction_date, "—", language)}</td>
                       <td className="numeric-cell">
                         {r.currency} {money(r.amount)}
                       </td>
@@ -389,14 +395,14 @@ export function SpendingPage() {
                         </button>
                       </td>
 
-                      <td>{SPENDING_CLASS_LABELS[r.classification]}</td>
-                      <td>{r.tag ?? "未分类"}</td>
+                      <td>{translate(`classifications.${r.classification}`)}</td>
+                      <td>{r.tag ?? translate("untagged")}</td>
                     </tr>
                   ))}
                   {!result.rows.length && (
                     <tr>
                       <td colSpan={admin ? 9 : 8}>
-                        没有符合条件的已录入交易。
+                        {translate("emptyRows")}
                       </td>
                     </tr>
                   )}

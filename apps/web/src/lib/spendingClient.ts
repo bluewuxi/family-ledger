@@ -11,13 +11,19 @@ import type {
 } from "@family-ledger/shared";
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from "./apiClient";
 const root = "/spending";
+export class StatementUploadError extends Error {
+  constructor(readonly reason: "csvInvalid" | "pdfInvalid" | "uploadFailed") {
+    super(reason);
+  }
+}
+
 async function upload(id: string, file: File, kind: "csv" | "pdf") {
   const max = kind === "csv" ? 2 : 10;
   if (
     !file.name.toLowerCase().endsWith(`.${kind}`) ||
     file.size > max * 1024 * 1024
   )
-    throw new Error(`请选择不超过 ${max} MiB 的 ${kind.toUpperCase()} 文件。`);
+    throw new StatementUploadError(kind === "csv" ? "csvInvalid" : "pdfInvalid");
   const digest = await crypto.subtle.digest(
     "SHA-256",
     await file.arrayBuffer(),
@@ -36,8 +42,12 @@ async function upload(id: string, file: File, kind: "csv" | "pdf") {
   const form = new FormData();
   Object.entries(result.fields).forEach(([k, v]) => form.append(k, v));
   form.append("file", file);
-  const response = await fetch(result.url, { method: "POST", body: form });
-  if (!response.ok) throw new Error("文件上传失败，请重试。");
+  try {
+    const response = await fetch(result.url, { method: "POST", body: form });
+    if (!response.ok) throw new StatementUploadError("uploadFailed");
+  } catch {
+    throw new StatementUploadError("uploadFailed");
+  }
   return result.key;
 }
 export const spendingClient = {

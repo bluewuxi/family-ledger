@@ -17,7 +17,7 @@ type SpendingTable =
   | "statement_rows";
 const batchColumns: string =
   "id,account_id,account_name,status,created_at,expires_at,encoding,parser_version,csv_file_key,csv_file_version,csv_file_name,csv_sha256,source_file_key,source_file_version,source_file_name,source_file_size,file_sha256,row_count,total_count,cancelled_at,edited_count,imported_count,skipped_count,rejected_count,date_from,date_to,preview_token";
-export function checkSpendingError(error: { code?: string } | null): void {
+export function checkSpendingError(error: { code?: string } | null, operation?: string): void {
   if (!error) return;
   logDependencyError("spendingRepository.operation", error, ["23505", "23503", "23514"]);
   if (error.code === "23505")
@@ -25,6 +25,7 @@ export function checkSpendingError(error: { code?: string } | null): void {
       "CONFLICT",
       "文件已导入或记录重复，请刷新导入记录。",
       409,
+      operation === "commit_spending_import" ? { kind: "workflow", reason: "STATEMENT_DUPLICATE" } : undefined,
     );
   if (error.code === "23503")
     throw new ApiRequestError(
@@ -184,7 +185,7 @@ export async function spendingRpc<T>(
 ): Promise<T> {
   const db = await getSupabaseAdmin();
   const { data, error } = await db.rpc(name, args);
-  checkSpendingError(error);
+  checkSpendingError(error, name);
   return data as T;
 }
 export async function getStatement(id: string): Promise<AccountStatement> {

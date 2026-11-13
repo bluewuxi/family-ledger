@@ -4,7 +4,7 @@ This document owns shared UI language, responsive layout, and navigation convent
 
 ## Language and terminology
 
-The [internationalization contract](specs/ui-internationalization.md) owns typed resources and the loopback-development-only preview. Phase 2 migrates authentication, shell/shared controls and the group-maintenance pilot in local preview. Phase 3 migrates investment workflow bodies and chart presentation. Other workflow bodies remain deferred. Ordinary builds remain Chinese. Preserve stable IDs, drafts, overlays and requests when translating presentation; use semantic error descriptors and whole sentences. Native departure prompts translate at invocation; pilot delete/reload dialogs retranslate while open.
+The [internationalization contract](specs/ui-internationalization.md) owns typed resources and the loopback-development-only preview. Phase 2 migrates authentication, shell/shared controls and the group-maintenance pilot in local preview. Phase 3 migrates investment workflow bodies and chart presentation. Phase 4 migrates family cashflow, statement imports, Settings, maintenance and About. Ordinary builds remain Chinese. Preserve stable IDs, drafts, overlays and requests when translating presentation; use semantic error descriptors and whole sentences. Native departure prompts translate at invocation; pilot delete/reload dialogs retranslate while open.
 
 The UI uses Simplified Chinese and the product names `金财屋` / `Family Ledger`. Preserve established labels such as 登录, 财富足迹, 投资账户, 投资标的, 交易记录, 持仓总览, 设置, 总资产, 最新变动, 未实现收益, and 账户数量. Follow the relevant specification for metric-specific wording rather than substituting a similar financial term.
 

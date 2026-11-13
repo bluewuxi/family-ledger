@@ -1,3 +1,7 @@
+import { useTranslation } from "react-i18next";
+import { useUiLanguage } from "../../i18n/LanguageProvider";
+import { getUiLanguage, i18n } from "../../i18n/instance";
+import { describeStatementError, formatStatementRowError, formatStatementWarnings, translateStatementError, type StatementAction, type StatementError } from "../../i18n/statementMessages";
 import { LoadingState } from "../LoadingState";
 import { useEventCallback } from "../../lib/useEventCallback";
 import { commitStatementWithRecovery, isDefinitiveStatementRejection, type StatementCommitAttempt } from "../../lib/statementCommit";
@@ -5,7 +9,6 @@ import { observeAsync } from "../../lib/observeAsync";
 import { useEffect, useRef, useState } from "react";
 import {
   SPENDING_CLASSES,
-  SPENDING_CLASS_LABELS,
   SPENDING_ENCODINGS,
   type AccountStatement,
   type SpendingAccount,
@@ -18,18 +21,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useWorkflowDeparture } from "../../lib/useWorkflowDeparture";
 import { PaginationControls } from "../PaginationControls";
 import { spendingClient } from "../../lib/spendingClient";
-import { formatLocalDateTimeNote } from "../../lib/timeFormat";
-const statusLabels = {
-  draft: "待上传",
-  cancelled: "已取消",
-  preview: "待确认",
-  committed: "已导入",
-  undone: "已撤销",
-  document: "PDF 附件",
-};
-function importCounts(batch: AccountStatement) {
-  return `已导入 ${batch.imported_count} / ${batch.total_count === null ? "总记录待解析" : "总记录 " + batch.total_count}，跳过 ${batch.skipped_count} 条，错误 ${batch.rejected_count} 条，目前保留 ${batch.row_count} 条。`;
-}
+import { formatCalendarDate, formatLocalDateTimeNote } from "../../lib/timeFormat";
+type StatementNotice = { kind: "cancelled" } | { kind: "completed"; batch: AccountStatement };
 export function SpendingImportWorkspace({
   accounts,
   admin,
@@ -41,6 +34,26 @@ export function SpendingImportWorkspace({
   onSaved: () => void;
   onViewRows: (id: string) => void;
 }) {
+  const { t } = useTranslation("spendingImport");
+  const { t: tSpending } = useTranslation("spending");
+  const { language } = useUiLanguage();
+  const currentText = () => i18n.getFixedT(getUiLanguage(), "spendingImport");
+  const localDate = (value: string) => formatCalendarDate(value, "—", language);
+  const localTime = (value: string) => formatLocalDateTimeNote(value, "—", language);
+  const importCounts = (record: AccountStatement) => {
+    const counts = {
+      imported: record.imported_count,
+      skipped: record.skipped_count,
+      rejected: record.rejected_count,
+      remaining: record.row_count,
+    };
+    return record.total_count === null
+      ? t("countsUnparsed", counts)
+      : t("counts", { ...counts, total: record.total_count });
+  };
+  const importedRange = (record: AccountStatement) => record.date_from && record.date_to
+    ? t("savedRange", { from: localDate(record.date_from), to: localDate(record.date_to) })
+    : t("noSavedRange");
   const { statementId } = useParams();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -62,8 +75,8 @@ export function SpendingImportWorkspace({
     [choices, setChoices] = useState<SpendingImportDecision[]>([]),
     [page, setPage] = useState(0),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [message, setMessage] = useState("");
+    [error, setError] = useState<StatementError | null>(null),
+    [message, setMessage] = useState<StatementNotice | null>(null);
   useEffect(() => {
     let active = true;
     void spendingClient
@@ -72,7 +85,7 @@ export function SpendingImportWorkspace({
         if (active) setList(r);
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active) setError(describeStatementError(e, "read"));
       });
     return () => {
       active = false;
@@ -105,20 +118,20 @@ export function SpendingImportWorkspace({
     if (!statementId) { if (loadedId.current) { loadedId.current = undefined; setBatch(undefined); setKey(""); setFile(undefined); setChoices([]); commitAttempt.current = null; setUncertain(false); } return; }
     if (loadedId.current === statementId) return;
     let active = true;
-    setBusy(true); setBatch(undefined); setError("");
+    setBusy(true); setBatch(undefined); setError(null);
     spendingClient.statement(statementId).then(b => { if (active) select(b, false); })
-      .catch(e => { if (active) setError(e instanceof Error ? e.message : "导入记录不可用。"); })
+      .catch(e => { if (active) setError(describeStatementError(e, "read")); })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
   }, [statementId, select]);
-  async function act(work: () => Promise<void>) {
+  async function act(work: () => Promise<void>, action: StatementAction = "save") {
     setBusy(true);
-    setError("");
-    setMessage("");
+    setError(null);
+    setMessage(null);
     try {
       await work();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "操作失败。");
+      setError(describeStatementError(e, action));
     } finally {
       setBusy(false);
     }
@@ -140,7 +153,7 @@ export function SpendingImportWorkspace({
       setKey(k);
       setFile(undefined);
     }
-    if (!k) throw new Error("请选择 CSV 文件。");
+    if (!k) { setError({ kind: "local", key: "csvRequired" }); return; }
     select(await spendingClient.preview(b.id, k, encoding || undefined));
     refreshed();
   }
@@ -157,26 +170,29 @@ export function SpendingImportWorkspace({
       : spendingClient.csvUrl(batch.id));
     window.open(url, "_blank", "noopener,noreferrer");
   }
-  if (statementId && !batch) return <section>{error ? <><p role="alert" className="form-error">{error}</p><p>导入记录不可用，请返回家庭收支重新选择记录，或新建导入。</p><button type="button" className="secondary-button" onClick={() => { internalNavigation.current = true; observeAsync(navigate("/daily-expense/import?" + params.toString(), { replace: true })); internalNavigation.current = false; }}>新建导入</button></> : <LoadingState label="正在加载导入记录" />}</section>;
+  const fileDates = batch?.status === "preview" ? batch.preview?.rows.map((row) => row.transaction_date).sort() : undefined;
+  const firstFileDate = fileDates?.[0];
+  const lastFileDate = fileDates?.at(-1);
+  if (statementId && !batch) return <section>{error ? <><p role="alert" className="form-error">{translateStatementError(error, language)}</p><p>{t("batchMissingHint")}</p><button type="button" className="secondary-button" onClick={() => { internalNavigation.current = true; observeAsync(navigate("/daily-expense/import?" + params.toString(), { replace: true })); internalNavigation.current = false; }}>{t("newImport")}</button></> : <LoadingState label={t("loadingBatch")} />}</section>;
   return (
-    <section className="import-workspace" aria-label="账单导入工作区">
-      <ol className="workflow-steps" aria-label="导入进度"><li aria-current={!batch || batch.status === "draft" ? "step" : undefined}>1 上传文件</li><li aria-current={batch?.status === "preview" ? "step" : undefined}>2 核对预览</li><li aria-current={batch?.status === "committed" ? "step" : undefined}>3 导入结果</li></ol>
+    <section className="import-workspace" aria-label={t("workspace")}>
+      <ol className="workflow-steps" aria-label={t("progress")}><li aria-current={!batch || batch.status === "draft" ? "step" : undefined}>{t("uploadStep")}</li><li aria-current={batch?.status === "preview" ? "step" : undefined}>{t("reviewStep")}</li><li aria-current={batch?.status === "committed" ? "step" : undefined}>{t("resultStep")}</li></ol>
       {error && (
         <p role="alert" className="form-error">
-          {error}
+          {translateStatementError(error, language)}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
-      {batch && !busy && !uncertain ? <button type="button" className="secondary-button" onClick={() => observeAsync(act(async () => { if (hasUnsavedInput && !window.confirm("重新加载将放弃未保存的文件或预览修改，确定继续？")) return; select(await spendingClient.statement(batch.id)); }))}>重新加载导入记录</button> : null}
-      {batch?.status === "preview" && Date.parse(batch.expires_at) <= Date.now() ? <p role="alert" className="form-warning">预览已过期，请重新预览后确认。</p> : null}
-      {uncertain && !busy ? <p role="alert" className="form-warning">尚未确认导入结果。已保留原预览与选择，可重试同一次确认；请勿新建导入。</p> : null}
+      {message && <p role="status">{message.kind === "completed" ? t("completed", { counts: importCounts(message.batch) }) : t("cancelNotice")}</p>}
+      {batch && !busy && !uncertain ? <button type="button" className="secondary-button" onClick={() => observeAsync(act(async () => { if (hasUnsavedInput && !window.confirm(currentText()("reloadPrompt"))) return; select(await spendingClient.statement(batch.id)); }, "read"))}>{t("reload")}</button> : null}
+      {batch?.status === "preview" && Date.parse(batch.expires_at) <= Date.now() ? <p role="alert" className="form-warning">{t("expired")}</p> : null}
+      {uncertain && !busy ? <p role="alert" className="form-warning">{t("uncertain")}</p> : null}
       <fieldset disabled={busy || uncertain} className="spending-form">
         {admin && (
           <>
             <button
               className="secondary-button"
               onClick={() => {
-                if ((file || batch?.status === "preview") && !window.confirm("放弃当前预览并新建导入？")) return;
+                if ((file || batch?.status === "preview") && !window.confirm(currentText()("newPrompt"))) return;
                 loadedId.current = undefined;
                 internalNavigation.current = true; observeAsync(navigate('/daily-expense/import?' + params.toString(), { replace: true })); internalNavigation.current = false;
                 setBatch(undefined);
@@ -186,16 +202,16 @@ export function SpendingImportWorkspace({
                 setEncoding("");
               }}
             >
-              新建导入
+              {t("newImport")}
             </button>
             <label>
-              账户
+              {t("account")}
               <select
                 disabled={!!batch}
                 value={account}
                 onChange={(e) => setAccount(e.target.value)}
               >
-                <option value="">请选择账户</option>
+                <option value="">{t("chooseAccount")}</option>
                 {accounts
                   .filter((a) => a.is_active || a.id === account)
                   .map((a) => (
@@ -210,7 +226,7 @@ export function SpendingImportWorkspace({
         {admin && (!batch || ["draft", "preview"].includes(batch.status)) && (
           <>
             <label>
-              CSV 文件（最大 2 MiB）
+              {t("csvField")}
               <input
                 type="file"
                 accept=".csv"
@@ -221,7 +237,7 @@ export function SpendingImportWorkspace({
               />
             </label>
             <label>
-              字符编码
+              {t("encoding")}
               <select
                 value={encoding}
                 onChange={(e) => {
@@ -229,7 +245,7 @@ export function SpendingImportWorkspace({
                   setChoices([]);
                 }}
               >
-                <option value="">自动识别</option>
+                <option value="">{t("detect")}</option>
                 {SPENDING_ENCODINGS.map((e) => (
                   <option key={e} value={e}>
                     {e === "gb18030" ? "GB18030 / GBK" : e.toUpperCase()}
@@ -240,53 +256,52 @@ export function SpendingImportWorkspace({
             <button
               className="primary-button"
               disabled={!account || (!file && !key)}
-              onClick={() => observeAsync(act(preview))}
+              onClick={() => observeAsync(act(preview, "preview"))}
             >
-              预览导入
+              {t("preview")}
             </button>
             <p className="spending-hint">
-              建行：年月日（YYYYMMDD）。BNZ：日/月/年（DD/MM/YY，2000–2099）。预览有效期
-              24 小时，确认前请核对日期和中文。
+              {t("bankHint")}
             </p>
           </>
         )}
         {batch && (
           <>
             <p>
-              {batch.csv_file_name ?? "附件记录"} · {statusLabels[batch.status]}{" "}
+              {batch.csv_file_name ?? t("attachmentRecord")} · {t(`status.${batch.status}`)}{" "}
               · {batch.encoding?.toUpperCase()}
             </p>
             <p className="spending-hint">
-              创建于 {formatLocalDateTimeNote(batch.created_at, "—")}
+              {t("createdAt", { time: localTime(batch.created_at) })}
             </p>
-            <p className="spending-hint">本次导入交易日期范围：{batch.date_from && batch.date_to ? batch.date_from + " 至 " + batch.date_to : "暂无已导入交易"}</p>
-            {batch.status === "preview" && batch.preview?.rows.length ? <p className="spending-hint">文件交易日期范围：{batch.preview.rows.map(r => r.transaction_date).sort()[0]} 至 {batch.preview.rows.map(r => r.transaction_date).sort().at(-1)}</p> : null}
+            <p className="spending-hint">{importedRange(batch)}</p>
+            {firstFileDate && lastFileDate ? <p className="spending-hint">{t("fileRange", { from: localDate(firstFileDate), to: localDate(lastFileDate) })}</p> : null}
             <p>
               {importCounts(batch)}
             </p>
             <div className="spending-actions">
               {admin && ["draft", "preview"].includes(batch.status) && (
                 <button className="secondary-button" onClick={() => observeAsync(act(async () => {
-                  if (!window.confirm("取消这次导入？导入历史会保留。")) return;
+                  if (!window.confirm(currentText()("cancelPrompt"))) return;
                   select(await spendingClient.cancel(batch.id));
                   setKey(""); setFile(undefined); setChoices([]);
-                  setMessage("导入已取消。"); refreshed();
-                }))}>取消导入</button>
+                  setMessage({ kind: "cancelled" }); refreshed();
+                }))}>{t("cancel")}</button>
               )}
               {admin && batch.csv_file_key && (
                 <button
                   className="secondary-button"
-                  onClick={() => observeAsync(act(() => openSource("csv")))}
+                  onClick={() => observeAsync(act(() => openSource("csv"), "read"))}
                 >
-                  下载原 CSV
+                  {t("downloadCsv")}
                 </button>
               )}
               {admin && batch.source_file_key && (
                 <button
                   className="secondary-button"
-                  onClick={() => observeAsync(act(() => openSource("pdf")))}
+                  onClick={() => observeAsync(act(() => openSource("pdf"), "read"))}
                 >
-                  查看 PDF
+                  {t("openPdf")}
                 </button>
               )}
               {batch.status === "committed" && (
@@ -294,7 +309,7 @@ export function SpendingImportWorkspace({
                   className="secondary-button"
                   onClick={() => onViewRows(batch.id)}
                 >
-                  查看交易
+                  {t("viewRows")}
                 </button>
               )}
               {admin && batch.status === "committed" && (
@@ -305,7 +320,7 @@ export function SpendingImportWorkspace({
                       const current = await spendingClient.statement(batch.id);
                       if (
                         !window.confirm(
-                          `撤销这次导入的 ${current.row_count} 条交易？其中 ${current.edited_count} 条导入后已修改。源文件及导入记录会保留。`,
+                          currentText()("undoPrompt", { rows: current.row_count, edited: current.edited_count }),
                         )
                       )
                         return;
@@ -315,10 +330,10 @@ export function SpendingImportWorkspace({
                       );
                       select(await spendingClient.statement(batch.id));
                       refreshed();
-                    }))
+                    }, "undo"))
                   }
                 >
-                  撤销导入
+                  {t("undo")}
                 </button>
               )}
             </div>
@@ -326,7 +341,7 @@ export function SpendingImportWorkspace({
         )}
         {admin && batch?.status !== "cancelled" && (
           <label>
-            添加 PDF 附件（可单独保存，不解析内容）
+            {t("pdfField")}
             <input
               type="file"
               accept=".pdf"
@@ -342,7 +357,7 @@ export function SpendingImportWorkspace({
                     await spendingClient.uploadPdf(b.id, pdf);
                     select(await spendingClient.statement(b.id));
                     refreshed();
-                  }));
+                  }, "attachment"));
               }}
             />
           </label>
@@ -352,56 +367,54 @@ export function SpendingImportWorkspace({
             className="secondary-button"
             onClick={() =>
               observeAsync(act(async () => {
-                if (!window.confirm("移除此 PDF 附件链接？源文件仍保留。"))
+                if (!window.confirm(currentText()("removePdfPrompt")))
                   return;
                 await spendingClient.removePdf(batch.id);
                 select(await spendingClient.statement(batch.id));
                 refreshed();
-              }))
+              }, "attachment"))
             }
           >
-            移除 PDF 链接
+            {t("removePdf")}
           </button>
         )}
       </fieldset>
       {batch?.status === "preview" && batch.preview && (
         <>
           <p>
-            识别 {batch.preview.rows.length} 条交易，
-            {batch.preview.errors.length}{" "}
-            条错误。重复候选默认跳过；相同金额的真实交易可以保留。
+            {t("previewSummary", { rows: batch.preview.rows.length, errors: batch.preview.errors.length })}
           </p>
           {batch.preview.warnings.length > 0 && (
             <details>
-              <summary>查看导入提示（{batch.preview.warnings.length}）</summary>
-              {batch.preview.warnings.map((w, i) => (
+              <summary>{t("warnings", { count: batch.preview.warnings.length })}</summary>
+              {formatStatementWarnings(batch.preview, language).map((w, i) => (
                 <p key={i}>{w}</p>
               ))}
             </details>
           )}
           {batch.preview.errors.length > 0 && (
             <div role="alert">
-              请修正原 CSV 后重新上传。
+              {t("fixCsv")}
               {batch.preview.errors.map((e) => (
                 <p key={e.row_number}>
-                  第 {e.row_number} 行：{e.message}
+                  {formatStatementRowError(e, language)}
                 </p>
               ))}
             </div>
           )}
-          <p className="spending-hint">左右滚动表格可查看统计归类和标签；上下滚动可查看其余交易。</p>
-          <div className="table-wrap spending-preview-scroll" role="region" aria-label="导入交易预览，可横向滚动" tabIndex={0}>
+          <p className="spending-hint">{t("scrollHint")}</p>
+          <div className="table-wrap spending-preview-scroll" role="region" aria-label={t("previewTable")} tabIndex={0}>
             <table className="spending-table">
               <thead>
                 <tr>
-                  <th>导入</th>
-                  <th>日期 / 原始行</th>
-                  <th>本方账号后四位</th>
-                  <th>对方户名</th>
-                  <th>描述</th>
-                  <th>金额</th>
-                  <th>统计归类</th>
-                  <th>标签</th>
+                  <th>{t("colImport")}</th>
+                  <th>{t("colDate")}</th>
+                  <th>{t("colSuffix")}</th>
+                  <th>{t("colCounterparty")}</th>
+                  <th>{t("colDescription")}</th>
+                  <th>{t("colAmount")}</th>
+                  <th>{t("colClass")}</th>
+                  <th>{t("colTag")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -415,7 +428,7 @@ export function SpendingImportWorkspace({
                         <td>
                           {d && (
                             <input
-                              aria-label={`导入第 ${r.row_number} 行`}
+                              aria-label={t("chooseRow", { row: r.row_number })}
                               type="checkbox"
                               disabled={!admin || busy || uncertain || batch.status !== "preview"}
                               checked={!d.skip}
@@ -429,11 +442,11 @@ export function SpendingImportWorkspace({
                             />
                           )}{" "}
                           {r.duplicate_count > 0 &&
-                            `已有 ${r.duplicate_count} 条相同候选`}
+                            t("duplicateCount", { count: r.duplicate_count })}
                         </td>
                         <td>
-                          {r.transaction_date}
-                          <br />第 {r.row_number} 行
+                          {localDate(r.transaction_date)}
+                          <br />{t("record", { row: r.row_number })}
                         </td>
                         <td>{r.account_number_last4 ?? "—"}</td>
                         <td>{r.counterparty_name ?? "—"}</td>
@@ -442,7 +455,7 @@ export function SpendingImportWorkspace({
                         <td>
                           {d ? (
                             <select
-                              aria-label={`第 ${r.row_number} 行统计归类`}
+                              aria-label={t("rowClass", { row: r.row_number })}
                               disabled={!admin || busy || uncertain || batch.status !== "preview"}
                               value={d.classification}
                               onChange={(e) =>
@@ -454,18 +467,18 @@ export function SpendingImportWorkspace({
                             >
                               {SPENDING_CLASSES.map((c) => (
                                 <option key={c} value={c}>
-                                  {SPENDING_CLASS_LABELS[c]}
+                                  {tSpending(`classifications.${c}`)}
                                 </option>
                               ))}
                             </select>
                           ) : (
-                            SPENDING_CLASS_LABELS[r.classification]
+                            tSpending(`classifications.${r.classification}`)
                           )}
                         </td>
                         <td>
                           {d && (
                             <input
-                              aria-label={`第 ${r.row_number} 行标签`}
+                              aria-label={t("rowTag", { row: r.row_number })}
                               maxLength={80}
                               disabled={!admin || busy || uncertain || batch.status !== "preview"}
                               value={d.tag ?? ""}
@@ -483,7 +496,7 @@ export function SpendingImportWorkspace({
           </div>
           <PaginationControls pagination={{ limit: 50, offset: page * 50, total: batch.preview.rows.length, hasMore: (page + 1) * 50 < batch.preview.rows.length }} loading={busy} onPageChange={offset => setPage(offset / 50)} />
           {admin && batch.status === "preview" && (
-            <div className="workflow-actions import-confirm-actions"><p>保留 {choices.filter(choice => !choice.skip).length} 条 · 跳过 {choices.filter(choice => choice.skip).length} 条 · 错误 {batch.preview.errors.length} 条</p><button
+            <div className="workflow-actions import-confirm-actions"><p>{t("confirmSummary", { kept: choices.filter(choice => !choice.skip).length, skipped: choices.filter(choice => choice.skip).length, errors: batch.preview.errors.length })}</p><button
               className="primary-button"
               disabled={
                 busy ||
@@ -503,17 +516,17 @@ export function SpendingImportWorkspace({
                     throw failure;
                   }
                   select(committed);
-                  setMessage(`导入完成。${importCounts(committed)}`);
+                  setMessage({ kind: "completed", batch: committed });
                   refreshed();
-                }))
+                }, "commit"))
               }
             >
-              {uncertain ? "重试本次确认" : `确认导入 ${choices.filter((c) => !c.skip).length} 条`}
+              {uncertain ? t("retryCommit") : t("confirm", { count: choices.filter((c) => !c.skip).length })}
             </button></div>
           )}
         </>
       )}
-      <h3>导入记录</h3>
+      <h3>{t("history")}</h3>
       <div className="spending-account-list">
         {list?.statements.map((b) => (
           <button
@@ -521,16 +534,16 @@ export function SpendingImportWorkspace({
             disabled={busy || uncertain}
             key={b.id}
             onClick={() =>
-              observeAsync(act(async () => { if (hasUnsavedInput && !window.confirm("放弃未保存的文件或预览修改？")) return; select(await spendingClient.statement(b.id)); }))
+              observeAsync(act(async () => { if (hasUnsavedInput && !window.confirm(currentText()("discardPrompt"))) return; select(await spendingClient.statement(b.id)); }, "read"))
             }
           >
             {b.account_name} ·{" "}
-            {b.csv_file_name ?? b.source_file_name ?? "待上传"} ·{" "}
-            {statusLabels[b.status]}
-            <br />本次导入交易日期范围：{b.date_from && b.date_to ? b.date_from + " 至 " + b.date_to : "暂无已导入交易"}
+            {b.csv_file_name ?? b.source_file_name ?? t("status.draft")} ·{" "}
+            {t(`status.${b.status}`)}
+            <br />{importedRange(b)}
             <br />{importCounts(b)}
             <br />
-            {formatLocalDateTimeNote(b.created_at, "—")}
+            {localTime(b.created_at)}
           </button>
         ))}
       </div>

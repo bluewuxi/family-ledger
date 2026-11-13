@@ -1,5 +1,5 @@
 import { investmentGroupRoute } from "./investmentGroupRoutes";
-import { parseInvestmentErrorDetails } from "@family-ledger/shared";
+import { parseApiErrorDetails } from "@family-ledger/shared";
 import { authRoute } from "./authRoutes";
 import { withAccountAccessRequest, requestAccountPolicy, isSelectedAccountRequest } from "../auth/accountAccessContext";
 import { readManagedAccountAccess, saveManagedAccountAccess } from "../services/accountAccessService";
@@ -430,7 +430,7 @@ async function routeRequest(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
     }
 
     if (error instanceof ApiRequestError) {
-      const details = parseInvestmentErrorDetails(error.details);
+      const details = parseApiErrorDetails(error.details);
       const response = failure({ code: error.code, message: error.message, ...(details ? { details } : {}) }, error.statusCode);
       if(error instanceof AuthFailure && error.retryAfter) response.headers = {...response.headers, "retry-after":String(error.retryAfter)};
       return response;

@@ -1,9 +1,12 @@
+import { useTranslation } from "react-i18next";
+import { spendingFormatKey } from "../../i18n/cashflowLabels";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../../i18n/uiErrors";
+import { useUiLanguage } from "../../i18n/LanguageProvider";
 import { observeAsync } from "../../lib/observeAsync";
 import { useState } from "react";
 import {
   SPENDING_CURRENCIES,
   SPENDING_FORMATS,
-  SPENDING_FORMAT_LABELS,
   type SpendingFormat,
   type SpendingAccount,
 } from "@family-ledger/shared";
@@ -21,6 +24,8 @@ export function SpendingAccountsDrawer({
   onClose,
   onSaved,
 }: Props) {
+  const { t: translate } = useTranslation("spending");
+  const { language } = useUiLanguage();
   const [id, setId] = useState<string>(),
     [form, setForm] = useState({
       name: "",
@@ -31,7 +36,7 @@ export function SpendingAccountsDrawer({
     });
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState<UiErrorDescriptor | null>(null);
   function reset() {
     setDirty(false);
     setId(undefined);
@@ -45,19 +50,19 @@ export function SpendingAccountsDrawer({
   }
   async function save() {
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       await spendingClient.saveAccount(form, id);
       onSaved();
       reset();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败。");
+      setError(describeUiError(e, "spendingSave"));
     } finally {
       setBusy(false);
     }
   }
   async function remove() {
-    if (!id || !window.confirm("删除此收支账户？已有账单的账户无法删除。"))
+    if (!id || !window.confirm(translate("confirmDeleteAccount")))
       return;
     setBusy(true);
     try {
@@ -65,7 +70,7 @@ export function SpendingAccountsDrawer({
       onSaved();
       reset();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "删除失败。");
+      setError(describeUiError(e, "spendingDelete"));
     } finally {
       setBusy(false);
     }
@@ -73,7 +78,7 @@ export function SpendingAccountsDrawer({
   return (
     <Drawer
       open
-      title="收支账户"
+      title={translate("accounts")}
       busy={busy}
       dirty={dirty}
       onClose={onClose}
@@ -85,7 +90,7 @@ export function SpendingAccountsDrawer({
             key={a.id}
             disabled={busy}
             onClick={() => {
-              if (dirty && !window.confirm("放弃未保存的账户修改？")) return;
+              if (dirty && !window.confirm(translate("confirmDiscardAccount"))) return;
               setDirty(false);
               setId(a.id);
               setForm({
@@ -97,24 +102,27 @@ export function SpendingAccountsDrawer({
               });
             }}
           >
-            {a.name} · {SPENDING_FORMAT_LABELS[a.source_format]} ·{" "}
-            {a.default_currency}
-            {!a.is_active ? " · 已停用" : ""}
+            {translate(a.is_active ? "accountSummary" : "accountStatus", {
+              account: a.name,
+              format: translate(spendingFormatKey(a.source_format)),
+              currency: a.default_currency,
+              status: translate("inactive"),
+            })}
           </button>
         ))}
       </div>
-      {!accounts.length && <p>暂无收支账户。</p>}
+      {!accounts.length && <p>{translate("emptyAccounts")}</p>}
       {error && (
         <p className="form-error" role="alert">
-          {error}
+          {translateUiError(error, language)}
         </p>
       )}
       {admin && (
         <>
-          <h3>{id ? "编辑账户" : "新建账户"}</h3>
+          <h3>{id ? translate("editAccount") : translate("newAccount")}</h3>
           <fieldset disabled={busy} className="spending-form" onChange={() => setDirty(true)}>
             <label>
-              账户名称
+              {translate("accountName")}
               <input
                 value={form.name}
                 maxLength={120}
@@ -122,7 +130,7 @@ export function SpendingAccountsDrawer({
               />
             </label>
             <label>
-              银行格式
+              {translate("bankFormat")}
               <select
                 value={form.source_format}
                 onChange={(e) =>
@@ -135,13 +143,13 @@ export function SpendingAccountsDrawer({
               >
                 {SPENDING_FORMATS.map((f) => (
                   <option key={f} value={f}>
-                    {SPENDING_FORMAT_LABELS[f]}
+                    {translate(spendingFormatKey(f))}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              账号/卡号后四位（可选）
+              {translate("optionalSuffix")}
               <input
                 value={form.identity_suffix}
                 maxLength={4}
@@ -151,10 +159,10 @@ export function SpendingAccountsDrawer({
               />{" "}
             </label>
             {form.source_format === "ccb_credit" && (
-              <p className="spending-hint">同一信用卡账单可包含多张卡，交易尾号按 CSV 每行读取，不限制为此处的卡号。</p>
+              <p className="spending-hint">{translate("creditSuffixHint")}</p>
             )}
             <label>
-              默认币种
+              {translate("defaultCurrency")}
               <select
                 value={form.default_currency}
                 onChange={(e) =>
@@ -174,22 +182,22 @@ export function SpendingAccountsDrawer({
                   setForm({ ...form, is_active: e.target.checked })
                 }
               />
-              启用账户
+              {translate("enableAccount")}
             </label>
             <div className="spending-actions">
               <button className="primary-button" onClick={() => observeAsync(save())}>
-                保存
+                {translate("save")}
               </button>
               {id && (
                 <>
                   <button className="secondary-button" onClick={reset}>
-                    新建账户
+                    {translate("newAccount")}
                   </button>
                   <button
                     className="secondary-button"
                     onClick={() => observeAsync(remove())}
                   >
-                    删除
+                    {translate("delete")}
                   </button>
                 </>
               )}

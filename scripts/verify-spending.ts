@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import iconv from "iconv-lite";
 import {
   bankDate,
+  boundSpendingPreviewDetails,
   decodeBankCsv,
   parseBankCsv,
   CSV_MAX_BYTES,
@@ -103,6 +104,7 @@ async function main() {
   }
   assert.equal(debit.rows[2].classification, "excluded");
   assert.equal(debit.warnings.length, 1);
+  assert.deepEqual(debit.warningDetails, [{ warningIndex: 0, detail: { reason: "extraFields", row: debit.rows[2].row_number } }]);
   assert.deepEqual(debit.rows[2].source_metadata.extra_fields, [
     "extra",
     "additional",
@@ -127,6 +129,20 @@ async function main() {
   const shortCredit = parseBankCsv(Buffer.from(fixtures.ccb_credit.replace(',"测试商店, 分店"', '')), account("ccb_credit"));
   assert.equal(shortCredit.errors.length, 1);
   assert.equal(shortCredit.errors[0].message, "列数与银行格式不符。");
+  assert.deepEqual(shortCredit.errors[0].detail, { reason: "wrongColumns" });
+  const invalidBankDate = parseBankCsv(Buffer.from(fixtures.bnz.replace("01/02/26", "31/02/26")), account("bnz"));
+  assert.deepEqual(invalidBankDate.errors[0].detail, { reason: "invalidBnzDate" });
+  const maximumPreview = 4 * 1024 * 1024;
+  const previewEnvelope: SpendingPreview = {
+    encoding: "utf-8",
+    parser_version: "fixture",
+    rows: [],
+    warnings: [""],
+    errors: [],
+  };
+  previewEnvelope.warnings[0] = "x".repeat(maximumPreview - Buffer.byteLength(JSON.stringify(previewEnvelope)));
+  const enriched = { ...previewEnvelope, warningDetails: [{ warningIndex: 0, detail: { reason: "bnzCurrency", currency: "NZD" } }] } satisfies SpendingPreview;
+  assert.deepEqual(boundSpendingPreviewDetails(enriched), previewEnvelope);
   for (const prefix of ["*", "  *", "\t * \t", "　**　"]) {
     for (const encoding of ["utf8", "gb18030", "utf16-le", "utf16-be"]) {
       const marked = parseBankCsv(
@@ -360,7 +376,7 @@ async function main() {
         batch = {
           ...batch,
           status: "preview",
-          preview: p.preview,
+          preview: JSON.parse(JSON.stringify(p.preview)) as SpendingPreview,
           preview_token: id,
           csv_file_key: key,
           csv_file_version: "exact-upload-version",
@@ -395,6 +411,7 @@ async function main() {
     );
     await previewCsv(id, { key }, actor, deps);
     assert.equal(batch.preview?.rows.length, 3);
+    assert.deepEqual(batch.preview?.warningDetails, [{ warningIndex: 0, detail: { reason: "bnzCurrency", currency: "NZD" } }]);
     const cs = batch.preview!.rows.map((r) => ({
       row_number: r.row_number,
       skip: false,
@@ -422,6 +439,7 @@ async function main() {
       }),
     );
     assert.equal(commitCount, 0);
+    if (batch.preview) delete batch.preview.warningDetails;
     await commitCsv(id, { token: id, choices: cs }, actor, deps);
     assert.equal(commitCount, 1);
     const pdfHash = createHash("sha256").update(pdf).digest("hex");

@@ -1,3 +1,8 @@
+import { useTranslation } from "react-i18next";
+import { useUiLanguage } from "../i18n/LanguageProvider";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../i18n/uiErrors";
+import { translateSnapshotWarning } from "../i18n/investmentWarnings";
+import { formatCalendarDate } from "../lib/timeFormat";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { getAppBusinessDate, shiftCalendarDateMonths, SNAPSHOT_DISPLAY_CURRENCIES, type Pagination, type PortfolioSnapshotSummary, type SnapshotComparison, type SnapshotDisplayCurrency } from "@family-ledger/shared";
 import { apiGet } from "../lib/apiClient";
@@ -14,6 +19,8 @@ interface SnapshotPage {
 }
 
 export function AssetSnapshotsTab({ refreshVersion = 0 }: { refreshVersion?: number }) {
+  const { t } = useTranslation("maintenance");
+  const { language, displayLocale } = useUiLanguage();
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [filters, setFilters] = useState(() => ({ from: shiftCalendarDateMonths(getAppBusinessDate(), -3), to: getAppBusinessDate(), currency: "NZD" as SnapshotDisplayCurrency }));
   const [activeFilters, setActiveFilters] = useState(filters);
@@ -22,7 +29,7 @@ export function AssetSnapshotsTab({ refreshVersion = 0 }: { refreshVersion?: num
   const [data, setData] = useState<SnapshotPage>({ snapshots: [], comparisons: {}, pagination: { offset: 0, limit: 20, total: 0, hasMore: false } });
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiErrorDescriptor | { key: "snapshotDatesInvalid" } | null>(null);
   const requestId = useRef(0);
   useEffect(() => {
     if (preferencesLoading || initialized) return;
@@ -37,33 +44,33 @@ export function AssetSnapshotsTab({ refreshVersion = 0 }: { refreshVersion?: num
     setLoading(true); setError(null);
     const query = new URLSearchParams({ ...activeFilters, purpose: "investment", limit: "20", offset: String(offset), order: "desc", includeComparison: "true" });
     void apiGet<SnapshotPage>(`/portfolio-snapshots?${query}`).then(result => { if (id === requestId.current) setData(result); })
-      .catch(reason => { if (id === requestId.current) setError(reason instanceof Error ? reason.message : "资产快照请求失败。"); })
+      .catch(reason => { if (id === requestId.current) setError(describeUiError(reason, "maintenanceRead")); })
       .finally(() => { if (id === requestId.current) setLoading(false); });
     const requests = requestId;
     return () => { requests.current++; };
   }, [initialized, activeFilters, offset, refresh, refreshVersion]);
   function apply(event: FormEvent) {
     event.preventDefault();
-    if (filters.from > filters.to) { setError("开始日期不能晚于结束日期。"); return; }
+    if (filters.from > filters.to) { setError({ key: "snapshotDatesInvalid" }); return; }
     setActiveFilters({ ...filters }); setOffset(0);
   }
   return <section className="data-maintenance-panel">
-    <div className="settings-section-header"><div><h2>资产快照</h2><p>净值变动包含资金进出，不等于投资盈利。比较基准为上一条已存快照，可能位于当前筛选范围之外。</p></div></div>
+    <div className="settings-section-header"><div><h2>{t("snapshots")}</h2><p>{t("snapshotIntro")}</p></div></div>
     <form className="snapshot-filters" onSubmit={apply}>
-      <label>开始日期<input type="date" required value={filters.from} onChange={event => setFilters({ ...filters, from: event.target.value })} /></label>
-      <label>结束日期<input type="date" required value={filters.to} onChange={event => setFilters({ ...filters, to: event.target.value })} /></label>
-      <CurrencySelect label="报告币种" options={SNAPSHOT_DISPLAY_CURRENCIES} value={filters.currency} onChange={currency => setFilters({ ...filters, currency })} />
-      <button className="secondary-button" disabled={loading} type="submit">查询</button>
-      <button className="secondary-button" disabled={loading} type="button" onClick={() => setRefresh(value => value + 1)}>刷新</button>
+      <label>{t("fromDate")}<input type="date" required value={filters.from} onChange={event => setFilters({ ...filters, from: event.target.value })} /></label>
+      <label>{t("toDate")}<input type="date" required value={filters.to} onChange={event => setFilters({ ...filters, to: event.target.value })} /></label>
+      <CurrencySelect label={t("snapshotReportCurrency")} options={SNAPSHOT_DISPLAY_CURRENCIES} value={filters.currency} onChange={currency => setFilters({ ...filters, currency })} />
+      <button className="secondary-button" disabled={loading} type="submit">{t("snapshotQuery")}</button>
+      <button className="secondary-button" disabled={loading} type="button" onClick={() => setRefresh(value => value + 1)}>{t("refresh")}</button>
     </form>
-    {error ? <p className="form-error">{error}</p> : null}
-    <div className="table-wrap"><table><thead><tr><th>快照日期</th><th className="numeric-cell">资产净值 ({activeFilters.currency})</th><th className="numeric-cell">较上一快照变动</th><th className="numeric-cell">变动比例</th><th>数据状态</th></tr></thead><tbody>
-      {loading ? <tr><td colSpan={5}><LoadingState label="正在加载资产快照" /></td></tr> : error ? <tr><td colSpan={5}>请求失败，请重试。</td></tr> : data.snapshots.length === 0 ? <tr><td colSpan={5}>暂无符合条件的资产快照。</td></tr> : data.snapshots.map(snapshot => {
+    {error ? <p className="form-error" role="alert">{error.key === "snapshotDatesInvalid" ? t(error.key) : translateUiError(error, language)}</p> : null}
+    <div className="table-wrap"><table><thead><tr><th>{t("snapshotDate")}</th><th className="numeric-cell">{t("snapshotNetAssets", { currency: activeFilters.currency })}</th><th className="numeric-cell">{t("snapshotChange")}</th><th className="numeric-cell">{t("snapshotChangePercent")}</th><th>{t("snapshotDataStatus")}</th></tr></thead><tbody>
+      {loading ? <tr><td colSpan={5}><LoadingState label={t("snapshotLoading")} /></td></tr> : error ? <tr><td colSpan={5}>{t("snapshotLoadFailed")}</td></tr> : data.snapshots.length === 0 ? <tr><td colSpan={5}>{t("snapshotEmpty")}</td></tr> : data.snapshots.map(snapshot => {
         const comparison = data.comparisons[snapshot.id];
-        return <tr key={snapshot.id}><td>{snapshot.snapshotDate}</td><td className="numeric-cell">{formatDisplayAmount(snapshot.marketValue)}</td>
-          <td className={`numeric-cell ${signedToneClass(comparison?.changeAmount, preferences.gainColorScheme, 3)}`}>{formatSignedDisplayAmount(comparison?.changeAmount)}<br /><small>基准 {comparison?.previousSnapshotDate ?? "--"}</small></td>
-          <td className={`numeric-cell ${signedToneClass(comparison?.changePct, preferences.gainColorScheme, 1)}`}>{comparison?.changePct == null ? "--" : `${formatSignedDisplayPercent(comparison.changePct)}%`}</td>
-          <td>{snapshot.isAvailable === false ? "等待数据修复，原记录暂不可用" : snapshot.warnings.length ? snapshot.warnings.map(warning => `${warning.instrumentShortName}：${warning.code === "MISSING_FX_RATE" ? "缺少汇率" : warning.code === "COST_BASIS_UNAVAILABLE" ? "成本不可用" : warning.code === "MISSING_LATEST_PRICE" ? "缺少价格" : "缺少前一价格"}`).join("；") : snapshot.marketValue === null ? "估值不可用" : "完整"}</td></tr>;
+        return <tr key={snapshot.id}><td>{formatCalendarDate(snapshot.snapshotDate, "--", language)}</td><td className="numeric-cell">{formatDisplayAmount(snapshot.marketValue, displayLocale)}</td>
+          <td className={`numeric-cell ${signedToneClass(comparison?.changeAmount, preferences.gainColorScheme, 3)}`}>{formatSignedDisplayAmount(comparison?.changeAmount, displayLocale)}<br /><small>{t("snapshotBaseline", { date: formatCalendarDate(comparison?.previousSnapshotDate ?? null, "--", language) })}</small></td>
+          <td className={`numeric-cell ${signedToneClass(comparison?.changePct, preferences.gainColorScheme, 1)}`}>{comparison?.changePct == null ? "--" : `${formatSignedDisplayPercent(comparison.changePct, displayLocale)}%`}</td>
+          <td>{snapshot.isAvailable === false ? t("snapshotWaitingForRepair") : snapshot.warnings.length ? new Intl.ListFormat(displayLocale).format(snapshot.warnings.map(warning => translateSnapshotWarning(warning, language))) : snapshot.marketValue === null ? t("snapshotValuationUnavailable") : t("snapshotComplete")}</td></tr>;
       })}
     </tbody></table></div>
     <PaginationControls pagination={data.pagination} loading={loading || error !== null} onPageChange={setOffset} />

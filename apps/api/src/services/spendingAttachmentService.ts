@@ -80,9 +80,9 @@ export function validatePdfBytes(
     bytes.length > MAX_STATEMENT_PDF_BYTES ||
     Buffer.from(bytes.subarray(0, 5)).toString("ascii") !== "%PDF-"
   )
-    invalid("文件不是有效的 PDF，或超过 10 MiB。");
+    invalid("文件不是有效的 PDF，或超过 10 MiB。", "STATEMENT_PDF_INVALID");
   if (createHash("sha256").update(bytes).digest("hex") !== expectedHash)
-    invalid("PDF 校验失败，请重新上传。");
+    invalid("PDF 校验失败，请重新上传。", "STATEMENT_PDF_VERIFY_FAILED");
 }
 export function validateAttachmentKey(id: string, key: unknown): string {
   const value = textValue(key, "文件编号", 200)!;
@@ -95,7 +95,7 @@ export function validateAttachmentKey(id: string, key: unknown): string {
   return value;
 }
 export async function beginStatementUpload(id: string, input: unknown) {
-  if ((await getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。");
+  if ((await getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。", "STATEMENT_ATTACHMENT_CANCELLED");
   const body = record(input),
     name = textValue(body.filename, "文件名", 180)!;
   if (!name.toLowerCase().endsWith(".pdf")) invalid("仅支持 PDF 文件。");
@@ -132,7 +132,7 @@ export async function finishStatementUpload(
   user: AuthenticatedUser,
   deps = attachmentDependencies,
 ) {
-  if ((await deps.getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。");
+  if ((await deps.getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。", "STATEMENT_ATTACHMENT_CANCELLED");
   const key = validateAttachmentKey(id, record(input).key),
     Bucket = bucket();
   try {
@@ -177,6 +177,7 @@ export async function finishStatementUpload(
       "VALIDATION_ERROR",
       "无法确认 PDF 上传，请重试；原附件保持不变。",
       400,
+      { kind: "workflow", reason: "STATEMENT_PDF_VERIFY_FAILED" },
     );
   }
 }
@@ -198,7 +199,7 @@ export async function removeStatementAttachment(
   id: string,
   user: AuthenticatedUser,
 ) {
-  if ((await getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。");
+  if ((await getStatement(uuid(id))).status === "cancelled") invalid("已取消的导入不能修改附件。", "STATEMENT_ATTACHMENT_CANCELLED");
   await saveSpendingRecord(
     "account_statements",
     id,

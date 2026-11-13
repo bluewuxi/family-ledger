@@ -3453,6 +3453,7 @@ tr.editing-row td {
 
 .about-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(34px, 5vw, 64px);
   padding-bottom: 32px;
 }
@@ -3511,13 +3512,18 @@ tr.editing-row td {
   white-space: nowrap;
 }
 
-.about-brand-emphasis {
+.about-brand-name:lang(en) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.about-brand-name .brand-name-emphasis {
   color: var(--color-brand-brown);
   font-size: inherit;
   text-shadow: 0 0 20px rgb(214 162 74 / 22%);
 }
 
-.about-brand-gold {
+.about-brand-name .brand-name-gold {
   color: var(--color-brand-gold);
   text-shadow:
     0 0 18px rgb(245 181 46 / 38%),

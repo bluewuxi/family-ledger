@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { useUiLanguage } from "../../i18n/LanguageProvider";
 import {
   BarChart,
   Bar,
@@ -13,6 +15,10 @@ import {
   type SpendingQueryResult,
 } from "@family-ledger/shared";
 import { formatSpendingAmount as money } from "../../lib/spendingFormat";
+
+const englishMonth = new Intl.DateTimeFormat("en-NZ", { month: "short", year: "numeric", timeZone: "UTC" });
+const seriesKeys = { income: "income", spending: "gross_spending", refunds: "refunds" } as const;
+
 export function SpendingCharts({
   result,
   onFilter,
@@ -20,7 +26,14 @@ export function SpendingCharts({
   result: SpendingQueryResult;
   onFilter: (v: Record<string, string>) => void;
 }) {
+  const { t: translate } = useTranslation("spending");
+  const { language } = useUiLanguage();
   const currentMonth = getLocalDateString().slice(0, 7);
+  function displayMonth(value: string | null) {
+    if (value === null) return "—";
+    if (language === "zh-CN" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
+    return englishMonth.format(new Date(`${value}-01T00:00:00Z`));
+  }
   return (
     <div className="spending-chart-stack">
       {result.totals.map((total) => {
@@ -39,6 +52,7 @@ export function SpendingCharts({
           income: Number(r.income),
           spending: Number(r.gross_spending),
           refunds: Number(r.refunds),
+          exact: r,
         }));
         function drillDown(entry: unknown, classification: string) {
           const month = (entry as { payload?: { month?: string } }).payload
@@ -54,9 +68,9 @@ export function SpendingCharts({
         }
         return (
           <section key={total.currency} className="spending-chart-section">
-            <h3>{total.currency} · 每月收支</h3>
+            <h3>{translate("monthlyTitle", { currency: total.currency })}</h3>
             <p className="spending-hint">
-              按交易日期；当月尚未结束。空缺月份表示没有已录入记录，不代表零消费。
+              {translate("monthlyHint")}
             </p>
             <div className="spending-chart">
               <ResponsiveContainer width="100%" height={280}>
@@ -65,26 +79,35 @@ export function SpendingCharts({
                   margin={{ left: 0, right: 12, top: 12, bottom: 8 }}
                 >
                   <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} tickFormatter={displayMonth} />
                   <YAxis width={64} tick={{ fontSize: 12 }} />
-                  <Tooltip />
+                  <Tooltip
+                    labelFormatter={label => typeof label === "string" ? displayMonth(label) : label}
+                    formatter={(_value, name, item) => {
+                      const row = (item.payload as (typeof data)[number] | undefined)?.exact;
+                      const series = item.dataKey;
+                      const key = typeof series === "string" && Object.hasOwn(seriesKeys, series)
+                        ? seriesKeys[series as keyof typeof seriesKeys] : undefined;
+                      return [key ? money(row?.[key]) : "—", name];
+                    }}
+                  />
                   <Legend />
                   <Bar
-                    name="收入"
+                    name={translate("income")}
                     dataKey="income"
                     fill="#357e70"
                     cursor="pointer"
                     onClick={(entry) => drillDown(entry, "income")}
                   />
                   <Bar
-                    name="消费"
+                    name={translate("grossSpending")}
                     dataKey="spending"
                     fill="#b78345"
                     cursor="pointer"
                     onClick={(entry) => drillDown(entry, "spending")}
                   />
                   <Bar
-                    name="退款/返现"
+                    name={translate("refunds")}
                     dataKey="refunds"
                     fill="#728aa8"
                     cursor="pointer"
@@ -94,16 +117,16 @@ export function SpendingCharts({
               </ResponsiveContainer>
             </div>
             <details>
-              <summary>每月金额与明细</summary>
+              <summary>{translate("monthlyDetail")}</summary>
               <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>月份</th>
-                      <th>收入</th>
-                      <th>消费</th>
-                      <th>退款/返现</th>
-                      <th>净消费</th>
+                      <th>{translate("month")}</th>
+                      <th>{translate("income")}</th>
+                      <th>{translate("grossSpending")}</th>
+                      <th>{translate("refunds")}</th>
+                      <th>{translate("netSpending")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -121,8 +144,7 @@ export function SpendingCharts({
                               })
                             }
                           >
-                            {r.label}
-                            {r.label === currentMonth ? "（未结束）" : ""}
+                            {r.label === currentMonth ? translate("currentMonth", { month: displayMonth(r.label) }) : displayMonth(r.label)}
                           </button>
                         </td>
                         <td>{money(r.income)}</td>
@@ -135,10 +157,9 @@ export function SpendingCharts({
                 </table>
               </div>
             </details>
-            <h3>标签占比 · {total.currency}</h3>
+            <h3>{translate("tagShareTitle", { currency: total.currency })}</h3>
             <p className="spending-hint">
-              分母为当前筛选内的消费总额 {money(total.gross_spending)}
-              ，包含未分类；退款/返现单独统计。
+              {translate("tagShareHint", { total: money(total.gross_spending) })}
             </p>
             {tags.map((r) => {
               const ratio =
@@ -146,7 +167,7 @@ export function SpendingCharts({
               return (
                 <button
                   className="spending-tag-bar"
-                  key={r.label ?? "__untagged"}
+                  key={r.label === null ? "untagged" : `tag:${r.label}`}
                   onClick={() =>
                     onFilter({
                       tag: r.label ?? "",
@@ -156,7 +177,7 @@ export function SpendingCharts({
                     })
                   }
                 >
-                  <span>{r.label ?? "未分类"}</span>
+                  <span>{r.label ?? translate("untagged")}</span>
                   <span>
                     {money(r.gross_spending)} · {ratio.toFixed(1)}%
                   </span>
@@ -166,7 +187,7 @@ export function SpendingCharts({
                 </button>
               );
             })}
-            {!tags.length && <p>没有已归类为消费的交易。</p>}
+            {!tags.length && <p>{translate("emptySpending")}</p>}
           </section>
         );
       })}

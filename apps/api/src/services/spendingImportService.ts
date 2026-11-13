@@ -22,7 +22,7 @@ import {
   classification,
   normalizeRow,
 } from "./spendingValidation";
-import { CSV_MAX_BYTES, parseBankCsv } from "./spendingCsvParser";
+import { boundSpendingPreviewDetails, CSV_MAX_BYTES, parseBankCsv } from "./spendingCsvParser";
 import { ApiRequestError } from "../utils/apiError";
 
 const client = new S3Client({});
@@ -72,7 +72,7 @@ export async function beginCsvUpload(id: string, input: unknown) {
     !["draft", "preview"].includes(batch.status) ||
     new Date(batch.expires_at).getTime() < Date.now()
   )
-    invalid("导入已结束或过期，请新建导入。");
+    invalid("导入已结束或过期，请新建导入。", "STATEMENT_BATCH_CLOSED");
   const body = record(input),
     filename = textValue(body.filename, "文件名", 180)!;
   if (!filename.toLowerCase().endsWith(".csv")) invalid("请选择 CSV 文件。");
@@ -117,7 +117,7 @@ export async function previewCsv(
   if (!new RegExp(`^statements/pending/${id}/[0-9a-f-]{36}\\.csv$`).test(key))
     invalid("文件不属于此导入。");
   if (!["draft", "preview"].includes(batch.status) || new Date(batch.expires_at).getTime() < Date.now())
-    invalid("导入已结束或过期，请新建导入。");
+    invalid("导入已结束或过期，请新建导入。", "STATEMENT_BATCH_CLOSED");
   const head = await deps.head(bucket(), key);
   if (
     !head.VersionId ||
@@ -129,7 +129,7 @@ export async function previewCsv(
   const bytes = await deps.read(bucket(), key, head.VersionId),
     hash = createHash("sha256").update(bytes).digest("hex");
   if (hash !== head.Metadata?.sha256 || !head.Metadata?.filename)
-    invalid("文件校验失败，请重新上传。");
+    invalid("文件校验失败，请重新上传。", "STATEMENT_UPLOAD_VERIFY_FAILED");
   const account = await deps.getAccount(batch.account_id);
   const preview = parseBankCsv(
     bytes,
@@ -147,7 +147,7 @@ export async function previewCsv(
   await deps.rpc("set_spending_preview", {
     batch_id: id,
     payload: {
-      preview,
+      preview: boundSpendingPreviewDetails(preview),
       key,
       version: head.VersionId,
       filename: Buffer.from(head.Metadata.filename, "base64").toString("utf8"),
@@ -172,7 +172,7 @@ export async function commitCsv(
     !batch.csv_file_key ||
     !batch.csv_file_version
   )
-    invalid("预览已变化，请重新加载。");
+    invalid("预览已变化，请重新加载。", "STATEMENT_PREVIEW_CHANGED");
   if (
     !Array.isArray(body.choices) ||
     body.choices.length !== batch.preview.rows.length
@@ -215,13 +215,13 @@ export async function commitCsv(
       };
     })
     .sort((a, b) => a.row_number - b.row_number);
-  if (batch.preview.errors.length) invalid("请修正 CSV 中的错误后重新上传。");
+  if (batch.preview.errors.length) invalid("请修正 CSV 中的错误后重新上传。", "STATEMENT_CSV_ERRORS");
   if (
     !["preview", "committed"].includes(batch.status) ||
     (batch.status !== "committed" &&
       new Date(batch.expires_at).getTime() < Date.now())
   )
-    invalid("导入预览已过期或已撤销。");
+    invalid("导入预览已过期或已撤销。", "STATEMENT_PREVIEW_EXPIRED");
   const key = `statements/${id}/${token}.csv`;
   const version =
     batch.status === "committed"

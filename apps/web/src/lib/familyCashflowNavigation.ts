@@ -1,8 +1,8 @@
 import { monthDateRange } from "./cashflowDates";
 export const familyCashflowTabs = [
-  { value: "spending", label: "日常交易" },
-  { value: "education", label: "教育收支" },
-  { value: "report", label: "收支查询" },
+  { value: "spending" },
+  { value: "education" },
+  { value: "report" },
 ] as const;
 export type FamilyCashflowTab = typeof familyCashflowTabs[number]["value"];
 const filterKeys: Record<FamilyCashflowTab, readonly string[]> = {

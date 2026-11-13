@@ -2,7 +2,7 @@
 
 **Status:** Approved
 
-Phase 1: locally implemented and validated; scoped foundation acceptance recorded. Phase 2: locally implemented and validated; Phase 2 local visual acceptance complete. See its [plan](2026-11-07-ui-internationalization-phase-2.md) and [evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phase 3: implemented locally with [validation and acceptance evidence](../releases/2026-11-10-ui-internationalization-phase-3.md). Phases 4–5: Not started.
+Phase 1: locally implemented and validated; scoped foundation acceptance recorded. Phase 2: locally implemented and validated; Phase 2 local visual acceptance complete. See its [plan](2026-11-07-ui-internationalization-phase-2.md) and [evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phase 3: implemented locally with [validation and acceptance evidence](../releases/2026-11-10-ui-internationalization-phase-3.md). Phase 4: implemented locally with [evidence](../releases/2026-11-13-ui-internationalization-phase-4.md). Phase 5: Not started.
 
 This is an overall roadmap, not a detailed implementation plan. The [approved design](../specs/2026-11-07-ui-internationalization-design.md) owns architectural decisions and acceptance boundaries. The user accepted both documents and authorized committing and pushing related documentation on 2026-11-07. The user subsequently approved the [Phase 1 detailed plan](2026-11-07-ui-internationalization-phase-1.md) and authorized inline implementation, validation and review only. See [local evidence](../releases/2026-11-07-ui-internationalization-phase-1.md); Phase 1 commit/push and automatic TEST delivery were subsequently authorized under [#136](https://github.com/bluewuxi/family-ledger/issues/136); Phase 2 implementation was subsequently authorized; its commit/push and automatic TEST monitoring were subsequently authorized under [issue #137](https://github.com/bluewuxi/family-ledger/issues/137); Later-phase delivery requires its own authorization.
 
@@ -33,6 +33,8 @@ Browser acceptance follows real user login/readiness and all five maintained vie
 ## Phase handoff and progress
 
 At each phase boundary record scope completed, changed contracts, actual validation evidence, remaining defects, deferred acceptance, glossary/resource conventions and prerequisites for the next phase. Link the corresponding detailed plan only when separately requested and created. Update this roadmap's phase status and [project roadmap](../roadmap.md) from evidence, not from planned work.
+
+The [Phase 4 detailed plan](2026-11-10-ui-internationalization-phase-4.md) was approved and implemented locally.
 
 New sessions must read this design/roadmap and inspect the current repository rather than relying solely on inherited conversation context. Apply [root instructions](../../AGENTS.md), [project workflow](../project-workflow.md) and [web instructions](../../apps/web/AGENTS.md); add [shared](../../packages/shared/AGENTS.md), [API](../../apps/api/AGENTS.md) and [scripts](../../scripts/AGENTS.md) guidance when those areas are affected. Follow all applicable maintained-source reading routes. Do not create branches/worktrees or expand delivery authorization implicitly.
 

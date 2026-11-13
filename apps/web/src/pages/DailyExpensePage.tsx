@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { SpendingPage } from "./SpendingPage";
@@ -11,6 +12,8 @@ export function LegacyCashflowRedirect({ tab }: { tab: "education" | "report" })
   return <Navigate replace to={familyCashflowLocation(tab, params)} />;
 }
 export function DailyExpensePage() {
+  const { t: translate } = useTranslation("cashflow");
+  const { t: translateNavigation } = useTranslation("navigation");
   const [params, setParams] = useSearchParams();
   const tab = getFamilyCashflowTab(params);
   const remembered = useRef<Partial<Record<FamilyCashflowTab, string>>>({});
@@ -32,9 +35,9 @@ export function DailyExpensePage() {
     return <Navigate replace to={familyCashflowLocation("spending", dates)} />;
   }
   return <>
-    <header className="page-header"><PageTitle route="/daily-expense">家庭收支</PageTitle></header>
-    <nav ref={navigation} className="spending-tabs" aria-label="家庭收支视图">
-      {familyCashflowTabs.map(item => <button key={item.value} type="button" aria-current={tab === item.value ? "page" : undefined} onClick={() => select(item.value)}>{item.label}</button>)}
+    <header className="page-header"><PageTitle route="/daily-expense">{translateNavigation("dailyExpense")}</PageTitle></header>
+    <nav ref={navigation} className="spending-tabs" aria-label={translate("views")}>
+      {familyCashflowTabs.map(item => <button key={item.value} type="button" aria-current={tab === item.value ? "page" : undefined} onClick={() => select(item.value)}>{translate(`tabs.${item.value}`)}</button>)}
     </nav>
     {tab === "spending" && <SpendingPage />}
     {tab === "education" && <EducationReservePage />}

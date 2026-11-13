@@ -4,6 +4,7 @@ import { parse } from "csv-parse/sync";
 import Decimal from "decimal.js";
 import {
   SPENDING_ENCODINGS,
+  SPENDING_CURRENCIES,
   accountLast4,
   sanitizeSpendingMetadata,
   type SpendingAccount,
@@ -11,12 +12,54 @@ import {
   type SpendingEncoding,
   type SpendingFormat,
   type SpendingPreview,
+  type SpendingPreviewErrorReason,
+  type SpendingPreviewWarning,
 } from "@family-ledger/shared";
 import { amount, dateValue, invalid } from "./spendingValidation";
+import { ApiRequestError } from "../utils/apiError";
 
 export const CSV_MAX_BYTES = 2 * 1024 * 1024;
 export const CSV_MAX_ROWS = 5000;
 export const PARSER_VERSION = "bank-csv-2";
+const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
+
+class RowParseError extends ApiRequestError {
+  constructor(message: string, readonly reason: SpendingPreviewErrorReason) {
+    super("VALIDATION_ERROR", message, 400);
+  }
+}
+
+function parseRowValue<T>(parse: () => T, reason: SpendingPreviewErrorReason): T {
+  try {
+    return parse();
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw new RowParseError(error.message, reason);
+    throw error;
+  }
+}
+
+function addWarning(preview: SpendingPreview, message: string, detail?: SpendingPreviewWarning): void {
+  if (detail) {
+    (preview.warningDetails ??= []).push({ warningIndex: preview.warnings.length, detail });
+  }
+  preview.warnings.push(message);
+}
+
+function legacyPreview(preview: SpendingPreview): SpendingPreview {
+  return {
+    encoding: preview.encoding,
+    parser_version: preview.parser_version,
+    rows: preview.rows,
+    errors: preview.errors.map(({ row_number, message }) => ({ row_number, message })),
+    warnings: preview.warnings,
+  };
+}
+
+export function boundSpendingPreviewDetails(preview: SpendingPreview): SpendingPreview {
+  return Buffer.byteLength(JSON.stringify(preview), "utf8") <= MAX_PREVIEW_BYTES
+    ? preview
+    : legacyPreview(preview);
+}
 const headers: Record<SpendingFormat, string[]> = {
   ccb_debit: [
     "记账日",
@@ -61,11 +104,11 @@ export function bankDate(raw: string, format: SpendingFormat): string {
   if (format === "bnz") {
     // Bank format is day/month/year, never locale guessing. This release accepts 2000–2099.
     const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec(raw);
-    if (!m) invalid("BNZ 日期须为 DD/MM/YY（2000–2099）。");
-    return dateValue(`20${m[3]}-${m[2]}-${m[1]}`);
+    if (!m) throw new RowParseError("BNZ 日期须为 DD/MM/YY（2000–2099）。", "invalidBnzDate");
+    return parseRowValue(() => dateValue(`20${m[3]}-${m[2]}-${m[1]}`), "invalidBnzDate");
   }
-  if (!/^\d{8}$/.test(raw)) invalid("建行日期须为 YYYYMMDD。");
-  return dateValue(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`);
+  if (!/^\d{8}$/.test(raw)) throw new RowParseError("建行日期须为 YYYYMMDD。", "invalidCcbDate");
+  return parseRowValue(() => dateValue(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`), "invalidCcbDate");
 }
 function table(text: string): string[][] {
   return parse(text, {
@@ -101,7 +144,7 @@ export function decodeBankCsv(
   if (override && !SPENDING_ENCODINGS.includes(override))
     invalid("字符编码无效。");
   if (override && bom && override !== bom)
-    invalid("选择的编码与文件 BOM 不一致。");
+    invalid("选择的编码与文件 BOM 不一致。", "STATEMENT_ENCODING_BOM_MISMATCH");
   const candidates: {
     encoding: SpendingEncoding;
     rows: string[][];
@@ -131,7 +174,7 @@ export function decodeBankCsv(
       "无法识别编码或银行格式，请检查账户格式、文件完整性，或手动选择编码。",
     );
   if (candidates.length > 1)
-    invalid("文件编码有多种可能，请选择 UTF-8、GB18030 或 UTF-16 后预览确认。");
+    invalid("文件编码有多种可能，请选择 UTF-8、GB18030 或 UTF-16 后预览确认。", "STATEMENT_ENCODING_AMBIGUOUS");
   return candidates[0];
 }
 function suggestion(
@@ -177,10 +220,14 @@ export function parseBankCsv(
   };
   const start = headerIndex(rows, account.source_format),
     format = account.source_format;
-  if (format === "bnz")
-    result.warnings.push(
+  if (format === "bnz") {
+    const currency = SPENDING_CURRENCIES.find((code) => code === account.default_currency);
+    addWarning(
+      result,
       "BNZ 日期按日/月/年解析，两位年份对应 2000–2099；币种使用账户设置，请核对。",
+      currency ? { reason: "bnzCurrency", currency } : undefined,
     );
+  }
   const debitIdentity = format === "ccb_debit" ? rows.slice(0, start).flat().find((v) => /账.*号/.test(v)) : undefined;
   const debitLast4 = accountLast4(debitIdentity) ?? account.identity_suffix;
   if (format === "ccb_debit" && account.identity_suffix && debitIdentity && accountLast4(debitIdentity) !== account.identity_suffix)
@@ -204,13 +251,15 @@ export function parseBankCsv(
         r.length < headers[format].length ||
         (format !== "ccb_debit" && r.length !== headers[format].length)
       )
-        invalid("列数与银行格式不符。");
+        throw new RowParseError("列数与银行格式不符。", "wrongColumns");
       const metadata: Record<string, string | string[]> = {};
       headers[format].forEach((h, j) => (metadata[h] = raw[j]));
       if (r.length > headers[format].length) {
         metadata.extra_fields = raw.slice(headers[format].length);
-        result.warnings.push(
+        addWarning(
+          result,
           `第 ${row_number} 行附加字段已保留，可在交易详情查看。`,
+          { reason: "extraFields", row: row_number },
         );
       }
       const date = bankDate(format === "ccb_debit" ? r[1] : r[0], format);
@@ -220,35 +269,35 @@ export function parseBankCsv(
       );
       let value: string, description: string, type: string;
       if (format === "ccb_debit") {
-        const debit = amount(r[3] || "0"),
-          credit = amount(r[4] || "0");
+        const debit = parseRowValue(() => amount(r[3] || "0"), "invalidAmount"),
+          credit = parseRowValue(() => amount(r[4] || "0"), "invalidAmount");
         if (
           new Decimal(debit).lt(0) ||
           new Decimal(credit).lt(0) ||
           (new Decimal(debit).gt(0) && new Decimal(credit).gt(0))
         )
-          invalid("收入/支出列须为非负金额且不能同时有金额。");
-        value = amount(new Decimal(credit).minus(debit).toFixed());
+          throw new RowParseError("收入/支出列须为非负金额且不能同时有金额。", "invalidDebitCredit");
+        value = parseRowValue(() => amount(new Decimal(credit).minus(debit).toFixed()), "invalidAmount");
         description = [r[7], r[10]].filter(Boolean).join(" · ");
-        if (r[9].length > 1000) invalid("对方户名过长。");
+        if (r[9].length > 1000) throw new RowParseError("对方户名过长。", "counterpartyTooLong");
         type = r[7];
         if (r[2] && !/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(r[2]))
-          invalid("交易时间无效。");
+          throw new RowParseError("交易时间无效。", "invalidTime");
       } else if (format === "ccb_credit") {
-        value = new Decimal(amount(r[5])).negated().toFixed();
+        value = new Decimal(parseRowValue(() => amount(r[5]), "invalidAmount")).negated().toFixed();
         description = r[6];
         type = r[3];
         metadata.card_number = r[2].replace(/^'/, "");
 
       } else {
-        value = amount(r[1]);
+        value = parseRowValue(() => amount(r[1]), "invalidAmount");
         description = [r[2], r[3], r[4], r[5]].filter(Boolean).join(" · ");
         type = r[6];
         if (
           account.identity_suffix &&
           !r[7].replace(/-/g, "").endsWith(account.identity_suffix)
         )
-          invalid("账号后四位与所选账户不符。");
+          throw new RowParseError("账号后四位与所选账户不符。", "suffixMismatch");
       }
       if (format !== "bnz") {
         const sourceCurrency = format === "ccb_debit" ? r[6] : r[4];
@@ -263,10 +312,10 @@ export function parseBankCsv(
           (mapped[sourceCurrency] ?? sourceCurrency) !==
           account.default_currency
         )
-          invalid("入账币种与账户币种不符。");
+          throw new RowParseError("入账币种与账户币种不符。", "currencyMismatch");
       }
       if (!description || description.length > 1000)
-        invalid("交易描述为空或过长。");
+        throw new RowParseError("交易描述为空或过长。", "invalidDescription");
       // A conservative candidate fingerprint: metadata distinctions retain same-day identical purchases.
       const identity =
         format === "ccb_debit"
@@ -306,11 +355,12 @@ export function parseBankCsv(
       result.errors.push({
         row_number,
         message: e instanceof Error ? e.message : "交易行无效。",
+        ...(e instanceof RowParseError ? { detail: { reason: e.reason } } : {}),
       });
     }
   }
   if (!result.rows.length && !result.errors.length) invalid("文件中没有交易。");
-  if (Buffer.byteLength(JSON.stringify(result), "utf8") > 4 * 1024 * 1024)
-    invalid("解析后的预览超过 4 MiB，请缩小导出范围。");
-  return result;
+  if (Buffer.byteLength(JSON.stringify(legacyPreview(result)), "utf8") > MAX_PREVIEW_BYTES)
+    invalid("解析后的预览超过 4 MiB，请缩小导出范围。", "STATEMENT_PREVIEW_TOO_LARGE");
+  return boundSpendingPreviewDetails(result);
 }

@@ -1,9 +1,11 @@
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type {
   AuthenticatedUser,
+  BackupFailureReasonCode,
   CurrencyCode,
   DataMaintenanceBackupRun,
   DataMaintenanceBackupSummary,
+  DataMaintenanceJobRun,
   DataMaintenanceRetrievalKind,
   DataMaintenanceRetrievalRequest,
   DataProviderRun,
@@ -69,7 +71,7 @@ export async function getDataMaintenanceInstrumentPrices(
   return toPaginatedResult(rows.items, rows.total, pagination.limit, pagination.offset);
 }
 
-export async function getDataMaintenanceJobRuns(query: Record<string, string | undefined>): Promise<PaginatedResult<JobRun>> {
+export async function getDataMaintenanceJobRuns(query: Record<string, string | undefined>): Promise<PaginatedResult<DataMaintenanceJobRun>> {
   const pagination = parsePagination(query);
   const rows = await listJobRuns({
     jobName: optionalSearchText(query.jobName),
@@ -154,6 +156,7 @@ export async function triggerDataMaintenanceRetrieval(
 }
 
 function toBackupRunDto(jobRun: JobRun): DataMaintenanceBackupRun {
+  const failureReasonCode = getBackupFailureReasonCode(jobRun);
   return {
     id: jobRun.id,
     status: jobRun.status,
@@ -162,18 +165,21 @@ function toBackupRunDto(jobRun: JobRun): DataMaintenanceBackupRun {
     finishedAt: jobRun.jobFinishedAt ?? null,
     durationSeconds: calculateDurationSeconds(jobRun.jobStartedAt, jobRun.jobFinishedAt),
     recordsInserted: Number.isFinite(jobRun.recordsInserted) ? jobRun.recordsInserted : null,
-    friendlyFailureReason: toFriendlyBackupFailureReason(jobRun)
+    friendlyFailureReason: toFriendlyBackupFailureReason(failureReasonCode),
+    ...(failureReasonCode ? { failureReasonCode } : {})
   };
 }
 
-function sanitizeJobRunForDataMaintenance(jobRun: JobRun): JobRun {
+function sanitizeJobRunForDataMaintenance(jobRun: JobRun): DataMaintenanceJobRun {
   if (jobRun.jobName !== BACKUP_LEDGER_JOB_NAME) {
     return jobRun;
   }
 
+  const failureReasonCode = getBackupFailureReasonCode(jobRun);
   return {
     ...jobRun,
-    errorMessage: toFriendlyBackupFailureReason(jobRun)
+    errorMessage: toFriendlyBackupFailureReason(failureReasonCode),
+    ...(failureReasonCode ? { failureReasonCode } : {})
   };
 }
 
@@ -191,12 +197,17 @@ function calculateDurationSeconds(startedAt: string | null, finishedAt: string |
   return Math.round((finishedMs - startedMs) / 1000);
 }
 
-function toFriendlyBackupFailureReason(jobRun: JobRun): string | null {
+function getBackupFailureReasonCode(jobRun: JobRun): BackupFailureReasonCode | undefined {
   if (jobRun.status !== "failed") {
-    return null;
+    return undefined;
   }
 
-  if (jobRun.errorMessage?.includes(backupBlockedByRunningJobCode)) {
+  return jobRun.errorMessage?.includes(backupBlockedByRunningJobCode) ? "blocked_by_running_job" : "failed";
+}
+
+function toFriendlyBackupFailureReason(reason: BackupFailureReasonCode | undefined): string | null {
+  if (!reason) return null;
+  if (reason === "blocked_by_running_job") {
     return "有批处理任务仍在运行，备份会稍后重试。";
   }
 

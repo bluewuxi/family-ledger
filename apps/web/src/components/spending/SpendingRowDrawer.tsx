@@ -1,9 +1,11 @@
+import { useTranslation } from "react-i18next";
+import { describeUiError, translateUiError, type UiErrorDescriptor } from "../../i18n/uiErrors";
+import { useUiLanguage } from "../../i18n/LanguageProvider";
 import { useEditDismissal } from "../../lib/useEditDismissal";
 import { observeAsync } from "../../lib/observeAsync";
 import { useState } from "react";
 import {
   SPENDING_CLASSES,
-  SPENDING_CLASS_LABELS,
   getLocalDateString,
   type SpendingAccount,
   type StatementRow,
@@ -26,6 +28,9 @@ export function SpendingRowDrawer({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t: translate } = useTranslation("spending");
+  const { t: cashflow } = useTranslation("cashflow");
+  const { language } = useUiLanguage();
   const [form, setForm] = useState({
     account_id: row?.account_id ?? accounts.find((a) => a.is_active)?.id ?? "",
     transaction_date: row?.transaction_date ?? getLocalDateString(),
@@ -36,17 +41,17 @@ export function SpendingRowDrawer({
     notes: row?.notes ?? "",
   });
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState<UiErrorDescriptor | null>(null);
   async function save(remove = false) {
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       if (remove && row) await spendingClient.deleteRow(row.id);
       else await spendingClient.saveRow(form, row?.id);
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败。");
+      setError(describeUiError(e, remove ? "spendingDelete" : "spendingSave"));
     } finally {
       setBusy(false);
     }
@@ -55,30 +60,30 @@ export function SpendingRowDrawer({
   return (
     <Drawer
       open
-      title={row ? "交易详情" : "手动新增交易"}
+      title={row ? translate("rowDetail") : translate("newRow")}
       busy={busy}
       onClose={requestDismiss}
     >
       {error && (
         <p role="alert" className="form-error">
-          {error}
+          {translateUiError(error, language)}
         </p>
       )}
       {row && <div className="spending-source-details">
-        <p>本方账号后四位：{row.account_number_last4 ?? "未提供"}</p>
-        <p>对方户名：{row.counterparty_name ?? "未提供"}</p>
-        <p>对方账号后四位：{row.counterparty_account_last4 ?? "未提供"}</p>
-        <p>资金方向：{!/[1-9]/.test(row.amount) ? "零金额，不判断方向" : row.amount.startsWith("-") ? "本方 → 对方（付款）" : "对方 → 本方（收款）"}</p>
+        <p>{translate("ownSuffixValue", { value: row.account_number_last4 ?? translate("notProvided") })}</p>
+        <p>{translate("counterpartyValue", { value: row.counterparty_name ?? translate("notProvided") })}</p>
+        <p>{translate("counterpartySuffixValue", { value: row.counterparty_account_last4 ?? translate("notProvided") })}</p>
+        <p>{translate("directionValue", { value: translate(!/[1-9]/.test(row.amount) ? "zeroDirection" : row.amount.startsWith("-") ? "outgoing" : "incoming") })}</p>
       </div>}
       <fieldset className="spending-form" disabled={busy || !admin}>
         <label>
-          账户
+          {translate("account")}
           <select
             disabled={!!row}
             value={form.account_id}
             onChange={(e) => setForm({ ...form, account_id: e.target.value })}
           >
-            <option value="">请选择账户</option>
+            <option value="">{translate("chooseAccount")}</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} · {a.default_currency}
@@ -87,7 +92,7 @@ export function SpendingRowDrawer({
           </select>
         </label>
         <label>
-          交易日期
+          {translate("transactionDate")}
           <input
             type="date"
             value={form.transaction_date}
@@ -97,7 +102,7 @@ export function SpendingRowDrawer({
           />
         </label>
         <label>
-          交易描述
+          {translate("transactionDescription")}
           <input
             maxLength={1000}
             value={form.description}
@@ -105,7 +110,7 @@ export function SpendingRowDrawer({
           />
         </label>
         <label>
-          金额（支出为负数，入账为正数）
+          {translate("signedAmount")}
           <input
             inputMode="decimal"
             value={form.amount}
@@ -113,7 +118,7 @@ export function SpendingRowDrawer({
           />
         </label>
         <label>
-          统计归类
+          {translate("classification")}
           <select
             value={form.classification}
             onChange={(e) =>
@@ -125,13 +130,13 @@ export function SpendingRowDrawer({
           >
             {SPENDING_CLASSES.map((c) => (
               <option key={c} value={c}>
-                {SPENDING_CLASS_LABELS[c]}
+                {translate(`classifications.${c}`)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          标签
+          {translate("tag")}
           <input
             list="spending-tags"
             maxLength={80}
@@ -145,7 +150,7 @@ export function SpendingRowDrawer({
           </datalist>
         </label>
         <label>
-          备注
+          {cashflow("notes")}
           <textarea
             maxLength={4000}
             value={form.notes}
@@ -155,16 +160,16 @@ export function SpendingRowDrawer({
         {admin && (
           <div className="spending-actions">
             <button className="primary-button" onClick={() => observeAsync(save())}>
-              保存
+              {translate("save")}
             </button>
             {row && (
               <button
                 className="secondary-button"
                 onClick={() => {
-                  if (window.confirm("删除此交易？")) observeAsync(save(true));
+                  if (window.confirm(translate("confirmDeleteRow"))) observeAsync(save(true));
                 }}
               >
-                删除
+                {translate("delete")}
               </button>
             )}
           </div>
@@ -172,7 +177,7 @@ export function SpendingRowDrawer({
       </fieldset>
       {row && (
         <details>
-          <summary>原始银行记录</summary>
+          <summary>{translate("originalRecord")}</summary>
           <dl className="spending-source-details">
             {Object.entries(row.source_metadata).map(([k, v]) => (
               <div key={k}>

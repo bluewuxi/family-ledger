@@ -62,12 +62,23 @@ export interface ParsedSpendingRow {
 export interface SpendingPreviewRow extends ParsedSpendingRow {
   duplicate_count: number;
 }
+export const SPENDING_PREVIEW_ERROR_REASONS = [
+  "wrongColumns", "invalidCcbDate", "invalidBnzDate", "invalidAmount",
+  "invalidDebitCredit", "counterpartyTooLong", "invalidTime", "suffixMismatch",
+  "currencyMismatch", "invalidDescription",
+] as const;
+export type SpendingPreviewErrorReason = (typeof SPENDING_PREVIEW_ERROR_REASONS)[number];
+export type SpendingPreviewWarning =
+  | { reason: "bnzCurrency"; currency: (typeof SPENDING_CURRENCIES)[number] }
+  | { reason: "extraFields"; row: number };
+
 export interface SpendingPreview {
   encoding: SpendingEncoding;
   parser_version: string;
   rows: SpendingPreviewRow[];
-  errors: { row_number: number; message: string }[];
+  errors: { row_number: number; message: string; detail?: { reason: SpendingPreviewErrorReason } }[];
   warnings: string[];
+  warningDetails?: { warningIndex: number; detail: SpendingPreviewWarning }[];
 }
 /** An import/document batch, retaining the existing table identity. */
 export interface AccountStatement {

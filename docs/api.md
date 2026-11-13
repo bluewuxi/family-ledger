@@ -24,6 +24,8 @@ Default account/transaction listings hide legacy education accounts. Old educati
 
 Investment failures can include optional `error.details` with a stable reason and allowlisted facts such as a field identifier, limit, scale, currency or calendar date. Clients can ignore absent or unrecognized details. Existing codes, statuses and messages remain compatible. Metadata excludes submitted values, secrets and dependency error text. Confirmed atomic rollback reasons are distinct from unknown transport outcomes.
 
+Phase 4 workflow failures can include optional `error.details` with `kind: "workflow"` and an allowlisted `reason`. The original status, code and message remain compatible. The client uses context-specific guidance if details are absent or unknown. Spending preview row errors can include `detail` and previews can include `warningDetails` keyed by warning index. Legacy row messages and warning strings remain available to older clients. Backup monitor and sanitized backup job rows can include `failureReasonCode` (`blocked_by_running_job` or `failed`).
+
 Monthly warning DTOs may include `actualDate` for carried boundaries and `instrumentShortName` for unavailable opening prices. Account warning DTOs may include `origin` to distinguish holdings, valuation, snapshots and principal.
 
 The Lambda API returns a consistent JSON shape. Identity and authorization follow [Auth](auth.md#enforcement) and the endpoint-specific permissions below, including documented viewer exceptions. Never expose infrastructure/service secrets or internal stack traces. The only application-secret response exception is [gated account trading-password reveal](#account-trading-password-api).

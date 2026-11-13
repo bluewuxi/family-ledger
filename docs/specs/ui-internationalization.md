@@ -1,6 +1,6 @@
 # UI Internationalization Foundation
 
-Status: Phase 3 locally implemented. See [validation and acceptance evidence](../releases/2026-11-10-ui-internationalization-phase-3.md). Phase 2 locally implemented; Phase 2 local visual acceptance complete (authenticated shell/groups plus isolated auth/startup). See [Phase 2 evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phase 1 foundation evidence: [validation and scoped acceptance evidence](../releases/2026-11-07-ui-internationalization-phase-1.md). This is a foundation contract, not whole-app bilingual support. The [approved design](2026-11-07-ui-internationalization-design.md) and [phased roadmap](../plans/2026-11-07-ui-internationalization-roadmap.md) own subsequent migration scope.
+Status: Phase 4 locally implemented. See [Phase 4 evidence](../releases/2026-11-13-ui-internationalization-phase-4.md). Phase 3 locally implemented. See [validation and acceptance evidence](../releases/2026-11-10-ui-internationalization-phase-3.md). Phase 2 locally implemented; Phase 2 local visual acceptance complete (authenticated shell/groups plus isolated auth/startup). See [Phase 2 evidence](../releases/2026-11-07-ui-internationalization-phase-2.md). Phase 1 foundation evidence: [validation and scoped acceptance evidence](../releases/2026-11-07-ui-internationalization-phase-1.md). This is a foundation contract, not whole-app bilingual support. The [approved design](2026-11-07-ui-internationalization-design.md) and [phased roadmap](../plans/2026-11-07-ui-internationalization-roadmap.md) own subsequent migration scope.
 
 ## Language and resources
 
@@ -53,7 +53,7 @@ Pure helpers never read mutable global language. Migrated React callers subscrib
 | New `src/i18n` resources/provider/preview; moved time sentences; explicit formatting | Phase 1 only; raw resources and fixtures cover foundation, not untranslated pages |
 | Login/recovery, shell, shared errors and complete business pilot | Phase 2, migrated as described below |
 | Investment workflows and charts | Phase 3, migrated as described below |
-| Other workflows | Phase 4, not started |
+| Other workflows | Phase 4, migrated as described below |
 | Integrated acceptance and public switch | Phase 5, not started |
 | Original artwork in `apps/web/public` | Preserve original brand lettering; not translated artwork |
 | User/source content in existing workflows | Preserve entered names, notes, instrument/provider identifiers and quotations; surrounding application text migrates with its workflow |
@@ -62,7 +62,7 @@ Review changed preview/provider JSX, accessible labels and moved time sentences 
 
 ## Phase 2 migrated coverage
 
-Local preview includes login, administrator-contact recovery and its reset-route alias, self-service/forced password change, session/startup failure, shell navigation/branding/footer, route document titles, shared loading/empty/pagination/back-link/currency/drawer copy, and the investment-group maintenance pilot. Other page bodies, Settings administration/reset/extra-password controls, dashboard distributions, securities CRUD and financial workflows were subsequently migrated in Phase 3. Production remains Chinese with no language switch.
+Local preview includes login, administrator-contact recovery and its reset-route alias, self-service/forced password change, session/startup failure, shell navigation/branding/footer, route document titles, shared loading/empty/pagination/back-link/currency/drawer copy, and the investment-group maintenance pilot. Phase 3 migrated investment workflows. Phase 4 migrated Settings administration, password reset and extra-password controls. Production remains Chinese with no language switch.
 
 Error state stores typed semantic descriptors. Mapping uses client codes/statuses and additive shared parser reasons, never arbitrary error messages. Unknown group mutation outcomes instruct users to reload and check before retrying; no write is replayed. Shared parser messages, accepted inputs, HTTP contracts and original-revision writes are unchanged. Group 400 responses retain combined name/member guidance. Existing errors retranslate during render without requests.
 
@@ -93,3 +93,9 @@ Language changes preserve stable routes/queries, component keys, original revisi
 Market value uses available valuation inputs. Carrying cost comes from position history, and unrealized gain or loss compares current market value with carrying cost. Closed-position outcomes contribute to lifetime investment profit. Principal flows and valuation movement are separate parts of the monthly bridge. Cash settlement legs and estimated prices retain their existing financial meanings. See the [investment formulas](investment-overview.md) and [financial values contract](../data-model.md#financial-values).
 
 Investment errors use optional allowlisted facts from the [API response contract](../api.md#response-contract). Unknown outcomes ask the user to check the ledger. Native confirmations use the language at invocation. Date and month inputs retain browser formatting and ISO values. Artwork, provider names, user notes and other stored labels retain their source text.
+
+## Phase 4 remaining workflow coverage
+
+Family cashflow, spending and statement imports, education reserves, Settings, user access, maintenance and About use the same bundled language resources. Gross spending is the total of spending charges before refunds. Net spending subtracts refunds and cashback. A null tag identifies the untagged bucket. Non-null tags and source descriptions retain their original text. Education labels distinguish remaining reserve, lifetime net education spending and the filtered period total. Maintenance distinguishes provider calendar dates from viewer-local run times and a delayed backup from a failed backup.
+
+Import previews expose optional structured diagnostics. Legacy previews keep their record numbers, warning counts and blocking errors, with localized recovery guidance. An uncertain confirmation retains its original token and choices for explicit retry. Access forms keep their original policy revision. Existing messages retranslate without replaying requests. The app preserves browser-owned prompt text, original branding and diagnostic source text. The public switch remains gated for Phase 5.
