@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createLanguageStore, languageStorageKey, isLocalLanguagePreview, parseUiLanguage, getDisplayLocale } from "./src/i18n/language";
+import { createLanguageStore, languageStorageKey, isLocalLanguagePreview, isUiLanguageEnabled, parseUiLanguage, getDisplayLocale } from "./src/i18n/language";
 import * as numbers from "./src/lib/numberFormat";
 import { formatSpendingAmount } from "./src/lib/spendingFormat";
 import * as time from "./src/lib/timeFormat";
@@ -24,14 +24,16 @@ for (const value of [null, undefined, "", "en-NZ", "fr", {}, 1]) assert.equal(pa
 assert.equal(parseUiLanguage("en"), "en"); assert.equal(parseUiLanguage("zh-CN"), "zh-CN");
 assert.equal(getDisplayLocale("en"), "en-NZ"); assert.equal(getDisplayLocale("zh-CN"), "zh-CN");
 for (const hostname of ["localhost", "127.0.0.1", "[::1]"]) {
-  assert.equal(isLocalLanguagePreview(true, hostname), true, "Loopback DEV preview must be eligible");
+  assert.equal(isLocalLanguagePreview(true, hostname), true, "Loopback DEV enabled must be eligible");
   assert.equal(isLocalLanguagePreview(false, hostname), false);
+  assert.equal(isUiLanguageEnabled(true, hostname), true);
+  assert.equal(isUiLanguageEnabled(false, hostname), true);
 }
 for (const hostname of ["example.com", "localhost.example.com", "::1", "127.0.0.2", ""]) assert.equal(isLocalLanguagePreview(true, hostname), false);
 for (const stored of [null, "", "fr", "en-NZ", "zh-CN", "en"]) {
   let reads = 0;
   const writes: string[] = [];
-  const store = createLanguageStore({ preview: true, getStorage: () => ({
+  const store = createLanguageStore({ enabled: true, getStorage: () => ({
     getItem: key => { assert.equal(key, languageStorageKey); reads++; return stored; },
     setItem: (key, value) => { assert.equal(key, languageStorageKey); writes.push(value); }
   }) });
@@ -44,20 +46,20 @@ for (const stored of [null, "", "fr", "en-NZ", "zh-CN", "en"]) {
   assert(changes >= 2); unsubscribe(); const before = changes;
   await store.setLanguage("zh-CN"); assert.equal(changes, before);
 }
-for (const preview of [false, true]) {
+for (const enabled of [false, true]) {
   for (const failure of ["getter", "read", "write"]) {
-    const store = createLanguageStore({preview, getStorage: () => {
+    const store = createLanguageStore({enabled, getStorage: () => {
       if (failure === "getter") throw new Error("Storage getter denied");
       return {getItem: () => {if (failure === "read") throw new Error("Read denied"); return "en";}, setItem: () => {throw new Error("Write denied");}};
     }});
     await store.initialize();
-    assert.equal(store.getLanguage(), preview && failure === "write" ? "en" : "zh-CN");
-    await store.setLanguage("en"); assert.equal(store.getLanguage(), preview ? "en" : "zh-CN");
+    assert.equal(store.getLanguage(), enabled && failure === "write" ? "en" : "zh-CN");
+    await store.setLanguage("en"); assert.equal(store.getLanguage(), enabled ? "en" : "zh-CN");
   }
 }
-const production = createLanguageStore({preview:false,getStorage:()=>({getItem:()=>"en",setItem:()=>{assert.fail("Gate must not delete or overwrite saved preference");}})});
+const production = createLanguageStore({enabled:false,getStorage:()=>({getItem:()=>"en",setItem:()=>{assert.fail("Gate must not delete or overwrite saved preference");}})});
 await production.initialize(); await production.setLanguage("en"); assert.equal(production.getLanguage(), "zh-CN");
-const noBrowser = createLanguageStore({preview:true,getStorage:()=>window.localStorage});
+const noBrowser = createLanguageStore({enabled:true,getStorage:()=>window.localStorage});
 await noBrowser.initialize(); assert.equal(noBrowser.getLanguage(), "zh-CN");
 for (const locale of ["zh-CN", "en-NZ"] as const) {
   assert.equal(numbers.formatDisplayPrice("1234.23456", locale), "1,234.2346");

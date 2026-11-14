@@ -693,7 +693,7 @@ textarea {
 .dashboard-title-tagline {
   display: inline-block;
   margin-left: 14px;
-  color: var(--color-brand-gold);
+  color: var(--color-brand-earth);
   font-size: 0.48em;
   font-weight: 700;
   line-height: 1;
@@ -2452,6 +2452,11 @@ table {
   min-width: 1000px;
 }
 
+.instrument-table :is(th, td):is(:nth-last-child(8), :nth-last-child(3), :nth-last-child(2)) {
+  min-width: 5.5em;
+  overflow-wrap: normal;
+}
+
 .transaction-table {
   min-width: 1180px;
 }
@@ -2890,7 +2895,12 @@ tr.editing-row td {
 }
 
 .settings-user-table {
-  min-width: 840px;
+  min-width: 960px;
+}
+
+.settings-user-table :is(th, td):nth-child(3) {
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .settings-user-table td:first-child strong {
@@ -3569,9 +3579,10 @@ tr.editing-row td {
   margin: 0;
 }
 
-.about-design {
+.about-design,
+.about-timeline {
   display: grid;
-  grid-template-columns: minmax(180px, 0.35fr) minmax(0, 1.65fr);
+  grid-template-columns: minmax(250px, 0.5fr) minmax(0, 1.5fr);
   gap: clamp(8px, 1.25vw, 19px);
   align-items: start;
 }
@@ -3639,13 +3650,6 @@ tr.editing-row td {
   font-size: 28px;
 }
 
-.about-timeline {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.35fr) minmax(0, 1.65fr);
-  gap: clamp(8px, 1.25vw, 19px);
-  align-items: start;
-}
-
 .about-section-heading {
   position: sticky;
   top: 32px;
@@ -3654,6 +3658,7 @@ tr.editing-row td {
 .about-section-heading h2 {
   font-size: clamp(28px, 4vw, 44px);
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .timeline-list {
@@ -4025,6 +4030,15 @@ tr.editing-row td {
   .allocation-heading,
   .settings-section-header {
     display: grid;
+  }
+
+  .data-maintenance-panel,
+  .data-maintenance-panel > .settings-section-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .data-maintenance-panel .data-maintenance-actions > button {
+    white-space: normal;
   }
 
   .dashboard-controls,
@@ -4809,8 +4823,8 @@ tr.editing-row td {
 :root:not([data-theme="dark"]) #root:has(.spending-tabs, .transaction-table)::after { opacity:.16; }
 .date-presets button { border:1px solid var(--color-border); border-radius:8px; background:var(--color-surface); color:inherit; }
 @media (max-width:600px) {
-  .spending-tabs { gap:0; }
-  .spending-tabs button { padding-inline:10px; }
+  .spending-tabs { flex-wrap:wrap; gap:0; }
+  .spending-tabs button { max-width:100%; padding-inline:10px; white-space:normal; }
   .cashflow-range > span { flex-basis:100%; }
 }
 @media (max-width:768px) {
@@ -4833,7 +4847,7 @@ tr.editing-row td {
 .dashboard-chart-flow > .trade-activity-panel { display: flex; flex-direction: column; overflow: hidden; }
 .dashboard-chart-flow .trade-activity-panel .activity-table-wrap { flex: 1; min-height: 0; overflow: auto; }
 .dashboard-chart-flow .trade-activity-panel .activity-panel-header { flex-shrink: 0; }
-.activity-more-link { display: flex; align-items: center; justify-content: center; min-height: 44px; flex-shrink: 0; margin-top: auto; border-top: 1px solid var(--color-border); color: var(--color-brand-gold); }
+.activity-more-link { display: flex; align-items: center; justify-content: center; min-height: 44px; flex-shrink: 0; margin-top: auto; border-top: 1px solid var(--color-border); color: var(--color-brand-earth); }
 .trend-tabs { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: 16px; border-bottom: 1px solid var(--color-border); }
 .trend-tabs button { min-height: 44px; max-width: 100%; padding: 8px 0; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--color-muted); font: inherit; font-weight: 600; cursor: pointer; white-space: normal; text-align: start; }
 .trend-tabs button[aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-brand-gold); }
@@ -5112,3 +5126,8 @@ html[lang="en"] .brand-name > span { max-width: 100%; }
 }
 
 .login-panel > button { min-height: 44px; }
+
+@media (max-width: 430px) {
+  .dashboard-chart-flow .activity-trade-instrument { grid-column: 1 / -1; }
+  .dashboard-chart-flow .activity-quantity-currency { grid-column: 1 / -1; }
+}

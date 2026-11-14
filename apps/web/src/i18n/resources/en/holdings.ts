@@ -55,7 +55,7 @@ export default {
   "notes": "Notes",
   "noTransactions": "No related transactions.",
   "dividends": "Dividend records",
-  "total": "Total",
+  "total": "Total {{currency}} {{amount}}",
   "dividendAmount": "Dividend amount",
   "recordedTax": "Recorded tax",
   "creditedCash": "Cash credit",

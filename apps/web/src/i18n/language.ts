@@ -11,7 +11,13 @@ export function isLocalLanguagePreview(dev: boolean, hostname: string): boolean 
   return dev && ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
 }
 
-export function createLanguageStore(options: { preview: boolean; getStorage: () => Pick<Storage, "getItem" | "setItem"> }) {
+// Enable only after the integrated Phase 5 readiness gates pass.
+export const ordinaryUiLanguageReleased = true;
+export function isUiLanguageEnabled(dev: boolean, hostname: string): boolean {
+  return ordinaryUiLanguageReleased || isLocalLanguagePreview(dev, hostname);
+}
+
+export function createLanguageStore(options: { enabled: boolean; getStorage: () => Pick<Storage, "getItem" | "setItem"> }) {
   let language: UiLanguage = "zh-CN";
   let initialized: Promise<void> | undefined;
   const listeners = new Set<() => void>();
@@ -22,7 +28,7 @@ export function createLanguageStore(options: { preview: boolean; getStorage: () 
   };
   const initialize = (): Promise<void> => {
     if (!initialized) {
-      if (options.preview) {
+      if (options.enabled) {
         try { language = parseUiLanguage(options.getStorage().getItem(languageStorageKey)) ?? "zh-CN"; }
         catch { language = "zh-CN"; }
       }
@@ -35,9 +41,9 @@ export function createLanguageStore(options: { preview: boolean; getStorage: () 
     getLanguage: (): UiLanguage => language,
     setLanguage: async (next: UiLanguage): Promise<void> => {
       await initialize();
-      if (!parseUiLanguage(next) || (!options.preview && next !== "zh-CN")) return;
+      if (!parseUiLanguage(next) || (!options.enabled && next !== "zh-CN")) return;
       publish(next);
-      if (options.preview) {
+      if (options.enabled) {
         try { options.getStorage().setItem(languageStorageKey, next); }
         catch { /* Successful in-memory choice survives unavailable persistence. */ }
       }

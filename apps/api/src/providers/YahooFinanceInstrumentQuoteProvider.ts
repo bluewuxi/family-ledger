@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import { runPriceBatch, providerHttpError } from "@family-ledger/shared";
 import { logDependencyError } from "../utils/errorLogging";
 import Decimal from "decimal.js";
@@ -64,7 +65,7 @@ export class YahooFinanceInstrumentQuoteProvider implements IInstrumentQuoteProv
     const eligible = input.instruments.filter(instrument => requested.some(query => query.kind === "latest_quote" && query.instrumentId === instrument.instrumentId && query.sourceSymbol === instrument.sourceSymbol));
     let result: InstrumentQuoteProviderResult;
     try { result = await this.fetchLatestQuotes({...input, instruments: eligible}); }
-    catch { result = {provider: this.name, fetchedAt: input.fetchedAt, quotes: []}; }
+    catch (error) { logCaughtError("YahooFinanceInstrumentQuoteProvider.fetchBatch", error); result = {provider: this.name, fetchedAt: input.fetchedAt, quotes: []}; }
     return {provider: this.name, fetchedAt: input.fetchedAt, items: requested.map(query => {
       if (query.kind !== "latest_quote") return {key: query.instrumentId, status: "unsupported" as const, reason: "HISTORY_REQUIRES_DAILY_ADAPTER"};
       const value = result.quotes.find(quote => quote.instrumentId === query.instrumentId && quote.sourceSymbol === query.sourceSymbol);

@@ -55,7 +55,7 @@ export default {
   "notes": "备注",
   "noTransactions": "暂无相关交易记录。",
   "dividends": "股息记录",
-  "total": "合计",
+  "total": "合计 {{currency}} {{amount}}",
   "dividendAmount": "股息金额",
   "recordedTax": "记录税额",
   "creditedCash": "入账现金",

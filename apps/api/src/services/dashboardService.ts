@@ -1,3 +1,4 @@
+import { logCaughtError } from "../utils/errorLogging";
 import { readInvestmentGroupConfiguration } from "../repositories/investmentGroupRepository";
 import { buildGroupDistribution } from "./groupAllocationService";
 import { ApiRequestError } from "../utils/apiError";
@@ -32,6 +33,7 @@ export async function getDashboard(input: { currency?: string; user?: Authentica
     return {...dashboard, groupDistribution: buildGroupDistribution({allocations:dashboard.holdingAllocations,totalAssets:dashboard.totalAssets,configuration})};
   } catch(error) {
     if (!(error instanceof ApiRequestError) || error.code !== 'DEPENDENCY_UNAVAILABLE') throw error;
+    logCaughtError("dashboardService.groupDistribution", error);
     return {...dashboard,groupDistribution:{status:'unavailable',revision:null,rows:[],canShowPercentages:false,reason:'classification_unavailable'}};
   }
 }

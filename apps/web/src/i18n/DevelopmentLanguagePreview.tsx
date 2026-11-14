@@ -28,6 +28,23 @@ function PreviewSamples() {
   const [filter, setFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState("light");
+  const [requestCount, setRequestCount] = useState(0);
+  useEffect(() => {
+    const observer = new PerformanceObserver(list => {
+      const count = list.getEntries().filter(entry => { const type = (entry as PerformanceResourceTiming).initiatorType; return type === "fetch" || type === "xmlhttprequest"; }).length;
+      if (count) setRequestCount(previous => previous + count);
+    });
+    observer.observe({ type: "resource", buffered: true });
+    return () => observer.disconnect();
+  }, []);
+  const [pageTheme, setPageTheme] = useState("original");
+  useEffect(() => {
+    if (pageTheme === "original") return;
+    const root = document.documentElement;
+    const original = root.dataset.theme;
+    root.dataset.theme = pageTheme;
+    return () => { if (original === undefined) delete root.dataset.theme; else root.dataset.theme = original; };
+  }, [pageTheme]);
   const [error] = useState({key:"error" as const, params:{id:"sample-1"}});
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
@@ -41,6 +58,8 @@ function PreviewSamples() {
     <div className="language-preview-body">
       <p role="note"><strong>{t("notice")}</strong></p>
       <LanguageButtons />
+      <output aria-live="polite">{t("requestCount", { count: requestCount })}</output>
+      <label>{t("pageTheme")}<select value={pageTheme} onChange={event => setPageTheme(event.target.value)}><option value="original">{t("originalTheme")}</option><option value="light">{t("light")}</option><option value="dark">{t("dark")}</option></select></label>
       <label>{t("theme")}<select value={theme} onChange={event => setTheme(event.target.value)}><option value="light">{t("light")}</option><option value="dark">{t("dark")}</option></select></label>
       <label>{t("draft")}<input value={draft} onChange={event => setDraft(event.target.value)} /></label>
       <label>{t("selected")}<select value={selected} onChange={event => setSelected(event.target.value)}><option value="sample-1">sample-1</option><option value="sample-2">sample-2</option></select></label>

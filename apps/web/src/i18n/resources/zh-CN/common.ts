@@ -14,7 +14,7 @@ export default {
   "pagination": "第 {{page}} / {{pages}} 页 · 共 {{total}} 条",
   "paginationEmpty": "共 0 条",
   "motto": "聚沙成塔 - 资金永无眠",
-  "partial": "本地语言预览：部分页面尚未翻译。",
+  "partial": "界面语言",
   "countryNzd": "新西兰",
   "countryUsd": "美国",
   "countryHkd": "香港",

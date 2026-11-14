@@ -6,7 +6,7 @@ Status: Phase 4 locally implemented. See [Phase 4 evidence](../releases/2026-11-
 
 Support `zh-CN` (default) and `en`, mapping display locales to `zh-CN` and `en-NZ`. No system detection. Persist validated choices under `family-ledger.uiLanguage` in browser-local storage, independently of login/logout or server preferences. Storage getter/read failures use Chinese; write failures retain the in-memory choice. No cross-tab synchronization.
 
-Phase 1 forces Chinese except when Vite DEV is true and hostname is exactly `localhost`, `127.0.0.1`, or `[::1]`. Other builds ignore stored English without deleting it and reject English switches. This release gate is not authentication. Public switching remains withheld until Phase 5 readiness.
+Ordinary builds support the browser-local language choice. Development diagnostics and synthetic fixture entries require Vite DEV and an exact loopback hostname of `localhost`, `127.0.0.1`, or `[::1]`.
 
 Bundle nested string resources in namespaces `common`, `format`, `preview`, `auth`, `navigation`, `errors`, `investmentGroups`, `investment`, `dashboard`, `holdings`, `monthlyReview`, `accounts`, `instruments`, `transactions`; use typed semantic camelCase keys, complete sentences, safe text interpolation and Chinese fallback. Raw-resource verification, independent of fallback, checks shape, symmetric semantic keys, non-empty strings, parameter sets and cardinal plural categories from `Intl.PluralRules`. Plural families require locale-specific suffixes; optional `_zero` has matching parameters. Context/ordinal variants are unsupported. Only plain `{{identifier}}` interpolation is supported in Phase 1 resources; formatted, unescaped, dotted-path and malformed tokens fail validation instead of being ignored.
 
@@ -54,7 +54,7 @@ Pure helpers never read mutable global language. Migrated React callers subscrib
 | Login/recovery, shell, shared errors and complete business pilot | Phase 2, migrated as described below |
 | Investment workflows and charts | Phase 3, migrated as described below |
 | Other workflows | Phase 4, migrated as described below |
-| Integrated acceptance and public switch | Phase 5, not started |
+| Integrated acceptance and public switch | Phase 5 local candidate. See [release evidence](../releases/2026-11-13-ui-internationalization-phase-5.md). |
 | Original artwork in `apps/web/public` | Preserve original brand lettering; not translated artwork |
 | User/source content in existing workflows | Preserve entered names, notes, instrument/provider identifiers and quotations; surrounding application text migrates with its workflow |
 
@@ -62,7 +62,7 @@ Review changed preview/provider JSX, accessible labels and moved time sentences 
 
 ## Phase 2 migrated coverage
 
-Local preview includes login, administrator-contact recovery and its reset-route alias, self-service/forced password change, session/startup failure, shell navigation/branding/footer, route document titles, shared loading/empty/pagination/back-link/currency/drawer copy, and the investment-group maintenance pilot. Phase 3 migrated investment workflows. Phase 4 migrated Settings administration, password reset and extra-password controls. Production remains Chinese with no language switch.
+Local preview includes login, administrator-contact recovery and its reset-route alias, self-service/forced password change, session/startup failure, shell navigation/branding/footer, route document titles, shared loading/empty/pagination/back-link/currency/drawer copy, and the investment-group maintenance pilot. Phase 3 migrated investment workflows. Phase 4 migrated Settings administration, password reset and extra-password controls.
 
 Error state stores typed semantic descriptors. Mapping uses client codes/statuses and additive shared parser reasons, never arbitrary error messages. Unknown group mutation outcomes instruct users to reload and check before retrying; no write is replayed. Shared parser messages, accepted inputs, HTTP contracts and original-revision writes are unchanged. Group 400 responses retain combined name/member guidance. Existing errors retranslate during render without requests.
 
@@ -98,4 +98,4 @@ Investment errors use optional allowlisted facts from the [API response contract
 
 Family cashflow, spending and statement imports, education reserves, Settings, user access, maintenance and About use the same bundled language resources. Gross spending is the total of spending charges before refunds. Net spending subtracts refunds and cashback. A null tag identifies the untagged bucket. Non-null tags and source descriptions retain their original text. Education labels distinguish remaining reserve, lifetime net education spending and the filtered period total. Maintenance distinguishes provider calendar dates from viewer-local run times and a delayed backup from a failed backup.
 
-Import previews expose optional structured diagnostics. Legacy previews keep their record numbers, warning counts and blocking errors, with localized recovery guidance. An uncertain confirmation retains its original token and choices for explicit retry. Access forms keep their original policy revision. Existing messages retranslate without replaying requests. The app preserves browser-owned prompt text, original branding and diagnostic source text. The public switch remains gated for Phase 5.
+Import previews expose optional structured diagnostics. Legacy previews keep their record numbers, warning counts and blocking errors, with localized recovery guidance. An uncertain confirmation retains its original token and choices for explicit retry. Access forms keep their original policy revision. Existing messages retranslate without replaying requests. The app preserves browser-owned prompt text, original branding and diagnostic source text.

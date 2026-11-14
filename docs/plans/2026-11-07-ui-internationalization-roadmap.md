@@ -41,3 +41,5 @@ New sessions must read this design/roadmap and inspect the current repository ra
 ## Optional later work
 
 Cross-device language synchronization is outside these five phases. Reassess actual need after browser-local bilingual support is accepted. It requires a separately agreed preference precedence model and API/persistence design; it is not a prerequisite for English support.
+
+The [Phase 5 detailed plan](2026-11-13-ui-internationalization-phase-5.md) records the local release candidate and the user waiver of the remaining visual matrix.

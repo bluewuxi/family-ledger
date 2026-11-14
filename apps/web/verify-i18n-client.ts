@@ -24,20 +24,19 @@ async function fixture(dev: boolean, hostname: string) {
 }
 for (const dev of [true, false]) for (const hostname of ["localhost","127.0.0.1","[::1]","example.com","localhost.example.com"]) {
   const f = await fixture(dev, hostname);
-  const eligible = dev && ["localhost","127.0.0.1","[::1]"].includes(hostname);
   const first = f.instance.initializeI18n(); assert.equal(f.instance.initializeI18n(), first); await first;
-  assert.equal(f.instance.getUiLanguage(), eligible ? "en" : "zh-CN");
-  assert.equal(f.document.documentElement.lang, eligible ? "en" : "zh-CN");
-  assert.equal(f.document.title, eligible ? "Family Ledger" : "金财屋 · Family Ledger");
-  assert.equal(f.metadata.get('meta[name="application-name"]'), eligible ? "Family Ledger" : "金财屋");
-  assert.equal(f.reads(), eligible ? 1 : 0);
+  assert.equal(f.instance.getUiLanguage(), "en");
+  assert.equal(f.document.documentElement.lang, "en");
+  assert.equal(f.document.title, "Family Ledger");
+  assert.equal(f.metadata.get('meta[name="application-name"]'), "Family Ledger");
+  assert.equal(f.reads(), 1);
   let changes = 0; const unsubscribe = f.instance.subscribeLanguage(()=>{changes++;});
   await Promise.all([f.instance.setUiLanguage("en"),f.instance.setUiLanguage("zh-CN"),f.instance.setUiLanguage("en")]);
-  assert.equal(f.instance.getUiLanguage(), eligible ? "en" : "zh-CN");
-  assert.equal(f.document.documentElement.lang, eligible ? "en" : "zh-CN");
+  assert.equal(f.instance.getUiLanguage(), "en");
+  assert.equal(f.document.documentElement.lang, "en");
   assert.equal(f.instance.i18n.getFixedT("en","format")("hoursMinutes",{hours:"03",minutes:"21"}),"03h 21m");
   unsubscribe(); const before = changes; await f.instance.setUiLanguage("zh-CN"); assert.equal(changes,before);
-  assert.equal(f.requests(), 0); if (!eligible) {assert.equal(f.writes(),0);assert.equal(f.stored(),"en");}
+  assert.equal(f.requests(), 0); assert.equal(f.stored(),"zh-CN"); assert(f.writes() > 0);
 }
 const provider = await build({entryPoints:["apps/web/src/i18n/LanguageProvider.tsx"],bundle:true,write:false,platform:"node",format:"cjs",jsx:"automatic",external:["react","react/jsx-runtime","react-i18next","./instance"]});
 let subscriptions = 0, cleanups = 0;

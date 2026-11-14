@@ -460,25 +460,25 @@ async function loadDataSources() {
       {!kernelDrawerOpen && activeTab !== "snapshots" && errorMessage ? <p className="form-error" role="alert">{errorMessage}</p> : null}
       {!kernelDrawerOpen && noticeMessage ? <p className="form-success" role="status">{noticeMessage}</p> : null}
 
-      <div className="tabs" role="tablist" aria-label={t("categories")}>
-        {!selectedScope && <button className={activeTab === "sources" ? "active" : undefined} type="button" onClick={() => setActiveTab("sources")}>
+      <div className="tabs" role="group" aria-label={t("categories")}>
+        {!selectedScope && <button className={activeTab === "sources" ? "active" : undefined} aria-current={activeTab === "sources" ? "page" : undefined} type="button" onClick={() => setActiveTab("sources")}>
           {t("source")}
         </button>}
-        <button className={activeTab === "fx" ? "active" : undefined} type="button" onClick={() => setActiveTab("fx")}>
+        <button className={activeTab === "fx" ? "active" : undefined} aria-current={activeTab === "fx" ? "page" : undefined} type="button" onClick={() => setActiveTab("fx")}>
           {t("fx")}
         </button>
-        {!selectedScope && <button className={activeTab === "prices" ? "active" : undefined} type="button" onClick={() => setActiveTab("prices")}>
+        {!selectedScope && <button className={activeTab === "prices" ? "active" : undefined} aria-current={activeTab === "prices" ? "page" : undefined} type="button" onClick={() => setActiveTab("prices")}>
           {t("prices")}
         </button>}
-        <button className={activeTab === "snapshots" ? "active" : undefined} type="button" onClick={() => setActiveTab("snapshots")}>{t("snapshots")}</button>
-        {!selectedScope && <button className={activeTab === "logs" ? "active" : undefined} type="button" onClick={() => setActiveTab("logs")}>
+        <button className={activeTab === "snapshots" ? "active" : undefined} aria-current={activeTab === "snapshots" ? "page" : undefined} type="button" onClick={() => setActiveTab("snapshots")}>{t("snapshots")}</button>
+        {!selectedScope && <button className={activeTab === "logs" ? "active" : undefined} aria-current={activeTab === "logs" ? "page" : undefined} type="button" onClick={() => setActiveTab("logs")}>
           {t("jobLogs")}
         </button>}
-        {isAdmin ? <button className={activeTab === "errors" ? "active" : undefined} type="button" onClick={() => setActiveTab("errors")}>{t("errorLog")}</button> : null}
-        {!selectedScope && <button className={activeTab === "backups" ? "active" : undefined} type="button" onClick={() => setActiveTab("backups")}>
+        {isAdmin ? <button className={activeTab === "errors" ? "active" : undefined} aria-current={activeTab === "errors" ? "page" : undefined} type="button" onClick={() => setActiveTab("errors")}>{t("errorLog")}</button> : null}
+        {!selectedScope && <button className={activeTab === "backups" ? "active" : undefined} aria-current={activeTab === "backups" ? "page" : undefined} type="button" onClick={() => setActiveTab("backups")}>
           {t("backups")}
         </button>}
-        {!selectedScope && <button className={activeTab === "restore" ? "active" : undefined} type="button" onClick={() => setActiveTab("restore")}>
+        {!selectedScope && <button className={activeTab === "restore" ? "active" : undefined} aria-current={activeTab === "restore" ? "page" : undefined} type="button" onClick={() => setActiveTab("restore")}>
           {t("restore")}
         </button>}
       </div>

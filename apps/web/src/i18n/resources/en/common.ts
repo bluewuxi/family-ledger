@@ -14,7 +14,7 @@ export default {
   "pagination": "Page {{page}} of {{pages}} · {{total}} records",
   "paginationEmpty": "0 records",
   "motto": "Small steps build lasting wealth",
-  "partial": "Local language preview: some pages are not translated yet.",
+  "partial": "Display language",
   "countryNzd": "New Zealand",
   "countryUsd": "United States",
   "countryHkd": "Hong Kong",

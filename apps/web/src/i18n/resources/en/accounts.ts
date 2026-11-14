@@ -90,7 +90,7 @@ export default {
   "noBroker": "Platform not specified",
   "detailHelp": "View an account's current valuation, trends, holdings, cash balances and recent transactions.",
   "reportingCurrency": "Reporting currency",
-  "manageInfo": "Manage account information",
+  "manageInfo": "Manage account",
   "refreshing": "Updating quotes. The available valuation is shown.",
   "loadingDetail": "Loading account details",
   "currentTotal": "Current total",

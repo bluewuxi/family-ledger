@@ -226,7 +226,10 @@ const activeCurrency = detail?.reportingCurrency ?? reportingCurrency;
             <div className="holding-detail-section-header">
               <h2>{copy("dividends", language)}</h2>
               <span>
-                {copy("total", language)}{detail.dividendSummary.currency} {formatDisplayAmount(detail.dividendSummary.totalGrossAmount, getDisplayLocale(language))}
+                {copy("total", language, {
+                  currency: detail.dividendSummary.currency,
+                  amount: formatDisplayAmount(detail.dividendSummary.totalGrossAmount, getDisplayLocale(language))
+                })}
                 {detail.dividendSummary.latestDividendDate ? copy("latestDividend", language, {date:formatCalendarDate(detail.dividendSummary.latestDividendDate, "-", language)}) : ""}
               </span>
             </div>

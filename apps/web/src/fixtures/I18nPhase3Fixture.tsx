@@ -72,6 +72,7 @@ async function start() {
     { date: "2026-05-01", snapshotDate: "2026-05-01", portfolioValue: "950", totalInvestment: "850" },
     { date, snapshotDate: date, portfolioValue: "1000", totalInvestment: "850" }
   ], principalPoints: [{ date: "2025-11-01", totalInvestment: "700" }, { date: "2026-05-01", totalInvestment: "850" }], summary: { range: "1y", rangeStart: "2025-11-01", rangeEnd: date, currency: "USD", inceptionDate: "2025-11-01", currentTotalInvestment: "850", cumulativeMovement: "150", warnings: [] } };
+  const dashboardPollAt = parameters.get("poll") === "due" ? Date.now() + 15_000 : null;
   function dashboard(currency: SnapshotDisplayCurrency): InvestmentDashboardSummary {
     return { reportingCurrency: currency, totalAssets: "1000", todayChange: "-12.5", todayChangePct: "-1.25", unrealizedGain: "200", dailyTradeCount: 1, accountCount: 1, accounts: [{ accountId: accounts[0].id, accountName: accounts[0].name, marketValue: "1000" }], allocations: [{ id: accounts[0].id, name: accounts[0].name, marketValue: "600", allocationType: "account" }, { id: "cash", name: "现金", marketValue: "400", allocationType: "cash" }], holdingAllocations: [{ id: instrument.id, name: instrument.shortName, assetType: "etf", marketValue: "600", percentageOfTotal: "60", allocationType: "instrument" }, { id: "cash", name: "现金", assetType: "cash", marketValue: "400", percentageOfTotal: "40", allocationType: "cash" }], quoteFetchedAt: now, quoteDate: date, warnings: [], valuationMetadata: metadata, investmentPerformance: performance, groupDistribution: { status: "ready", revision: "4", canShowPercentages: true, reason: null, rows: [{ id: id(8), allocationType: "group", groupId: id(8), instrumentId: null, name: "未分组", marketValue: "600", percentageOfTotal: "60", members: [{ instrumentId: instrument.id, shortName: instrument.shortName }] }, { id: "cash", allocationType: "cash", groupId: null, instrumentId: null, name: "现金", marketValue: "400", percentageOfTotal: "40", members: [] }] } };
   }
@@ -139,7 +140,13 @@ async function start() {
       if (path === "/holdings") return success(valuation(currency));
       if (path === "/holdings/detail") return success({ holdingDetail: holdingDetail(currency) });
       if (/^\/accounts\/[^/]+\/detail$/.test(path)) return success({ accountDetail: accountDetail(currency) });
-      if (path === "/dashboard") return success({ dashboard: dashboard(currency) });
+      if (path === "/dashboard") {
+        const result = dashboard(currency);
+        if (dashboardPollAt !== null && url.searchParams.get("quoteMode") === "cached") {
+          result.valuationMetadata = { ...metadata, nextRefreshAt: new Date(dashboardPollAt).toISOString() };
+        }
+        return success({ dashboard: result });
+      }
       if (path === "/portfolio-snapshots") return success({ snapshots: [], trend: { ...trend, summary: { ...trend.summary, currency, range: url.searchParams.get("trendRange") ?? "1y" } } });
       if (path === "/transactions/balances") return success(mode === "malformedBalances" ? { holdings: [], cashBalances: [{}] } : { holdings: [holding], cashBalances: accounts.map(account => ({ accountId: account.id, instrumentId: cash.id, quantity: "400", warnings: [] })) });
       if (path === "/transactions") return success({ user, transactions, linkedCashLegs: [cashLeg], pagination: { total: transactions.length, limit: Number(url.searchParams.get("limit") ?? 20), offset: Number(url.searchParams.get("offset") ?? 0), hasMore: false } });

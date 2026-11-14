@@ -461,17 +461,26 @@
       "entryPoints": [
         "scripts/verify-api-error-logging.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-api-error-logging.ts"
+          ]
+        }
+      ],
       "domains": [
         "general"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-api-error-logging.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "Synthetic fetch, SSM, CloudWatch and session/credential repository transports; no live SDK sends."
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -942,17 +951,26 @@
       "entryPoints": [
         "scripts/verify-education-reserve.ts"
       ],
-      "steps": [],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "scripts/verify-education-reserve.ts"
+          ]
+        }
+      ],
       "domains": [
         "general"
       ],
       "contracts": [
         "docs/local-testing.md"
       ],
-      "effect": "unreviewed",
-      "auditFiles": [],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "scripts/verify-education-reserve.ts"
+      ],
       "requirements": [
-        "effect review; use the owning procedure"
+        "Pure calculations/validation; injected authorization rejects writes and unknown read route returns before repositories."
       ],
       "timeoutMs": 180000,
       "profiles": []
@@ -2756,6 +2774,35 @@
       "requirements": [],
       "timeoutMs": 180000,
       "profiles": []
+    },
+    {
+      "id": "verify:i18n-phase5",
+      "packageScript": "verify:i18n-phase5",
+      "command": "tsx apps/web/verify-i18n-phase5.ts",
+      "entryPoints": [
+        "apps/web/verify-i18n-phase5.ts"
+      ],
+      "steps": [
+        {
+          "tool": "tsx",
+          "args": [
+            "apps/web/verify-i18n-phase5.ts"
+          ]
+        }
+      ],
+      "domains": [
+        "i18n"
+      ],
+      "contracts": [
+        "docs/specs/ui-internationalization.md"
+      ],
+      "effect": "local-fixture",
+      "auditFiles": [
+        "apps/web/verify-i18n-phase5.ts"
+      ],
+      "requirements": [],
+      "timeoutMs": 180000,
+      "profiles": []
     }
   ],
   "auditFiles": {
@@ -2776,9 +2823,9 @@
     "apps/api/src/db/resilientFetch.ts": "d19a181d213f375d33ddc2af3c8d78831a6be93f8298f10d131c599a1594a0ad",
     "apps/api/src/db/supabaseServer.ts": "abf328bb997182fceafaa36cb832674a67ff3da00ef571c042cf847326f5892a",
     "apps/api/src/handlers/lambda.ts": "6104088b41dde7bb009626428d2b6d0f257a5db3f7da5da3a464c8aec2850952",
-    "apps/api/src/providers/EastMoneyInstrumentQuoteProvider.ts": "8365f7bc1dcd8b846c394bb0e7970072da60bbd2b96dd511e4f7826a57c5de13",
+    "apps/api/src/providers/EastMoneyInstrumentQuoteProvider.ts": "55323c0d383243e64d4f3fb7cc8ff4b5717aa1fb00829a963eb777e1c50dd8d9",
     "apps/api/src/providers/IInstrumentQuoteProvider.ts": "f25efe9b5cb6498b6339524bb260a0307d0417fb998d6169eec4d3cb9d5207bf",
-    "apps/api/src/providers/YahooFinanceInstrumentQuoteProvider.ts": "4799c9b8e3ccb86a656717e04d5cfe29fb22166cc48411f27f09cf465c92451e",
+    "apps/api/src/providers/YahooFinanceInstrumentQuoteProvider.ts": "e936248d9e73f5f472ba5da5ffe3aae38c6362223fa4c5548cf26b95fb4c90f3",
     "apps/api/src/repositories/accountAccessRepository.ts": "dabc23bfb78392d7f9aa1f005a446ef0db28ff933772253008f1c9b536bdb0a3",
     "apps/api/src/repositories/accountRepository.ts": "26fd49d67a25485924ec50875096537e1f637f946ba50d56de4576d30d39febb",
     "apps/api/src/repositories/apiErrorRepository.ts": "9515ea22a4ea9eb1ce8bc48df65f5889e8e1a3d37aaedc0d50c30d21ff4ef69c",
@@ -2814,7 +2861,7 @@
     "apps/api/src/services/apiErrorTrackingService.ts": "9d26bba6a9f3c4b2373eb79183f7b04f80ca6ff6a2eaccf0ed3d6ce3660c2f3f",
     "apps/api/src/services/atomicTransactionWriteService.ts": "f44e109c18e9bc2e4b79a66f7b55e2d110aae6acb749fbce831f8c02cefac72b",
     "apps/api/src/services/authService.ts": "5e7f50e26f40ff374464bedd6be88349f034b7336703a3011beaeea8c552eef2",
-    "apps/api/src/services/dashboardService.ts": "e4ccad2f2f672f77e5aa5b170a2a4b7a504292f6310a8f073645995d407b61f8",
+    "apps/api/src/services/dashboardService.ts": "60953c937cb6d8f82c2d5c0a5ce803ed222b14fa04c538e77caebcd7bd787c2f",
     "apps/api/src/services/dataMaintenanceService.ts": "8eebb94ee239f172e7aef156d987de4cbb80e369bf7e8c7d0db53655686a92c1",
     "apps/api/src/services/educationReserveService.ts": "9f67f2680a94793b710bbe0affba68ada79ea630996e0166ff96b9b23b552621",
     "apps/api/src/services/historyCache.ts": "827f740aded49aa9148b7b16b7668ef79fef3bef3516380306bff38afa883b00",
@@ -2965,7 +3012,7 @@
     "scripts/verify-verification-tooling.ts": "ba4f06d414304cd157947a3dce819999c7b383f306fc10310d934f1b92d16dab",
     "tsconfig.deployment.json": "ffe1db6d12a02433a99dde76af8ad1d2baec26782c5dc57cc3dce5c8f18a21da",
     "tsconfig.verification.json": "b1d2581d9582aaefee21595301eeedbe26ce0ad433bf4d22c81153157dd42fda",
-    "package.json": "6cdc9c42085757f140c786a64213a0573bf0f7819b9541154a004a7680b43e8f",
+    "package.json": "d7492a2ee9fc0cb1880882ff8fa412d0eac75cf405cf9f4573101e3c03de2960",
     "apps/api/package.json": "0282f75bd8944ce8948b76a38c292e62bfada6e179a39a900754ad82d1006e05",
     "apps/jobs/package.json": "4834d1a6ef1e567eb244607e97356d7031c046e16068588fe926b3effaa89ba1",
     "apps/web/package.json": "d9c61d3c459554ef42627a44fe4cc544aef379fd84ff59e56ea977344053f571",
@@ -3029,24 +3076,24 @@
     "apps/web/src/lib/investmentGroupsClient.ts": "b97b2230d3ae311a45c666b88e21c9e6844b13836e35076abafd8adbd2391ff7",
     "scripts/verify-instrument-active.ts": "a989141c5855395de7df3ccba7dca1e694aeb441db82e3f9016125bdbc0b3d2c",
     "apps/web/src/components/investments/InvestmentGroupEditor.tsx": "9cba201f90d7ae28c7494a43c34ef35420b204008330db666a49faf3631ad3b0",
-    "apps/web/verify-i18n.ts": "8b13cbe4b8d745116e05a2715d6dcd2c6a4d462cb347257354157aa3c82377e6",
-    "apps/web/src/i18n/language.ts": "4d358c989191d833d11a4ee31321ad5603ff126f8d45d9b45e846eae931d3fba",
+    "apps/web/verify-i18n.ts": "6a4b591e44a8625b26af9c7a23560204b0bfec8a54f4eadc3b610e8509ae58e4",
+    "apps/web/src/i18n/language.ts": "82db6cf365c8a67f69d91dbbcc02f0a0f8494b4190eeff6de260ccb1d4634887",
     "apps/web/verify-i18n-resources.ts": "44f2aa8ca546c6308044cc777a2088b13b8dd8dc1e3b92d7b29c30c1969dc3e2",
     "apps/web/src/i18n/resourceValidation.ts": "528d3880437ebba4fb95a5b25ba549baa610d954d7f17599238f4d5b0c122d9c",
     "apps/web/src/i18n/resources.ts": "02001d82ea6e10e502ccd8ea22c0814b771ce24b7235508ee96759f237666360",
-    "apps/web/src/i18n/resources/en/common.ts": "42030d3a144d7b78730081c9ae288d80dfb186054f97856379a56bb886777e1d",
-    "apps/web/src/i18n/resources/zh-CN/common.ts": "5b77acf571d7940e044f8486c3d31f0254b9b4da8f62551c8b456db44ab208e0",
+    "apps/web/src/i18n/resources/en/common.ts": "b99104be9d913d897e61c9fe06c3c86d3600f9ad2ae9d6cab24647240e8c7651",
+    "apps/web/src/i18n/resources/zh-CN/common.ts": "9ac912e08c386dc4c31f3b62f1af24a320702922e2ad517fcf459bf05544e6a5",
     "apps/web/src/i18n/resources/en/format.ts": "f00e569869d9966872c823ea129dfe49733cb5942d1bc82ad7c66dd05f9d98d0",
     "apps/web/src/i18n/resources/zh-CN/format.ts": "93796c71a9d972d636d9debf365a787df152541a65a4b9d7bc8ef4ba48142813",
-    "apps/web/src/i18n/resources/en/preview.ts": "0234ef1e4ee6790440085f8fa66938cb5279c866686d2859d2b6096deda43daa",
-    "apps/web/src/i18n/resources/zh-CN/preview.ts": "61d473512db88f42c91acf3b18707e8ab0cc7f44a25a7b96faf75660369d8d56",
-    "apps/web/src/i18n/instance.ts": "e1248e8f624dd338490454a8e8a2597fba98273c627dd11fa4c9aa272baf97aa",
-    "apps/web/verify-i18n-client.ts": "adca354cf0154d88ee890ab3dd838d0d32acd0d558fc0ffc10a2ada42a5477cd",
+    "apps/web/src/i18n/resources/en/preview.ts": "a11be66f6b1020697e2604ba9d5fe6580dbd1ecb76affb89c2408557a77d4d15",
+    "apps/web/src/i18n/resources/zh-CN/preview.ts": "ff1603674e217164b1940a8e3ab611e868d370fe84171a09a57dbcd0cdf1a417",
+    "apps/web/src/i18n/instance.ts": "892429a758f9a2f35aa65340ad48cb3e2c9fb42d942f8bf9455e4471b974eb9b",
+    "apps/web/verify-i18n-client.ts": "6fb7a92ce2b736e89ceeaded3484bb331ab144323bf5f2efd7ecab5cb28be9d9",
     "apps/web/src/i18n/LanguageProvider.tsx": "e5a8fe7d50afb4535cb4068cc92eb3935bca5c3827673bf5ba89e82dec122da0",
     "apps/web/src/main.tsx": "0802d8e3254c553e4b6214f2265bed4d6e01152ce9f414d04e7ef067f9a5c595",
-    "apps/web/src/i18n/DevelopmentLanguagePreview.tsx": "93857547e3a2d462c8746e3a6935bdb8c4a64226a977fd2872a48168436b2321",
+    "apps/web/src/i18n/DevelopmentLanguagePreview.tsx": "f61d3452e4568d7371f8c961421fcfcf26f2e58531c95956aacb7ed55aba7ee7",
     "apps/web/verify-i18n-phase2.ts": "79d11f68b69e1244e608ac6c95987c68f31d1ef788433c726d6d3ccc84ae3d7d",
-    "apps/web/verify-i18n-phase2-client.ts": "b3d0d0f1dd5b41eb2ebe1ec5986b771da02a5ad09d09aaef77a03bea668a4d1c",
+    "apps/web/verify-i18n-phase2-client.ts": "b205ed9d0709b31bd2fa91e03edccbe413477c6d1045f5dfa4f45e7d4142227f",
     "apps/web/src/i18n/resources/zh-CN/auth.ts": "12d100d13434241d2fd56757e091e6fcf400b656290e6f3c41df15f460d99d87",
     "apps/web/src/i18n/resources/zh-CN/navigation.ts": "638787ce65bde8affb0c15086efb310f563ec500086105dae6dc5a7fde5d5d9d",
     "apps/web/src/i18n/resources/zh-CN/errors.ts": "76ce0c21f2d46746c38363304297da6a902bd2555ce043e956d5b07f4f2e0e61",
@@ -3056,7 +3103,7 @@
     "apps/web/src/i18n/resources/en/errors.ts": "eaabd74e420039608a088827148dbcf00c7dd3cf80ec54266425661be5f58358",
     "apps/web/src/i18n/resources/en/investmentGroups.ts": "31cca7d47a7093b25d9370709f1535a7bc5a768b0c56e35d70031658bfb285a4",
     "apps/web/src/components/BrandName.tsx": "7889ced1ce0f99e7685549b03f021883ccd243eb8854c68a54fb1a4161db1357",
-    "apps/web/src/components/LanguageSwitch.tsx": "39919175d150510192a058120e6e26078a2428b61fe632c31fe5875940616fec",
+    "apps/web/src/components/LanguageSwitch.tsx": "253bd8186d65959fe3c7891c82ed469d6255895bd9d602fc61f5b2b93fd5fca1",
     "apps/web/src/components/ConfirmationDialog.tsx": "24f97d468fd71925b7a16390fe2015714b39b0e495beb5beb89afd20822eb508",
     "apps/web/src/components/Drawer.tsx": "81e1c9a44c18317843e125900a2fa8fdc9a67f426a39ee3541ed300e5e0efd6d",
     "apps/web/src/components/StartupFailure.tsx": "48fa9c9ef8582f1e77c04b56b90ae8f19d100a0bbc088ea0057d87f92033a018",
@@ -3088,15 +3135,18 @@
     "scripts/verify-account-trading-passwords.ts": "c43900f04c440888a5b10c331cf714806f9db19bc761b5666cf819b3e68c1480",
     "apps/web/verify-i18n-phase3-state.ts": "8cefdbd00db0c723153e8781e0ea23e3312c4e2314e8fd5fe19e7a404b6242de",
     "apps/web/src/pages/AccountsPage.tsx": "e8a1181e1550c8dcef8c7cb5e5c9e6c4f898c8af740bf1b6c4a5c3473f34a0e7",
-    "apps/web/src/styles.css": "3f371f7b767852ae0f269c89409042e50ae2b6b9bf6b2f3492fb4a9fe9d4d76c",
+    "apps/web/src/styles.css": "86e06bd74876e78ef4c68dd0aa08b380de59a354e4084c4004d37a972c136630",
     "apps/web/src/i18n/investmentWarnings.ts": "49d8c24a31d7f71a180bcbc0e9bb872a3b66d77d5f46965cda4623bc41ed2264",
-    "apps/web/src/fixtures/I18nPhase3Fixture.tsx": "6d8e927b0348bd4033148ebda0c3c1301a8ddeb364462954e5bba56e72f69e58",
+    "apps/web/src/fixtures/I18nPhase3Fixture.tsx": "e1e6fbf7d93dcef68af907cddef3e8981dd98a4c200c94eff843a0d98a1f042f",
     "apps/web/src/fixtures/i18n-phase3.css": "326759b13944ebf9f6e2da6c450fb244a14c83482414de7232eb6685bc7e793a",
     "apps/web/fixtures/i18n-phase3.html": "a35b1c2fc9a1aa2722b36daf6812f53d55117519167f0454f2fd1e6a88d9966c",
     "apps/web/verify-i18n-phase4-client.ts": "fb7957ff0e9ec98f11341b4ea08f5750f489551d51f8d9b4986bf633f808421a",
     "apps/web/verify-i18n-phase4.ts": "0506f6ad0fe80fd2912a1de4c32f54173bb747d5017ef773fe6ada79a1435fff",
     "apps/web/verify-i18n-phase4-cashflow.ts": "4db95bd96784cecf9e1bf6adf5b3df70f2a05646aaa28552560a64d731904394",
-    "packages/shared/src/workflowErrorDetails.ts": "4ac37c35883893d7cbaf7bafb21efbd02d7bbdbd94d17a9b909966b76db7c004"
+    "packages/shared/src/workflowErrorDetails.ts": "4ac37c35883893d7cbaf7bafb21efbd02d7bbdbd94d17a9b909966b76db7c004",
+    "apps/web/verify-i18n-phase5.ts": "9038cd91eb8d6ec557ea20c464e6506c6780162f14312e3b4420f672ca6495e3",
+    "scripts/verify-education-reserve.ts": "887e82e567f702560ae7003c64cf298d00f012bb055654e5b1dea7b471bb2cde",
+    "scripts/verify-api-error-logging.ts": "9e4cbdde7dc2d68e318fb161f05f64dd1ee59a251355da92c4ca9cc937082b39"
   },
   "auditScopes": [
     "apps/api/src",

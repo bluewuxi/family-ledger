@@ -121,7 +121,26 @@ for(const role of ['admin','viewer']) {
 console.log('Direct group entry loading/failure and viewer denial preserve route, omit incomplete members and issue no configuration requests');
 
 const productionBundle=await build({stdin:{contents:source,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',define:{'import.meta.env':JSON.stringify({DEV:false})},external:['react','react/jsx-runtime','react-dom/server','react-router-dom']});
-const production={exports:{} as typeof module.exports};let storageReads=0;
-new Function('module','exports','require','window','fetch',productionBundle.outputFiles[0].text)(production,production.exports,require,{location:{hostname:'localhost'},localStorage:{getItem:()=>{storageReads++;return 'en';},setItem:()=>{throw Error('Public build must not persist language switches');}}},()=>{throw Error('Unexpected public-render transport');});
-await production.exports.initializeI18n();const publicHtml=production.exports.render();assert(publicHtml.includes('登录'));assert(!publicHtml.includes('class="language-switch"'));assert.equal(storageReads,0);await production.exports.setUiLanguage('en');assert.equal(production.exports.render(),publicHtml);
-console.log('Production real-component render ignores stored English, rejects English switches and renders no language controls');
+const production = { exports: {} as typeof module.exports };
+let stored = "en";
+let storageReads = 0;
+new Function("module", "exports", "require", "window", "fetch", productionBundle.outputFiles[0].text)(
+  production, production.exports, require,
+  { location: { hostname: "example.com" }, localStorage: {
+    getItem: () => { storageReads++; return stored; },
+    setItem: (_key: string, value: string) => { stored = value; }
+  } },
+  () => { throw Error("Unexpected public-render transport"); }
+);
+await production.exports.initializeI18n();
+const publicHtml = production.exports.render();
+assert(publicHtml.includes("Log in"));
+assert(publicHtml.includes('class="language-switch"'));
+assert.equal(storageReads, 1);
+await production.exports.setUiLanguage("zh-CN");
+assert(production.exports.render().includes("登录"));
+assert.equal(stored, "zh-CN");
+await production.exports.setUiLanguage("en");
+assert.equal(stored, "en");
+assert.equal(production.exports.render(), publicHtml);
+console.log("Production real-component render honors saved language and persists both switches without network requests.");

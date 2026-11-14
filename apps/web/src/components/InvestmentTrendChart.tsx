@@ -366,10 +366,11 @@ function TrendHoverTooltip({ active, payload, label, dates, profit }: { active?:
   if (!active || typeof label !== "string" || !dates.has(label)) return null;
   const point = payload?.[0]?.payload as { value?: number | null; totalInvestment?: number | null; snapshotDate?: string } | undefined;
   if (!point || point.value == null) return null;
+  const separator = language === "zh-CN" ? "：" : ": ";
   return <div style={{ ...chartTooltipContentStyle, padding: "10px 12px" }}>
     <div style={chartTooltipLabelStyle}>{formatCalendarDate(label.replace("__live_endpoint__", ""), "-", language)}{label.startsWith("__live_endpoint__") ? copy("liveSuffix", language) : ""}</div>
     {point.snapshotDate && point.snapshotDate !== label ? <div>{copy("carried", language, {date:formatCalendarDate(point.snapshotDate, "-", language)})}</div> : null}
-    <div style={chartTooltipItemStyle}>{profit ? copy("periodProfit", language) : copy("netAssets", language)}：{profit ? formatSignedTooltipMoney(point.value, language) : formatTooltipMoney(point.value, language)}</div>
-    {!profit && point.totalInvestment != null ? <div>{copy("netInvestment", language)}: {formatTooltipMoney(point.totalInvestment, language)}</div> : null}
+    <div style={chartTooltipItemStyle}>{profit ? copy("periodProfit", language) : copy("netAssets", language)}{separator}{profit ? formatSignedTooltipMoney(point.value, language) : formatTooltipMoney(point.value, language)}</div>
+    {!profit && point.totalInvestment != null ? <div>{copy("netInvestment", language)}{separator}{formatTooltipMoney(point.totalInvestment, language)}</div> : null}
   </div>;
 }
